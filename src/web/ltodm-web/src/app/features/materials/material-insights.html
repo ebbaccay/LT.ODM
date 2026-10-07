@@ -1,0 +1,254 @@
+@let f = filter();
+@let l = lookups();
+<!-- Filters for this view -->
+<div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+  @if (view() === 'trims') {
+    <hlm-native-select selectId="ins-pt" selectClass="h-11 w-full lg:h-9 sm:w-56" [attr.aria-label]="'materials.ins.productType' | transloco" [value]="f.productType ?? ''" (valueChange)="setFilter('productType', $event ?? '')">
+      @for (o of l?.productTypes ?? []; track o.code) {
+        <option hlmNativeSelectOption [value]="o.code" [selected]="o.code === f.productType">{{ o.code === o.name ? o.code : o.name }}</option>
+      }
+    </hlm-native-select>
+  }
+  @if (view() !== 'duplicates') {
+    <hlm-native-select selectId="ins-customer" selectClass="h-11 w-full lg:h-9 sm:w-44" [attr.aria-label]="'styles.allCustomers' | transloco" [value]="f.customer ?? ''" (valueChange)="setFilter('customer', $event ?? '')">
+      <option hlmNativeSelectOption value="">{{ 'styles.allCustomers' | transloco }}</option>
+      @for (o of l?.customers ?? []; track o.code) {
+        <option hlmNativeSelectOption [value]="o.code">{{ o.name }}</option>
+      }
+    </hlm-native-select>
+  }
+  @if (view() === 'trims' || view() === 'suppliers' || view() === 'colours') {
+    <hlm-native-select selectId="ins-season" selectClass="h-11 w-full lg:h-9 sm:w-44" [attr.aria-label]="'styles.allSeasons' | transloco" [value]="f.season ?? ''" (valueChange)="setFilter('season', $event ?? '')">
+      <option hlmNativeSelectOption value="">{{ 'styles.allSeasons' | transloco }}</option>
+      @for (o of l?.seasons ?? []; track o.code) {
+        <option hlmNativeSelectOption [value]="o.code">{{ o.code }}</option>
+      }
+    </hlm-native-select>
+  }
+  @if (view() === 'suppliers' || view() === 'duplicates' || view() === 'colours') {
+    <hlm-native-select selectId="ins-cc" selectClass="h-11 w-full lg:h-9 sm:w-44" [attr.aria-label]="'materials.allContentClasses' | transloco" [value]="f.contentClass ?? ''" (valueChange)="setFilter('contentClass', $event ?? '')">
+      <option hlmNativeSelectOption value="">{{ 'materials.allContentClasses' | transloco }}</option>
+      @for (o of l?.contentClasses ?? []; track o.code) {
+        <option hlmNativeSelectOption [value]="o.code">{{ o.name }}</option>
+      }
+    </hlm-native-select>
+  }
+</div>
+<p class="text-muted-foreground text-sm">{{ 'materials.ins.hint.' + view() | transloco }}</p>
+
+@if (loading()) {
+  <div hlmSkeleton class="h-28 w-full"></div>
+  <div hlmSkeleton class="h-80 w-full"></div>
+} @else {
+  @switch (view()) {
+    @case ('trims') {
+      @if (trims(); as t) {
+        <section hlmCard class="gap-0 py-0">
+          <div class="flex flex-wrap items-baseline justify-between gap-2 border-b px-5 py-3">
+            <h2 class="font-semibold">{{ 'materials.ins.byType' | transloco }}</h2>
+            <span class="text-muted-foreground text-xs">{{ 'materials.ins.stylesWithBom' | transloco: { count: t.stylesWithBom } }}</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-muted-foreground text-left text-xs tracking-wide uppercase">
+                <tr class="border-b">
+                  <th class="px-5 py-2 font-medium">{{ 'materials.colType' | transloco }}</th>
+                  <th class="px-3 py-2 text-right font-medium">{{ 'materials.ins.usedOn' | transloco }}</th>
+                  <th class="px-3 py-2 text-right font-medium">{{ 'materials.ins.differentMaterials' | transloco }}</th>
+                  <th class="px-3 py-2 text-right font-medium">{{ 'materials.ins.oneOffs' | transloco }}</th>
+                  <th class="px-5 py-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y">
+                @for (x of t.types; track x.materialTypeCode ?? '-') {
+                  <tr>
+                    <td class="px-5 py-2">{{ x.materialTypeName || x.materialTypeCode || ('materials.ins.noType' | transloco) }} <span class="text-muted-foreground text-xs">{{ x.contentClassCode }}</span></td>
+                    <td class="px-3 py-2 text-right tabular-nums">{{ ratio(x.styles, t.stylesWithBom) | percent }}</td>
+                    <td class="px-3 py-2 text-right font-medium tabular-nums">{{ x.materials }}</td>
+                    <td class="px-3 py-2 text-right tabular-nums">{{ x.oneOffs }}</td>
+                    <td class="px-5 py-2">
+                      @if (consolidate(x)) {
+                        <span class="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">{{ 'materials.ins.consolidate' | transloco }}</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        @for (b of trimBands(); track b.band) {
+          @if (b.items.length) {
+            <section hlmCard class="gap-0 py-0">
+              <div class="border-b px-5 py-3">
+                <h2 class="font-semibold">{{ 'materials.ins.band.' + b.band | transloco }} <span class="text-muted-foreground text-sm font-normal">({{ b.items.length }})</span></h2>
+                <p class="text-muted-foreground text-xs">{{ 'materials.ins.bandHint.' + b.band | transloco }}</p>
+              </div>
+              <ul class="divide-y" role="list">
+                @for (m of b.items; track m.materialId) {
+                  <li>
+                    <a [routerLink]="['/materials', m.materialId]" class="hover:bg-accent/40 grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-4 px-5 py-2.5 sm:grid-cols-[minmax(0,1fr)_10rem_8rem]">
+                      <span class="min-w-0">
+                        <span class="block truncate font-mono text-sm">{{ m.materialCode }}</span>
+                        <span class="text-muted-foreground block truncate text-xs">{{ m.materialTypeName || m.materialTypeCode }} · {{ m.description }}</span>
+                      </span>
+                      <span class="flex items-center gap-2">
+                        <span class="bg-muted h-2 flex-1 overflow-hidden rounded-full"><span class="bg-primary block h-full rounded-full" [style.width.%]="m.share * 100"></span></span>
+                        <span class="w-10 text-right text-xs tabular-nums">{{ m.share | percent }}</span>
+                      </span>
+                      <span class="text-muted-foreground hidden text-right text-xs sm:block">{{ 'materials.ins.medianUse' | transloco: { value: num(m.median), uom: m.uomCode ?? '' } }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+        }
+      }
+    }
+
+    @case ('suppliers') {
+      @if (suppliers(); as s) {
+        <dl class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          @for (k of [
+            { label: 'materials.ins.suppliersCount', value: s.totals.suppliers, warn: false },
+            { label: 'materials.ins.singleSource', value: s.totals.singleSource, warn: false },
+            { label: 'materials.ins.multiSource', value: s.totals.multiSource, warn: false },
+            { label: 'materials.ins.noSupplierLines', value: s.totals.linesWithoutSupplier, warn: s.totals.linesWithoutSupplier > 0 }
+          ]; track k.label) {
+            <div hlmCard class="gap-1 p-4">
+              <dt class="text-muted-foreground text-xs">{{ k.label | transloco }}</dt>
+              <dd class="text-2xl font-semibold tabular-nums" [class.text-amber-600]="k.warn">{{ k.value | number }}</dd>
+            </div>
+          }
+        </dl>
+        <p class="text-muted-foreground text-xs">{{ 'materials.ins.supplierScope' | transloco: { styles: (s.totals.styles | number), materials: (s.totals.materials | number), lines: (s.totals.lines | number) } }}</p>
+        <section hlmCard class="gap-0 py-0">
+          <ul class="divide-y" role="list">
+            @for (x of s.suppliers; track x.supplierCode) {
+              <li class="grid grid-cols-[minmax(0,1fr)_7rem] items-center gap-4 px-5 py-2.5 sm:grid-cols-[minmax(0,1fr)_12rem_10rem]">
+                <span class="min-w-0">
+                  <a class="text-primary block truncate text-sm underline-offset-2 hover:underline" routerLink="/materials" [queryParams]="{ view: null, supplier: x.supplierCode }">{{ x.supplierName || x.supplierCode }}</a>
+                  <span class="text-muted-foreground block text-xs">{{ x.supplierCode }}</span>
+                </span>
+                <span class="flex items-center gap-2">
+                  <span class="bg-muted h-2 flex-1 overflow-hidden rounded-full"><span class="bg-primary block h-full rounded-full" [style.width.%]="(x.share / supplierMax()) * 100"></span></span>
+                  <span class="w-10 text-right text-xs tabular-nums">{{ x.share | percent }}</span>
+                </span>
+                <span class="text-muted-foreground hidden text-right text-xs sm:block">
+                  {{ 'materials.ins.supplierRow' | transloco: { styles: x.styles, materials: x.materials } }}
+                  @if (x.onlySource) {
+                    <span class="block text-amber-700 dark:text-amber-400">{{ 'materials.ins.onlySource' | transloco: { count: x.onlySource } }}</span>
+                  }
+                </span>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    }
+
+    @case ('duplicates') {
+      @if (duplicates(); as d) {
+        <p class="text-sm">{{ 'materials.ins.dupTotals' | transloco: { groups: (d.totalGroups | number), materials: (d.totalMaterials | number) } }}</p>
+        <div class="grid gap-3 lg:grid-cols-2">
+          @for (g of d.groups; track g.groupNo) {
+            <section hlmCard class="gap-2 p-4">
+              <p class="line-clamp-2 text-sm font-medium" [title]="g.members[0].description ?? ''">{{ g.members[0].description }}</p>
+              <p class="text-muted-foreground text-xs">{{ 'materials.ins.dupGroup' | transloco: { count: g.members.length, styles: g.styles } }}</p>
+              <ul class="flex flex-wrap gap-1.5" role="list">
+                @for (m of g.members; track m.materialId) {
+                  <li>
+                    <a [routerLink]="['/materials', m.materialId]" class="hover:bg-accent inline-flex items-baseline gap-1.5 rounded-md border px-2 py-1 font-mono text-xs">
+                      {{ m.materialCode }}<span class="text-muted-foreground font-sans">{{ m.styles }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+        </div>
+        @if (d.totalGroups > d.groups.length) {
+          <p class="text-muted-foreground text-center text-xs">{{ 'materials.ins.dupFirst' | transloco: { shown: d.groups.length, total: (d.totalGroups | number) } }}</p>
+        }
+      }
+    }
+
+    @case ('recycled') {
+      @if (recycled(); as r) {
+        <section hlmCard class="gap-4 p-5">
+          <h2 class="font-semibold">{{ 'materials.ins.bySeason' | transloco }}</h2>
+          <ul class="flex flex-col gap-3" role="list">
+            @for (x of r.seasons; track x.key) {
+              <li class="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-3 text-sm">
+                <span class="font-medium">{{ x.key }}</span>
+                <span class="bg-muted h-3 overflow-hidden rounded-full" role="img" [attr.aria-label]="'materials.ins.recycledLines' | transloco: { pct: (ratio(x.recycledLines, x.fabricLines) | percent) }">
+                  <span class="block h-full rounded-full bg-emerald-500" [style.width.%]="ratio(x.recycledLines, x.fabricLines) * 100"></span>
+                </span>
+                <span class="text-muted-foreground text-right text-xs tabular-nums">
+                  <strong class="text-foreground">{{ ratio(x.recycledLines, x.fabricLines) | percent }}</strong> {{ 'materials.ins.ofFabricLines' | transloco }}
+                  <span class="block">{{ 'materials.ins.allRecycledStyles' | transloco: { count: x.allRecycled, styles: x.styles } }}</span>
+                </span>
+              </li>
+            }
+          </ul>
+        </section>
+        <section hlmCard class="gap-0 py-0">
+          <h2 class="border-b px-5 py-3 font-semibold">{{ 'materials.ins.byProductType' | transloco }}</h2>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-muted-foreground text-left text-xs tracking-wide uppercase">
+                <tr class="border-b">
+                  <th class="px-5 py-2 font-medium">{{ 'materials.colProductType' | transloco }}</th>
+                  <th class="px-3 py-2 text-right font-medium">{{ 'materials.colStyles' | transloco }}</th>
+                  <th class="px-3 py-2 text-right font-medium">{{ 'materials.ins.allRecycled' | transloco }}</th>
+                  <th class="px-3 py-2 text-right font-medium">{{ 'materials.ins.someRecycled' | transloco }}</th>
+                  <th class="px-5 py-2 text-right font-medium">{{ 'materials.ins.recycledFabricLines' | transloco }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y">
+                @for (x of r.productTypes; track x.key ?? '-') {
+                  <tr>
+                    <td class="px-5 py-2">{{ x.name || x.key || ('materials.noProductType' | transloco) }}</td>
+                    <td class="px-3 py-2 text-right tabular-nums">{{ x.styles }}</td>
+                    <td class="px-3 py-2 text-right tabular-nums">{{ ratio(x.allRecycled, x.styles) | percent }}</td>
+                    <td class="px-3 py-2 text-right tabular-nums">{{ ratio(x.someRecycled, x.styles) | percent }}</td>
+                    <td class="px-5 py-2 text-right tabular-nums">{{ ratio(x.recycledLines, x.fabricLines) | percent }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <p class="text-muted-foreground text-xs">{{ 'materials.ins.recycledRule' | transloco }}</p>
+      }
+    }
+
+    @case ('colours') {
+      @if (colours(); as c) {
+        <section hlmCard class="gap-0 py-0">
+          <ul class="divide-y" role="list">
+            @for (x of c; track x.colour) {
+              <li class="grid grid-cols-[minmax(0,1fr)_7rem] items-center gap-4 px-5 py-2.5 sm:grid-cols-[minmax(0,1fr)_12rem_14rem]">
+                <span class="min-w-0 truncate text-sm font-medium">
+                  {{ x.colour }}
+                  @if (x.codes > 1) {
+                    <span class="ml-1 rounded bg-violet-500/15 px-1.5 py-0.5 text-[11px] font-normal text-violet-700 dark:text-violet-400">{{ 'materials.ins.codes' | transloco: { count: x.codes } }}</span>
+                  }
+                </span>
+                <span class="flex items-center gap-2">
+                  <span class="bg-muted h-2 flex-1 overflow-hidden rounded-full"><span class="bg-primary block h-full rounded-full" [style.width.%]="(x.colorways / colourMax()) * 100"></span></span>
+                  <span class="w-10 text-right text-xs tabular-nums">{{ x.colorways }}</span>
+                </span>
+                <span class="text-muted-foreground hidden text-right text-xs sm:block">{{ 'materials.ins.colourRow' | transloco: { styles: x.styles, materials: x.materials, seasons: x.seasons } }}</span>
+              </li>
+            } @empty {
+              <li class="text-muted-foreground px-5 py-8 text-center text-sm">{{ 'materials.noColours' | transloco }}</li>
+            }
+          </ul>
+        </section>
+      }
+    }
+  }
+}

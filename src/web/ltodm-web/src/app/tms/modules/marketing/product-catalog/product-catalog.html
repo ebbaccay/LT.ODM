@@ -1,0 +1,168 @@
+<section class="flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div class="min-w-0">
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'nav.productMatching' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'catalog.subtitle' | transloco }}</p>
+    </div>
+  </header>
+
+  <section hlmCard class="gap-4 overflow-visible px-5 py-4">
+    <app-concept-picker
+      [concepts]="concepts()"
+      [loaded]="conceptsLoaded()"
+      [selected]="selectedConceptRecid()"
+      [label]="'mo.conceptLabel' | transloco"
+      [placeholder]="'mo.searchConceptsPlaceholder' | transloco"
+      [emptyText]="'mo.noSavedConcepts' | transloco"
+      [noMatchText]="'common.noMatches' | transloco"
+      (selectedChange)="selectConcept($event)"
+    />
+    @if (selectedConcept(); as c) {
+      <div class="flex flex-col gap-2">
+        <div class="flex flex-wrap items-center gap-1.5 text-sm">
+          @for (v of [c.customer, c.season, c.target_market]; track $index) {
+            @if (v) {
+              <span hlmBadge variant="secondary">{{ v }}</span>
+            }
+          }
+          @if (c.fob_price) {
+            <span class="text-muted-foreground ml-1">{{ 'mo.targetFob' | transloco }} <strong class="text-foreground tabular-nums">${{ c.fob_price }}</strong></span>
+          }
+        </div>
+        @if (c.concept_brief) {
+          <p class="text-muted-foreground line-clamp-2 text-sm">{{ c.concept_brief }}</p>
+        }
+      </div>
+    }
+    <dl class="grid grid-cols-3 gap-2 text-center sm:max-w-md">
+      <div class="bg-muted/50 rounded-lg px-3 py-2">
+        <dt class="text-muted-foreground text-xs">{{ 'catalog.statProducts' | transloco }}</dt>
+        <dd class="text-lg font-semibold tabular-nums">{{ products().length }}</dd>
+      </div>
+      <div class="bg-muted/50 rounded-lg px-3 py-2">
+        <dt class="text-muted-foreground text-xs">{{ 'catalog.statOffered' | transloco }}</dt>
+        <dd class="text-primary text-lg font-semibold tabular-nums">{{ offeredCount() }}</dd>
+      </div>
+      <div class="bg-muted/50 rounded-lg px-3 py-2">
+        <dt class="text-muted-foreground text-xs">{{ 'catalog.statAccepted' | transloco }}</dt>
+        <dd class="text-lg font-semibold text-emerald-600 tabular-nums dark:text-emerald-400">{{ acceptedCount() }}</dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- ── Filters ──────────────────────────────────────────── -->
+  <div class="flex flex-col gap-3">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <h2 class="flex items-center gap-2 font-semibold">
+        {{ 'catalog.listTitle' | transloco }}
+        <span hlmBadge variant="secondary">{{ visible().length }}</span>
+      </h2>
+      <div class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+        <label class="sr-only" for="pc-sort">{{ 'catalog.sortLabel' | transloco }}</label>
+        <hlm-native-select selectId="pc-sort" selectClass="h-11 lg:h-9" [value]="sortBy()" (valueChange)="sortBy.set($any($event))">
+          @for (o of sortOptions; track o) {
+            <option hlmNativeSelectOption [value]="o">{{ 'catalog.sort.' + o | transloco }}</option>
+          }
+        </hlm-native-select>
+        <label class="sr-only" for="pc-status">{{ 'catalog.statusLabel' | transloco }}</label>
+        <hlm-native-select selectId="pc-status" selectClass="h-11 lg:h-9" [value]="statusFilter()" (valueChange)="statusFilter.set($event ?? 'all')">
+          @for (s of statusOptions; track s) {
+            <option hlmNativeSelectOption [value]="s">
+              {{ s === 'all' ? ('catalog.allStatuses' | transloco) : s === 'not-offered' ? ('catalog.notOffered' | transloco) : ('mo.status.' + s.toLowerCase() | transloco) }}
+            </option>
+          }
+        </hlm-native-select>
+      </div>
+    </div>
+    <div class="flex gap-1 overflow-x-auto" role="tablist">
+      @for (cat of categories(); track cat) {
+        <button
+          type="button"
+          role="tab"
+          class="min-h-11 shrink-0 rounded-md px-3 text-sm font-medium transition-colors lg:min-h-8"
+          [class]="category() === cat ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
+          [attr.aria-selected]="category() === cat"
+          (click)="category.set(cat)"
+        >
+          {{ cat === 'All' ? ('common.all' | transloco) : cat }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ── Products ─────────────────────────────────────────── -->
+  @if (productsPending() > 0) {
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      @for (i of [1, 2, 3]; track i) {
+        <div hlmSkeleton class="h-80 rounded-xl"></div>
+      }
+    </div>
+  } @else if (!visible().length) {
+    <section hlmCard class="items-center gap-3 px-5 py-14 text-center">
+      <p class="font-medium">{{ 'catalog.noProducts' | transloco }}</p>
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="resetFilters()">{{ 'catalog.resetFilters' | transloco }}</button>
+    </section>
+  } @else {
+    <ul class="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" role="list">
+      @for (p of visible(); track p.id) {
+        <li hlmCard class="min-w-0 gap-0 py-0">
+          <div class="bg-muted text-muted-foreground relative flex aspect-[16/10] items-center justify-center overflow-hidden">
+            @if (p.imageUrl) {
+              <img [appAuthSrc]="p.imageUrl" [alt]="p.name" class="size-full object-cover" loading="lazy" (loadError)="p.imageUrl = ''" />
+            } @else {
+              <ng-icon name="lucideImage" class="text-3xl opacity-50" />
+            }
+            @if (selectedConcept()) {
+              <span class="absolute top-2 left-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" [class]="toneBadge(scoreTone(p.score))">
+                <ng-icon name="lucideSparkles" />{{ 'catalog.matchPct' | transloco: { score: p.score } }}
+              </span>
+            }
+            @if (p.source === 'gq') {
+              <span hlmBadge class="absolute top-2 right-2" [title]="'cb.gqSourceHint' | transloco">GQ</span>
+            }
+          </div>
+          <div class="flex flex-col gap-2 p-4">
+            <div class="min-w-0">
+              <h3 class="truncate font-semibold" [title]="p.name">{{ p.name }}</h3>
+              <p class="text-muted-foreground truncate text-xs">
+                <span class="font-mono">{{ p.styleCode }}</span> · {{ p.category }}
+              </p>
+              <p class="text-muted-foreground truncate text-xs">{{ p.sbu }}@if (p.country) { · {{ p.country }} }</p>
+            </div>
+            <p class="text-xl font-semibold tabular-nums">${{ p.fobPrice | number: '1.2-2' }} <span class="text-muted-foreground text-xs font-normal">FOB</span></p>
+            @if (p.reasons.length) {
+              <ul class="flex flex-wrap gap-1" [attr.aria-label]="'catalog.reasonsLabel' | transloco">
+                @for (r of p.reasons; track r) {
+                  <li class="bg-primary/8 text-primary rounded px-1.5 py-0.5 text-xs">{{ r }}</li>
+                }
+              </ul>
+            }
+            @if (p.costs.length) {
+              <dl class="grid grid-cols-[1fr_auto] gap-x-3 border-t pt-2 text-sm">
+                @for (line of p.costs; track $index) {
+                  <dt class="text-muted-foreground truncate">{{ line.item }}</dt>
+                  <dd class="text-right tabular-nums">${{ line.amount | number: '1.2-2' }}</dd>
+                }
+              </dl>
+            }
+          </div>
+          <div class="mt-auto flex items-center justify-between gap-2 border-t px-4 py-3">
+            @if (p.offerStatus; as st) {
+              <span class="rounded-full px-2 py-0.5 text-xs font-medium" [class]="toneBadge(statusTone(st))">{{ 'mo.status.' + st.toLowerCase() | transloco }}</span>
+              <span class="text-muted-foreground text-xs">{{ 'catalog.offeredForConcept' | transloco }}</span>
+            } @else {
+              <span class="text-muted-foreground text-xs">{{ 'catalog.notOffered' | transloco }}</span>
+              <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="!selectedConcept() || !!submittingId()" (click)="submitOffer(p)">
+                @if (submittingId() === p.id) {
+                  <hlm-spinner />{{ 'mo.submitting' | transloco }}
+                } @else {
+                  <ng-icon name="lucideSend" />{{ 'mo.submitOffer' | transloco }}
+                }
+              </button>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</section>

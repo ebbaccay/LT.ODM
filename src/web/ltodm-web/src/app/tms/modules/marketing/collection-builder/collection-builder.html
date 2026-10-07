@@ -1,0 +1,283 @@
+<section class="flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div class="min-w-0">
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'nav.collectionBuilder' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 text-sm" aria-live="polite">
+        @if (syncing()) {
+          {{ 'cb.syncingCollection' | transloco }}
+        } @else if (header()) {
+          {{ 'cb.inLineup' | transloco: { count: items().length, pool: pool().length } }}
+        } @else {
+          {{ 'cb.subtitle' | transloco }}
+        }
+      </p>
+    </div>
+    <button hlmBtn type="button" class="h-11 w-full sm:w-auto lg:h-9" [disabled]="!header() || syncing()" (click)="openPool()">
+      <ng-icon name="lucidePlus" />
+      {{ 'cb.addApprovedProduct' | transloco }}
+    </button>
+  </header>
+
+  <section hlmCard class="overflow-visible px-5 py-4">
+    <app-concept-picker
+      [concepts]="concepts()"
+      [loaded]="conceptsLoaded()"
+      [selected]="selectedConceptRecid()"
+      [label]="'cb.conceptLabel' | transloco"
+      [placeholder]="'cb.searchConceptPlaceholder' | transloco"
+      [emptyText]="'cb.noConceptsFound' | transloco"
+      [noMatchText]="'common.noMatches' | transloco"
+      (selectedChange)="selectConcept($event)"
+    />
+  </section>
+
+  @if (selectedConcept()) {
+    <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,18rem)_minmax(0,1fr)_minmax(0,20rem)]">
+      <!-- ── Overview ─────────────────────────────────────── -->
+      <section hlmCard class="min-w-0 gap-0 py-0">
+        <h2 class="border-b px-5 py-3 font-semibold">{{ 'cb.overviewPanelTitle' | transloco }}</h2>
+        @if (syncing() && !header()) {
+          <div class="flex flex-col gap-2 p-5">
+            <div hlmSkeleton class="h-5 w-2/3"></div>
+            <div hlmSkeleton class="h-4 w-1/2"></div>
+            <div hlmSkeleton class="h-24 w-full"></div>
+          </div>
+        } @else {
+          @let h = header();
+          <div class="flex flex-col gap-4 p-5">
+            <div>
+              <h3 class="text-lg font-semibold">{{ h?.conceptName || selectedConcept()!.concept_name }}</h3>
+              <dl class="text-muted-foreground mt-1 grid grid-cols-[auto_1fr] gap-x-2 text-sm">
+                <dt>{{ 'cb.overview.clientLabel' | transloco }}</dt>
+                <dd class="text-foreground truncate">{{ h?.customer || selectedConcept()!.customer || '—' }}</dd>
+                <dt>{{ 'cb.overview.seasonLabel' | transloco }}</dt>
+                <dd class="text-foreground truncate">{{ h?.season || selectedConcept()!.season || '—' }}</dd>
+                @if (h?.targetMarket) {
+                  <dt>{{ 'cs.saved.detailMarket' | transloco }}:</dt>
+                  <dd class="text-foreground truncate">{{ h!.targetMarket }}</dd>
+                }
+              </dl>
+            </div>
+            @if (previews().length) {
+              <div class="grid grid-cols-2 gap-2">
+                @for (img of previews(); track img) {
+                  <img [appAuthSrc]="img" [alt]="'cb.overview.collectionPreviewAlt' | transloco" class="bg-muted aspect-square w-full rounded-md object-cover" />
+                }
+              </div>
+            }
+            <div>
+              <h4 class="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">{{ 'cb.overview.collectionBoard' | transloco }}</h4>
+              <ul class="flex flex-col gap-1 text-sm">
+                <li class="flex gap-2">
+                  <span class="bg-primary mt-1.5 size-2 shrink-0 rounded-full"></span>
+                  <span>{{ 'cb.overview.fabricLabel' | transloco }} {{ parseList(h?.fabricDirection)[0] || ('cb.noFabricDirection' | transloco) }}</span>
+                </li>
+                <li class="flex gap-2">
+                  <span class="bg-muted-foreground/50 mt-1.5 size-2 shrink-0 rounded-full"></span>
+                  <span>{{ 'cb.overview.tagsLabel' | transloco }} {{ parseList(h?.activeTags).join(', ') || ('cb.noActiveTags' | transloco) }}</span>
+                </li>
+              </ul>
+            </div>
+            <dl class="bg-muted/50 grid grid-cols-3 gap-2 rounded-lg p-3 text-center">
+              <div>
+                <dt class="text-muted-foreground text-xs">{{ 'cb.insights.products' | transloco }}</dt>
+                <dd class="text-lg font-semibold tabular-nums">{{ items().length }}</dd>
+              </div>
+              <div>
+                <dt class="text-muted-foreground text-xs">{{ 'cb.overview.targetFobShort' | transloco }}</dt>
+                <dd class="text-lg font-semibold tabular-nums">{{ targetFob() ? '$' + (targetFob() | number: '1.2-2') : '—' }}</dd>
+              </div>
+              <div>
+                <dt class="text-muted-foreground text-xs">{{ 'cb.overview.avgFobShort' | transloco }}</dt>
+                <dd class="text-lg font-semibold tabular-nums" [class]="fobClass(avgFob())">{{ avgFob() ? '$' + (avgFob() | number: '1.2-2') : '—' }}</dd>
+              </div>
+            </dl>
+          </div>
+        }
+      </section>
+
+      <!-- ── Lineup ───────────────────────────────────────── -->
+      <section hlmCard class="min-w-0 gap-0 py-0 lg:row-span-2 xl:row-span-1" [attr.aria-busy]="syncing()">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
+          <h2 class="font-semibold">{{ 'cb.lineupPanelTitle' | transloco }}</h2>
+        </div>
+        <div class="flex gap-1 overflow-x-auto border-b px-3 py-2" role="tablist">
+          @for (cat of ['All'].concat(categories); track cat) {
+            <button
+              type="button"
+              role="tab"
+              class="flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors lg:min-h-8"
+              [class]="activeCategory() === cat ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
+              [attr.aria-selected]="activeCategory() === cat"
+              (click)="activeCategory.set($any(cat))"
+            >
+              {{ (cat === 'All' ? 'common.all' : 'cb.lineup.category.' + cat.toLowerCase()) | transloco }}
+              <span class="text-xs tabular-nums opacity-70">{{ categoryCounts()[cat] }}</span>
+            </button>
+          }
+        </div>
+        <div class="p-4">
+          @if (syncing()) {
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              @for (i of [1, 2, 3]; track i) {
+                <div hlmSkeleton class="aspect-[3/4] rounded-lg"></div>
+              }
+            </div>
+          } @else {
+            <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4" role="list">
+              @for (item of visibleLineup(); track item.itemRecid) {
+                <li class="group bg-card relative flex flex-col overflow-hidden rounded-lg border" [class.opacity-50]="removingRecid() === item.itemRecid">
+                  <div class="bg-muted text-muted-foreground flex aspect-[4/3] items-center justify-center overflow-hidden">
+                    @if (item.imageUrl) {
+                      <img [appAuthSrc]="item.imageUrl" [alt]="item.productName" class="size-full object-cover" loading="lazy" (loadError)="item.imageUrl = ''" />
+                    } @else {
+                      <ng-icon name="lucideImage" class="text-2xl opacity-50" />
+                    }
+                  </div>
+                  <div class="flex flex-1 flex-col gap-0.5 p-2.5">
+                    <p class="truncate text-sm font-medium" [title]="item.productName">{{ item.productName }}</p>
+                    <p class="text-muted-foreground truncate font-mono text-xs">{{ item.styleCode }}</p>
+                    <div class="mt-auto flex items-center justify-between gap-2 pt-1 text-xs">
+                      <span class="text-muted-foreground truncate">{{ item.sbu || item.country }}</span>
+                      <span class="shrink-0 font-semibold tabular-nums" [class]="fobClass(item.fobPrice)">${{ item.fobPrice | number: '1.2-2' }}</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="absolute top-1.5 right-1.5 flex size-9 items-center justify-center rounded-full bg-black/60 text-white transition-opacity hover:bg-black/80 disabled:opacity-40 lg:size-7 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100"
+                    [disabled]="removingRecid() === item.itemRecid"
+                    [attr.aria-label]="('cb.lineup.removeFromCollection' | transloco) + ': ' + item.productName"
+                    [title]="'cb.lineup.removeFromCollection' | transloco"
+                    (click)="remove(item)"
+                  >
+                    <ng-icon name="lucideX" />
+                  </button>
+                </li>
+              }
+              <li>
+                <button
+                  type="button"
+                  class="text-muted-foreground hover:border-primary hover:text-primary flex h-full min-h-40 w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-3 text-center text-sm transition-colors disabled:opacity-50"
+                  [disabled]="!header()"
+                  (click)="openPool()"
+                >
+                  <ng-icon name="lucidePlus" class="text-2xl" />
+                  {{ 'cb.lineup.addApprovedProduct' | transloco }}
+                </button>
+              </li>
+            </ul>
+          }
+        </div>
+      </section>
+
+      <!-- ── Insights ─────────────────────────────────────── -->
+      <section hlmCard class="min-w-0 gap-0 py-0">
+        <h2 class="border-b px-5 py-3 font-semibold">{{ 'cb.insightsPanelTitle' | transloco }}</h2>
+        @let h2 = header();
+        <div class="flex flex-col gap-4 p-5 text-sm">
+          @if (h2?.conceptBrief) {
+            <p class="leading-relaxed whitespace-pre-line">{{ h2!.conceptBrief }}</p>
+          }
+          @for (section of [
+            { title: 'cb.insights.fabricDirection', items: parseList(h2?.fabricDirection) },
+            { title: 'cb.insights.sustainabilityNotes', items: parseList(h2?.sustainabilityNotes) }
+          ]; track section.title) {
+            @if (section.items.length) {
+              <div>
+                <h4 class="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">{{ section.title | transloco }}</h4>
+                <ul class="flex flex-col gap-1">
+                  @for (line of section.items; track $index) {
+                    <li class="flex gap-2"><ng-icon name="lucideCheck" class="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />{{ line }}</li>
+                  }
+                </ul>
+              </div>
+            }
+          }
+          <div>
+            <h4 class="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">{{ 'cb.insights.categoryMix' | transloco }}</h4>
+            @if (items().length) {
+              <div class="flex flex-wrap gap-1.5">
+                @for (cat of categories; track cat) {
+                  @if (categoryCounts()[cat]) {
+                    <span hlmBadge variant="secondary">{{ 'cb.lineup.category.' + cat.toLowerCase() | transloco }} {{ categoryCounts()[cat] }}</span>
+                  }
+                }
+              </div>
+            } @else {
+              <p class="text-muted-foreground">{{ 'cb.noItemsSelected' | transloco }}</p>
+            }
+          </div>
+        </div>
+        <div class="border-t p-4">
+          <button hlmBtn variant="outline" type="button" class="h-11 w-full" [disabled]="!header() || !items().length" (click)="costSummary()">
+            <ng-icon name="lucideCalculator" />{{ 'cb.insights.generateCostSummary' | transloco }}
+          </button>
+        </div>
+      </section>
+    </div>
+  }
+</section>
+
+<!-- ── Approved pool ──────────────────────────────────────── -->
+<app-modal [open]="poolOpen()" [heading]="'cb.addApprovedProduct' | transloco" size="lg" (closed)="poolOpen.set(false)">
+  <div class="flex flex-col gap-3">
+    <p class="text-muted-foreground text-sm">{{ selectedConcept()?.concept_name }} · {{ 'cb.poolHint' | transloco }}</p>
+    <div class="relative">
+      <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+      <input
+        hlmInput
+        type="search"
+        class="h-11 w-full pl-9 lg:h-9"
+        [attr.aria-label]="'actions.search' | transloco"
+        [placeholder]="'cb.searchApprovedPlaceholder' | transloco"
+        [value]="poolSearch()"
+        (input)="poolSearch.set($any($event.target).value)"
+      />
+    </div>
+    @if (poolLoading() && !pool().length) {
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        @for (i of [1, 2, 3]; track i) {
+          <div hlmSkeleton class="aspect-[3/4] rounded-lg"></div>
+        }
+      </div>
+    } @else if (!filteredPool().length) {
+      <p class="text-muted-foreground py-10 text-center text-sm">{{ (pool().length ? 'common.noMatches' : 'cb.noApprovedProducts') | transloco }}</p>
+    } @else {
+      <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3" role="list">
+        @for (p of filteredPool(); track p.key) {
+          <li class="flex flex-col overflow-hidden rounded-lg border">
+            <div class="bg-muted text-muted-foreground relative flex aspect-[4/3] items-center justify-center overflow-hidden">
+              @if (p.imageUrl) {
+                <img [appAuthSrc]="p.imageUrl" [alt]="p.productName" class="size-full object-cover" loading="lazy" (loadError)="p.imageUrl = ''" />
+              } @else {
+                <ng-icon name="lucideImage" class="text-2xl opacity-50" />
+              }
+              @if (p.sourceType === 'gq') {
+                <span hlmBadge class="absolute top-1.5 left-1.5" [title]="'cb.gqSourceHint' | transloco">GQ</span>
+              }
+            </div>
+            <div class="flex flex-1 flex-col gap-0.5 p-2.5">
+              <p class="truncate text-sm font-medium" [title]="p.productName">{{ p.productName }}</p>
+              <p class="text-muted-foreground truncate font-mono text-xs">{{ p.styleCode }}</p>
+              <p class="text-muted-foreground truncate text-xs">{{ p.category || ('cb.uncategorized' | transloco) }} · {{ p.sbu || p.country || ('cb.sbuFallback' | transloco) }}</p>
+              <div class="mt-auto flex items-center justify-between gap-2 pt-2">
+                <span class="text-sm font-semibold tabular-nums">${{ p.fobPrice | number: '1.2-2' }}</span>
+                <button hlmBtn size="sm" type="button" class="h-11 lg:h-8" [disabled]="!!addingKey()" (click)="add(p)">
+                  @if (addingKey() === p.key) {
+                    <hlm-spinner />
+                  } @else {
+                    <ng-icon name="lucidePlus" />
+                  }
+                  {{ 'actions.add' | transloco }}
+                </button>
+              </div>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="poolOpen.set(false)">{{ 'actions.close' | transloco }}</button>
+  </ng-container>
+</app-modal>

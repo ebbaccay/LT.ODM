@@ -1,0 +1,15 @@
+// Tailwind and the Spartan theme live in tailwind.css; this file holds the app's own global SCSS.
+@use 'responsive-table';
+@use 'tms-theme' as tms;
+
+// SAP UI5 parameters referenced by screens ported from TMS, mapped to the LT ODM theme.
+:root {
+  @include tms.sap-parameters;
+}
+
+// Images scale to their container; use loading="lazy" on <img> in templates.
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}

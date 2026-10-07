@@ -1,0 +1,18 @@
+// Print-only rules Tailwind cannot express. The template uses `print:hidden` for screen controls and
+// `hidden print:block` for the print cover.
+@media print {
+  @page {
+    margin: 12mm;
+    size: A4 portrait;
+  }
+
+  :host {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  // Keep each section and product card on one page where possible.
+  .proposal-block {
+    break-inside: avoid;
+  }
+}

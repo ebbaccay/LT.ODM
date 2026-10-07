@@ -1,0 +1,312 @@
+<section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+        {{ 'settings.userRoles.title' | transloco }}
+        @if (!loading() && users().length) {
+          <span hlmBadge variant="secondary">{{ users().length }}</span>
+        }
+      </h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'settings.userRoles.subtitle' | transloco }}</p>
+    </div>
+    <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+      <div class="relative w-full sm:w-72">
+        <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+        <input
+          hlmInput
+          type="search"
+          class="h-11 w-full pl-9 lg:h-9"
+          [attr.aria-label]="'actions.search' | transloco"
+          [placeholder]="'settings.userRoles.searchPlaceholder' | transloco"
+          [value]="searchQuery()"
+          (input)="onSearch($event)"
+        />
+      </div>
+      <button hlmBtn type="button" class="h-11 lg:h-9" (click)="openCreate()">
+        <ng-icon name="lucideUserPlus" />
+        {{ 'settings.userRoles.addUser' | transloco }}
+      </button>
+    </div>
+  </header>
+
+  <section hlmCard class="gap-0 py-0">
+    @if (loading()) {
+      <div class="flex flex-col gap-3 p-5">
+        @for (i of [1, 2, 3, 4, 5]; track i) {
+          <div hlmSkeleton class="h-14 w-full"></div>
+        }
+      </div>
+    } @else if (filteredUsers().length === 0) {
+      <div class="flex flex-col items-center gap-2 px-5 py-14 text-center">
+        <ng-icon name="lucideUsers" class="text-muted-foreground text-4xl" />
+        @if (searchQuery()) {
+          <p class="font-medium">{{ 'settings.userRoles.noMatch' | transloco: { query: searchQuery() } }}</p>
+          <p class="text-muted-foreground text-sm">{{ 'settings.userRoles.noMatchHint' | transloco }}</p>
+        } @else {
+          <p class="font-medium">{{ 'settings.userRoles.empty' | transloco }}</p>
+          <p class="text-muted-foreground text-sm">{{ 'settings.userRoles.emptyHint' | transloco }}</p>
+        }
+      </div>
+    } @else {
+      <div class="text-muted-foreground hidden grid-cols-[minmax(0,1.2fr)_minmax(0,8rem)_minmax(0,1.5fr)_minmax(0,8rem)_11rem] gap-4 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase lg:grid">
+        <span>{{ 'settings.userRoles.user' | transloco }}</span>
+        <span>{{ 'settings.userRoles.groupLocation' | transloco }}</span>
+        <span>{{ 'settings.userRoles.roles' | transloco }}</span>
+        <span>{{ 'settings.userRoles.lastLogin' | transloco }}</span>
+        <span class="sr-only">{{ 'settings.userRoles.editAccess' | transloco }}</span>
+      </div>
+      <ul class="divide-y" role="list">
+        @for (u of filteredUsers(); track u.userId) {
+          <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-5 py-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,8rem)_minmax(0,1.5fr)_minmax(0,8rem)_11rem]">
+            <div class="min-w-0">
+              <p class="flex flex-wrap items-center gap-2 text-sm font-medium">
+                <span class="truncate">{{ u.displayName }}</span>
+                @if (!u.isActive) {
+                  <span hlmBadge variant="outline">{{ 'common.inactive' | transloco }}</span>
+                } @else if (isLocked(u)) {
+                  <span hlmBadge variant="destructive">{{ 'settings.userRoles.locked' | transloco }}</span>
+                }
+              </p>
+              <p class="text-muted-foreground truncate text-xs">{{ u.userName }} · {{ u.email }}</p>
+            </div>
+            <div class="text-muted-foreground col-start-1 flex flex-wrap gap-x-2 text-xs lg:col-start-auto lg:flex-col lg:text-sm">
+              @if (u.userGroup || u.location) {
+                @if (u.userGroup) {
+                  <span>{{ u.userGroup === 'FTY' ? ('settings.userRoles.factoryUser' | transloco) : u.userGroup }}</span>
+                }
+                @if (u.location) {
+                  <span class="font-mono">{{ u.location }}</span>
+                }
+              } @else {
+                <span>—</span>
+              }
+            </div>
+            <div class="col-start-1 flex flex-wrap gap-1 lg:col-start-auto">
+              @for (r of u.roles; track r) {
+                <span hlmBadge [variant]="r === 'Admin' ? 'default' : 'secondary'">{{ roleLabel(r) }}</span>
+              } @empty {
+                <span class="text-muted-foreground text-xs italic">{{ 'settings.userRoles.noRoles' | transloco }}</span>
+              }
+            </div>
+            <span class="text-muted-foreground col-start-1 text-xs lg:col-start-auto lg:text-sm">
+              <span class="lg:hidden">{{ 'settings.userRoles.lastLogin' | transloco }}: </span>
+              {{ u.lastLoginUtc ? (u.lastLoginUtc | date: 'medium') : ('settings.userRoles.never' | transloco) }}
+            </span>
+            <div class="col-start-2 row-span-4 row-start-1 flex flex-col gap-1 sm:flex-row lg:col-start-auto lg:row-span-1 lg:row-start-auto lg:justify-self-end">
+              @if (u.isActive) {
+                <button
+                  hlmBtn
+                  variant="ghost"
+                  size="icon"
+                  type="button"
+                  class="size-11 lg:size-9"
+                  (click)="sendPasswordLink(u)"
+                  [attr.aria-label]="('settings.userRoles.sendLink' | transloco) + ' ' + u.userName"
+                  [title]="'settings.userRoles.sendLink' | transloco"
+                >
+                  <ng-icon name="lucideMail" />
+                </button>
+              }
+              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="openAccess(u)" [attr.aria-label]="('settings.userRoles.editAccess' | transloco) + ' ' + u.userName">
+                <ng-icon name="lucideUserCog" />
+                <span class="hidden sm:inline">{{ 'settings.userRoles.editAccess' | transloco }}</span>
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</section>
+
+@let editing = editingUser();
+<app-modal [open]="!!editing" [heading]="('settings.userRoles.assignTitle' | transloco) + ' — ' + (editing?.displayName ?? '')" (closed)="closeDialog()">
+  @if (editing) {
+    <form id="access-form" class="flex flex-col gap-5" (submit)="$event.preventDefault(); save()">
+      <fieldset class="flex flex-col gap-2">
+        <legend class="mb-1 text-sm font-medium">{{ 'settings.userRoles.roles' | transloco }}</legend>
+        <p class="text-muted-foreground -mt-1 mb-1 text-xs">{{ 'settings.userRoles.assignHint' | transloco }}</p>
+        @for (role of availableRoles(); track role.roleId) {
+          @let locked = role.name === 'Admin' && isSelf() && form().roles.has('Admin');
+          <div class="hover:bg-accent/50 flex items-start gap-3 rounded-md px-2 py-2">
+            <hlm-checkbox
+              class="mt-0.5"
+              [inputId]="'role-' + role.roleId"
+              [checked]="form().roles.has(role.name)"
+              [disabled]="locked"
+              (checkedChange)="toggleRole(role.name, $event)"
+            />
+            <label [for]="'role-' + role.roleId" class="flex min-w-0 flex-col text-sm">
+              <span class="font-medium">
+                {{ role.displayName || role.name }}
+                @if (role.displayName && role.displayName !== role.name) {
+                  <code class="text-muted-foreground ml-1 font-mono text-xs">{{ role.name }}</code>
+                }
+              </span>
+              @if (locked) {
+                <span class="text-muted-foreground text-xs">{{ 'settings.userRoles.ownAdmin' | transloco }}</span>
+              } @else if (role.description) {
+                <span class="text-muted-foreground text-xs">{{ role.description }}</span>
+              }
+            </label>
+          </div>
+        } @empty {
+          <p class="text-muted-foreground text-sm">{{ 'settings.roles.empty' | transloco }}</p>
+        }
+      </fieldset>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="user-group">{{ 'settings.userRoles.userGroup' | transloco }}</label>
+          <input
+            hlmInput
+            id="user-group"
+            class="h-11 font-mono uppercase lg:h-9"
+            maxlength="16"
+            list="user-group-options"
+            autocomplete="off"
+            [value]="form().userGroup"
+            (input)="patch('userGroup', $any($event.target).value.toUpperCase())"
+          />
+          <datalist id="user-group-options"><option value="FTY">{{ 'settings.userRoles.factoryUser' | transloco }}</option></datalist>
+          <p class="text-muted-foreground text-xs">{{ 'settings.userRoles.userGroupHint' | transloco }}</p>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="user-location">{{ 'settings.userRoles.location' | transloco }}</label>
+          <input
+            hlmInput
+            id="user-location"
+            class="h-11 font-mono lg:h-9"
+            maxlength="32"
+            autocomplete="off"
+            [value]="form().location"
+            (input)="patch('location', $any($event.target).value)"
+          />
+          <p class="text-muted-foreground text-xs">{{ 'settings.userRoles.locationHint' | transloco }}</p>
+        </div>
+      </div>
+    </form>
+  }
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="closeDialog()">{{ 'actions.cancel' | transloco }}</button>
+    <button hlmBtn type="submit" form="access-form" class="h-11 lg:h-9" [disabled]="saving()">
+      {{ (saving() ? 'common.saving' : 'actions.save') | transloco }}
+    </button>
+  </ng-container>
+</app-modal>
+
+<!-- Add user -->
+<app-modal [open]="createOpen()" [heading]="'settings.userRoles.addUser' | transloco" (closed)="createOpen.set(false)">
+  @let nu = newUser();
+  @let err = newUserErrors();
+  <form id="create-user-form" class="flex flex-col gap-5" (submit)="$event.preventDefault(); create()">
+    <p class="bg-primary/8 text-foreground flex gap-2 rounded-md px-3 py-2 text-sm">
+      <ng-icon name="lucideMail" class="text-primary mt-0.5 shrink-0" />
+      {{ 'settings.userRoles.inviteHint' | transloco }}
+    </p>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="new-display">{{ 'settings.userRoles.displayName' | transloco }}</label>
+        <input
+          hlmInput
+          id="new-display"
+          class="h-11 lg:h-9"
+          maxlength="128"
+          autocomplete="off"
+          placeholder="Jane Doe"
+          [value]="nu.displayName"
+          [attr.aria-invalid]="(createTouched() && err.displayName) || null"
+          (input)="patchNew('displayName', $any($event.target).value)"
+        />
+        @if (createTouched() && err.displayName) {
+          <p class="text-destructive text-xs">{{ 'settings.userRoles.displayNameHint' | transloco }}</p>
+        }
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="new-username">{{ 'settings.userRoles.userName' | transloco }}</label>
+        <input
+          hlmInput
+          id="new-username"
+          class="h-11 font-mono lg:h-9"
+          maxlength="64"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="jdoe"
+          [value]="nu.userName"
+          [attr.aria-invalid]="(createTouched() && err.userName) || null"
+          aria-describedby="new-username-hint"
+          (input)="patchNew('userName', $any($event.target).value)"
+        />
+        <p id="new-username-hint" class="text-xs" [class]="createTouched() && err.userName ? 'text-destructive' : 'text-muted-foreground'">
+          {{ 'settings.userRoles.userNameHint' | transloco }}
+        </p>
+      </div>
+      <div class="flex flex-col gap-1.5 sm:col-span-2">
+        <label hlmLabel for="new-email">{{ 'settings.userRoles.email' | transloco }}</label>
+        <input
+          hlmInput
+          id="new-email"
+          type="email"
+          class="h-11 lg:h-9"
+          maxlength="256"
+          autocomplete="off"
+          placeholder="jane.doe@company.com"
+          [value]="nu.email"
+          [attr.aria-invalid]="(createTouched() && err.email) || null"
+          aria-describedby="new-email-hint"
+          (input)="patchNew('email', $any($event.target).value)"
+        />
+        <p id="new-email-hint" class="text-xs" [class]="createTouched() && err.email ? 'text-destructive' : 'text-muted-foreground'">
+          {{ 'settings.userRoles.emailHint' | transloco }}
+        </p>
+      </div>
+    </div>
+
+    <fieldset class="flex flex-col gap-1">
+      <legend class="mb-1 text-sm font-medium">{{ 'settings.userRoles.roles' | transloco }}</legend>
+      <div class="grid gap-1 sm:grid-cols-2">
+        @for (role of availableRoles(); track role.roleId) {
+          <label class="hover:bg-accent/50 flex min-h-11 items-center gap-3 rounded-md px-2 text-sm lg:min-h-9" [for]="'new-role-' + role.roleId">
+            <hlm-checkbox [inputId]="'new-role-' + role.roleId" [checked]="nu.roles.has(role.name)" (checkedChange)="toggleNewRole(role.name, $event)" />
+            {{ role.displayName || role.name }}
+          </label>
+        }
+      </div>
+      @if (!nu.roles.size) {
+        <p class="text-muted-foreground text-xs">{{ 'settings.userRoles.noRolesHint' | transloco }}</p>
+      }
+    </fieldset>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="new-group">{{ 'settings.userRoles.userGroup' | transloco }}</label>
+        <input
+          hlmInput
+          id="new-group"
+          class="h-11 font-mono uppercase lg:h-9"
+          maxlength="16"
+          list="user-group-options-new"
+          autocomplete="off"
+          [value]="nu.userGroup"
+          (input)="patchNew('userGroup', $any($event.target).value.toUpperCase())"
+        />
+        <datalist id="user-group-options-new"><option value="FTY">{{ 'settings.userRoles.factoryUser' | transloco }}</option></datalist>
+        <p class="text-muted-foreground text-xs">{{ 'settings.userRoles.userGroupHint' | transloco }}</p>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="new-location">{{ 'settings.userRoles.location' | transloco }}</label>
+        <input hlmInput id="new-location" class="h-11 font-mono lg:h-9" maxlength="32" autocomplete="off" [value]="nu.location" (input)="patchNew('location', $any($event.target).value)" />
+        <p class="text-muted-foreground text-xs">{{ 'settings.userRoles.locationHint' | transloco }}</p>
+      </div>
+    </div>
+  </form>
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="createOpen.set(false)">{{ 'actions.cancel' | transloco }}</button>
+    <button hlmBtn type="submit" form="create-user-form" class="h-11 lg:h-9" [disabled]="saving()">
+      <ng-icon name="lucideUserPlus" />
+      {{ (saving() ? 'common.saving' : 'settings.userRoles.createAndSend') | transloco }}
+    </button>
+  </ng-container>
+</app-modal>

@@ -1,0 +1,181 @@
+<section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
+  <header>
+    <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight"><ng-icon name="lucideWandSparkles" />{{ 'ai.render.title' | transloco }}</h1>
+    <p class="text-muted-foreground mt-1 text-sm">{{ 'ai.render.subtitle' | transloco }}</p>
+  </header>
+  <app-ai-provider-banner uses="both" />
+
+  @if (!styleId()) {
+    <section hlmCard class="gap-3 p-5">
+      <label class="text-sm font-medium" for="render-style">{{ 'ai.render.pickStyle' | transloco }}</label>
+      <app-style-picker inputId="render-style" label="ai.render.pickStyle" (picked)="pickStyle($event)" />
+    </section>
+  } @else if (loading() && !brief()) {
+    <div hlmSkeleton class="h-96 w-full"></div>
+  } @else if (notFound()) {
+    <section hlmCard class="items-center gap-2 px-5 py-14 text-center">
+      <p class="font-medium">{{ 'styles.detail.notFound' | transloco }}</p>
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="clear()">{{ 'ai.render.pickAnother' | transloco }}</button>
+    </section>
+  } @else if (brief(); as b) {
+    <div class="grid gap-5 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+      <!-- What goes to the model -->
+      <section hlmCard class="gap-4 p-5">
+        <div class="flex items-start justify-between gap-3">
+          <a [routerLink]="['/styles', b.style.styleId]" class="min-w-0">
+            <span class="block truncate font-mono font-semibold underline-offset-2 hover:underline">{{ b.style.styleNo }}</span>
+            <span class="text-muted-foreground block truncate text-xs">{{ b.style.modelName || '—' }} · {{ b.style.customerCode }} · {{ b.style.seasonCode }}</span>
+          </a>
+          <button hlmBtn variant="ghost" type="button" class="h-9 shrink-0" (click)="clear()"><ng-icon name="lucideX" />{{ 'ai.render.change' | transloco }}</button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          @for (img of [{ url: b.style.sketchUrl, label: 'styles.detail.sketch' }, { url: b.style.imageUrl, label: 'styles.detail.photo' }]; track img.label) {
+            <figure class="flex flex-col gap-1">
+              <div class="bg-muted flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border">
+                @if (img.url) {
+                  <img [appAuthSrc]="img.url" alt="" class="size-full object-contain" />
+                } @else {
+                  <ng-icon name="lucideImage" class="text-muted-foreground" />
+                }
+              </div>
+              <figcaption class="text-muted-foreground text-xs">{{ img.label | transloco }}</figcaption>
+            </figure>
+          }
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-sm font-medium" for="render-colorway">{{ 'ai.render.colorway' | transloco }}</label>
+          <hlm-native-select selectId="render-colorway" selectClass="h-11 w-full lg:h-9" [value]="b.colorwayId ? '' + b.colorwayId : ''" (valueChange)="pickColorway($event ?? '')">
+            @if (!b.colorways.length) {
+              <option hlmNativeSelectOption value="">{{ 'ai.render.noColorways' | transloco }}</option>
+            }
+            @for (c of b.colorways; track c.colorwayId) {
+              <option hlmNativeSelectOption [value]="'' + c.colorwayId" [selected]="c.colorwayId === b.colorwayId">{{ c.colorwayCode }} · {{ c.colorwayName || '—' }}{{ c.status === 'DROPPED' ? ' (' + ('ai.render.dropped' | transloco) + ')' : '' }}</option>
+            }
+          </hlm-native-select>
+        </div>
+
+        <div class="rounded-md border p-3 text-sm">
+          <p class="mb-2 text-xs font-medium tracking-wide uppercase">{{ 'ai.render.factsTitle' | transloco }}</p>
+          <dl class="flex flex-col gap-1.5">
+            @for (row of [
+              { label: 'ai.render.garment', value: garmentText(b) },
+              { label: 'ai.render.fabrics', value: b.facts.fabrics.join(' · ') },
+              { label: 'ai.render.colours', value: b.facts.colours.join(', ') },
+              { label: 'ai.render.details', value: b.facts.details.join(', ') }
+            ]; track row.label) {
+              <div class="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2">
+                <dt class="text-muted-foreground text-xs">{{ row.label | transloco }}</dt>
+                <dd class="text-xs">{{ row.value || '—' }}</dd>
+              </div>
+            }
+          </dl>
+          <p class="text-muted-foreground mt-2 text-xs">{{ 'ai.render.factsHint' | transloco }}</p>
+        </div>
+
+        @if (canEdit()) {
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center justify-between gap-2">
+              <label class="text-sm font-medium" for="render-prompt">{{ 'ai.render.prompt' | transloco }}</label>
+              <span class="text-muted-foreground text-xs tabular-nums">{{ prompt().length }} / {{ maxPrompt }}</span>
+            </div>
+            <textarea
+              hlmTextarea
+              id="render-prompt"
+              rows="8"
+              class="w-full text-sm"
+              [attr.maxlength]="maxPrompt"
+              [value]="prompt()"
+              (input)="prompt.set($any($event.target).value)"
+            ></textarea>
+            <div class="flex flex-wrap gap-2">
+              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="writing()" (click)="rewrite()">
+                @if (writing()) {
+                  <hlm-spinner class="size-4" />
+                } @else {
+                  <ng-icon name="lucideSparkles" />
+                }
+                {{ 'ai.render.rewrite' | transloco }}
+              </button>
+              <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" [disabled]="prompt() === b.prompt" (click)="resetPrompt()">
+                <ng-icon name="lucideRefreshCw" />{{ 'ai.render.reset' | transloco }}
+              </button>
+            </div>
+          </div>
+
+          <label class="flex items-start gap-2 text-sm" [class.opacity-60]="!b.sketchUsable">
+            <input type="checkbox" class="mt-0.5 size-4" [checked]="useSketch() && b.sketchUsable" [disabled]="!b.sketchUsable" (change)="useSketch.set($any($event.target).checked)" />
+            <span>
+              {{ 'ai.render.useSketch' | transloco }}
+              <span class="text-muted-foreground block text-xs">
+                {{ (b.sketchUsable ? 'ai.render.useSketchHint' : b.hasSketch ? 'ai.render.sketchNotUsable' : 'ai.render.noSketch') | transloco }}
+              </span>
+            </span>
+          </label>
+
+          <button hlmBtn type="button" class="h-11" [disabled]="rendering() || prompt().trim().length < 20" (click)="generate()">
+            @if (rendering()) {
+              <hlm-spinner class="size-4" />{{ 'ai.render.generating' | transloco }}
+            } @else {
+              <ng-icon name="lucideImagePlus" />{{ 'ai.render.generate' | transloco }}
+            }
+          </button>
+        } @else {
+          <p class="text-muted-foreground text-xs">{{ 'ai.render.readOnly' | transloco }}</p>
+        }
+      </section>
+
+      <!-- Renders -->
+      <section hlmCard class="gap-4 p-5">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="font-semibold">{{ 'ai.render.renders' | transloco }} ({{ b.renders.length }})</h2>
+        </div>
+        <p class="text-muted-foreground text-xs">{{ 'ai.render.disclaimer' | transloco }}</p>
+        @if (rendering()) {
+          <div hlmSkeleton class="aspect-[3/4] w-full max-w-xs"></div>
+        }
+        @if (b.renders.length) {
+          <ul class="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3" role="list">
+            @for (r of b.renders; track r.renderId) {
+              <li class="flex flex-col gap-2 rounded-md border p-2">
+                <button type="button" class="bg-muted relative aspect-[3/4] overflow-hidden rounded" [attr.aria-label]="'ai.render.open' | transloco" (click)="preview.set(r)">
+                  <img [appAuthSrc]="r.imageUrl" alt="" class="size-full object-cover" loading="lazy" />
+                  <span hlmBadge class="absolute top-2 left-2">{{ 'ai.render.aiBadge' | transloco }}</span>
+                  @if (b.style.imageUrl === r.imageUrl) {
+                    <span hlmBadge variant="secondary" class="absolute top-2 right-2">{{ 'ai.render.isPhoto' | transloco }}</span>
+                  }
+                </button>
+                <div class="text-muted-foreground text-xs">
+                  <p>{{ r.colorwayCode || '—' }} · {{ r.createdUtc | date: 'medium' }} · {{ r.createdBy }}</p>
+                  <p>{{ r.provider }} · {{ r.model }}{{ r.usedSketch ? ' · ' + ('ai.render.withSketch' | transloco) : '' }}</p>
+                </div>
+                @if (canEdit()) {
+                  <div class="flex gap-2">
+                    <button hlmBtn variant="outline" type="button" class="h-11 flex-1 lg:h-9" [disabled]="b.style.imageUrl === r.imageUrl" (click)="useAsPhoto(r)">{{ 'ai.render.usePhoto' | transloco }}</button>
+                    <button hlmBtn variant="ghost" type="button" class="text-destructive h-11 lg:h-9" [attr.aria-label]="'ai.render.delete' | transloco" (click)="remove(r)"><ng-icon name="lucideTrash2" /></button>
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        } @else if (!rendering()) {
+          <div class="text-muted-foreground flex flex-col items-center gap-2 py-14 text-center text-sm">
+            <ng-icon name="lucideWandSparkles" class="text-3xl" />
+            {{ 'ai.render.none' | transloco }}
+          </div>
+        }
+      </section>
+    </div>
+  }
+</section>
+
+<app-modal [open]="!!preview()" [heading]="preview()?.colorwayCode ?? ''" size="lg" (closed)="preview.set(null)">
+  @if (preview(); as p) {
+    <img [appAuthSrc]="p.imageUrl" alt="" class="mx-auto max-h-[65dvh] rounded-md object-contain" />
+    <p class="text-muted-foreground mt-3 text-xs whitespace-pre-line">{{ p.prompt }}</p>
+  }
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="preview.set(null)">{{ 'styles.detail.close' | transloco }}</button>
+  </ng-container>
+</app-modal>

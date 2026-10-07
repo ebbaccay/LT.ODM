@@ -1,0 +1,187 @@
+<section hlmCard class="gap-0 py-0" [attr.aria-busy]="loading()">
+  <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+    <h2 class="font-semibold">{{ 'cs.saved.ariaLabel' | transloco }}</h2>
+    <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+      <div class="bg-muted flex rounded-lg p-1" role="group" [attr.aria-label]="'cs.saved.scopeLabel' | transloco">
+        @for (s of scopes(); track s.id) {
+          <button
+            type="button"
+            class="flex min-h-11 flex-1 items-center justify-center rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors lg:min-h-8"
+            [class]="scope() === s.id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+            [attr.aria-pressed]="scope() === s.id"
+            (click)="scopeChange.emit(s.id)"
+          >
+            {{ s.label | transloco }}
+          </button>
+        }
+      </div>
+      @if (concepts().length) {
+        <div class="relative w-full sm:w-64">
+          <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+          <input
+            hlmInput
+            type="search"
+            class="h-11 w-full pl-9 lg:h-9"
+            [attr.aria-label]="'actions.search' | transloco"
+            [placeholder]="'cs.saved.searchPlaceholder' | transloco"
+            [value]="search()"
+            (input)="search.set($any($event.target).value)"
+          />
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="flex flex-col gap-3 p-5">
+      @for (i of [1, 2, 3]; track i) {
+        <div hlmSkeleton class="h-14 w-full"></div>
+      }
+    </div>
+  } @else if (!concepts().length) {
+    <div class="flex flex-col items-center gap-2 px-5 py-14 text-center">
+      <ng-icon name="lucideLightbulb" class="text-muted-foreground text-4xl" />
+      <p class="font-medium">{{ 'cs.saved.noConceptsTitle' | transloco }}</p>
+      <p class="text-muted-foreground text-sm">{{ 'cs.saved.noConceptsSubtitle' | transloco }}</p>
+    </div>
+  } @else if (!filtered().length) {
+    <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ 'cs.saved.noMatch' | transloco: { query: search() } }}</p>
+  } @else {
+    <div class="text-muted-foreground hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,7rem)_minmax(0,7rem)_minmax(0,8rem)_minmax(0,8rem)_auto] gap-4 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase lg:grid">
+      <span>{{ 'cs.saved.colConceptName' | transloco }}</span>
+      <span>{{ 'cs.saved.colCustomer' | transloco }}</span>
+      <span>{{ 'cs.saved.colSeason' | transloco }}</span>
+      <span>{{ 'cs.saved.colMarket' | transloco }}</span>
+      <span>{{ 'cs.saved.colCreatedBy' | transloco }}</span>
+      <span>{{ 'common.date' | transloco }}</span>
+      <span class="w-[5.5rem]"><span class="sr-only">{{ 'cs.saved.colActions' | transloco }}</span></span>
+    </div>
+    <ul class="divide-y" role="list">
+      @for (c of filtered(); track c.recid) {
+        <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,7rem)_minmax(0,7rem)_minmax(0,8rem)_minmax(0,8rem)_auto]">
+          <button type="button" class="min-w-0 text-left" (click)="selected.set(c)">
+            <span class="hover:text-primary block truncate text-sm font-medium">{{ c.concept_name || '—' }}</span>
+            <span class="text-muted-foreground block truncate text-xs lg:hidden">
+              {{ summary(c) }} · {{ creator(c) }}
+            </span>
+          </button>
+          <span class="hidden truncate text-sm lg:block">{{ c.customer || '—' }}</span>
+          <span class="hidden truncate text-sm lg:block">{{ c.season || '—' }}</span>
+          <span class="hidden truncate text-sm lg:block">{{ c.target_market || '—' }}</span>
+          <span class="hidden truncate text-sm lg:block">{{ creator(c) }}</span>
+          <span class="text-muted-foreground col-start-1 text-xs lg:col-start-auto lg:text-sm">{{ c.created_date | date: 'mediumDate' }}</span>
+          <div class="col-start-2 row-span-2 row-start-1 flex gap-1 lg:col-start-auto lg:row-span-1 lg:row-start-auto">
+            <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-9" [attr.aria-label]="('cs.saved.view' | transloco) + ' ' + c.concept_name" [title]="'cs.saved.view' | transloco" (click)="selected.set(c)">
+              <ng-icon name="lucideEye" />
+            </button>
+            @if (c.can_edit !== false) {
+              <button hlmBtn variant="ghost" size="icon" type="button" class="text-destructive size-11 lg:size-9" [attr.aria-label]="('actions.delete' | transloco) + ' ' + c.concept_name" [title]="'actions.delete' | transloco" (click)="confirmDelete(c)">
+                <ng-icon name="lucideTrash2" />
+              </button>
+            } @else {
+              <span class="size-11 lg:size-9" aria-hidden="true"></span>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+<!-- Detail -->
+@let s = selected();
+<app-modal [open]="!!s" [heading]="s?.concept_name ?? ''" size="lg" (closed)="selected.set(null)">
+  @if (s) {
+    <div class="flex flex-col gap-5">
+      <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        @for (f of [
+          { label: 'cs.saved.detailCustomer', value: s.customer },
+          { label: 'cs.saved.detailSeason', value: s.season },
+          { label: 'cs.saved.detailMarket', value: s.target_market },
+          { label: 'cs.saved.detailFob', value: s.fob_price }
+        ]; track f.label) {
+          <div class="bg-muted/50 min-w-0 rounded-md px-3 py-2">
+            <dt class="text-muted-foreground text-xs">{{ f.label | transloco }}</dt>
+            <dd class="truncate text-sm font-medium">{{ f.value || '—' }}</dd>
+          </div>
+        }
+      </dl>
+
+      @if (parseList(s.active_tags).length) {
+        <div class="flex flex-wrap gap-1.5">
+          @for (tag of parseList(s.active_tags); track tag) {
+            <span hlmBadge variant="secondary">{{ tag }}</span>
+          }
+        </div>
+      }
+
+      @if (s.concept_brief) {
+        <div>
+          <h3 class="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">{{ 'cs.saved.detailConceptBrief' | transloco }}</h3>
+          <p class="text-sm leading-relaxed whitespace-pre-line">{{ s.concept_brief }}</p>
+        </div>
+      }
+
+      <div class="grid gap-4 sm:grid-cols-3">
+        @for (section of [
+          { title: 'cs.saved.detailSuggestedProducts', items: parseList(s.suggested_products) },
+          { title: 'cs.saved.detailFabricDirection', items: parseList(s.fabric_direction) },
+          { title: 'cs.saved.detailSustainabilityNotes', items: parseList(s.sustainability_notes) }
+        ]; track section.title) {
+          @if (section.items.length) {
+            <div class="min-w-0">
+              <h3 class="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">{{ section.title | transloco }}</h3>
+              <ul class="flex list-disc flex-col gap-1 pl-5 text-sm">
+                @for (item of section.items; track $index) {
+                  <li>{{ item }}</li>
+                }
+              </ul>
+            </div>
+          }
+        }
+      </div>
+
+      @if (images(s).length) {
+        <div>
+          <h3 class="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">{{ 'cs.inspirationBoard' | transloco }}</h3>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            @for (url of images(s); track url) {
+              <button type="button" class="bg-muted aspect-[4/3] overflow-hidden rounded-md border" [attr.aria-label]="'cs.saved.openImage' | transloco" (click)="preview.set(url)">
+                <img [appAuthSrc]="url" [alt]="'cs.inspirationImageAlt' | transloco" class="size-full object-cover" />
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      <p class="text-muted-foreground border-t pt-3 text-xs">
+        {{ 'cs.saved.savedBy' | transloco }} <strong>{{ creator(s) }}</strong>
+        @if (creatorGroup(s)) {
+          · {{ creatorGroup(s) }}
+        }
+        @if (s.location) {
+          · {{ 'cs.saved.locationLabel' | transloco }} {{ s.location }}
+        }
+        · {{ s.created_date | date: 'medium' }}
+      </p>
+    </div>
+  }
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="selected.set(null)">{{ 'actions.close' | transloco }}</button>
+    @if (s) {
+      <button hlmBtn type="button" class="h-11 lg:h-9" (click)="load(s)">
+        <ng-icon name="lucideFileInput" />{{ 'cs.saved.loadToForm' | transloco }}
+      </button>
+    }
+  </ng-container>
+</app-modal>
+
+<!-- Image preview -->
+<app-modal [open]="!!preview()" [heading]="'cs.inspirationBoard' | transloco" size="lg" (closed)="preview.set(null)">
+  @if (preview(); as url) {
+    <img [appAuthSrc]="url" [alt]="'cs.inspirationImageAlt' | transloco" class="mx-auto max-h-[70dvh] rounded-md object-contain" />
+  }
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="preview.set(null)">{{ 'actions.close' | transloco }}</button>
+  </ng-container>
+</app-modal>

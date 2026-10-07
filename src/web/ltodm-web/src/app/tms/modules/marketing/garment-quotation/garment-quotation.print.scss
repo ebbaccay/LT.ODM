@@ -1,0 +1,24 @@
+// Print-only rules that Tailwind cannot express. Everything else is Tailwind in the template
+// (the print sheet uses `hidden print:block`; the screen UI uses `print:hidden`).
+@media print {
+  @page {
+    margin: 0;
+    size: A4 landscape;
+  }
+
+  :host {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  // Repeat table headers on every printed page.
+  .print-table thead {
+    display: table-header-group;
+  }
+
+  // Each factory quotation starts on a new page.
+  .print-factory {
+    break-before: page;
+    break-inside: avoid;
+  }
+}

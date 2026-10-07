@@ -1,0 +1,261 @@
+<section class="flex flex-col gap-5">
+  <header>
+    <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight"><ng-icon name="lucideFlaskConical" />{{ 'ai.lab.title' | transloco }}</h1>
+    <p class="text-muted-foreground mt-1 text-sm">{{ 'ai.lab.subtitle' | transloco }}</p>
+  </header>
+
+  <p class="flex items-start gap-2 rounded-md border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-xs text-violet-800 dark:text-violet-300">
+    <ng-icon name="lucideTriangleAlert" class="mt-0.5 shrink-0" />
+    <span><strong>{{ 'ai.lab.demoTitle' | transloco }}</strong> {{ 'ai.lab.demoHint' | transloco }}</span>
+  </p>
+
+  <div class="flex flex-wrap gap-3 text-xs">
+    @for (s of statuses; track s) {
+      <span class="flex items-center gap-1.5"><span class="rounded px-1.5 py-0.5" [class]="statusTone(s)">{{ 'ai.lab.status.' + s | transloco }}</span>{{ 'ai.lab.statusHint.' + s | transloco }}</span>
+    }
+  </div>
+
+  <div class="grid gap-5 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+    <!-- Capabilities -->
+    <nav class="flex flex-col gap-2" [attr.aria-label]="'ai.lab.listLabel' | transloco">
+      @for (c of capabilities; track c.id) {
+        <button
+          type="button"
+          class="bg-card hover:bg-accent/40 flex items-start gap-3 rounded-lg border p-3 text-left transition-colors"
+          [class.ring-2]="selectedId() === c.id"
+          [class.ring-primary]="selectedId() === c.id"
+          [attr.aria-current]="selectedId() === c.id ? 'true' : null"
+          (click)="select(c)"
+        >
+          <ng-icon [name]="c.icon" class="text-primary mt-0.5 shrink-0 text-lg" />
+          <span class="min-w-0 flex-1">
+            <span class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-sm font-medium">{{ 'ai.lab.cap.' + c.id + '.title' | transloco }}</span>
+              <span class="flex shrink-0 items-center gap-1">
+                @if (c.live) {
+                  <span class="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">{{ 'ai.lab.liveBadge' | transloco }}</span>
+                }
+                <span class="rounded px-1.5 py-0.5 text-[11px]" [class]="statusTone(c.status)">{{ 'ai.lab.status.' + c.status | transloco }}</span>
+              </span>
+            </span>
+            <span class="text-muted-foreground mt-0.5 block text-xs">{{ 'ai.lab.cap.' + c.id + '.value' | transloco }}</span>
+          </span>
+        </button>
+      }
+    </nav>
+
+    <!-- Selected capability -->
+    @let c = selected();
+    <section hlmCard class="gap-5 p-5">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h2 class="flex items-center gap-2 text-lg font-semibold"><ng-icon [name]="c.icon" />{{ 'ai.lab.cap.' + c.id + '.title' | transloco }}</h2>
+          <p class="text-muted-foreground mt-1 text-sm">{{ 'ai.lab.cap.' + c.id + '.what' | transloco }}</p>
+        </div>
+        <span class="rounded px-2 py-1 text-xs" [class]="statusTone(c.status)">{{ 'ai.lab.status.' + c.status | transloco }}</span>
+      </div>
+
+      @if (c.live) {
+        @let live = liveFor(c);
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm">
+          <p>
+            <strong class="text-emerald-800 dark:text-emerald-300">{{ 'ai.lab.liveTitle2' | transloco }}</strong>
+            {{ 'ai.lab.liveWhere' | transloco: { where: (c.live.where | transloco) } }}
+            @if (!live) {
+              <span class="text-muted-foreground block text-xs">{{ 'ai.lab.liveNoAccess' | transloco }}</span>
+            }
+          </p>
+          @if (live) {
+            <a hlmBtn class="h-11 lg:h-9" [routerLink]="live.route" [queryParams]="live.query ?? null">{{ 'ai.lab.openReal' | transloco }}<ng-icon name="lucideArrowRight" /></a>
+          }
+        </div>
+      }
+
+      <div class="grid gap-4 lg:grid-cols-2">
+        <div class="rounded-md border p-3">
+          <p class="mb-2 text-xs font-medium tracking-wide uppercase">{{ 'ai.lab.needsTitle' | transloco }}</p>
+          <ul class="flex flex-col gap-1.5 text-sm">
+            @for (n of needs(c); track n) {
+              <li class="flex items-start gap-2"><span class="bg-muted-foreground/50 mt-2 size-1.5 shrink-0 rounded-full"></span>{{ n | transloco }}</li>
+            }
+          </ul>
+          <p class="text-muted-foreground mt-3 flex items-start gap-2 text-xs"><ng-icon name="lucideCpu" class="mt-0.5 shrink-0" />{{ 'ai.lab.runsOn' | transloco }} {{ c.runsOn }}</p>
+          @let ps = purposeStatus(c.purpose);
+          <p class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <ng-icon name="lucidePlug" class="shrink-0" />
+            <span class="text-muted-foreground">{{ 'ai.lab.job' | transloco: { job: ('aiSettings.purpose.' + c.purpose + '.title' | transloco) } }}</span>
+            @if (ps?.isConfigured) {
+              <span [class]="ps!.leavesNetwork ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'">
+                {{ 'ai.lab.connected' | transloco: { provider: ps!.provider, model: ps!.model } }}
+              </span>
+            } @else {
+              <span class="text-amber-700 dark:text-amber-400">{{ 'ai.lab.notConnected' | transloco }}</span>
+            }
+            @if (isAdmin()) {
+              <a routerLink="/settings/ai" class="text-primary underline-offset-2 hover:underline">{{ 'ai.lab.configure' | transloco }}</a>
+            }
+          </p>
+        </div>
+        <div class="rounded-md border p-3">
+          <p class="mb-2 flex items-center gap-2 text-xs font-medium tracking-wide uppercase">
+            {{ 'ai.lab.liveTitle' | transloco }}<span hlmBadge variant="secondary" class="text-[10px]">{{ 'ai.lab.live' | transloco }}</span>
+          </p>
+          @if (dashboard() === undefined) {
+            <p class="text-muted-foreground text-sm">{{ 'ai.lab.loadingLive' | transloco }}</p>
+          } @else if (dashboard() === null) {
+            <p class="text-muted-foreground text-sm">{{ 'ai.lab.noLive' | transloco }}</p>
+          } @else {
+            <ul class="flex flex-col gap-1.5 text-sm">
+              @for (m of c.readiness; track m) {
+                @if (readiness(m, dashboard()); as r) {
+                  <li class="flex items-start gap-2">
+                    <ng-icon [name]="r.ok ? 'lucideCheck' : 'lucideTriangleAlert'" class="mt-0.5 shrink-0" [class]="r.ok ? 'text-emerald-600' : 'text-amber-500'" />
+                    {{ r.key | transloco: r.params }}
+                  </li>
+                }
+              }
+            </ul>
+          }
+        </div>
+      </div>
+
+      <!-- Demo -->
+      <div class="flex flex-col gap-3 border-t pt-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h3 class="flex items-center gap-2 font-semibold">{{ 'ai.lab.demoSection' | transloco }}<span hlmBadge class="bg-violet-500/15 text-[10px] text-violet-700 dark:text-violet-300">{{ 'ai.lab.sample' | transloco }}</span></h3>
+          <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="running()" (click)="runDemo()">
+            @if (running()) {
+              <hlm-spinner class="size-4" />
+            } @else {
+              <ng-icon name="lucidePlay" />
+            }
+            {{ (shown().has(c.id) ? 'ai.lab.runAgain' : 'ai.lab.run') | transloco }}
+          </button>
+        </div>
+
+        @let s = c.sample;
+        @if (s.kind !== 'chat') {
+          <p class="bg-muted rounded-md px-3 py-2 text-sm"><span class="text-muted-foreground text-xs">{{ 'ai.lab.input' | transloco }}</span><br />{{ s.input }}</p>
+        }
+
+        @if (running()) {
+          <div class="text-muted-foreground flex items-center gap-2 py-6 text-sm"><hlm-spinner class="size-4" />{{ 'ai.lab.thinking' | transloco }}</div>
+        } @else if (!shown().has(c.id)) {
+          <p class="text-muted-foreground py-4 text-sm">{{ 'ai.lab.runHint' | transloco }}</p>
+        } @else {
+          @switch (s.kind) {
+            @case ('matches') {
+              <ul class="divide-y rounded-md border" role="list">
+                @for (m of s.items; track m.styleNo) {
+                  <li class="flex items-start gap-3 px-3 py-2.5 text-sm">
+                    <span class="bg-primary/12 text-primary shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums">{{ m.score | percent }}</span>
+                    <span class="min-w-0">
+                      <span class="font-mono font-medium">{{ m.styleNo }}</span> <span class="text-muted-foreground text-xs">{{ m.model }} · {{ m.season }}</span>
+                      <span class="text-muted-foreground block text-xs">{{ m.why }}</span>
+                    </span>
+                  </li>
+                }
+              </ul>
+            }
+            @case ('table') {
+              <div class="overflow-x-auto rounded-md border">
+                <table class="w-full text-xs">
+                  <thead class="bg-muted text-muted-foreground">
+                    <tr>
+                      @for (h of s.columns; track h) {
+                        <th class="px-3 py-2 text-left font-medium whitespace-nowrap">{{ h }}</th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y">
+                    @for (r of s.rows; track $index) {
+                      <tr [class.bg-amber-500/10]="lowConfidence(r)">
+                        @for (v of r; track $index) {
+                          <td class="px-3 py-2 whitespace-nowrap">{{ v }}</td>
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <p class="text-muted-foreground text-xs">{{ s.note }}</p>
+            }
+            @case ('breakdown') {
+              <div class="flex flex-wrap items-baseline gap-3">
+                <span class="text-3xl font-semibold tabular-nums">{{ s.total }}</span>
+                <span class="text-muted-foreground text-sm">{{ s.range }}</span>
+              </div>
+              <div class="flex h-3 w-full overflow-hidden rounded-full" role="img" [attr.aria-label]="'ai.lab.breakdownLabel' | transloco">
+                @for (p of s.parts; track p.label; let i = $index) {
+                  <span class="h-full" [style.width.%]="p.value" [class]="['bg-primary', 'bg-teal-500', 'bg-amber-500', 'bg-violet-500', 'bg-muted-foreground/50'][i % 5]"></span>
+                }
+              </div>
+              <ul class="grid gap-1.5 text-sm sm:grid-cols-2">
+                @for (p of s.parts; track p.label; let i = $index) {
+                  <li class="flex items-start gap-2">
+                    <span class="mt-1.5 size-2.5 shrink-0 rounded-sm" [class]="['bg-primary', 'bg-teal-500', 'bg-amber-500', 'bg-violet-500', 'bg-muted-foreground/50'][i % 5]"></span>
+                    <span><strong>{{ p.label }}</strong> {{ p.value }}% <span class="text-muted-foreground block text-xs">{{ p.text }}</span></span>
+                  </li>
+                }
+              </ul>
+              <p class="text-muted-foreground text-xs">{{ s.note }}</p>
+            }
+            @case ('swatches') {
+              <ul class="grid grid-cols-2 gap-3 sm:grid-cols-4" role="list">
+                @for (w of s.items; track w.hex) {
+                  <li class="flex flex-col gap-1.5">
+                    <span class="aspect-square w-full rounded-md border" [style.background-color]="w.hex"></span>
+                    <span class="text-sm font-medium">{{ w.name }} <span class="text-muted-foreground text-xs">{{ w.share | percent }}</span></span>
+                    <span class="text-muted-foreground text-xs">{{ w.hex }} · {{ 'ai.lab.nearest' | transloco }} {{ w.nearest }}</span>
+                  </li>
+                }
+              </ul>
+            }
+            @case ('fields') {
+              <dl class="flex flex-col divide-y rounded-md border text-sm">
+                @for (f of s.fields; track f.label) {
+                  <div class="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto] items-start gap-3 px-3 py-2">
+                    <dt class="text-muted-foreground">{{ f.label }}</dt>
+                    <dd>{{ f.value }}</dd>
+                    <dd class="text-muted-foreground text-xs tabular-nums">{{ f.confidence | percent }}</dd>
+                  </div>
+                }
+              </dl>
+            }
+            @case ('fixes') {
+              <ul class="divide-y rounded-md border text-sm" role="list">
+                @for (x of s.items; track $index) {
+                  <li class="flex flex-col gap-0.5 px-3 py-2">
+                    <span class="text-muted-foreground text-xs">{{ x.issue }}</span>
+                    <span class="flex flex-wrap items-center gap-2">
+                      <ng-icon name="lucideWrench" class="text-primary" />{{ x.suggestion }}
+                      <span class="rounded px-1.5 py-0.5 text-[11px]" [class]="x.confidence >= 0.85 ? statusTone('ready') : statusTone('needsData')">{{ x.confidence | percent }}</span>
+                    </span>
+                  </li>
+                }
+              </ul>
+              <p class="text-muted-foreground text-xs">{{ 'ai.lab.fixesNote' | transloco }}</p>
+            }
+            @case ('chat') {
+              <ol class="flex flex-col gap-2 text-sm">
+                @for (t of s.turns; track $index) {
+                  @if (t.role === 'tool') {
+                    <li class="text-muted-foreground flex items-start gap-2 pl-8 font-mono text-xs"><ng-icon name="lucideCpu" class="mt-0.5 shrink-0" />{{ t.text }}</li>
+                  } @else {
+                    <li class="flex items-start gap-2" [class.flex-row-reverse]="t.role === 'user'">
+                      <span class="bg-muted flex size-7 shrink-0 items-center justify-center rounded-full">
+                        <ng-icon [name]="t.role === 'user' ? 'lucideMessagesSquare' : 'lucideBot'" />
+                      </span>
+                      <span class="max-w-[85%] rounded-lg px-3 py-2" [class]="t.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'">{{ t.text }}</span>
+                    </li>
+                  }
+                }
+              </ol>
+            }
+          }
+          <p class="text-muted-foreground text-xs">{{ 'ai.lab.sampleNote' | transloco }}</p>
+        }
+      </div>
+    </section>
+  </div>
+</section>

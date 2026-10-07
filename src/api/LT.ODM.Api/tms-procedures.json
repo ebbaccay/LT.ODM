@@ -1,0 +1,188 @@
+{
+  "TmsProcedures": {
+    "_comment": "Allowlist for the TMS compatibility hub (/hubs/sp). Exact procedure names only, per module. Roles: empty = any signed-in user. Remove a module here once it has typed endpoints.",
+    "ConnectionStringName": "StyleLibrary",
+    "Schema": "dbo",
+    "CommandTimeoutSeconds": 300,
+    "MaxBatchRows": 5000,
+    "BoundParameters": {
+      "username": "preferred_username",
+      "created_by": "preferred_username",
+      "updated_by": "preferred_username",
+      "modified_by": "preferred_username"
+    },
+    "_procedureComment": "Per-procedure bindings, on top of the global/module ones. 'factory:location' = factory users are limited to their own factory (TMS did this only in the browser); '-' = not bound (a read filter the screen sets); 'role:Admin' = 1 for Admins, else 0. Concepts: the list is limited to the caller's team (same user group + location) unless they are an Admin or a factory user, and only the creator or an Admin may change one (db/tms/concept-studio.team-visibility.sql).",
+    "ProcedureBoundParameters": {
+      "web_rd_get_concept_studio_results": { "username": "preferred_username", "location": "location?", "user_group": "user_group?", "is_admin": "role:Admin" },
+      "web_rd_upd_concept_studio_result": { "is_admin": "role:Admin" },
+      "web_rd_del_concept_studio_result": { "is_admin": "role:Admin" },
+      "web_rd_get_sbu_products": { "location": "factory:location" },
+      "web_rd_get_gq_approved_products": { "factory_id": "factory:location" },
+      "web_rd_ins_sbu_submission": { "location": "location?", "user_group": "user_group?" },
+      "web_rd_co_fty_submit_proposal": { "submitted_by": "preferred_username" },
+      "web_rd_ins_collection_builder_item": { "added_by": "preferred_username", "username": "-" },
+      "web_rd_del_collection_builder_item": { "removed_by": "preferred_username" },
+      "web_rd_co_load_session": { "location": "location?", "user_group": "user_group?" },
+      "web_rd_co_submit_review": { "submitted_by": "preferred_username", "location": "location?", "user_group": "user_group?" },
+      "web_rd_co_ins_sbu_review": { "submitted_by": "preferred_username", "user_group": "user_group?" },
+      "web_rd_co_recall_review": { "recalled_by": "preferred_username" },
+      "web_rd_ins_sbu_product": { "location": "location?", "user_group": "user_group?" },
+      "web_rd_upd_sbu_product": { "location": "factory:location", "user_group": "factory:user_group" }
+    },
+    "Modules": {
+      "dashboard": {
+        "Roles": [],
+        "Procedures": [
+          "web_rd_gq_dashboard_summary"
+        ]
+      },
+      "collection-builder": {
+        "Roles": [],
+        "Procedures": [
+          "web_rd_del_collection_builder_item",
+          "web_rd_get_collection_builder",
+          "web_rd_get_collection_builder_approved_pool",
+          "web_rd_get_collection_builder_items",
+          "web_rd_ins_collection_builder",
+          "web_rd_ins_collection_builder_item"
+        ]
+      },
+      "collection-summary": {
+        "Roles": [],
+        "Procedures": [
+          "web_rd_get_collection_builder",
+          "web_rd_get_collection_builder_items"
+        ]
+      },
+      "concept-studio": {
+        "Roles": [],
+        "BoundParameters": {
+          "username": "preferred_username",
+          "created_by": "preferred_username",
+          "updated_by": "preferred_username",
+          "modified_by": "preferred_username",
+          "location": "location?",
+          "user_group": "user_group?"
+        },
+        "Procedures": [
+          "web_rd_del_collection_builder",
+          "web_rd_del_concept_studio_result",
+          "web_rd_del_cs_target_market",
+          "web_rd_del_cs_trend_tag",
+          "web_rd_get_concept_studio_results",
+          "web_rd_get_cs_target_markets",
+          "web_rd_get_cs_trend_tags",
+          "web_rd_get_customers",
+          "web_rd_get_seasons",
+          "web_rd_ins_concept_studio_result",
+          "web_rd_ins_cs_target_market",
+          "web_rd_ins_cs_trend_tag",
+          "web_rd_upd_concept_studio_result"
+        ]
+      },
+      "garment-quotation": {
+        "Roles": [],
+        "Procedures": [
+          "web_rd_crt_style_costing_on_approve",
+          "web_rd_get_currency_conversion",
+          "web_rd_get_factory_list",
+          "web_rd_get_gq_approved_products",
+          "web_rd_get_uom_list",
+          "web_rd_gq_costing_history",
+          "web_rd_gq_delete_quotation",
+          "web_rd_gq_delete_remark",
+          "web_rd_gq_load_bom_draft",
+          "web_rd_gq_load_style_pricing",
+          "web_rd_gq_quotations",
+          "web_rd_gq_remarks",
+          "web_rd_gq_save_bom_draft",
+          "web_rd_gq_save_costing",
+          "web_rd_gq_save_quotation",
+          "web_rd_gq_save_remark",
+          "web_rd_gq_save_style_pricing",
+          "web_rd_package_style_bom_quote",
+          "web_rd_package_styles",
+          "web_rd_product_package",
+          "web_rd_upd_gq_style_display"
+        ]
+      },
+      "manage-offering": {
+        "Roles": [],
+        "Procedures": [
+          "web_rd_co_fty_submit_proposal",
+          "web_rd_del_sbu_submission",
+          "web_rd_get_sbu_submissions",
+          "web_rd_get_submission_fob_history",
+          "web_rd_ins_sbu_submission",
+          "web_rd_submit_sbu_submission",
+          "web_rd_upd_sbu_submission"
+        ]
+      },
+      "product-cost-optimization": {
+        "Roles": [],
+        "Procedures": [
+          "web_rd_co_clear_suggestions",
+          "web_rd_co_get_suggestions",
+          "web_rd_co_ins_sbu_review",
+          "web_rd_co_list_concept_styles",
+          "web_rd_co_load_session",
+          "web_rd_co_recall_review",
+          "web_rd_co_save_suggestion",
+          "web_rd_co_submit_review",
+          "web_rd_co_toggle_suggestion",
+          "web_rd_get_collection_builder",
+          "web_rd_get_collection_builder_items",
+          "web_rd_get_concept_studio_results",
+          "web_rd_get_factory_list"
+        ]
+      },
+      "product-trends": {
+        "Roles": [],
+        "Procedures": [
+          "web_rd_ct_clear_scores",
+          "web_rd_ct_get_collection_styles",
+          "web_rd_ct_get_region_scores",
+          "web_rd_ct_get_style_scores",
+          "web_rd_ct_list_collections",
+          "web_rd_ct_load_session",
+          "web_rd_ct_mark_complete",
+          "web_rd_ct_save_region_score",
+          "web_rd_ct_save_style_score"
+        ]
+      },
+      "business-unit": {
+        "Roles": [],
+        "Procedures": [
+          "web_rd_del_sbu_product",
+          "web_rd_del_sbu_products_bulk",
+          "web_rd_get_gq_approved_products",
+          "web_rd_get_prod_categories",
+          "web_rd_get_sbu_products",
+          "web_rd_ins_sbu_product",
+          "web_rd_upd_sbu_product"
+        ]
+      },
+      "sbu-performance": {
+        "_comment": "Every factory's average FOB: office roles only (TMS let any signed-in user call it).",
+        "Roles": ["Admin", "Merchandiser"],
+        "Procedures": [
+          "web_rd_get_sbu_performance"
+        ]
+      },
+      "trimcard": {
+        "Roles": [],
+        "Procedures": [
+          "web_rd_get_proc_Populate_TrimCard_Tbl",
+          "web_rd_get_proc_get_swatch_all",
+          "web_rd_get_sp_adidas_trimcard",
+          "web_rd_get_sp_swatch_validatestats",
+          "web_rd_get_sp_swatch_validatestyle",
+          "web_rd_get_sp_trimcard_articles",
+          "web_rd_get_sp_trimcard_articles_byStyle",
+          "web_rd_get_sp_trimcard_dtls",
+          "web_rd_get_styleseason_byIO"
+        ]
+      }
+    }
+  }
+}

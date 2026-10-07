@@ -1,0 +1,239 @@
+@let h = header();
+<section class="flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div class="min-w-0">
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'nav.marketTrends' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'pt.subtitle' | transloco }}</p>
+    </div>
+    @if (h && styles().length) {
+      <button hlmBtn [variant]="hasAnalysis() ? 'outline' : 'default'" type="button" class="h-11 w-full sm:w-auto lg:h-9" [disabled]="busy()" (click)="analyze()">
+        @if (busy()) {
+          <hlm-spinner />{{ (analyzing() ? 'pt.analyzing' : 'pt.saving') | transloco }}
+        } @else if (hasAnalysis()) {
+          <ng-icon name="lucideRefreshCw" />{{ 'pt.reanalyze' | transloco }}
+        } @else {
+          <ng-icon name="lucideSparkles" />{{ 'pt.analyze' | transloco }}
+        }
+      </button>
+    }
+  </header>
+
+  <section hlmCard class="overflow-visible px-5 py-4">
+    <app-concept-picker
+      [concepts]="collections()"
+      [loaded]="collectionsLoaded()"
+      [selected]="collectionRecid()"
+      [label]="'pt.selectCollection' | transloco"
+      [placeholder]="'pt.picker.searchPlaceholder' | transloco"
+      [emptyText]="'pt.picker.noCollections' | transloco"
+      [noMatchText]="'common.noMatches' | transloco"
+      (selectedChange)="selectCollection($event)"
+    />
+  </section>
+
+  @if (loading()) {
+    <div class="grid gap-4 xl:grid-cols-[minmax(0,18rem)_minmax(0,1fr)_minmax(0,20rem)]">
+      @for (i of [1, 2, 3]; track i) {
+        <div hlmSkeleton class="h-80 rounded-xl"></div>
+      }
+    </div>
+  } @else if (!h) {
+    @if (collectionsLoaded() && collections().length) {
+      <section hlmCard class="items-center gap-2 px-5 py-12 text-center">
+        <ng-icon name="lucideTrendingUp" class="text-muted-foreground text-4xl" />
+        <p class="font-medium">{{ 'pt.empty.title' | transloco }}</p>
+        <p class="text-muted-foreground max-w-md text-sm">{{ 'pt.empty.desc' | transloco }}</p>
+      </section>
+    } @else if (collectionsLoaded()) {
+      <section hlmCard class="items-center gap-3 px-5 py-12 text-center">
+        <p class="text-muted-foreground text-sm">{{ 'pt.picker.noCollections' | transloco }}</p>
+        <a hlmBtn variant="outline" routerLink="/collection-builder" class="h-11 lg:h-9">{{ 'nav.collectionBuilder' | transloco }}</a>
+      </section>
+    }
+  } @else {
+    <div class="grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,18rem)_minmax(0,1fr)_minmax(0,20rem)]">
+      <!-- ── Collection ──────────────────────────────────── -->
+      <section hlmCard class="min-w-0 gap-0 py-0">
+        <h2 class="border-b px-5 py-3 font-semibold">{{ 'pt.left.realTitle' | transloco }}</h2>
+        <div class="flex flex-col gap-4 p-5">
+          <div>
+            <h3 class="font-semibold">{{ h.conceptName }}</h3>
+            <dl class="text-muted-foreground mt-1 grid grid-cols-[auto_1fr] gap-x-2 text-sm">
+              <dt>{{ 'pt.left.client' | transloco }}</dt>
+              <dd class="text-foreground truncate">{{ h.customer || '—' }}</dd>
+              <dt>{{ 'pt.left.season' | transloco }}</dt>
+              <dd class="text-foreground truncate">{{ h.season || '—' }}</dd>
+              <dt>{{ 'pt.left.market' | transloco }}</dt>
+              <dd class="text-foreground truncate">{{ h.targetMarket || '—' }}</dd>
+              <dt>{{ 'pt.left.targetFob' | transloco }}:</dt>
+              <dd class="text-foreground tabular-nums">{{ h.targetFob ? '$' + (h.targetFob | number: '1.2-2') : '—' }}</dd>
+            </dl>
+          </div>
+          <div>
+            <h3 class="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">{{ 'pt.left.stylesHeader' | transloco }} ({{ styles().length }})</h3>
+            @if (!styles().length) {
+              <p class="text-muted-foreground text-sm">{{ 'pt.left.noStyles' | transloco }}</p>
+            } @else {
+              <ul class="flex flex-col gap-2" role="list">
+                @for (s of scoredStyles(); track s.itemRecid) {
+                  <li class="flex items-center gap-3">
+                    <div class="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md">
+                      @if (s.imageUrl) {
+                        <img [appAuthSrc]="s.imageUrl" [alt]="s.productName" class="size-full object-cover" loading="lazy" (loadError)="s.imageUrl = ''" />
+                      } @else {
+                        <ng-icon name="lucideImage" class="opacity-50" />
+                      }
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-sm font-medium">{{ s.productName }}</p>
+                      @if (s.score; as sc) {
+                        <div class="mt-1 flex items-center gap-2" [title]="('pt.left.trendScoreAriaLabel' | transloco: { score: sc.trendScore })">
+                          <span class="bg-muted h-1.5 flex-1 overflow-hidden rounded-full" aria-hidden="true">
+                            <span class="block h-full rounded-r bg-blue-600 dark:bg-blue-500" [style.width.%]="sc.trendScore"></span>
+                          </span>
+                          <span class="w-7 text-right text-xs font-semibold tabular-nums">{{ sc.trendScore }}</span>
+                        </div>
+                      } @else {
+                        <p class="text-muted-foreground truncate text-xs">{{ s.category }} · ${{ s.fobPrice | number: '1.2-2' }}</p>
+                      }
+                    </div>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Regions + styles ─────────────────────────────── -->
+      <div class="flex min-w-0 flex-col gap-4 lg:row-span-2 xl:row-span-1">
+        <section hlmCard class="gap-0 py-0" [attr.aria-busy]="busy()">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
+            <h2 class="font-semibold">{{ 'pt.regionsTitle' | transloco }}</h2>
+            @if (regionBars().rows.length) {
+              <span class="text-muted-foreground text-xs">{{ 'pt.growthEstimate' | transloco }}</span>
+            }
+          </div>
+          @if (busy()) {
+            <div class="flex flex-col gap-3 p-5" aria-hidden="true">
+              @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+                <div hlmSkeleton class="h-6 w-full"></div>
+              }
+            </div>
+          } @else if (!regionBars().rows.length) {
+            <div class="text-muted-foreground flex flex-col items-center gap-2 px-5 py-10 text-center text-sm">
+              <ng-icon name="lucideSparkles" class="text-2xl opacity-60" />
+              {{ (styles().length ? 'pt.center.runAnalysisHint' : 'pt.left.noStyles') | transloco }}
+            </div>
+          } @else {
+            @let rb = regionBars();
+            <ul class="flex flex-col gap-3 p-5" role="list">
+              @for (r of rb.rows; track r.regionId) {
+                <li class="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_3.5rem] items-center gap-3 text-sm">
+                  <span class="min-w-0">
+                    <span class="block truncate font-medium">{{ regionName(r.regionId) }}</span>
+                    <span class="text-muted-foreground block truncate text-xs">{{ r.trendLabel }} · {{ 'pt.strength.' + r.strength.toLowerCase() | transloco }}</span>
+                  </span>
+                  <span
+                    class="relative h-3"
+                    [title]="regionName(r.regionId) + ': ' + r.trendLabel + ', ' + (r.growthPct > 0 ? '+' : '') + r.growthPct + '%'"
+                  >
+                    @if (rb.hasNegative) {
+                      <span class="absolute -inset-y-1 w-px bg-neutral-400 dark:bg-neutral-500" [style.left.%]="rb.zero" aria-hidden="true"></span>
+                    }
+                    <span
+                      class="absolute inset-y-0"
+                      [class]="r.growthPct >= 0 ? 'rounded-r bg-blue-600 dark:bg-blue-500' : 'rounded-l bg-red-600 dark:bg-red-500'"
+                      [style.left.%]="r.left"
+                      [style.width.%]="r.width"
+                    ></span>
+                  </span>
+                  <span class="text-right font-semibold tabular-nums">{{ r.growthPct > 0 ? '+' : r.growthPct < 0 ? '−' : '' }}{{ r.growthPct < 0 ? -r.growthPct : r.growthPct }}%</span>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+
+        <section hlmCard class="gap-0 py-0">
+          <h2 class="border-b px-5 py-3 font-semibold">{{ 'pt.center.insightsTitle' | transloco }}</h2>
+          @if (!styleScores().length) {
+            <p class="text-muted-foreground px-5 py-8 text-center text-sm">{{ 'pt.center.runAnalysisHint' | transloco }}</p>
+          } @else {
+            <ul class="grid gap-3 p-5 sm:grid-cols-2" role="list">
+              @for (s of scoredStyles(); track s.itemRecid) {
+                @if (s.score; as sc) {
+                  <li class="flex flex-col gap-2 rounded-lg border p-3">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="min-w-0">
+                        <p class="truncate text-sm font-medium">{{ s.productName }}</p>
+                        <p class="text-muted-foreground truncate text-xs">{{ s.category }} · ${{ s.fobPrice | number: '1.2-2' }}</p>
+                      </div>
+                      <span class="shrink-0 rounded-md px-2 py-0.5 text-sm font-semibold tabular-nums" [class]="toneBadge(scoreTone(sc.trendScore))" [title]="'pt.left.trendScoreAriaLabel' | transloco: { score: sc.trendScore }">
+                        {{ sc.trendScore }}
+                      </span>
+                    </div>
+                    @if (sc.insight) {
+                      <p class="text-sm">{{ sc.insight }}</p>
+                    }
+                    <div class="mt-auto flex flex-wrap items-center gap-1.5 text-xs">
+                      <span class="rounded-full px-2 py-0.5 font-medium" [class]="toneBadge(tagTone(sc.tagType))">{{ 'pt.tag.' + sc.tagType | transloco }}</span>
+                      @for (t of sc.trendTags; track t) {
+                        <span hlmBadge variant="secondary">{{ t }}</span>
+                      }
+                      <span class="text-muted-foreground ml-auto flex items-center gap-1 tabular-nums" [title]="'pt.growthEstimate' | transloco">
+                        <ng-icon [name]="sc.growthPct < 0 ? 'lucideTrendingDown' : 'lucideTrendingUp'" />{{ sc.growthPct > 0 ? '+' : '' }}{{ sc.growthPct }}%
+                      </span>
+                    </div>
+                  </li>
+                }
+              }
+            </ul>
+          }
+        </section>
+      </div>
+
+      <!-- ── Summary ──────────────────────────────────────── -->
+      <section hlmCard class="min-w-0 gap-0 py-0">
+        <h2 class="flex items-center gap-2 border-b px-5 py-3 font-semibold">
+          <ng-icon name="lucideSparkles" class="text-primary" />{{ 'pt.right.title' | transloco }}
+        </h2>
+        <div class="flex flex-col gap-4 p-5">
+          <dl class="grid grid-cols-2 gap-2 text-center">
+            <div class="bg-muted/50 rounded-lg px-2 py-2">
+              <dt class="text-muted-foreground text-xs">{{ 'pt.right.collectionScore' | transloco }}</dt>
+              <dd class="text-2xl font-semibold tabular-nums">{{ collectionScore() ?? '—' }}</dd>
+            </div>
+            <div class="bg-muted/50 rounded-lg px-2 py-2">
+              <dt class="text-muted-foreground text-xs">{{ 'pt.right.stylesAnalyzed' | transloco }}</dt>
+              <dd class="text-2xl font-semibold tabular-nums">{{ styleScores().length }} / {{ styles().length }}</dd>
+            </div>
+          </dl>
+          @if (topRegion(); as top) {
+            <p class="text-sm">
+              {{ 'pt.topRegion' | transloco: { region: regionName(top.regionId), label: top.trendLabel } }}
+            </p>
+          }
+          @if (insights().length) {
+            <div>
+              <h3 class="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">{{ 'pt.right.aiNotes' | transloco }}</h3>
+              <ul class="flex flex-col gap-2 text-sm">
+                @for (i of insights(); track $index) {
+                  <li class="flex gap-2"><span class="bg-primary mt-1.5 size-1.5 shrink-0 rounded-full"></span>{{ i }}</li>
+                }
+              </ul>
+            </div>
+          }
+          @if (hasAnalysis()) {
+            <p class="text-muted-foreground text-xs">
+              {{ 'pt.analyzedBy' | transloco: { at: analyzedAt(), by: analyzedBy() || '—' } }}
+            </p>
+          }
+          <p class="text-muted-foreground flex gap-2 border-t pt-3 text-xs">
+            <ng-icon name="lucideInfo" class="mt-0.5 shrink-0" />{{ 'pt.disclaimer' | transloco }}
+          </p>
+        </div>
+      </section>
+    </div>
+  }
+</section>

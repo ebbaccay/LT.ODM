@@ -1,0 +1,472 @@
+<section class="flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'settings.import.title' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'settings.import.subtitle' | transloco }}</p>
+    </div>
+    <a hlmBtn variant="outline" class="h-11 lg:h-9" [href]="templateUrl" download="Style_Library_template.xlsx">
+      <ng-icon name="lucideDownload" />{{ 'settings.import.downloadTemplate' | transloco }}
+    </a>
+  </header>
+
+  @let b = batch();
+  @if (!b) {
+    <!-- Upload -->
+    <section hlmCard class="gap-4 p-5">
+      <label
+        for="import-file"
+        class="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors"
+        [class]="dragging() ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent/40'"
+        (dragover)="onDragOver($event)"
+        (dragleave)="dragging.set(false)"
+        (drop)="onDrop($event)"
+      >
+        <ng-icon name="lucideFileSpreadsheet" class="text-muted-foreground text-4xl" />
+        @if (file(); as f) {
+          <span class="font-medium break-all">{{ f.name }}</span>
+          <span class="text-muted-foreground text-sm">{{ f.size / 1048576 | number: '1.1-1' }} MB · {{ 'settings.import.chooseAnother' | transloco }}</span>
+        } @else {
+          <span class="font-medium">{{ 'settings.import.dropHere' | transloco }}</span>
+          <span class="text-muted-foreground text-sm">{{ 'settings.import.dropHint' | transloco }}</span>
+        }
+        <input id="import-file" type="file" class="sr-only" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" (change)="onFileInput($event)" />
+      </label>
+
+      @if (uploadError(); as err) {
+        <div class="border-destructive/40 bg-destructive/5 flex gap-3 rounded-md border p-3 text-sm" role="alert">
+          <ng-icon name="lucideCircleAlert" class="text-destructive mt-0.5 shrink-0" />
+          <div class="min-w-0">
+            <p class="font-medium">{{ err.title }}</p>
+            @if (err.problems.length) {
+              <ul class="text-muted-foreground mt-1 list-disc pl-5">
+                @for (p of err.problems; track $index) {
+                  <li>{{ p }}</li>
+                }
+              </ul>
+            }
+          </div>
+        </div>
+      }
+
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-muted-foreground text-xs">{{ 'settings.import.sheetsHint' | transloco }}</p>
+        <button hlmBtn type="button" class="h-11 w-full sm:w-auto lg:h-9" [disabled]="!file() || uploading()" (click)="upload()">
+          @if (uploading()) {
+            <hlm-spinner />{{ 'settings.import.checking' | transloco }}
+          } @else {
+            <ng-icon name="lucideUpload" />{{ 'settings.import.uploadAndCheck' | transloco }}
+          }
+        </button>
+      </div>
+    </section>
+
+    <!-- Recent imports -->
+    <section hlmCard class="gap-0 py-0" [attr.aria-busy]="recentLoading()">
+      <h2 class="border-b px-5 py-3 font-semibold">{{ 'settings.import.recent' | transloco }}</h2>
+      @if (recentLoading() && !recent().length) {
+        <div class="flex flex-col gap-3 p-5">
+          @for (i of [1, 2, 3]; track i) {
+            <div hlmSkeleton class="h-12 w-full"></div>
+          }
+        </div>
+      } @else if (!recent().length) {
+        <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ 'settings.import.noRecent' | transloco }}</p>
+      } @else {
+        <ul class="divide-y" role="list">
+          @for (r of recent(); track r.batchId) {
+            <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3">
+              <div class="min-w-0">
+                <p class="flex flex-wrap items-center gap-2 text-sm font-medium">
+                  <span class="truncate">{{ r.fileName }}</span>
+                  <span class="rounded-full px-2 py-0.5 text-xs font-medium" [class]="toneBadge(statusTone(r.status))">
+                    {{ 'settings.import.status' + r.status | transloco }}
+                  </span>
+                </p>
+                <p class="text-muted-foreground text-xs">
+                  {{ r.uploadedBy }} · {{ r.uploadedUtc | date: 'medium' }}
+                  @if (r.summary; as s) {
+                    @if (r.status === 'Committed' && s.committed) {
+                      · {{ 'settings.import.recentCommitted' | transloco: { count: s.committed.styles, newCount: s.committed.new, replaced: s.committed.replaced } }}
+                    } @else {
+                      · {{ 'settings.import.recentStyles' | transloco: { count: s.styles.total } }}
+                    }
+                  }
+                </p>
+              </div>
+              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="reopen(r.batchId)">
+                {{ (r.status === 'Staged' ? 'settings.import.resume' : 'settings.import.view') | transloco }}
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  } @else {
+    <!-- Preview / result -->
+    @let s = summary();
+    <section hlmCard class="gap-4 p-5">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="flex flex-wrap items-center gap-2 font-medium">
+            <ng-icon name="lucideFileSpreadsheet" class="text-muted-foreground" />
+            <span class="break-all">{{ b.fileName }}</span>
+            <span class="rounded-full px-2 py-0.5 text-xs font-medium" [class]="toneBadge(statusTone(b.status))">
+              {{ 'settings.import.status' + b.status | transloco }}
+            </span>
+          </p>
+          <p class="text-muted-foreground mt-1 text-xs">{{ b.uploadedBy }} · {{ b.uploadedUtc | date: 'medium' }}</p>
+        </div>
+        <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-9" [attr.aria-label]="'actions.close' | transloco" (click)="close()">
+          <ng-icon name="lucideX" />
+        </button>
+      </div>
+
+      @if (s) {
+        <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          @for (t of [
+            { label: 'settings.import.actionNew', value: s.styles.new, tone: 'green', action: 'New' },
+            { label: 'settings.import.actionChanged', value: s.styles.changed, tone: 'amber', action: 'Changed' },
+            { label: 'settings.import.actionUnchanged', value: s.styles.unchanged, tone: 'neutral', action: 'Unchanged' },
+            { label: 'settings.import.actionBlocked', value: s.styles.blocked, tone: 'red', action: 'Blocked' }
+          ]; track t.label) {
+            <button
+              type="button"
+              class="hover:bg-accent/50 rounded-md border px-3 py-2 text-left transition-colors"
+              [class.ring-2]="actionFilter() === t.action"
+              [class.ring-primary]="actionFilter() === t.action"
+              (click)="tab.set('styles'); setActionFilter(actionFilter() === t.action ? null : $any(t.action))"
+            >
+              <dt class="text-muted-foreground text-xs">{{ t.label | transloco }}</dt>
+              <dd class="text-2xl font-semibold tabular-nums" [class]="t.value ? '' : 'text-muted-foreground'">{{ t.value | number }}</dd>
+            </button>
+          }
+        </dl>
+        <p class="text-muted-foreground text-sm">
+          {{ 'settings.import.rowsLine' | transloco: { styles: (s.rows.styles | number), colorways: (s.rows.colorways | number), lines: (s.bomLines | number), rows: (s.rows.bom | number) } }}
+          ·
+          <span [class]="s.errors ? 'text-destructive font-medium' : ''">{{ 'settings.import.errorsCount' | transloco: { count: (s.errors | number) } }}</span>
+          ·
+          <span>{{ 'settings.import.warningsCount' | transloco: { count: (s.warnings | number) } }}</span>
+        </p>
+      }
+
+      @if (b.status === 'Committed' && s?.committed; as c) {
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3" role="status">
+          <p class="flex items-center gap-2 text-sm">
+            <ng-icon name="lucideCircleCheck" class="shrink-0 text-emerald-600 dark:text-emerald-400" />
+            {{ 'settings.import.committedLine' | transloco: { count: c.styles, newCount: c.new, replaced: c.replaced, lines: (c.bomLines | number) } }}
+          </p>
+          <div class="flex gap-2">
+            <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="close()">{{ 'settings.import.importAnother' | transloco }}</button>
+            <a hlmBtn class="h-11 lg:h-9" routerLink="/styles">{{ 'settings.import.openStyles' | transloco }}</a>
+          </div>
+        </div>
+      } @else if (b.status === 'Cancelled') {
+        <p class="text-muted-foreground rounded-md border p-3 text-sm">{{ 'settings.import.cancelledLine' | transloco }}</p>
+      } @else if (s?.styles?.blocked) {
+        <p class="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/5 p-3 text-sm">
+          <ng-icon name="lucideTriangleAlert" class="mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
+          {{ 'settings.import.blockedHint' | transloco: { count: s!.styles.blocked } }}
+        </p>
+      }
+    </section>
+
+    <!-- Tabs -->
+    <div class="bg-muted flex w-full rounded-lg p-1 sm:w-fit" role="tablist">
+      @for (t of [
+        { id: 'styles', label: 'settings.import.tabStyles', count: stylesTotal() },
+        { id: 'issues', label: 'settings.import.tabIssues', count: (s?.errors ?? 0) + (s?.warnings ?? 0) },
+        { id: 'codes', label: 'settings.import.tabCodes', count: codes()?.codes?.length ?? 0 }
+      ]; track t.id) {
+        <button
+          type="button"
+          role="tab"
+          class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium whitespace-nowrap transition-colors lg:min-h-8"
+          [class]="tab() === t.id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+          [attr.aria-selected]="tab() === t.id"
+          (click)="tab.set($any(t.id))"
+        >
+          {{ t.label | transloco }}
+          <span class="text-muted-foreground text-xs tabular-nums">{{ t.count | number }}</span>
+        </button>
+      }
+    </div>
+
+    @if (tab() === 'styles') {
+      <section hlmCard class="gap-0 py-0" [attr.aria-busy]="stylesLoading()">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+          <div class="flex flex-wrap gap-1" role="group" [attr.aria-label]="'settings.import.filterLabel' | transloco">
+            @for (f of actionFilters; track f.label) {
+              <button
+                type="button"
+                class="min-h-11 rounded-md px-3 text-sm transition-colors lg:min-h-8"
+                [class]="actionFilter() === f.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'"
+                [attr.aria-pressed]="actionFilter() === f.id"
+                (click)="setActionFilter(f.id)"
+              >
+                {{ f.label | transloco }}
+              </button>
+            }
+          </div>
+          <div class="relative w-full sm:w-64">
+            <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+            <input
+              hlmInput
+              type="search"
+              class="h-11 w-full pl-9 lg:h-9"
+              [attr.aria-label]="'actions.search' | transloco"
+              [placeholder]="'settings.import.searchPlaceholder' | transloco"
+              [value]="search()"
+              (input)="onSearch($event)"
+            />
+          </div>
+        </div>
+
+        @if (isStaged() && s?.styles?.changed) {
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b bg-amber-500/5 px-5 py-3 text-sm">
+            <p>{{ 'settings.import.changedHint' | transloco: { count: s!.styles.changed } }}</p>
+            <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [disabled]="selectingAll()" (click)="toggleAllChanged()">
+              @if (selectingAll()) {
+                <hlm-spinner />
+              }
+              {{ (overwrite().size === s!.styles.changed ? 'settings.import.untickAll' : 'settings.import.tickAll') | transloco: { count: s!.styles.changed } }}
+            </button>
+          </div>
+        }
+
+        @if (stylesLoading() && !styles().length) {
+          <div class="flex flex-col gap-3 p-5">
+            @for (i of [1, 2, 3, 4]; track i) {
+              <div hlmSkeleton class="h-12 w-full"></div>
+            }
+          </div>
+        } @else if (!styles().length) {
+          <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ 'settings.import.noStyles' | transloco }}</p>
+        } @else {
+          <div class="text-muted-foreground hidden grid-cols-[2.5rem_minmax(0,1.6fr)_minmax(0,7rem)_minmax(0,5rem)_minmax(0,5rem)_minmax(0,1.4fr)] gap-3 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase lg:grid">
+            <span class="sr-only">{{ 'settings.import.overwrite' | transloco }}</span>
+            <span>{{ 'settings.import.colStyle' | transloco }}</span>
+            <span>{{ 'settings.import.colSeason' | transloco }}</span>
+            <span class="text-right">{{ 'settings.import.colColorways' | transloco }}</span>
+            <span class="text-right">{{ 'settings.import.colBomLines' | transloco }}</span>
+            <span>{{ 'settings.import.colResult' | transloco }}</span>
+          </div>
+          <ul class="divide-y" role="list">
+            @for (st of styles(); track st.styleKey) {
+              <li class="grid grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-5 py-3 lg:grid-cols-[2.5rem_minmax(0,1.6fr)_minmax(0,7rem)_minmax(0,5rem)_minmax(0,5rem)_minmax(0,1.4fr)]">
+                <div class="row-span-2 flex items-center lg:row-span-1">
+                  @if (isStaged() && st.action === 'Changed') {
+                    <hlm-checkbox
+                      [inputId]="'ow-' + $index"
+                      [checked]="isTicked(st)"
+                      [attr.aria-label]="('settings.import.overwrite' | transloco) + ' ' + st.styleNo"
+                      (checkedChange)="toggle(st)"
+                    />
+                  }
+                </div>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-medium">{{ st.styleNo }}</p>
+                  <p class="text-muted-foreground truncate text-xs">
+                    {{ st.modelName || '—' }}
+                    <span class="lg:hidden">· {{ st.customerCode }} {{ st.seasonCode }} · {{ st.colorwayCount }} / {{ st.bomLineCount }}</span>
+                  </p>
+                </div>
+                <span class="text-muted-foreground hidden text-sm lg:block">{{ st.customerCode }} · {{ st.seasonCode }}</span>
+                <span class="hidden text-right text-sm tabular-nums lg:block">{{ st.colorwayCount }}</span>
+                <span class="hidden text-right text-sm tabular-nums lg:block">{{ st.bomLineCount | number }}</span>
+                <div class="col-start-2 flex min-w-0 flex-wrap items-center gap-2 lg:col-start-auto">
+                  <span class="rounded-full px-2 py-0.5 text-xs font-medium" [class]="toneBadge(actionTone(st.action))">
+                    {{ 'settings.import.action' + st.action | transloco }}{{ st.committed ? ' ✓' : '' }}
+                  </span>
+                  @if (st.changes) {
+                    <span class="text-muted-foreground text-xs">{{ st.changes }}</span>
+                  }
+                  @if (st.errorCount || st.warningCount) {
+                    <button type="button" class="text-xs underline-offset-2 hover:underline" [class]="st.errorCount ? 'text-destructive' : 'text-muted-foreground'" (click)="showIssuesFor(st)">
+                      {{ 'settings.import.issuesLink' | transloco: { errors: st.errorCount, warnings: st.warningCount } }}
+                    </button>
+                  }
+                </div>
+              </li>
+            }
+          </ul>
+          @if (styles().length < stylesTotal()) {
+            <div class="border-t px-5 py-3 text-center">
+              <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" [disabled]="stylesLoading()" (click)="loadStyles(true)">
+                {{ 'settings.import.showMore' | transloco: { shown: styles().length, total: (stylesTotal() | number) } }}
+              </button>
+            </div>
+          }
+        }
+      </section>
+    } @else {
+      <section hlmCard class="gap-0 py-0" [attr.aria-busy]="issuesLoading()">
+        <div class="flex flex-wrap gap-1 border-b px-5 py-3" role="group" [attr.aria-label]="'settings.import.filterLabel' | transloco">
+          @for (f of [{ id: null, label: 'settings.import.filterAll' }, { id: 'Error', label: 'settings.import.errors' }, { id: 'Warning', label: 'settings.import.warnings' }]; track f.label) {
+            <button
+              type="button"
+              class="min-h-11 rounded-md px-3 text-sm transition-colors lg:min-h-8"
+              [class]="severityFilter() === f.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'"
+              [attr.aria-pressed]="severityFilter() === f.id"
+              (click)="setSeverity($any(f.id))"
+            >
+              {{ f.label | transloco }}
+            </button>
+          }
+        </div>
+        @if (issuesLoading() && !issues().length) {
+          <div class="flex flex-col gap-3 p-5">
+            @for (i of [1, 2, 3]; track i) {
+              <div hlmSkeleton class="h-10 w-full"></div>
+            }
+          </div>
+        } @else if (!issues().length) {
+          <p class="text-muted-foreground flex items-center justify-center gap-2 px-5 py-10 text-sm">
+            <ng-icon name="lucideCircleCheck" class="text-emerald-600 dark:text-emerald-400" />{{ 'settings.import.noIssues' | transloco }}
+          </p>
+        } @else {
+          <ul class="divide-y" role="list">
+            @for (i of issues(); track $index) {
+              <li class="flex gap-3 px-5 py-3 text-sm">
+                <ng-icon
+                  [name]="i.severity === 'Error' ? 'lucideCircleAlert' : 'lucideTriangleAlert'"
+                  class="mt-0.5 shrink-0"
+                  [class]="i.severity === 'Error' ? 'text-destructive' : 'text-amber-600 dark:text-amber-400'"
+                />
+                <div class="min-w-0">
+                  <p>{{ i.message }}</p>
+                  <p class="text-muted-foreground text-xs">
+                    {{ sheetLabel(i.sheet) }}@if (i.rowNo) { · {{ 'settings.import.row' | transloco: { row: i.rowNo } }} }@if (i.styleKey) { · {{ i.styleKey }} }
+                  </p>
+                </div>
+              </li>
+            }
+          </ul>
+          @if (issues().length < issuesTotal()) {
+            <div class="border-t px-5 py-3 text-center">
+              <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" [disabled]="issuesLoading()" (click)="loadIssues(true)">
+                {{ 'settings.import.showMore' | transloco: { shown: issues().length, total: (issuesTotal() | number) } }}
+              </button>
+            </div>
+          }
+        }
+      </section>
+    }
+
+    @if (tab() === 'codes') {
+      <section hlmCard class="gap-0 py-0">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+          <div>
+            <h2 class="font-semibold">{{ 'settings.import.codes.title' | transloco }}</h2>
+            <p class="text-muted-foreground text-xs">{{ 'settings.import.codes.hint' | transloco }}</p>
+          </div>
+          @if (isStaged() && unmatched()) {
+            <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="suggesting()" (click)="suggestCodes()">
+              @if (suggesting()) {
+                <hlm-spinner class="size-4" />
+              } @else {
+                <ng-icon name="lucideSparkles" />
+              }
+              {{ 'settings.import.codes.suggest' | transloco: { count: unmatched() } }}
+            </button>
+          }
+        </div>
+        @if (!isStaged()) {
+          <p class="text-muted-foreground px-5 py-8 text-center text-sm">{{ 'settings.import.codes.onlyStaged' | transloco }}</p>
+        } @else if (!codes()) {
+          <div class="flex flex-col gap-3 p-5"><div hlmSkeleton class="h-14 w-full"></div><div hlmSkeleton class="h-14 w-full"></div></div>
+        } @else if (!codes()!.codes.length) {
+          <p class="flex items-center justify-center gap-2 px-5 py-8 text-sm"><ng-icon name="lucideCircleCheck" class="text-emerald-600" />{{ 'settings.import.codes.none' | transloco }}</p>
+        } @else {
+          <ul class="divide-y" role="list">
+            @for (c of codes()!.codes; track codeKey(c)) {
+              @let key = codeKey(c);
+              @let ai = suggestions().get(key);
+              @let suggestion = c.suggestedCode ?? ai?.code ?? null;
+              <li class="grid gap-3 px-5 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] lg:items-center">
+                <div class="min-w-0">
+                  <p class="flex flex-wrap items-center gap-2 text-sm">
+                    <span class="text-muted-foreground text-xs">{{ 'settings.import.codes.list.' + c.list | transloco }}</span>
+                    <span class="font-mono font-medium">{{ c.value }}</span>
+                    @if (c.label && c.label !== c.value) {
+                      <span class="text-muted-foreground text-xs">{{ c.label }}</span>
+                    }
+                  </p>
+                  <p class="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
+                    @if (c.blocking) {
+                      <span class="rounded bg-red-500/15 px-1.5 py-0.5 text-red-700 dark:text-red-400">{{ 'settings.import.codes.blocks' | transloco }}</span>
+                    } @else if (c.list === 'gender') {
+                      <span class="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-400">{{ 'settings.import.codes.blanked' | transloco }}</span>
+                    } @else {
+                      <span class="bg-muted text-muted-foreground rounded px-1.5 py-0.5">{{ 'settings.import.codes.willAdd' | transloco }}</span>
+                    }
+                    <span class="text-muted-foreground">{{ 'settings.import.codes.usage' | transloco: { rows: c.rows, styles: c.styles } }}</span>
+                  </p>
+                </div>
+                <div class="flex flex-col gap-2">
+                  @if (suggestion) {
+                    <div class="flex flex-wrap items-center gap-2 text-sm">
+                      <span class="rounded px-1.5 py-0.5 text-[11px]" [class]="c.suggestedCode ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' : 'bg-violet-500/15 text-violet-700 dark:text-violet-400'">
+                        {{ (c.suggestedCode ? 'settings.import.codes.bySpelling' : 'settings.import.codes.byAi') | transloco }}
+                      </span>
+                      <span>{{ 'settings.import.codes.means' | transloco }} <strong class="font-mono">{{ suggestion }}</strong>@if (c.suggestedCode && c.suggestedName && c.suggestedName !== c.suggestedCode) { <span class="text-muted-foreground"> · {{ c.suggestedName }}</span> }</span>
+                      <button hlmBtn type="button" class="h-11 lg:h-8" [disabled]="mapping() !== null" (click)="mapCode(c, suggestion)">
+                        @if (mapping() === key) {
+                          <hlm-spinner class="size-4" />
+                        }
+                        {{ 'settings.import.codes.use' | transloco: { code: suggestion } }}
+                      </button>
+                    </div>
+                  } @else if (ai) {
+                    <p class="text-xs"><span class="rounded bg-violet-500/15 px-1.5 py-0.5 text-[11px] text-violet-700 dark:text-violet-400">{{ 'settings.import.codes.byAi' | transloco }}</span> {{ 'settings.import.codes.looksNew' | transloco }}</p>
+                  }
+                  @if (ai?.reason) {
+                    <p class="text-muted-foreground text-xs">{{ ai!.reason }}</p>
+                  }
+                  <div class="flex items-center gap-2">
+                    <select
+                      class="border-input bg-background h-11 min-w-0 flex-1 rounded-md border px-2 text-sm lg:h-8"
+                      [attr.aria-label]="'settings.import.codes.pickExisting' | transloco"
+                      [value]="picked()[key] ?? ''"
+                      (change)="pickCode(c, $any($event.target).value)"
+                    >
+                      <option value="">{{ 'settings.import.codes.pickExisting' | transloco }}</option>
+                      @for (o of optionsFor(c.list); track o.code) {
+                        <option [value]="o.code" [selected]="o.code === picked()[key]">{{ o.code }}{{ o.name && o.name !== o.code ? ' · ' + o.name : '' }}</option>
+                      }
+                    </select>
+                    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [disabled]="!picked()[key] || mapping() !== null" (click)="mapCode(c, picked()[key])">
+                      {{ 'settings.import.codes.useShort' | transloco }}
+                    </button>
+                  </div>
+                </div>
+              </li>
+            }
+          </ul>
+          <p class="text-muted-foreground border-t px-5 py-3 text-xs">{{ 'settings.import.codes.footer' | transloco }}</p>
+        }
+      </section>
+    }
+
+    @if (isStaged()) {
+      <!-- Actions stay in reach on long lists. -->
+      <div class="bg-background/95 sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
+        <p class="text-sm">
+          {{ 'settings.import.willWrite' | transloco: { newCount: s?.styles?.new ?? 0, replaceCount: overwrite().size } }}
+        </p>
+        <div class="flex w-full gap-2 sm:w-auto">
+          <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" [disabled]="committing()" (click)="cancelImport()">
+            {{ 'settings.import.cancelImport' | transloco }}
+          </button>
+          <button hlmBtn type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" [disabled]="committing() || toWrite() === 0" (click)="commit()">
+            @if (committing()) {
+              <hlm-spinner />{{ 'settings.import.committing' | transloco }}
+            } @else {
+              {{ 'settings.import.commitCount' | transloco: { count: toWrite() } }}
+            }
+          </button>
+        </div>
+      </div>
+    }
+  }
+</section>

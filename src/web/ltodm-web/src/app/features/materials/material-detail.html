@@ -1,0 +1,258 @@
+<section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
+  <a routerLink="/materials" class="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm">
+    <ng-icon name="lucideArrowLeft" />{{ 'materials.back' | transloco }}
+  </a>
+
+  @if (loading()) {
+    <div hlmSkeleton class="h-40 w-full"></div>
+    <div hlmSkeleton class="h-80 w-full"></div>
+  } @else if (notFound()) {
+    <section hlmCard class="items-center gap-2 px-5 py-14 text-center">
+      <p class="font-medium">{{ 'materials.notFound' | transloco }}</p>
+    </section>
+  } @else if (detail(); as d) {
+    @let h = d.header;
+    <section hlmCard class="gap-4 p-5">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h1 class="flex items-center gap-2 font-mono text-2xl font-semibold tracking-tight break-all">
+            {{ h.materialCode }}
+            <button hlmBtn variant="ghost" size="icon" type="button" class="size-9" [attr.aria-label]="'materials.copyCode' | transloco" (click)="copyCode(h.materialCode)"><ng-icon name="lucideCopy" /></button>
+          </h1>
+          <p class="text-muted-foreground text-sm">{{ h.description || '—' }}</p>
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            @if (h.contentClassName || h.contentClassCode) {
+              <span hlmBadge variant="secondary">{{ h.contentClassName || h.contentClassCode }}</span>
+            }
+            @if (h.materialTypeName || h.materialTypeCode) {
+              <span hlmBadge variant="outline">{{ h.materialTypeName || h.materialTypeCode }}</span>
+            }
+          </div>
+        </div>
+      </div>
+      <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        @for (s of [
+          { label: 'materials.statStyles', value: h.styles },
+          { label: 'materials.statLines', value: h.lines },
+          { label: 'materials.statCustomers', value: h.customers },
+          { label: 'materials.statSeasons', value: h.seasons }
+        ]; track s.label) {
+          <div class="rounded-md border p-3">
+            <dt class="text-muted-foreground text-xs">{{ s.label | transloco }}</dt>
+            <dd class="text-2xl font-semibold tabular-nums">{{ s.value | number }}</dd>
+          </div>
+        }
+      </dl>
+      @if (spec(); as sp) {
+        <div class="rounded-md border p-3 text-sm">
+          <p class="mb-1 flex flex-wrap items-center gap-2 text-xs font-medium tracking-wide uppercase">
+            {{ 'materials.reader.specTitle' | transloco }}
+            <span class="rounded px-1.5 py-0.5 text-[11px] font-normal normal-case" [class]="sp.state === 'Accepted' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' : 'bg-amber-500/15 text-amber-700 dark:text-amber-400'">
+              {{ 'materials.reader.state.' + sp.state | transloco }}
+            </span>
+          </p>
+          <p class="font-medium">{{ sp.composition || ('materials.reader.noFibres' | transloco) }}</p>
+          <p class="text-muted-foreground text-xs">
+            @if (sp.recycledPct) { {{ 'materials.reader.recycled' | transloco: { pct: sp.recycledPct } }} · }
+            {{ sp.construction || '—' }}@if (sp.weightGsm) { · {{ sp.weightGsm }} g/m² }@if (sp.widthCm) { · {{ sp.widthCm }} cm }
+          </p>
+          <p class="text-muted-foreground mt-1 text-[11px]">
+            {{ 'materials.reader.readByLine' | transloco: { user: sp.readBy, model: sp.model, date: (sp.readUtc | date: 'mediumDate') } }}
+            · <a routerLink="/materials" [queryParams]="{ view: 'reader', contentClass: h.contentClassCode ?? '', specStatus: sp.state }" class="text-primary hover:underline">{{ 'materials.reader.openReader' | transloco }}</a>
+          </p>
+        </div>
+      }
+      <p class="text-muted-foreground text-xs">{{ 'materials.addedBy' | transloco: { user: h.createdBy, date: (h.createdUtc | date: 'mediumDate') } }}</p>
+    </section>
+
+    <!-- Tabs -->
+    <div class="bg-muted flex w-full flex-wrap rounded-lg p-1 sm:w-fit" role="tablist">
+      @for (t of [
+        { id: 'uses', label: 'materials.tabUses', count: h.lines },
+        { id: 'consumption', label: 'materials.tabConsumption', count: d.benchmarks.length },
+        { id: 'suppliers', label: 'materials.tabSuppliers', count: d.suppliers.length },
+        { id: 'colours', label: 'materials.tabColours', count: d.colours.length },
+        { id: 'similar', label: 'materials.tabSimilar', count: d.similar.length }
+      ]; track t.id) {
+        <button
+          type="button"
+          role="tab"
+          class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium sm:flex-initial"
+          [class]="tab() === t.id ? 'bg-background shadow-sm' : 'text-muted-foreground'"
+          [attr.aria-selected]="tab() === t.id"
+          (click)="tab.set($any(t.id))"
+        >
+          {{ t.label | transloco }} <span class="text-muted-foreground tabular-nums">{{ t.count }}</span>
+        </button>
+      }
+    </div>
+
+    @switch (tab()) {
+      @case ('uses') {
+        <section hlmCard class="gap-0 py-0">
+          <div class="flex flex-wrap items-center gap-2 border-b px-5 py-3">
+            <hlm-native-select selectId="use-pt" selectClass="h-11 w-full lg:h-9 sm:w-56" [attr.aria-label]="'styles.allProductTypes' | transloco" [value]="productType()" (valueChange)="productType.set($event ?? '')">
+              <option hlmNativeSelectOption value="">{{ 'styles.allProductTypes' | transloco }}</option>
+              @for (p of productTypes(); track p.code) {
+                <option hlmNativeSelectOption [value]="p.code">{{ p.name || ('materials.noProductType' | transloco) }}</option>
+              }
+            </hlm-native-select>
+            @if (unusualCount()) {
+              <button
+                type="button"
+                class="flex h-11 items-center gap-1.5 rounded-full border px-3 text-xs lg:h-9"
+                [class]="unusualOnly() ? 'border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400' : 'text-muted-foreground'"
+                [attr.aria-pressed]="unusualOnly()"
+                (click)="unusualOnly.set(!unusualOnly())"
+              >
+                <ng-icon name="lucideTriangleAlert" />{{ 'materials.unusualOnly' | transloco: { count: unusualCount() } }}
+              </button>
+            }
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-muted-foreground text-left text-xs tracking-wide uppercase">
+                <tr class="border-b">
+                  <th class="px-5 py-2 font-medium">{{ 'materials.colStyle' | transloco }}</th>
+                  <th class="px-3 py-2 font-medium">{{ 'materials.colProductType' | transloco }}</th>
+                  <th class="px-3 py-2 font-medium">{{ 'materials.colPart' | transloco }}</th>
+                  <th class="px-3 py-2 text-right font-medium">{{ 'materials.colConsumption' | transloco }}</th>
+                  <th class="px-3 py-2 font-medium">{{ 'materials.colSupplier' | transloco }}</th>
+                  <th class="px-5 py-2 font-medium">{{ 'materials.colColours' | transloco }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y">
+                @for (u of uses(); track u.bomLineId) {
+                  @let odd = unusual(u);
+                  @let b = benchFor(u);
+                  <tr class="hover:bg-accent/30">
+                    <td class="px-5 py-2.5">
+                      <a [routerLink]="['/styles', u.styleId]" class="text-primary font-mono underline-offset-2 hover:underline">{{ u.styleNo }}</a>
+                      <span class="text-muted-foreground block text-xs">{{ u.customerCode }} · {{ u.seasonCode }}@if (u.modelName) { · {{ u.modelName }} }</span>
+                    </td>
+                    <td class="px-3 py-2.5 text-xs">{{ u.productTypeName || u.productTypeCode || '—' }}</td>
+                    <td class="text-muted-foreground px-3 py-2.5 text-xs">{{ u.partNo ?? '—' }} · {{ 'materials.lineNo' | transloco: { seq: u.lineSeq } }}</td>
+                    <td class="px-3 py-2.5 text-right whitespace-nowrap tabular-nums">
+                      <span class="inline-flex items-center gap-1">
+                        @if (odd) {
+                          <ng-icon name="lucideTriangleAlert" class="text-amber-500" [title]="('materials.unusual.' + odd | transloco) + (b ? ' · ' + ('materials.typicalMedian' | transloco: { median: num(b.median), uom: b.uomCode }) : '')" />
+                        }
+                        {{ num(eff(u)) }} {{ u.uomCode }}
+                      </span>
+                      @if (u.lcoConsumption && u.brandConsumption && u.lcoConsumption !== u.brandConsumption) {
+                        <span class="text-muted-foreground block text-xs">{{ 'materials.lcoBrand' | transloco: { lco: num(u.lcoConsumption), brand: num(u.brandConsumption) } }}</span>
+                      }
+                    </td>
+                    <td class="px-3 py-2.5 text-xs">
+                      {{ u.supplierName || '—' }}
+                      @if (u.nominatedSupplierName) {
+                        <span class="text-muted-foreground block">{{ 'materials.nominated' | transloco: { name: u.nominatedSupplierName } }}</span>
+                      }
+                    </td>
+                    <td class="text-muted-foreground px-5 py-2.5 text-xs">{{ u.colours || '—' }}</td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="6" class="text-muted-foreground px-5 py-8 text-center">{{ 'materials.noUses' | transloco }}</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (h.lines > d.uses.length) {
+            <p class="text-muted-foreground border-t px-5 py-3 text-center text-xs">{{ 'materials.firstUses' | transloco: { shown: d.uses.length, total: (h.lines | number) } }}</p>
+          }
+        </section>
+      }
+
+      @case ('consumption') {
+        <section hlmCard class="gap-4 p-5">
+          <p class="text-muted-foreground text-sm">{{ 'materials.consumptionHint' | transloco }}</p>
+          @if (d.benchmarks.length) {
+            <ul class="flex flex-col gap-4" role="list">
+              @for (b of d.benchmarks; track (b.productTypeCode ?? '') + b.uomCode) {
+                <li class="grid gap-2 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_minmax(0,9rem)] sm:items-center">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium">{{ b.productTypeName || b.productTypeCode || ('materials.noProductType' | transloco) }}</p>
+                    <p class="text-muted-foreground text-xs">{{ 'materials.stylesIn' | transloco: { count: b.styles, uom: b.uomCode } }}</p>
+                  </div>
+                  <div class="relative h-6" role="img" [attr.aria-label]="'materials.rangeLabel' | transloco: { min: num(b.minValue), median: num(b.median), max: num(b.maxValue), uom: b.uomCode }">
+                    <span class="bg-border absolute top-1/2 h-0.5 -translate-y-1/2" [style.left.%]="pos(b, b.minValue)" [style.width.%]="pos(b, b.maxValue) - pos(b, b.minValue)"></span>
+                    <span class="bg-primary/25 border-primary/40 absolute top-1 bottom-1 rounded border" [style.left.%]="pos(b, b.p25)" [style.width.%]="boxWidth(b)"></span>
+                    <span class="bg-primary absolute top-0 bottom-0 w-0.5" [style.left.%]="pos(b, b.median)"></span>
+                  </div>
+                  <p class="text-xs tabular-nums sm:text-right">
+                    <strong>{{ num(b.median) }} {{ b.uomCode }}</strong>
+                    <span class="text-muted-foreground block">{{ num(b.minValue) }} – {{ num(b.maxValue) }}</span>
+                  </p>
+                </li>
+              }
+            </ul>
+            <p class="text-muted-foreground text-xs">{{ 'materials.consumptionLegend' | transloco }}</p>
+          } @else {
+            <p class="text-muted-foreground text-sm">{{ 'materials.noConsumption' | transloco }}</p>
+          }
+        </section>
+      }
+
+      @case ('suppliers') {
+        <section hlmCard class="gap-3 p-5">
+          @if (d.suppliers.length > 1) {
+            <p class="text-sm">{{ 'materials.multiSupplier' | transloco: { count: d.suppliers.length } }}</p>
+          }
+          <ul class="flex flex-col gap-3" role="list">
+            @for (s of d.suppliers; track s.supplierCode) {
+              <li class="flex flex-col gap-1">
+                <div class="flex items-baseline justify-between gap-3 text-sm">
+                  <span class="min-w-0 truncate">{{ s.supplierName || ('materials.noSupplier' | transloco) }} <span class="text-muted-foreground text-xs">{{ s.supplierCode }}</span></span>
+                  <span class="text-muted-foreground shrink-0 text-xs tabular-nums">{{ 'materials.supplierUse' | transloco: { styles: s.styles, lines: s.lines } }}</span>
+                </div>
+                <div class="bg-muted h-2 overflow-hidden rounded-full">
+                  <div class="h-full rounded-full" [class]="s.supplierCode ? 'bg-primary' : 'bg-amber-500'" [style.width.%]="(s.styles / supplierMax()) * 100"></div>
+                </div>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
+      @case ('colours') {
+        <section hlmCard class="gap-3 p-5">
+          @if (d.colours.length) {
+            <ul class="flex flex-wrap gap-2" role="list">
+              @for (c of d.colours; track (c.materialColorCode ?? '') + (c.materialColorDescription ?? '')) {
+                <li class="rounded-md border px-3 py-2 text-sm">
+                  <span class="font-medium">{{ c.materialColorDescription || '—' }}</span>
+                  <span class="text-muted-foreground font-mono text-xs"> {{ c.materialColorCode }}</span>
+                  <span class="text-muted-foreground block text-xs">{{ 'materials.colourUse' | transloco: { colorways: c.colorways, styles: c.styles } }}</span>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="text-muted-foreground text-sm">{{ 'materials.noColours' | transloco }}</p>
+          }
+        </section>
+      }
+
+      @case ('similar') {
+        <section hlmCard class="gap-3 p-5">
+          <p class="text-muted-foreground text-sm">{{ 'materials.similarHint' | transloco }}</p>
+          @if (d.similar.length) {
+            <ul class="divide-y rounded-md border" role="list">
+              @for (s of d.similar; track s.materialId) {
+                <li>
+                  <a [routerLink]="['/materials', s.materialId]" class="hover:bg-accent/40 flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-sm">
+                    <span class="font-mono font-medium">{{ s.materialCode }}</span>
+                    <span class="rounded bg-violet-500/15 px-1.5 py-0.5 text-xs text-violet-700 dark:text-violet-400">{{ 'materials.reason.' + s.reason | transloco }}</span>
+                    <span class="text-muted-foreground text-xs">{{ 'materials.rowStyles' | transloco: { count: s.styles } }}</span>
+                    <span class="text-muted-foreground w-full truncate text-xs">{{ s.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="text-sm">{{ 'materials.noSimilar' | transloco }}</p>
+          }
+        </section>
+      }
+    }
+  }
+</section>

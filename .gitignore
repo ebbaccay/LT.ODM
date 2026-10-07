@@ -1,0 +1,29 @@
+# Build output
+bin/
+obj/
+dist/
+node_modules/
+.angular/
+out-tsc/
+
+# Visual Studio / IDE
+.vs/
+*.user
+*.suo
+.idea/
+
+# Local-only configuration and secrets
+appsettings.*.local.json
+*.local.json
+.env
+
+# Test output
+TestResults/
+coverage/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Uploaded files (Concept Studio images etc.; Files:Root default)
+**/App_Data/

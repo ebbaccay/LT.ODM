@@ -1,0 +1,2125 @@
+<div class="relative flex flex-col gap-4">
+
+  <!--  HEADER  -->
+  <header class="print:hidden">
+    <h1 class="text-2xl font-semibold tracking-tight">{{ 'gq.title' | transloco }}</h1>
+    <p class="text-muted-foreground mt-1 text-sm">{{ 'gq.subtitle' | transloco }}</p>
+  </header>
+
+  <!--  TOOLBAR  -->
+  <div class="bg-card flex flex-wrap items-center gap-2 rounded-xl border p-3 print:hidden" role="toolbar" aria-label="Filters and actions">
+
+    <!-- Package selector -->
+    <div class="flex items-center gap-2">
+      <span class="text-muted-foreground text-xs font-medium">{{ 'gq.package' | transloco }}</span>
+      <div class="relative">
+        <button
+          hlmBtn
+          variant="outline"
+          type="button"
+          class="h-11 min-w-44 justify-between lg:h-9"
+          [class.ring-3]="pkgDropdownOpen()"
+          (click)="togglePkgDropdown()"
+          aria-haspopup="listbox"
+          [attr.aria-expanded]="pkgDropdownOpen()"
+          aria-label="Select package"
+        >
+          <span class="truncate">{{ selectedPkg() || ('gq.selectPackage' | transloco) }}</span>
+          <ng-icon name="lucideChevronDown" class="transition-transform" [class.rotate-180]="pkgDropdownOpen()" />
+        </button>
+        @if (pkgDropdownOpen()) {
+          <div class="fixed inset-0 z-30" (click)="pkgDropdownOpen.set(false)" aria-hidden="true"></div>
+          <div class="bg-popover text-popover-foreground ring-foreground/10 absolute top-full left-0 z-40 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col rounded-lg shadow-lg ring-1" role="listbox" aria-label="Packages">
+            <div class="border-border flex items-center gap-2 border-b px-3">
+              <ng-icon name="lucideSearch" class="text-muted-foreground shrink-0" />
+              <input
+                type="search"
+                class="placeholder:text-muted-foreground h-10 w-full bg-transparent text-sm outline-none"
+                [placeholder]="'gq.searchPackages' | transloco"
+                [value]="pkgSearch()"
+                (input)="onPkgSearchInput($event)"
+                (click)="$event.stopPropagation()"
+                aria-label="Search packages"
+              />
+            </div>
+            <div class="max-h-72 overflow-y-auto p-1">
+              @for (p of filteredPackages(); track p.pack_name) {
+                <button
+                  type="button"
+                  class="hover:bg-accent flex min-h-10 w-full items-center rounded-md px-2 text-left text-sm lg:min-h-8"
+                  [class.bg-accent]="p.pack_name === selectedPkg()"
+                  [class.font-semibold]="p.pack_name === selectedPkg()"
+                  role="option"
+                  [attr.aria-selected]="p.pack_name === selectedPkg()"
+                  (click)="selectPackage(p.pack_name)"
+                >
+                  {{ p.pack_name }}
+                </button>
+              }
+              @if (filteredPackages().length === 0) {
+                <div class="text-muted-foreground px-2 py-6 text-center text-sm">
+                  @if (role() === 'factory' && !isFtyScanComplete()) {
+                    {{ 'gq.scanningPackages' | transloco }}
+                  } @else {
+                    {{ 'gq.noPackagesFound' | transloco }}
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Refresh icon button -->
+    <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-9" (click)="refreshStyles()" aria-label="Refresh styles" title="Refresh">
+      <ng-icon name="lucideRefreshCw" />
+    </button>
+
+    <div class="bg-border hidden h-6 w-px sm:block" aria-hidden="true"></div>
+
+    <!-- Search -->
+    <div class="relative w-full sm:w-64" role="search">
+      <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2" />
+      <input
+        hlmInput
+        type="search"
+        class="h-11 w-full pr-8 pl-8 lg:h-9"
+        [placeholder]="'gq.searchStyles' | transloco"
+        [value]="searchQuery()"
+        (input)="onSearchInput($event)"
+        aria-label="Search styles"
+      />
+      @if (searchQuery()) {
+        <button hlmBtn variant="ghost" size="icon-xs" type="button" class="absolute top-1/2 right-1.5 -translate-y-1/2" (click)="clearSearch()" aria-label="Clear search">
+          <ng-icon name="lucideX" />
+        </button>
+      }
+    </div>
+
+    <!-- Status filter pills -->
+    <div class="flex flex-wrap gap-1.5" role="group" aria-label="Filter by status">
+      @for (key of STATUS_FILTER_KEYS; track key) {
+        <button
+          type="button"
+          class="border-border hover:bg-accent inline-flex h-9 items-center gap-1 rounded-full border px-3 text-xs font-medium transition-colors lg:h-8"
+          [class]="statusFilter() === key ? (key === 'all' ? 'border-primary bg-primary/10 text-primary' : toneBadge(statusTone(key)) + ' border-transparent') : ''"
+          (click)="statusFilter.set(key)"
+          [attr.aria-pressed]="statusFilter() === key"
+        >
+          {{ ('gq.status.' + key) | transloco }}
+          @if (statusFilterCount(key) > 0) {
+            <span class="tabular-nums opacity-80">({{ statusFilterCount(key) }})</span>
+          }
+        </button>
+      }
+    </div>
+
+    <div class="hidden flex-1 lg:block"></div>
+
+    <!-- Grid density -->
+    <div class="bg-muted hidden rounded-lg p-0.5 sm:flex" role="group" aria-label="Grid density">
+      @for (w of COL_WIDTHS; track w; let i = $index) {
+        <button
+          type="button"
+          class="text-muted-foreground flex size-8 items-center justify-center rounded-md transition-colors"
+          [class]="colIdx() === i ? 'bg-background text-foreground shadow-xs' : 'hover:text-foreground'"
+          (click)="colIdx.set(i)"
+          [attr.aria-label]="'Grid density ' + (i + 1)"
+          [attr.aria-pressed]="colIdx() === i"
+        >
+          <ng-icon [name]="i === 0 ? 'lucideLayoutGrid' : i === 1 ? 'lucideGrid2x2' : 'lucideList'" />
+        </button>
+      }
+    </div>
+
+    @if (role() === 'factory') {
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="filteredStyles().length === 0" (click)="handleAction('open_factory_modal')">
+        <ng-icon name="lucideTable2" />
+        {{ 'gq.factoryModal.batchTitle' | transloco }}
+      </button>
+    }
+
+    @if (role() === 'merchandiser') {
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="filteredStyles().length === 0" (click)="handleAction('open_factory_modal')">
+        <ng-icon name="lucideTable2" />
+        {{ 'gq.factoryModal.batchTitle' | transloco }}
+      </button>
+      <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="selectedIds().length === 0" (click)="handleAction('open_factory_modal')">
+        <ng-icon name="lucideSend" />
+        {{ 'gq.sendToFactory' | transloco }}{{ selectedIds().length > 0 ? ' (' + selectedIds().length + ')' : '' }}
+      </button>
+    }
+  </div>
+
+  <!--  MAIN CONTENT  -->
+  <main class="flex flex-col gap-3 print:hidden">
+
+    <!-- Summary bar -->
+    <div class="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" aria-live="polite">
+      <span>
+        @if (role() !== 'factory' || isFtyScanComplete()) {
+          {{ filteredStyles().length }}
+          {{ filteredStyles().length !== 1 ? ('gq.styles' | transloco) : ('gq.style' | transloco) }}
+          &nbsp;<strong class="text-foreground">{{ selectedPkg() }}</strong>
+        }
+      </span>
+      @if (searchQuery()) {
+        <span class="bg-muted rounded-full px-2 py-0.5 text-xs">{{ 'gq.filteredBy' | transloco: { query: searchQuery() } }}</span>
+      }
+      @if (selectedIds().length > 0) {
+        <span class="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">{{ 'gq.selectedCount' | transloco: { count: selectedIds().length } }}</span>
+      }
+    </div>
+
+    <!-- Scanning packages (factory user only) -->
+    @if (role() === 'factory' && !isFtyScanComplete() && filteredStyles().length === 0) {
+      <div class="text-muted-foreground flex items-center justify-center gap-3 py-16 text-sm" role="status" aria-label="Scanning packages">
+        <hlm-spinner class="text-xl" />
+        <span>{{ 'gq.scanningAssignments' | transloco }}</span>
+      </div>
+    }
+
+    <!-- Loading spinner -->
+    @if (isLoadingStyles() && filteredStyles().length === 0) {
+      <div class="text-muted-foreground flex items-center justify-center gap-3 py-16 text-sm" role="status" aria-label="Loading styles">
+        <hlm-spinner class="text-xl" />
+        <span>{{ 'gq.loadingStyles' | transloco }}</span>
+      </div>
+    }
+
+    <!-- Empty state -->
+    @if (!isLoadingStyles() && filteredStyles().length === 0) {
+      <div class="bg-card flex flex-col items-center gap-2 rounded-xl border border-dashed py-16 text-center" role="status">
+        <ng-icon name="lucideList" class="text-muted-foreground text-3xl" />
+        <div class="font-semibold">{{ 'gq.noStylesFound' | transloco }}</div>
+        <div class="text-muted-foreground text-sm">
+          {{ searchQuery() || statusFilter() !== 'all' ? ('gq.tryFilters' | transloco) : ('gq.noStylesPackage' | transloco) }}
+        </div>
+      </div>
+    }
+
+    <!-- Style card grid -->
+    @if (!isLoadingStyles() && filteredStyles().length > 0) {
+      <div class="grid gap-4" [style.grid-template-columns]="gridCols()" role="list">
+        @for (style of filteredStyles(); track trackByStyleId($index, style)) {
+          <article
+            class="bg-card text-card-foreground flex min-w-0 cursor-pointer flex-col overflow-hidden rounded-xl border shadow-xs transition-shadow hover:shadow-md"
+            [class.ring-2]="style.selected"
+            [class.ring-primary]="style.selected"
+            role="listitem"
+            tabindex="0"
+            (click)="openDrawer(style)"
+            (keydown.enter)="openDrawer(style)"
+            [attr.aria-label]="style.model_name + ' - ' + deriveStatus(style)"
+          >
+            <!-- Card header -->
+            <div class="flex items-start justify-between gap-2 p-3 pb-2">
+              <div class="flex min-w-0 items-start gap-2.5">
+                <input
+                  type="checkbox"
+                  class="accent-primary mt-0.5 size-4 shrink-0 cursor-pointer"
+                  [checked]="style.selected"
+                  (change)="onStyleSelect(style.style_id, $event)"
+                  (click)="$event.stopPropagation()"
+                  [attr.aria-label]="'Select ' + style.model_name"
+                />
+                <div class="min-w-0">
+                  <div class="truncate text-sm font-semibold">{{ style.style_id }}</div>
+                  <div class="text-muted-foreground truncate text-xs">{{ style.model_name }}</div>
+                </div>
+              </div>
+              @if (role() !== 'factory') {
+                <div class="shrink-0 text-right">
+                  <div class="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">{{ 'gq.tmsFob' | transloco }}</div>
+                  <div class="text-sm font-semibold tabular-nums" [class.text-primary]="style.tms_fob" [class.text-muted-foreground]="!style.tms_fob">
+                    {{ style.tms_fob ? fmtNum(style.tms_fob) : '—' }} <span class="text-muted-foreground text-[10px] font-normal">USD</span>
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- Style image -->
+            <div class="bg-muted/50 mx-3 flex h-20 items-center justify-center overflow-hidden rounded-md" aria-hidden="true">
+              @if (style.style_image) {
+                <img [src]="style.style_image" [alt]="style.model_name" class="h-full w-full object-contain" loading="lazy" width="280" height="72" />
+              } @else {
+                <span class="text-muted-foreground text-xs font-medium">{{ style.prodcat_id }}</span>
+              }
+            </div>
+
+            <!-- Card attributes -->
+            <dl class="grid grid-cols-4 gap-1 px-3 py-2">
+              @for (pair of [['Cust', style.customer_id], ['Season', style.season_id], ['Cat', style.prodcat_id], ['Rate', fmtNum(style.rate_in_usd, 4) + ' ' + displayCurrency(style)]]; track pair[0]) {
+                <div class="min-w-0">
+                  <dt class="text-muted-foreground text-[10px] tracking-wide uppercase">{{ pair[0] }}</dt>
+                  <dd class="truncate text-xs font-medium" [title]="pair[1]">{{ pair[1] }}</dd>
+                </div>
+              }
+            </dl>
+
+            <!-- Quotation rows -->
+            <div class="border-border flex flex-1 flex-col gap-1 border-t px-3 py-2">
+              @if (style.quotations.length > 0) {
+                @for (q of style.quotations; track trackByQid($index, q)) {
+                  @let fobDisp = fobPriceDisplay(style, q);
+                  @let fobMargin = fobMarginPct(style, q);
+                  <div class="flex items-center gap-2 text-xs">
+                    <span class="min-w-0 flex-1 truncate" [title]="q.factory.name">{{ q.factory.name }}</span>
+                    @if (hasFactoryData(q)) {
+                      <span class="font-semibold tabular-nums">FOB {{ moneyUsd(fobDisp.usd) }}</span>
+                      @if (role() === 'merchandiser' && fobMargin !== null) {
+                        <span class="rounded px-1 py-0.5 text-[10px] font-semibold tabular-nums" [class]="toneBadge(fobMargin >= 0 ? 'green' : 'red')" [title]="'gq.card.tmsMarginTip' | transloco">
+                          {{ fobMargin >= 0 ? '+' : '' }}{{ fmtNum(fobMargin, 1) }}%
+                        </span>
+                      }
+                    } @else {
+                      <span class="text-muted-foreground">—</span>
+                    }
+                    <span class="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase" [class]="toneBadge(statusTone(q.status))">
+                      <span class="size-1.5 rounded-full" [class]="toneDot(statusTone(q.status))"></span>
+                      {{ statusLabelKey(q.status) | transloco }}
+                    </span>
+                  </div>
+                }
+              } @else {
+                <span class="text-muted-foreground text-xs italic">{{ 'gq.noFactoryAssignedCard' | transloco }}</span>
+              }
+            </div>
+
+            <!-- BOM cost summary footer -->
+            @let cardT = cardTotals(style);
+            @let bomT = cardT.fabricTotal + cardT.trimTotal + cardT.othersTotal;
+            <div class="bg-muted/40 border-border grid grid-cols-4 gap-1 border-t px-3 py-2 text-xs">
+              @for (c of [
+                { label: ('gq.fabric' | transloco), val: cardT.fabricTotalUSD },
+                { label: ('gq.trim' | transloco), val: cardT.trimTotalUSD },
+                { label: ('gq.others' | transloco), val: cardT.othersTotalUSD },
+                { label: 'Total BOM', val: bomT / style.rate_in_usd }
+              ]; track c.label; let last = $last) {
+                <div class="min-w-0">
+                  <div class="text-muted-foreground truncate text-[10px] uppercase">{{ c.label }}</div>
+                  <div class="truncate font-semibold tabular-nums" [class.text-primary]="last">{{ moneyUsd(c.val) }}</div>
+                </div>
+              }
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </main>
+
+  <!--  DRAWER BACKDROP  -->
+  <div
+    class="fixed inset-0 z-[60] bg-black/30 transition-opacity print:hidden"
+    [class.opacity-0]="!drawerOpen()"
+    [class.pointer-events-none]="!drawerOpen()"
+    (click)="closeDrawer()"
+    aria-hidden="true"
+  ></div>
+
+  <!--  DETAIL DRAWER  -->
+  @if (selectedStyle(); as style) {
+    <aside
+      class="bg-background fixed inset-y-0 right-0 z-[61] flex w-full flex-col shadow-2xl transition-transform duration-300 ease-out print:hidden lg:w-[min(1200px,calc(100vw-180px))]"
+      [class.translate-x-full]="!drawerOpen()"
+      role="complementary"
+      aria-label="Style detail"
+    >
+      <!-- Drawer header -->
+      <div class="border-border flex flex-wrap items-start gap-3 border-b px-4 py-3 sm:px-5">
+        @if (style.style_image) {
+          <div class="bg-muted hidden size-20 shrink-0 overflow-hidden rounded-lg border sm:block" aria-hidden="true">
+            <img [src]="style.style_image" [alt]="style.model_name" class="h-full w-full object-cover" />
+          </div>
+        }
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-muted-foreground font-mono text-xs">{{ style.style_id }}</span>
+            <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase" [class]="toneBadge(statusTone(deriveStatus(style)))">
+              <span class="size-1.5 rounded-full" [class]="toneDot(statusTone(deriveStatus(style)))"></span>
+              {{ statusLabelKey(deriveStatus(style)) | transloco }}
+            </span>
+          </div>
+          <div class="truncate text-base font-semibold">{{ style.model_name }}</div>
+          <div class="text-muted-foreground truncate text-xs">{{ style.composition }} | {{ style.customer_id }} | {{ style.season_id }}</div>
+
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <!-- Exchange rate (TMS) — locked to merchandiser; approval FOB always uses this rate -->
+            <div class="bg-muted/50 inline-flex flex-wrap items-center gap-1.5 rounded-md border px-2 py-1 text-xs" role="group" aria-label="TMS exchange rate">
+              <ng-icon name="lucideDollarSign" class="text-muted-foreground" />
+              <span class="font-semibold">TMS Rate</span>
+              <span class="text-muted-foreground">1 USD =</span>
+              @if (canEditBom()) {
+                <input hlmInput type="number" class="h-7 w-24 px-1.5 text-right text-xs" min="1" step="0.0001"
+                  [value]="style.rate_in_usd" (change)="onRateChange($event)"
+                  aria-label="Exchange rate transaction currency per USD" />
+              } @else {
+                <span class="inline-flex items-center gap-1 font-semibold tabular-nums" aria-label="Exchange rate transaction currency per USD (locked)">
+                  {{ fmtNum(style.rate_in_usd, 4) }}
+                  <ng-icon name="lucideLock" class="text-muted-foreground text-[10px]" />
+                </span>
+              }
+              <span class="text-muted-foreground">{{ displayCurrency(style) }}</span>
+              @if (role() === 'merchandiser') {
+                <button hlmBtn variant="ghost" size="icon-xs" type="button"
+                  (click)="refreshExchangeRate()"
+                  [disabled]="isRefreshingRate()"
+                  [attr.aria-busy]="isRefreshingRate()"
+                  aria-label="Refresh exchange rate"
+                  title="Refresh exchange rate">
+                  <ng-icon name="lucideRefreshCw" [class.animate-spin]="isRefreshingRate()" />
+                </button>
+              }
+            </div>
+
+            <!-- Exchange rate (FTY) — factory-edited basis for their own costing view; informational for TMS -->
+            @if (selQ()) {
+              <div class="bg-muted/50 inline-flex flex-wrap items-center gap-1.5 rounded-md border px-2 py-1 text-xs" role="group" aria-label="Factory exchange rate">
+                <ng-icon name="lucideDollarSign" class="text-muted-foreground" />
+                <span class="font-semibold">FTY Rate</span>
+                <span class="text-muted-foreground">1 USD =</span>
+                @if (role() === 'factory' && canEditCosting()) {
+                  <input hlmInput type="number" class="h-7 w-24 px-1.5 text-right text-xs" min="0" step="0.0001"
+                    [value]="selQ()!.fty_rate_usd ?? selectedStyle()!.rate_in_usd"
+                    (change)="onFtyRateChange(selQ()!.qid, $event)"
+                    aria-label="Factory exchange rate transaction currency per USD" />
+                } @else {
+                  <span class="font-semibold tabular-nums" aria-label="Factory exchange rate (locked)">
+                    {{ fmtNum(selQ()!.fty_rate_usd ?? selectedStyle()!.rate_in_usd, 4) }}
+                  </span>
+                }
+                <span class="text-muted-foreground">{{ displayCurrency(selectedStyle()!) }}</span>
+              </div>
+            }
+
+            @if (role() === 'merchandiser') {
+              <div class="border-primary/30 bg-primary/5 inline-flex flex-wrap items-center gap-1.5 rounded-md border px-2 py-1 text-xs" role="group" aria-label="TMS target FOB price">
+                <ng-icon name="lucideInfo" class="text-primary" />
+                <span class="font-semibold">{{ 'gq.tmsFob' | transloco }}</span>
+                <input hlmInput type="number" class="h-7 w-24 px-1.5 text-right text-xs" min="0" step="0.01"
+                  [value]="style.tms_fob ?? ''"
+                  (change)="onTmsFobChange($event)"
+                  placeholder="0.00"
+                  aria-label="TMS target FOB price" />
+                <select hlmInput class="h-7 w-auto px-1 text-xs" (change)="onCostingCurrChange($event)" aria-label="Costing currency">
+                  @for (c of CURRENCIES; track c) {
+                    <option [value]="c" [selected]="(style.costing_curr ?? 'USD') === c">{{ c }}</option>
+                  }
+                </select>
+                @if (tmsFobMargin(); as m) {
+                  <span class="rounded px-1.5 py-0.5 text-[11px] font-semibold tabular-nums" [class]="toneBadge(m.value >= 0 ? 'green' : 'red')"
+                    [attr.title]="m.value >= 0 ? 'Factory FOB is within TMS target' : 'Factory FOB exceeds TMS target'"
+                    aria-label="TMS margin vs factory FOB">{{ m.str }}</span>
+                }
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="flex shrink-0 items-center gap-1.5">
+          <button hlmBtn size="sm" type="button" class="h-10 lg:h-8" (click)="exportExcel()" aria-label="Export as Excel">
+            <ng-icon name="lucideFileSpreadsheet" />
+            <span class="hidden sm:inline">{{ 'gq.exportExcel' | transloco }}</span>
+          </button>
+          <button hlmBtn variant="outline" size="sm" type="button" class="h-10 lg:h-8" (click)="exportPdf()" aria-label="Export as PDF">
+            <ng-icon name="lucideFileText" />
+            <span class="hidden sm:inline">{{ 'gq.exportPdf' | transloco }}</span>
+          </button>
+          <button hlmBtn variant="ghost" size="icon" type="button" class="size-10 lg:size-8" (click)="closeDrawer()" aria-label="Close detail panel">
+            <ng-icon name="lucideX" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Cost strip -->
+      @if (drawerTotals(); as totals) {
+        <div class="border-border grid grid-cols-2 border-b sm:grid-cols-5" role="region" aria-label="Cost summary">
+          @for (item of [
+            {key: 'fabric', labelKey: 'gq.fabric',  val: totals.fabricTotal,  usd: totals.fabricTotalUSD},
+            {key: 'trim',   labelKey: 'gq.trim',    val: totals.trimTotal,    usd: totals.trimTotalUSD},
+            {key: 'others', labelKey: 'gq.others',  val: totals.othersTotal,  usd: totals.othersTotalUSD},
+            {key: 'cmt',    labelKey: 'gq.cmt',     val: totals.cmtTotal,     usd: totals.cmtTotalUSD},
+            {key: 'total',  labelKey: 'gq.total',   val: totals.total * drawerFobFactor(), usd: totals.totalUSD * drawerFobFactor()}
+          ]; track item.key) {
+            <div class="border-border border-r border-b px-4 py-2 last:border-r-0 sm:border-b-0" [class.bg-muted/50]="item.key === 'total'" [class.col-span-2]="item.key === 'total'" [class.sm:col-span-1]="item.key === 'total'">
+              <div class="text-muted-foreground text-[10px] tracking-wide uppercase">{{ item.labelKey | transloco }}</div>
+              <div class="text-sm font-semibold tabular-nums" [class.text-primary]="item.key === 'total'">{{ moneyUsd(item.usd) }}</div>
+              <div class="text-xs tabular-nums" [class]="toneText('green')">~ {{ moneyTxnFromRmb(item.val, selectedStyle()!, selQ() ?? undefined) }}</div>
+              @if (item.key === 'total' && drawerMarginPct() > 0) {
+                <div class="text-muted-foreground text-[10px]">+{{ fmtNum(drawerMarginPct(), 1) }}% {{ 'gq.margin' | transloco }}</div>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Tab bar -->
+      <div class="border-border flex gap-5 overflow-x-auto border-b px-4 sm:px-5" role="tablist" aria-label="Style detail tabs">
+        @for (t of [
+          { key: 'bom', label: ('gq.tabs.bom' | transloco), show: true },
+          { key: 'costing', label: ('gq.tabs.costing' | transloco) + (style.quotations.length ? ' (' + style.quotations.length + ')' : ''), show: true },
+          { key: 'compare', label: ('gq.tabs.compare' | transloco), show: style.quotations.length >= 2 },
+          { key: 'history', label: ('gq.tabs.history' | transloco), show: !!selQ() },
+          { key: 'remarks', label: ('gq.tabs.remarks' | transloco) + (selQ()?.remarks?.length ? ' (' + selQ()!.remarks.length + ')' : ''), show: true }
+        ]; track t.key) {
+          @if (t.show) {
+            <button
+              type="button"
+              role="tab"
+              class="-mb-px min-h-11 border-b-2 text-sm font-medium whitespace-nowrap transition-colors"
+              [class]="activeTab() === t.key ? 'border-primary text-foreground' : 'text-muted-foreground hover:text-foreground border-transparent'"
+              [attr.aria-selected]="activeTab() === t.key"
+              (click)="activeTab.set($any(t.key))"
+            >
+              {{ t.label }}
+            </button>
+          }
+        }
+      </div>
+
+      <!-- TAB CONTENT -->
+      <div class="flex min-h-0 flex-1 flex-col" [class.overflow-y-auto]="activeTab() !== 'remarks'" role="tabpanel">
+
+        @if (isLoadingBom()) {
+          <div class="text-muted-foreground flex items-center gap-2 px-5 py-3 text-sm" aria-label="Loading BOM data">
+            <hlm-spinner /><span>{{ 'gq.loadingBom' | transloco }}</span>
+          </div>
+        }
+
+        <!-- Factory selector, shared by the BOM (merchandiser), costing, history and remarks tabs -->
+        <ng-template #factoryTab let-q let-i="i" let-active="active">
+          <span class="max-w-48 truncate text-xs font-semibold">{{ q.factory.name }}</span>
+          <span class="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase" [class]="toneBadge(statusTone(q.status))">
+            <span class="size-1.5 rounded-full" [class]="toneDot(statusTone(q.status))"></span>
+            {{ statusLabelKey(q.status) | transloco }}
+          </span>
+        </ng-template>
+
+        <!-- BOM TAB -->
+        @if (activeTab() === 'bom') {
+          <div class="flex flex-col gap-4 p-4 sm:p-5">
+
+            <!-- Factory BOM selector (merchandiser only, when factories exist) -->
+            @if (role() === 'merchandiser' && style.quotations.length > 0) {
+              <div class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Select BOM view">
+                <button type="button" role="tab"
+                  class="flex shrink-0 flex-col items-start justify-center gap-1 rounded-lg border px-3 py-2 text-left transition-colors"
+                  [class]="bomShowOriginal() ? 'border-primary bg-primary/5 ring-primary ring-1' : 'hover:bg-accent'"
+                  [attr.aria-selected]="bomShowOriginal()"
+                  (click)="bomShowOriginal.set(true)">
+                  <span class="text-xs font-semibold">Original</span>
+                </button>
+                @for (q of style.quotations; track q.qid; let i = $index) {
+                  <button type="button" role="tab"
+                    class="flex shrink-0 flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left transition-colors"
+                    [class]="!bomShowOriginal() && activeQIdx() === i ? 'border-primary bg-primary/5 ring-primary ring-1' : 'hover:bg-accent'"
+                    [attr.aria-selected]="!bomShowOriginal() && activeQIdx() === i"
+                    (click)="bomShowOriginal.set(false); activeQIdx.set(i)">
+                    <ng-container *ngTemplateOutlet="factoryTab; context: { $implicit: q }" />
+                    @if (!q.bom?.length) {
+                      <span class="text-muted-foreground text-[10px] italic">no pricing yet</span>
+                    }
+                  </button>
+                }
+              </div>
+            }
+
+            <!-- Global BOM defaults -->
+            @if (canEditBom()) {
+              <div class="bg-muted/40 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2" role="group" aria-label="BOM global defaults">
+                <span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase">{{ 'gq.applyToAll' | transloco }}</span>
+                <div class="flex items-center gap-2">
+                  <label for="global-curr" class="text-xs">{{ 'gq.currency' | transloco }}</label>
+                  <select hlmInput id="global-curr" class="h-8 w-auto px-1.5 text-xs" (change)="onGlobalCurrencyChange($event)" aria-label="Global currency for all BOM items">
+                    @for (c of CURRENCIES; track c) { <option [value]="c" [selected]="c === globalCurrency()">{{ c }}</option> }
+                  </select>
+                  <button hlmBtn variant="outline" size="sm" type="button" (click)="applyGlobalCurrency()">{{ 'gq.applyAll' | transloco }}</button>
+                </div>
+                <div class="bg-border hidden h-5 w-px sm:block" aria-hidden="true"></div>
+                <div class="flex items-center gap-2">
+                  <label for="global-wastage" class="text-xs">{{ 'gq.wastageLabel' | transloco }}</label>
+                  <input hlmInput id="global-wastage" type="number" class="h-8 w-20 px-1.5 text-right text-xs" min="0" max="100" step="0.5"
+                    [value]="globalWastagePct()" (input)="onGlobalWastageInput($event)"
+                    aria-label="Global wastage percentage for all BOM items" />
+                  <button hlmBtn variant="outline" size="sm" type="button" (click)="applyGlobalWastage()">{{ 'gq.applyAll' | transloco }}</button>
+                </div>
+              </div>
+            }
+
+            @let bomGroupList = bomGroups(bomDisplayBom());
+            @let bomEditable = canEditBom() || canEditBomFty();
+            @if (bomGroupList.length > 0) {
+              @for (group of bomGroupList; track group.key) {
+                <section>
+                  <div class="mb-2 flex items-center gap-2">
+                    <h3 class="text-muted-foreground text-xs font-semibold tracking-wide uppercase">{{ group.label }}</h3>
+                    <span class="bg-muted rounded-full px-2 text-[10px] font-semibold tabular-nums">{{ group.items.length }}</span>
+                  </div>
+                  <div hlmTableContainer class="rounded-lg border">
+                    <table hlmTable class="min-w-[760px] text-xs" [class.table-fixed]="!bomEditable" [attr.aria-label]="group.label + ' bill of materials'">
+                      <colgroup>
+                        <col class="w-[13%]" />
+                        <col class="w-[30%]" />
+                        <col class="w-[9%]" />
+                        <col class="w-[72px]" />
+                        <col class="w-[7%]" />
+                        <col class="w-[11%]" />
+                        <col class="w-[9%]" />
+                        <col class="w-[12%]" />
+                        @if (bomEditable) { <col class="w-10" /> }
+                      </colgroup>
+                      <thead hlmTHead class="bg-muted/50">
+                        <tr hlmTr>
+                          <th hlmTh scope="col" class="h-8 text-[10px] uppercase">{{ 'gq.bom.materialNo' | transloco }}</th>
+                          <th hlmTh scope="col" class="h-8 text-[10px] uppercase">{{ 'gq.bom.description' | transloco }}</th>
+                          <th hlmTh scope="col" class="h-8 text-right text-[10px] uppercase">{{ 'gq.bom.consump' | transloco }}</th>
+                          <th hlmTh scope="col" class="h-8 text-center text-[10px] uppercase">{{ 'gq.bom.uom' | transloco }}</th>
+                          <th hlmTh scope="col" class="h-8 text-center text-[10px] uppercase">{{ 'gq.bom.curr' | transloco }}</th>
+                          <th hlmTh scope="col" class="h-8 text-right text-[10px] uppercase">{{ 'gq.bom.unitPrice' | transloco }}</th>
+                          <th hlmTh scope="col" class="h-8 text-right text-[10px] uppercase">{{ 'gq.bom.wastage' | transloco }}</th>
+                          <th hlmTh scope="col" class="h-8 text-right text-[10px] uppercase">{{ 'gq.bom.actualCost' | transloco }}</th>
+                          @if (bomEditable) { <th hlmTh scope="col" class="h-8"></th> }
+                        </tr>
+                      </thead>
+                      <tbody hlmTBody>
+                        @for (item of group.items; track trackByIdx($index)) {
+                          <tr hlmTr
+                            [class.bg-amber-500/8]="item.isCustom"
+                            [class.[&>td:first-child]:shadow-[inset_3px_0_0_var(--color-amber-500)]]="item.isCustom"
+                            [class.bg-emerald-500/8]="item.addedByFactory"
+                            [class.[&>td:first-child]:shadow-[inset_3px_0_0_var(--color-emerald-500)]]="item.addedByFactory">
+                            <td hlmTd class="font-mono whitespace-normal">
+                              @if (canEditBom()) {
+                                <input hlmInput class="h-8 px-1.5 text-xs" [value]="item.material || ''"
+                                  (input)="onBomFieldChange(item._idx, 'material', $event)"
+                                  placeholder="Material #" aria-label="Material number" />
+                              } @else { {{ item.material || '' }} }
+                            </td>
+                            <td hlmTd class="whitespace-normal [overflow-wrap:anywhere]">
+                              @if (canEditBom()) {
+                                <input hlmInput class="h-8 px-1.5 text-xs" [value]="item.part_desc"
+                                  (input)="onBomFieldChange(item._idx, 'part_desc', $event)"
+                                  placeholder="Description" aria-label="Description" />
+                              } @else { {{ item.part_desc }} }
+                              @if (item.addedByFactory) {
+                                <span class="ml-1 rounded px-1 text-[10px] font-semibold" [class]="toneBadge('green')" title="Added by factory">+ Factory</span>
+                              }
+                            </td>
+                            <td hlmTd class="text-right tabular-nums" [class.fty-edited]="item.factoryEditedFields?.includes('consump')">
+                              @if (bomEditable) {
+                                <input hlmInput type="number" class="h-8 px-1.5 text-right text-xs" [value]="bomConsum(item)"
+                                  [step]="priceStep(bomConsum(item))"
+                                  (input)="onBomFieldChange(item._idx, 'consump', $event)"
+                                  placeholder="1.0" aria-label="Consumption" />
+                              } @else { {{ bomConsum(item) || '' }} }
+                            </td>
+                            <td hlmTd class="text-center" [class.fty-edited]="item.factoryEditedFields?.includes('consump_uom')">
+                              @if (bomEditable) {
+                                <button type="button"
+                                  class="border-input hover:bg-accent inline-flex h-8 w-16 items-center justify-between gap-1 rounded-md border px-1.5 text-[11px] font-semibold"
+                                  [class.text-muted-foreground]="!item.consump_uom"
+                                  [class.ring-3]="uomOpenIdx() === item._idx"
+                                  [class.ring-ring/50]="uomOpenIdx() === item._idx"
+                                  (click)="openUomDropdown(item._idx, $event)"
+                                  aria-haspopup="listbox"
+                                  [attr.aria-expanded]="uomOpenIdx() === item._idx"
+                                  aria-label="Unit of measure">
+                                  {{ item.consump_uom || '—' }}
+                                  <ng-icon name="lucideChevronDown" class="text-[10px]" />
+                                </button>
+                              } @else {
+                                @if (item.consump_uom) {
+                                  <span [title]="uomDesc(item.consump_uom)">{{ item.consump_uom }}</span>
+                                } @else {
+                                  <span class="text-muted-foreground">—</span>
+                                }
+                              }
+                            </td>
+                            <td hlmTd class="text-center" [class.fty-edited]="item.factoryEditedFields?.includes('curr_id')">
+                              @if (bomEditable) {
+                                <select hlmInput class="h-8 px-1 text-xs" (change)="onBomFieldChange(item._idx, 'curr_id', $event)" aria-label="Currency">
+                                  @for (c of CURRENCIES; track c) {
+                                    <option [value]="c" [selected]="c === item.curr_id">{{ c }}</option>
+                                  }
+                                </select>
+                              } @else { <strong>{{ item.curr_id }}</strong> }
+                            </td>
+                            <td hlmTd class="text-right tabular-nums" [class.fty-edited]="item.factoryEditedFields?.includes('price')">
+                              @if (bomEditable) {
+                                <input hlmInput type="number" class="h-8 px-1.5 text-right text-xs" [value]="item.price ?? ''"
+                                  [step]="priceStep(item.price)"
+                                  (input)="onBomFieldChange(item._idx, 'price', $event)"
+                                  placeholder="0.00" aria-label="Unit price" />
+                              } @else {
+                                <span [class.text-muted-foreground]="!item.price">{{ item.price ? fmtNum(item.price) : '' }}</span>
+                              }
+                            </td>
+                            <td hlmTd class="text-right tabular-nums" [class.fty-edited]="item.factoryEditedFields?.includes('wastage_pct')">
+                              @if (bomEditable) {
+                                <input hlmInput type="number" class="h-8 px-1.5 text-right text-xs" [value]="bomWastage(item)"
+                                  (input)="onBomFieldChange(item._idx, 'wastage_pct', $event)"
+                                  placeholder="0" aria-label="Wastage percent" />
+                              } @else {
+                                {{ bomWastage(item) || '0' }}%
+                              }
+                            </td>
+                            <td hlmTd class="text-right font-semibold tabular-nums">{{ fmtNum(item.lineTotal) }}</td>
+                            @if (canEditBom() || (canEditBomFty() && item.addedByFactory)) {
+                              <td hlmTd class="text-center">
+                                <button hlmBtn variant="ghost" size="icon-sm" type="button" class="text-muted-foreground hover:text-destructive" (click)="onBomRemove(item._idx)" aria-label="Remove row">
+                                  <ng-icon name="lucideTrash2" />
+                                </button>
+                              </td>
+                            } @else if (canEditBomFty()) {
+                              <td hlmTd></td>
+                            }
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              }
+            }
+
+            @if (bomEditable) {
+              <button hlmBtn variant="outline" type="button" class="h-11 w-full border-dashed lg:h-9" (click)="openAddBomModal()" aria-label="Add BOM item">
+                <ng-icon name="lucidePlus" />
+                {{ 'gq.bom.addItemModal.triggerBtn' | transloco }}
+              </button>
+            }
+
+            @if (!isLoadingBom() && style.bom.length === 0) {
+              <p class="text-muted-foreground py-6 text-center text-sm">{{ 'gq.bom.noItems' | transloco }}</p>
+            }
+
+            @if (bomHasFtyEdits(bomDisplayBom())) {
+              <div class="text-muted-foreground flex items-center gap-2 text-xs">
+                <span class="fty-edited inline-block size-3 rounded-sm" aria-hidden="true"></span>
+                Factory-updated value
+              </div>
+            }
+          </div>
+        }
+
+        <!-- COSTING TAB -->
+        @if (activeTab() === 'costing') {
+          <div class="flex flex-col gap-4 p-4 sm:p-5">
+
+            @if (!style.quotations.length) {
+              <div class="flex flex-col items-center gap-2 rounded-xl border border-dashed py-12 text-center">
+                <ng-icon name="lucideList" class="text-muted-foreground text-3xl" />
+                <div class="font-semibold">{{ 'gq.costing.noFactory' | transloco }}</div>
+                <div class="text-muted-foreground text-sm">{{ 'gq.costing.noFactorySub' | transloco }}</div>
+                @if (role() === 'merchandiser') {
+                  <button hlmBtn type="button" class="mt-2 h-11 lg:h-9" (click)="handleAction('open_factory_modal')">
+                    {{ 'gq.costing.assignFactories' | transloco }}
+                  </button>
+                }
+              </div>
+            } @else {
+
+              <!-- Factory tabs -->
+              <section>
+                <h3 class="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase">{{ 'gq.costing.factoryQuotations' | transloco }}</h3>
+                <div class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Factory quotations">
+                  @for (q of style.quotations; track trackByQid($index, q); let i = $index) {
+                    @let tabFobDisp = fobPriceDisplay(style, q);
+                    @let tabQTotals = qTotals(style, q);
+                    <button type="button" role="tab"
+                      class="flex shrink-0 flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left transition-colors"
+                      [class]="activeQIdx() === i ? 'border-primary bg-primary/5 ring-primary ring-1' : 'hover:bg-accent'"
+                      (click)="activeQIdx.set(i)"
+                      [attr.aria-selected]="activeQIdx() === i">
+                      <ng-container *ngTemplateOutlet="factoryTab; context: { $implicit: q }" />
+                      @if (hasFactoryData(q)) {
+                        <span class="text-xs font-semibold tabular-nums">FOB {{ moneyUsd(tabFobDisp.usd) }}</span>
+                        <span class="text-[11px] tabular-nums" [class]="toneText('green')">~ {{ moneyTxn(tabFobDisp.txn, tabFobDisp.curr) }}</span>
+                      } @else {
+                        <span class="text-xs font-semibold tabular-nums">{{ moneyTxnFromRmb(tabQTotals.total, style, q) }}</span>
+                      }
+                    </button>
+                  }
+                  @if (role() === 'merchandiser') {
+                    <button hlmBtn variant="outline" type="button" class="h-auto shrink-0 border-dashed" (click)="handleAction('open_factory_modal')">
+                      {{ 'gq.costing.addFactory' | transloco }}
+                    </button>
+                  }
+                </div>
+              </section>
+
+              @if (selQ(); as q) {
+
+                <!-- Rejection banner -->
+                @if (q.rejectReason) {
+                  <div class="border-destructive/30 bg-destructive/10 text-destructive flex gap-3 rounded-lg border p-3" role="alert">
+                    <ng-icon name="lucideCircleAlert" class="mt-0.5 shrink-0" />
+                    <div>
+                      <div class="text-sm font-semibold">{{ 'gq.costing.rejectionReason' | transloco }}</div>
+                      <div class="text-sm">{{ q.rejectReason }}</div>
+                    </div>
+                  </div>
+                }
+
+                <!-- SMV panel -->
+                <div class="bg-muted/40 flex flex-wrap items-end gap-3 rounded-lg border p-3" role="group" aria-label="Standard minute value">
+                  <span class="text-muted-foreground self-center text-xs font-semibold tracking-wide uppercase">{{ 'gq.costing.smv' | transloco }}</span>
+                  <label class="flex flex-col gap-1 text-xs">
+                    <span>{{ 'gq.costing.smvLabel' | transloco }}</span>
+                    @if (canEditCosting()) {
+                      <input hlmInput type="number" class="h-9 w-28 text-right" [value]="q.smv"
+                        (input)="onSmvChange(q.qid, 'smv', $event)" placeholder="0.00" aria-label="SMV value" />
+                    } @else {
+                      <span class="text-sm font-semibold tabular-nums">{{ q.smv || '-' }}</span>
+                    }
+                  </label>
+                  <span class="text-muted-foreground pb-2" aria-hidden="true">×</span>
+                  <label class="flex flex-col gap-1 text-xs">
+                    <span>{{ 'gq.costing.smvRate' | transloco }}</span>
+                    @if (canEditCosting()) {
+                      <input hlmInput type="number" class="h-9 w-28 text-right" [value]="q.smv_rate"
+                        (input)="onSmvChange(q.qid, 'smv_rate', $event)" placeholder="0.00" aria-label="SMV rate" />
+                    } @else {
+                      <span class="text-sm font-semibold tabular-nums">{{ q.smv_rate || '-' }}</span>
+                    }
+                  </label>
+                  @if (q.smv && q.smv_rate) {
+                    <span class="text-muted-foreground pb-2" aria-hidden="true">=</span>
+                    <span class="text-primary pb-1.5 text-base font-semibold tabular-nums" aria-label="Calculated CMP">{{ fmtNum(smvCmp(q.smv, q.smv_rate)) }}</span>
+                    <span class="text-muted-foreground pb-2 text-xs italic">{{ 'gq.costing.smvAutoFill' | transloco }}</span>
+                  }
+                </div>
+
+                <!-- CMT global currency apply -->
+                @if (canEditCosting()) {
+                  <div class="bg-muted/40 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2" role="group" aria-label="CMT global currency">
+                    <span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase">{{ 'gq.applyToAll' | transloco }}</span>
+                    <div class="flex items-center gap-2">
+                      <label [for]="'cmt-curr-' + q.qid" class="text-xs">{{ 'gq.currency' | transloco }}</label>
+                      <select hlmInput [id]="'cmt-curr-' + q.qid" class="h-8 w-auto px-1.5 text-xs" (change)="onGlobalCmtCurrencyChange($event)" aria-label="Global currency for all CMT cost items">
+                        @for (c of CURRENCIES; track c) { <option [value]="c" [selected]="c === cmtGlobalCurrency()">{{ c }}</option> }
+                      </select>
+                      <button hlmBtn variant="outline" size="sm" type="button" (click)="applyCmtGlobalCurrency(q.qid)">{{ 'gq.applyAll' | transloco }}</button>
+                    </div>
+                  </div>
+                }
+
+                <!-- CMT table -->
+                <div hlmTableContainer class="rounded-lg border">
+                  <table hlmTable class="min-w-[720px] text-xs" aria-label="Factory costing CMT">
+                    <thead hlmTHead class="bg-muted/50">
+                      <tr hlmTr>
+                        <th hlmTh scope="col" class="h-8 text-[10px] uppercase">{{ 'gq.costing.costItem' | transloco }}</th>
+                        <th hlmTh scope="col" class="h-8 text-[10px] uppercase">{{ 'gq.costing.descriptionNotes' | transloco }}</th>
+                        <th hlmTh scope="col" class="h-8 text-center text-[10px] uppercase">{{ 'gq.bom.curr' | transloco }}</th>
+                        <th hlmTh scope="col" class="h-8 text-right text-[10px] uppercase">{{ 'gq.costing.amount' | transloco }}</th>
+                        <th hlmTh scope="col" class="h-8 text-right text-[10px] uppercase">{{ displayCurrency(style) }}</th>
+                        <th hlmTh scope="col" class="h-8 text-right text-[10px] uppercase">USD</th>
+                        @if (canEditCosting()) { <th hlmTh scope="col" class="h-8 w-10"></th> }
+                      </tr>
+                    </thead>
+                    <tbody hlmTBody>
+                      @for (item of q.factoryCosting; track trackByKey($index, item); let idx = $index) {
+                        <tr hlmTr
+                          [class.bg-amber-500/8]="item.isCustom"
+                          [class.[&>td:first-child]:shadow-[inset_3px_0_0_var(--color-amber-500)]]="item.isCustom">
+                          <td hlmTd class="whitespace-normal" [class.font-semibold]="item.key === 'cut_make_pack'">
+                            @if (canEditCosting() && item.isCustom) {
+                              <input hlmInput class="h-8 px-1.5 text-xs" [value]="item.label"
+                                (input)="onCmtFieldChange(q.qid, idx, 'label', $event)"
+                                placeholder="Custom cost item..." aria-label="Cost item label" />
+                            } @else { <strong>{{ cmtLabel(item) ? (cmtLabel(item)! | transloco) : item.label }}</strong> }
+                            @if (item.isCustom) {
+                              <span class="ml-1 rounded px-1 text-[10px] font-semibold" [class]="toneBadge('green')" title="Added by factory">+ Factory</span>
+                            }
+                          </td>
+                          <td hlmTd class="min-w-48 whitespace-normal">
+                            @if (canEditCosting()) {
+                              <input hlmInput class="h-8 px-1.5 text-xs" [value]="item.description"
+                                (input)="onCmtFieldChange(q.qid, idx, 'description', $event)"
+                                [placeholder]="item.key === 'cut_make_pack' ? 'e.g. breakdown of CMP...' : 'notes / breakdown...'"
+                                aria-label="Description" />
+                            } @else {
+                              <span class="text-muted-foreground">{{ item.description || '-' }}</span>
+                            }
+                          </td>
+                          <td hlmTd class="text-center">
+                            @if (canEditCosting()) {
+                              <select hlmInput class="h-8 w-auto px-1 text-xs" (change)="onCmtFieldChange(q.qid, idx, 'curr_id', $event)" aria-label="Currency">
+                                @for (c of CURRENCIES; track c) {
+                                  <option [value]="c" [selected]="c === item.curr_id">{{ c }}</option>
+                                }
+                              </select>
+                            } @else { <strong>{{ item.curr_id }}</strong> }
+                          </td>
+                          <td hlmTd class="text-right tabular-nums">
+                            @if (canEditCosting()) {
+                              <input hlmInput type="number" class="h-8 w-28 px-1.5 text-right text-xs" [value]="item.value"
+                                (input)="onCmtFieldChange(q.qid, idx, 'value', $event)" aria-label="Amount" />
+                            } @else {
+                              <span [class.text-muted-foreground]="!+item.value">{{ +item.value > 0 ? fmtNum(item.value) : '-' }}</span>
+                            }
+                          </td>
+                          <td hlmTd class="text-right tabular-nums">
+                            {{ cmtInRmb(item, currentRate()) > 0 ? moneyTxnFromRmb(cmtInRmb(item, currentRate()), style, q) : '-' }}
+                          </td>
+                          <td hlmTd class="text-muted-foreground text-right tabular-nums">
+                            {{ cmtInRmb(item, currentRate()) > 0 ? '$' + fmtNum(cmtInRmb(item, currentRate()) / currentRate()) : '-' }}
+                          </td>
+                          @if (canEditCosting()) {
+                            <td hlmTd class="text-center">
+                              @if (item.isCustom) {
+                                <button hlmBtn variant="ghost" size="icon-sm" type="button" class="text-muted-foreground hover:text-destructive" (click)="onCmtRemove(q.qid, idx)" aria-label="Remove cost item">
+                                  <ng-icon name="lucideTrash2" />
+                                </button>
+                              }
+                            </td>
+                          }
+                        </tr>
+                      }
+                    </tbody>
+                    <tfoot hlmTFoot>
+                      <tr hlmTr>
+                        <td hlmTd colspan="3" class="text-sm font-semibold">{{ 'gq.costing.totalCmt' | transloco }}</td>
+                        <td hlmTd class="text-primary text-right text-sm font-semibold tabular-nums" colspan="2">
+                          {{ moneyTxnFromRmb(drawerTotals()?.cmtTotal ?? 0, style, q) }}
+                        </td>
+                        <td hlmTd class="text-muted-foreground text-right tabular-nums">
+                          ${{ fmtNum((drawerTotals()?.cmtTotal ?? 0) / currentRate()) }}
+                        </td>
+                        @if (canEditCosting()) { <td hlmTd></td> }
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                @if (canEditCosting()) {
+                  <button hlmBtn variant="outline" type="button" class="h-11 w-full border-dashed lg:h-9" (click)="onCmtAdd(q.qid)">
+                    {{ 'gq.costing.addCustomItem' | transloco }}
+                  </button>
+                }
+
+                <!-- Total cost summary -->
+                @if (drawerTotals(); as totals) {
+                  <div class="bg-primary text-primary-foreground rounded-xl p-4" role="region" aria-label="Total cost summary">
+                    <div class="mb-3 text-xs font-semibold tracking-wide uppercase opacity-80">
+                      {{ 'gq.costing.totalSummary' | transloco }} · {{ q.factory.name }}
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                      @for (item of [
+                        {key: 'fabric', labelKey: 'gq.fabric',  val: totals.fabricTotal,  usd: totals.fabricTotalUSD},
+                        {key: 'trim',   labelKey: 'gq.trim',    val: totals.trimTotal,    usd: totals.trimTotalUSD},
+                        {key: 'others', labelKey: 'gq.others',  val: totals.othersTotal,  usd: totals.othersTotalUSD},
+                        {key: 'cmt',    labelKey: 'gq.cmt',     val: totals.cmtTotal,     usd: totals.cmtTotalUSD},
+                        {key: 'total',  labelKey: 'gq.total',   val: fobPriceRmb(style, q), usd: usdValueFromRmb(style, q, fobPriceRmb(style, q))}
+                      ]; track item.key) {
+                        <div class="min-w-0" [class.col-span-2]="item.key === 'total'" [class.sm:col-span-1]="item.key === 'total'">
+                          <div class="text-[10px] tracking-wide uppercase opacity-75">{{ item.labelKey | transloco }}</div>
+                          <div class="font-semibold tabular-nums" [class.text-lg]="item.key === 'total'">{{ moneyUsd(item.usd) }}</div>
+                          <div class="text-xs tabular-nums opacity-80">~ {{ moneyTxnFromRmb(item.val, style, q) }}</div>
+                          @if (item.key === 'total' && drawerMarginPct() > 0) {
+                            <div class="text-[10px] opacity-80">+{{ fmtNum(drawerMarginPct(), 1) }}% {{ 'gq.margin' | transloco }}</div>
+                          }
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+
+                <!-- Factory summary & pricing -->
+                <section class="rounded-xl border">
+                  <div class="bg-muted/50 border-border border-b px-4 py-2 text-xs font-semibold tracking-wide uppercase">{{ 'gq.costing.factorySummary' | transloco }}</div>
+                  <div class="flex flex-col gap-4 p-4">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      @for (field of [
+                        {label:'gq.costing.fcQuantity',    key:'fc_qty',           suffix:'pcs'},
+                        {label:'gq.costing.ttlProduction', key:'ttl_production',   suffix:'TXN', computed:true},
+                        {label:'gq.costing.grossMargin',   key:'gross_margin_pct', suffix:'%'},
+                        {label:'gq.costing.revisedFactoryFob', key:'revised_factory_fob', suffix:'USD'},
+                        {label:'gq.costing.adjustment',    key:'adjustment',       suffix:'USD'},
+                        {label:'gq.costing.fobPrice',      key:'fob_price',        suffix:'TXN', computed:true}
+                      ]; track field.key) {
+                        <div class="flex flex-col gap-1">
+                          <div class="text-muted-foreground text-xs">{{ field.label | transloco }}</div>
+                          @if (field.computed) {
+                            <div class="text-primary text-base font-semibold tabular-nums">
+                              @if (field.key === 'ttl_production') {
+                                {{ moneyUsd(usdValueFromRmb(style, q, ttlProductionRmb(style, q))) }}
+                              } @else if (field.key === 'fob_price') {
+                                {{ moneyUsd(usdValueFromRmb(style, q, fobPriceRmb(style, q))) }}
+                              }
+                            </div>
+                            <div class="text-xs tabular-nums" [class]="toneText('green')">
+                              ~ {{
+                                field.key === 'ttl_production'
+                                  ? moneyTxnFromRmb(ttlProductionRmb(style, q), style, q)
+                                  : moneyTxnFromRmb(fobPriceRmb(style, q), style, q)
+                              }}
+                            </div>
+                          } @else if (canEditCosting() && field.key === 'gross_margin_pct') {
+                            <div class="relative">
+                              <input hlmInput type="number" class="h-9 pr-12 text-right" [value]="grossMarginInputValue(style, q)"
+                                (input)="onGrossMarginChange(style, q.qid, $event)"
+                                [attr.aria-label]="field.label | transloco" />
+                              <span class="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs">USD</span>
+                            </div>
+                            <div class="bg-muted inline-flex w-fit rounded-md p-0.5" role="radiogroup" aria-label="Margin unit">
+                              @for (mode of ['value', 'pct']; track mode) {
+                                <label class="cursor-pointer rounded px-2.5 py-1 text-xs font-medium" [class]="marginMode(q.qid) === mode ? 'bg-background shadow-xs' : 'text-muted-foreground'">
+                                  <input type="radio" class="sr-only" [name]="'gm_' + q.qid" [value]="mode"
+                                    [checked]="marginMode(q.qid) === mode"
+                                    (change)="setMarginMode(q.qid, $any(mode))" />
+                                  {{ mode === 'value' ? 'USD' : '%' }}
+                                </label>
+                              }
+                            </div>
+                          } @else if (canEditCosting()) {
+                            <div class="relative">
+                              <input hlmInput class="h-9 pr-12 text-right" [value]="field.key === 'adjustment' ? adjustmentDisplayUsd(style, q) : getQField(q, field.key)"
+                                (input)="onQFieldChange(q.qid, field.key, $event)"
+                                [attr.aria-label]="field.label | transloco" />
+                              <span class="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs">{{ field.key === 'adjustment' || field.key === 'revised_factory_fob' ? 'USD' : (field.suffix === 'TXN' ? displayCurrency(style) : field.suffix) }}</span>
+                            </div>
+                            @if (field.key === 'revised_factory_fob' && getQField(q, field.key)) {
+                              <div class="text-xs tabular-nums" [class]="toneText('green')">~ {{ fmtNum(revisedFactoryFobRmb(style, q)) }} {{ displayCurrency(style) }}</div>
+                            }
+                            @if (field.key === 'adjustment' && suggestedAdjustmentUsd(style, q) !== null) {
+                              <div class="text-muted-foreground text-xs">Target adjustment: {{ moneyUsd(suggestedAdjustmentUsd(style, q)!) }}</div>
+                            }
+                          } @else {
+                            <div class="text-sm font-semibold tabular-nums">
+                              {{ field.key === 'adjustment' ? adjustmentDisplayUsd(style, q) : (getQField(q, field.key) || '-') }}
+                              @if (field.key === 'adjustment' ? adjustmentDisplayUsd(style, q) : getQField(q, field.key)) {
+                                <span class="text-muted-foreground text-xs font-normal">{{ field.key === 'adjustment' || field.key === 'revised_factory_fob' ? 'USD' : (field.suffix === 'TXN' ? displayCurrency(style) : field.suffix) }}</span>
+                              }
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
+
+                    <!-- Price type -->
+                    <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Price type">
+                      <span class="text-muted-foreground text-xs">{{ 'gq.costing.priceType' | transloco }}</span>
+                      @if (canEditCosting()) {
+                        <div class="bg-muted inline-flex rounded-md p-0.5">
+                          @for (pt of PRICE_TYPES; track pt) {
+                            <label class="cursor-pointer rounded px-3 py-1.5 text-xs font-semibold" [class]="q.price_type === pt ? 'bg-background shadow-xs' : 'text-muted-foreground'">
+                              <input type="radio" class="sr-only" [name]="'pt_' + q.qid" [value]="pt"
+                                [checked]="q.price_type === pt"
+                                (change)="onPriceTypeChange(q.qid, pt)"
+                                [attr.aria-label]="pt + ' price type'" />
+                              {{ pt }}
+                            </label>
+                          }
+                        </div>
+                      } @else {
+                        <span class="bg-muted rounded px-2 py-0.5 text-xs font-semibold">{{ q.price_type || 'FOB' }}</span>
+                      }
+                    </div>
+
+                    <!-- Factory remarks -->
+                    <div class="flex flex-col gap-1">
+                      <div class="text-muted-foreground text-xs">{{ 'gq.costing.factoryRemarks' | transloco }}</div>
+                      @if (canEditCosting()) {
+                        <textarea hlmInput class="min-h-20 py-2" rows="3" [value]="q.factory_remarks"
+                          (input)="onQFieldChange(q.qid, 'factory_remarks', $event)"
+                          placeholder="Factory remarks, suggestions, alternative materials..."
+                          aria-label="Factory remarks"></textarea>
+                      } @else {
+                        <div class="bg-muted/40 rounded-md p-3 text-sm whitespace-pre-line">
+                          {{ q.factory_remarks || ('gq.costing.noRemarks' | transloco) }}
+                        </div>
+                      }
+                    </div>
+                  </div>
+                </section>
+              }
+            }
+          </div>
+        }
+
+        <!-- COMPARE TAB -->
+        @if (activeTab() === 'compare') {
+          <div class="flex flex-col gap-3 p-4 sm:p-5">
+            @if (compareRows().length === 0) {
+              <p class="text-muted-foreground py-6 text-center text-sm">Need at least 2 factories to compare.</p>
+            } @else {
+              <div class="text-muted-foreground text-xs">
+                Values in <strong class="text-foreground">{{ displayCurrency(selectedStyle()!) }}</strong> &amp; USD &nbsp;·&nbsp;
+                Rate: 1 USD = {{ fmtNum(selectedStyle()!.rate_in_usd, 4) }} {{ displayCurrency(selectedStyle()!) }}
+              </div>
+              <div hlmTableContainer class="rounded-lg border">
+                <table hlmTable class="text-xs" aria-label="Factory cost comparison">
+                  <thead hlmTHead class="bg-muted/50">
+                    <tr hlmTr>
+                      <th hlmTh class="bg-muted/50 sticky left-0 z-10 h-auto min-w-40 py-2 text-[10px] uppercase">{{ 'gq.compare.costItem' | transloco }}</th>
+                      @for (q of selectedStyle()!.quotations; track q.qid; let i = $index) {
+                        @let cmpFobDisp = fobPriceDisplay(selectedStyle()!, q);
+                        <th hlmTh
+                          class="h-auto min-w-40 cursor-pointer border-t-3 py-2 align-top whitespace-normal"
+                          [class]="activeQIdx() === i ? 'bg-primary/5 border-t-primary' : 'border-t-transparent'"
+                          (click)="activeQIdx.set(i)"
+                          [attr.aria-selected]="activeQIdx() === i"
+                          [attr.title]="'Select ' + q.factory.name">
+                          <div class="mb-1 text-xs font-semibold">{{ q.factory.name }}</div>
+                          <span class="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase" [class]="toneBadge(statusTone(q.status))">
+                            <span class="size-1.5 rounded-full" [class]="toneDot(statusTone(q.status))"></span>
+                            {{ statusLabelKey(q.status) | transloco }}
+                          </span>
+                          @if (q.status === 'factory_submitted' || q.status === 'for_revision' || q.status === 'approved' || q.status === 'rejected') {
+                            <div class="mt-1 text-xs font-semibold tabular-nums">FOB {{ fmtNum(cmpFobDisp.value) }} {{ cmpFobDisp.curr }}</div>
+                          }
+                          @if (activeQIdx() === i) {
+                            <div class="text-primary mt-1 text-[10px] font-semibold uppercase">{{ 'gq.compare.selected' | transloco }}</div>
+                          }
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody hlmTBody>
+                    @for (row of compareRows(); track row.key) {
+                      @if (row.isSep) {
+                        <tr hlmTr class="bg-muted/40">
+                          <td hlmTd [attr.colspan]="selectedStyle()!.quotations.length + 1" class="text-muted-foreground py-1.5 text-[10px] font-semibold tracking-wide uppercase">
+                            {{ row.labelKey ? (row.labelKey | transloco) : row.label }}
+                          </td>
+                        </tr>
+                      } @else {
+                        <tr hlmTr [class.font-semibold]="row.isTotal" [class.bg-muted/30]="row.isTotal">
+                          <td hlmTd class="bg-card sticky left-0 z-10 whitespace-normal" [class.italic]="row.isCustom">
+                            {{ row.labelKey ? (row.labelKey | transloco) : row.label }}
+                            @if (row.isCustom) {
+                              <span class="ml-1 rounded px-1 text-[10px] font-semibold not-italic" [class]="toneBadge('green')" title="Factory-added cost item">+ Factory</span>
+                            }
+                          </td>
+                          @for (val of row.values; track $index; let i = $index) {
+                            @let best = !row.isSep && (row.isHigherBetter ? compareMaxIdx(row) : compareMinIdx(row)) === i;
+                            @let worst = !row.isSep && (row.isHigherBetter ? compareMinIdx(row) : compareMaxIdx(row)) === i;
+                            <td hlmTd class="tabular-nums" [class]="best ? toneBadge('green') : worst ? toneBadge('red') : ''">
+                              @if (row.isPercent) {
+                                @if (val !== null) {
+                                  <div class="font-semibold" [class]="toneText(val >= 0 ? 'green' : 'red')">{{ val >= 0 ? '+' : '' }}{{ fmtNum(val, 1) }}%</div>
+                                } @else {
+                                  <span class="text-muted-foreground">-</span>
+                                }
+                              } @else {
+                                @if (val !== null && val > 0) {
+                                  <div>{{ moneyTxnFromRmb(val, selectedStyle()!) }}</div>
+                                  <div class="text-muted-foreground text-[11px]">~${{ fmtNum(val / selectedStyle()!.rate_in_usd) }}</div>
+                                } @else {
+                                  <span class="text-muted-foreground">{{ val === 0 ? '—' : '-' }}</span>
+                                }
+                              }
+                            </td>
+                          }
+                        </tr>
+                      }
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <div class="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded-sm" [class]="toneBadge('green')"></span>{{ 'gq.compare.lowestCost' | transloco }}</span>
+                <span class="inline-flex items-center gap-1.5"><span class="size-3 rounded-sm" [class]="toneBadge('red')"></span>{{ 'gq.compare.highestCost' | transloco }}</span>
+                <span class="inline-flex items-center gap-1.5 italic">Factory-added cost item</span>
+                <span>{{ 'gq.compare.notSubmitted' | transloco }} &nbsp; {{ 'gq.compare.notAssigned' | transloco }}</span>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- HISTORY TAB -->
+        @if (activeTab() === 'history') {
+          <div class="flex flex-col gap-4 p-4 sm:p-5">
+            @if (!selQ()) {
+              <p class="text-muted-foreground py-6 text-center text-sm">Select a factory quotation first.</p>
+            } @else {
+              <!-- Factory selector -->
+              @if (selectedStyle()!.quotations.length > 1) {
+                <div class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Select factory for history">
+                  @for (q of selectedStyle()!.quotations; track q.qid; let i = $index) {
+                    <button type="button" role="tab"
+                      class="flex shrink-0 flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left transition-colors"
+                      [class]="activeQIdx() === i ? 'border-primary bg-primary/5 ring-primary ring-1' : 'hover:bg-accent'"
+                      (click)="activeQIdx.set(i)"
+                      [attr.aria-selected]="activeQIdx() === i">
+                      <ng-container *ngTemplateOutlet="factoryTab; context: { $implicit: q }" />
+                    </button>
+                  }
+                </div>
+              }
+              <div>
+                <div class="text-sm font-semibold">{{ selQ()!.factory.name }}</div>
+                <div class="text-muted-foreground text-xs">{{ 'gq.history.header' | transloco }}</div>
+              </div>
+              @if (isLoadingHistory()) {
+                <div class="text-muted-foreground flex items-center gap-2 text-sm" role="status">
+                  <hlm-spinner /><span>{{ 'gq.history.loading' | transloco }}</span>
+                </div>
+              } @else if (!costingHistory().length) {
+                <p class="text-muted-foreground py-6 text-center text-sm">{{ 'gq.history.noHistory' | transloco }}</p>
+              } @else {
+                <ol class="border-border ml-2 flex flex-col gap-5 border-l pl-5">
+                  @for (h of costingHistory(); track h.historyId; let i = $index) {
+                    <li class="relative">
+                      <span class="ring-background absolute top-1 -left-[26.5px] size-3 rounded-full ring-4" [class]="toneDot(statusTone(h.status))" aria-hidden="true"></span>
+                      <div class="flex flex-wrap items-center gap-2 text-xs">
+                        <span class="text-sm font-semibold">{{ 'gq.history.round' | transloco: { number: costingHistory().length - i } }}</span>
+                        <span class="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase" [class]="toneBadge(statusTone(h.status))">
+                          <span class="size-1.5 rounded-full" [class]="toneDot(statusTone(h.status))"></span>
+                          {{ statusLabelKey(h.status) | transloco }}
+                        </span>
+                        <span class="text-muted-foreground">{{ h.changedAt }} &middot; {{ h.changedBy }}</span>
+                        <span class="bg-muted rounded px-1.5 py-0.5 tabular-nums">1 USD = {{ fmtNum(h.rateInUsd, 4) }} {{ displayCurrency(style) }}</span>
+                      </div>
+                      <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                        @for (cell of [
+                          {key: 'fabric', labelKey: 'gq.fabric', val: h.fabricTotal},
+                          {key: 'trim',   labelKey: 'gq.trim',   val: h.trimTotal},
+                          {key: 'cmt',    labelKey: 'gq.cmt',    val: h.cmtTotal},
+                          {key: 'total',  labelKey: 'gq.total',  val: h.total},
+                          {key: 'fob',    labelKey: 'gq.costing.fobPrice', val: h.fobPriceRmb}
+                        ]; track cell.key) {
+                          <div class="rounded-md border px-2.5 py-1.5"
+                            [class.bg-muted/50]="cell.key === 'total'"
+                            [class]="cell.key === 'fob' ? toneBadge('green') + ' border-transparent' : ''">
+                            <div class="text-muted-foreground text-[10px] uppercase">{{ cell.labelKey | transloco }}</div>
+                            <div class="text-xs font-semibold tabular-nums">{{ moneyTxnFromRmb(cell.val, style) }}</div>
+                            <div class="text-muted-foreground text-[10px] tabular-nums">~${{ fmtNum(cell.val / h.rateInUsd) }}</div>
+                          </div>
+                        }
+                      </div>
+                      @if (h.cmt.length) {
+                        <div class="bg-muted/40 mt-2 grid grid-cols-1 gap-x-6 gap-y-0.5 rounded-md p-2 text-xs sm:grid-cols-2">
+                          @for (item of h.cmt; track item.key) {
+                            @if (+item.value > 0) {
+                              <div class="flex justify-between gap-2">
+                                <span class="text-muted-foreground">{{ cmtLabel(item) ? (cmtLabel(item)! | transloco) : item.label }}</span>
+                                <span class="tabular-nums">{{ fmtNum(item.value) }} {{ item.curr_id }}</span>
+                              </div>
+                            }
+                          }
+                        </div>
+                      }
+                      <!-- BOM diff toggle -->
+                      @if (h.bom.length) {
+                        @let diffRows = bomDiffRows(h.bom, style.bom);
+                        @let bomOpen = histBomOpen().has(h.historyId);
+                        <button hlmBtn variant="ghost" size="sm" type="button" class="mt-2 -ml-2"
+                          [class]="diffRows.length > 0 ? toneText('amber') : 'text-muted-foreground'"
+                          (click)="toggleHistBom(h.historyId)"
+                          [attr.aria-expanded]="bomOpen"
+                          [attr.aria-controls]="'hist-bom-' + h.historyId">
+                          <ng-icon name="lucideChevronRight" class="transition-transform" [class.rotate-90]="bomOpen" />
+                          @if (diffRows.length > 0) {
+                            BOM Changes &nbsp;<strong>{{ diffRows.length }} item{{ diffRows.length > 1 ? 's' : '' }}</strong>
+                          } @else {
+                            BOM (no changes)
+                          }
+                        </button>
+
+                        @if (bomOpen) {
+                          <div class="mt-1" [id]="'hist-bom-' + h.historyId" role="region" aria-label="BOM changes for this round">
+                            @if (diffRows.length === 0) {
+                              <p class="text-muted-foreground text-xs">All BOM prices and quantities match the original.</p>
+                            } @else {
+                              <div hlmTableContainer class="rounded-lg border">
+                                <table hlmTable class="text-xs" aria-label="BOM diff">
+                                  <thead hlmTHead class="bg-muted/50">
+                                    <tr hlmTr>
+                                      <th hlmTh class="h-8 text-[10px] uppercase">Description</th>
+                                      <th hlmTh class="h-8 text-right text-[10px] uppercase">Curr</th>
+                                      <th hlmTh class="h-8 text-right text-[10px] uppercase">Unit Price</th>
+                                      <th hlmTh class="h-8 text-right text-[10px] uppercase">Consump</th>
+                                      <th hlmTh class="h-8 text-center text-[10px] uppercase">UOM</th>
+                                      <th hlmTh class="h-8 text-right text-[10px] uppercase">Wastage</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody hlmTBody>
+                                    @for (row of diffRows; track row.item.part_desc) {
+                                      <tr hlmTr>
+                                        <td hlmTd class="whitespace-normal">
+                                          {{ row.item.part_desc || row.item.material || '—' }}
+                                          @if (row.changed.includes('new')) {
+                                            <span class="ml-1 rounded px-1 text-[10px] font-semibold uppercase" [class]="toneBadge('green')">new</span>
+                                          }
+                                        </td>
+                                        @for (col of [
+                                          { key: 'curr_id', now: row.item.curr_id, was: row.orig?.curr_id },
+                                          { key: 'price', now: row.item.price ? fmtNum(row.item.price) : '—', was: row.orig?.price ? fmtNum(row.orig!.price) : '—' },
+                                          { key: 'consump', now: row.item.consump ?? row.item.consum ?? '—', was: row.orig?.consump ?? row.orig?.consum ?? '—' }
+                                        ]; track col.key) {
+                                          <td hlmTd class="text-right tabular-nums">
+                                            <span [class]="row.changed.includes(col.key) ? toneText('amber') + ' font-semibold' : ''">{{ col.now }}</span>
+                                            @if (row.changed.includes(col.key) && row.orig) {
+                                              <div class="text-muted-foreground text-[10px] line-through">{{ col.was }}</div>
+                                            }
+                                          </td>
+                                        }
+                                        <!-- consump_uom (display only — not change-tracked) -->
+                                        <td hlmTd class="text-center">{{ row.item.consump_uom || '—' }}</td>
+                                        <td hlmTd class="text-right tabular-nums">
+                                          <span [class]="row.changed.includes('wastage_pct') ? toneText('amber') + ' font-semibold' : ''">{{ row.item.wastage_pct ?? '0' }}%</span>
+                                          @if (row.changed.includes('wastage_pct') && row.orig) {
+                                            <div class="text-muted-foreground text-[10px] line-through">{{ row.orig.wastage_pct ?? '0' }}%</div>
+                                          }
+                                        </td>
+                                      </tr>
+                                    }
+                                  </tbody>
+                                </table>
+                              </div>
+                            }
+                          </div>
+                        }
+                      }
+
+                      @if (h.factoryRemarks) {
+                        <div class="bg-muted/40 mt-2 rounded-md p-2 text-xs whitespace-pre-line">{{ h.factoryRemarks }}</div>
+                      }
+                    </li>
+                  }
+                </ol>
+              }
+            }
+          </div>
+        }
+
+        <!-- REMARKS TAB -->
+        @if (activeTab() === 'remarks') {
+          <div class="flex min-h-0 flex-1 flex-col">
+            @if (!style.quotations.length) {
+              <p class="text-muted-foreground py-6 text-center text-sm">{{ 'gq.remarks.noFactory' | transloco }}</p>
+            } @else {
+              @if (style.quotations.length > 1) {
+                <div class="border-border flex gap-2 overflow-x-auto border-b p-3" role="tablist" aria-label="Select factory for remarks">
+                  @for (fq of style.quotations; track fq.qid; let i = $index) {
+                    <button type="button" role="tab"
+                      class="flex shrink-0 flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left transition-colors"
+                      [class]="activeQIdx() === i ? 'border-primary bg-primary/5 ring-primary ring-1' : 'hover:bg-accent'"
+                      (click)="activeQIdx.set(i)"
+                      [attr.aria-selected]="activeQIdx() === i">
+                      <span class="max-w-48 truncate text-xs font-semibold">{{ fq.factory.name }}</span>
+                      <span class="flex items-center gap-1.5">
+                        <span class="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase" [class]="toneBadge(statusTone(fq.status))">
+                          <span class="size-1.5 rounded-full" [class]="toneDot(statusTone(fq.status))"></span>
+                          {{ statusLabelKey(fq.status) | transloco }}
+                        </span>
+                        @if (fq.remarks.length) {
+                          <span class="bg-primary text-primary-foreground rounded-full px-1.5 text-[10px] font-semibold tabular-nums">{{ fq.remarks.length }}</span>
+                        }
+                      </span>
+                    </button>
+                  }
+                </div>
+              }
+              @if (selQ(); as q) {
+                <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 sm:p-5" #remarksThread role="log" aria-label="Correspondence thread" aria-live="polite">
+                  @if (!q.remarks.length) {
+                    <p class="text-muted-foreground py-6 text-center text-sm">{{ 'gq.remarks.noCorrespondence' | transloco: { factory: q.factory.name } }}</p>
+                  }
+                  @for (r of q.remarks; track trackByIdx($index)) {
+                    @let mine = r.role === role();
+                    <div class="group flex max-w-[85%] items-end gap-2" [class.flex-row-reverse]="mine" [class.self-end]="mine">
+                      <div class="flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                        [class]="r.role === 'merchandiser' ? 'bg-primary/15 text-primary' : toneBadge('amber')" aria-hidden="true">
+                        {{ r.role === 'merchandiser' ? 'M' : 'F' }}
+                      </div>
+                      <div class="flex min-w-0 flex-col gap-1" [class.items-end]="mine">
+                        <div class="text-muted-foreground text-[11px]">{{ r.user }} · {{ r.ts }}</div>
+                        <div class="rounded-2xl px-3 py-2 text-sm whitespace-pre-line" [class]="mine ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-muted rounded-bl-sm'">{{ r.text }}</div>
+                      </div>
+                      @if (mine && r.rid) {
+                        <button hlmBtn variant="ghost" size="icon-sm" type="button" class="text-muted-foreground hover:text-destructive opacity-60 group-hover:opacity-100" (click)="deleteRemark(q.qid, r.rid)" aria-label="Delete message">
+                          <ng-icon name="lucideTrash2" />
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+                <div class="border-border flex items-end gap-2 border-t p-3">
+                  <textarea hlmInput class="min-h-11 flex-1 resize-none py-2" rows="2"
+                    [value]="remarkText()"
+                    (input)="onRemarkTextInput($event)"
+                    (keydown)="onRemarkKeydown($event, q.qid)"
+                    [placeholder]="role() === 'factory' ? ('gq.remarks.remarkToMerch' | transloco) : ('gq.remarks.remarkToFactory' | transloco: { factory: q.factory.name })"
+                    aria-label="Write remark"></textarea>
+                  <button hlmBtn size="icon" type="button" class="size-11" (click)="sendRemark(q.qid)" [disabled]="!remarkText().trim()" aria-label="Send remark">
+                    <ng-icon name="lucideSend" />
+                  </button>
+                </div>
+              }
+            }
+          </div>
+        }
+      </div>
+
+      <!-- DRAWER ACTION BAR -->
+      <div class="border-border bg-muted/30 flex flex-wrap items-center gap-2 border-t px-4 py-3 sm:px-5">
+
+        <!-- Status indicator -->
+        @if (selQ(); as q) {
+          <span class="mr-auto flex min-w-0 items-center gap-2 text-sm">
+            <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase" [class]="toneBadge(statusTone(q.status))">
+              <span class="size-1.5 rounded-full" [class]="toneDot(statusTone(q.status))"></span>
+              {{ statusLabelKey(q.status) | transloco }}
+            </span>
+            <span class="truncate">{{ q.factory.name }}</span>
+          </span>
+        } @else {
+          <span class="mr-auto flex items-center gap-2 text-sm">
+            <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase" [class]="toneBadge('neutral')">
+              <span class="size-1.5 rounded-full" [class]="toneDot('neutral')"></span>
+              {{ 'gq.drawer.new' | transloco }}
+            </span>
+            {{ 'gq.drawer.noFactoryAssigned' | transloco }}
+          </span>
+        }
+
+        <!-- Merchandiser actions -->
+        @if (role() === 'merchandiser') {
+          @if (selQ(); as q) {
+
+            @if (q.status === 'new') {
+              <button hlmBtn size="sm" type="button" class="h-10 lg:h-8" (click)="handleAction('resend', q.qid)" aria-label="Resend this quotation to the same factory">
+                <ng-icon name="lucideSend" />
+                {{ 'gq.drawer.resendTo' | transloco: { factory: q.factory.name } }}
+              </button>
+              <button hlmBtn variant="ghost" size="sm" type="button" class="h-10 lg:h-8" (click)="handleAction('open_factory_modal')" aria-label="Send to a different factory">
+                {{ 'gq.drawer.differentFactory' | transloco }}
+              </button>
+              <button hlmBtn variant="destructive" size="sm" type="button" class="h-10 lg:h-8" (click)="removeFactory(q.qid)" aria-label="Remove this factory from the quotation">
+                <ng-icon name="lucideX" />
+                {{ 'gq.drawer.removeFactory' | transloco }}
+              </button>
+            }
+
+            @if (q.status === 'sent_to_factory') {
+              <button hlmBtn variant="outline" size="sm" type="button" class="h-10 lg:h-8" (click)="handleAction('recall', q.qid)" aria-label="Recall this quotation for revision">
+                <ng-icon name="lucideRotateCcw" />
+                {{ 'gq.drawer.recall' | transloco }}
+              </button>
+            }
+
+            @if (q.status === 'factory_submitted') {
+              <button hlmBtn size="sm" type="button" class="h-10 bg-emerald-600 text-white hover:bg-emerald-600/90 lg:h-8" (click)="handleAction('approve', q.qid)" aria-label="Approve factory costing">
+                <ng-icon name="lucideCheck" />
+                {{ 'gq.drawer.approve' | transloco }}
+              </button>
+              <button hlmBtn size="sm" type="button" class="h-10 bg-amber-600 text-white hover:bg-amber-600/90 lg:h-8" (click)="handleAction('revise', q.qid)" aria-label="Request factory to revise costing">
+                <ng-icon name="lucidePencil" />
+                {{ 'gq.drawer.revise' | transloco }}
+              </button>
+              <button hlmBtn size="sm" type="button" class="bg-destructive hover:bg-destructive/90 h-10 text-white lg:h-8" (click)="handleAction('open_reject', q.qid)" aria-label="Reject factory costing">
+                <ng-icon name="lucideX" />
+                {{ 'gq.drawer.reject' | transloco }}
+              </button>
+            }
+
+            @if (q.status === 'rejected') {
+              <button hlmBtn size="sm" type="button" class="h-10 lg:h-8" (click)="handleAction('resend', q.qid)" aria-label="Resend to same factory for revision">
+                <ng-icon name="lucideSend" />
+                {{ 'gq.drawer.resend' | transloco }}
+              </button>
+              <button hlmBtn variant="ghost" size="sm" type="button" class="h-10 lg:h-8" (click)="handleAction('open_factory_modal')" aria-label="Send to a different factory">
+                {{ 'gq.drawer.differentFactory' | transloco }}
+              </button>
+            }
+
+            @if (q.status === 'approved') {
+              <button hlmBtn size="sm" type="button" class="h-10 bg-amber-600 text-white hover:bg-amber-600/90 lg:h-8" (click)="handleAction('unapprove', q.qid)" aria-label="Unapprove factory costing">
+                <ng-icon name="lucideUndo2" />
+                Unapprove
+              </button>
+              <button hlmBtn variant="ghost" size="sm" type="button" class="h-10 lg:h-8" (click)="handleAction('open_factory_modal')" aria-label="Add another factory for comparison">
+                {{ 'gq.drawer.addFactory' | transloco }}
+              </button>
+            }
+
+          } @else {
+            <button hlmBtn size="sm" type="button" class="h-10 lg:h-8" (click)="handleAction('open_factory_modal')" aria-label="Select a factory and send this style">
+              <ng-icon name="lucideSend" />
+              {{ 'gq.drawer.sendToFactory' | transloco }}
+            </button>
+          }
+        }
+
+        <!-- Factory actions -->
+        @if (role() === 'factory') {
+          @if (selQ(); as q) {
+            @if (q.status === 'sent_to_factory' || q.status === 'for_revision') {
+              <button hlmBtn size="sm" type="button" class="h-10 lg:h-8" (click)="handleAction('factory_submit', q.qid)"
+                [attr.aria-label]="q.status === 'for_revision' ? 'Submit revised costing to merchandiser' : 'Submit costing to merchandiser for review'">
+                <ng-icon name="lucideSend" />
+                {{ 'gq.drawer.submitCosting' | transloco }}
+              </button>
+            }
+
+            @if (q.status === 'factory_submitted') {
+              <button hlmBtn variant="outline" size="sm" type="button" class="h-10 lg:h-8" (click)="handleAction('factory_recall', q.qid)" aria-label="Recall your costing submission for revision">
+                <ng-icon name="lucideRotateCcw" />
+                {{ 'gq.drawer.recallSubmission' | transloco }}
+              </button>
+            }
+
+            @if (q.status === 'rejected') {
+              <button hlmBtn size="sm" type="button" class="h-10 bg-amber-600 text-white hover:bg-amber-600/90 lg:h-8" (click)="handleAction('factory_submit', q.qid)" aria-label="Resubmit revised costing">
+                <ng-icon name="lucideSend" />
+                {{ 'gq.drawer.resubmitCosting' | transloco }}
+              </button>
+            }
+          }
+        }
+
+        @if (canEditBom() && activeTab() === 'bom') {
+          <button hlmBtn size="sm" type="button" class="h-10 lg:h-8" (click)="saveBomDraft()" [disabled]="isSavingBom()" aria-label="Save BOM draft">
+            @if (isSavingBom()) { <hlm-spinner /> } @else { <ng-icon name="lucideSave" /> }
+            {{ 'gq.bom.saveDraft' | transloco }}
+          </button>
+        }
+        @if ((canEditBomFty() || canEditCosting()) && selQ()) {
+          <button hlmBtn size="sm" type="button" class="h-10 lg:h-8" (click)="saveFactoryCosting()" [disabled]="isSavingCosting()" aria-label="Save BOM and costing draft">
+            @if (isSavingCosting()) { <hlm-spinner /> } @else { <ng-icon name="lucideSave" /> }
+            {{ 'gq.costing.saveDraft' | transloco }}
+          </button>
+        }
+        <button hlmBtn variant="ghost" size="sm" type="button" class="h-10 lg:h-8" (click)="closeDrawer()">{{ 'gq.drawer.close' | transloco }}</button>
+      </div>
+    </aside>
+  }
+
+  <!--  FACTORY MODAL  -->
+  @if (factModal()) {
+    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-2 sm:p-4 print:hidden" role="dialog" aria-modal="true"
+      [attr.aria-label]="(role() === 'factory' ? 'gq.factoryModal.batchTitle' : 'gq.factoryModal.title') | transloco"
+      (click)="factModal.set(false)" (keydown.escape)="factModal.set(false)">
+      <div class="bg-card text-card-foreground ring-foreground/10 flex max-h-[95dvh] w-full max-w-6xl flex-col rounded-xl shadow-2xl ring-1" (click)="$event.stopPropagation()">
+
+        <!-- Fixed header -->
+        <div class="flex min-h-0 flex-col gap-3 overflow-y-auto p-4 sm:p-6" [class.flex-1]="role() === 'factory'">
+          <div>
+            <h2 class="text-lg font-semibold">{{ (role() === 'factory' ? 'gq.factoryModal.batchTitle' : 'gq.factoryModal.title') | transloco }}</h2>
+            <p class="text-muted-foreground text-sm">{{ (role() === 'factory' ? 'gq.factoryModal.batchSub' : 'gq.factoryModal.sub') | transloco }}</p>
+          </div>
+
+          @if (role() === 'merchandiser') {
+            <div class="text-muted-foreground text-xs font-semibold tracking-wide uppercase">{{ 'gq.factoryModal.scope' | transloco }}</div>
+            <div class="flex flex-wrap gap-2" role="radiogroup" [attr.aria-label]="'gq.factoryModal.scope' | transloco">
+              @for (opt of ['selected', 'all']; track opt) {
+                <label class="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm" [class]="factoryScope() === opt ? 'border-primary bg-primary/5 ring-primary ring-1' : 'hover:bg-accent'">
+                  <input type="radio" name="scope" class="accent-primary" [value]="opt" [checked]="factoryScope() === opt" (change)="onFactoryScopeChange($any(opt))" />
+                  {{ opt === 'selected' ? ('gq.factoryModal.selectedStyles' | transloco: { count: selectedIds().length }) : ('gq.factoryModal.entirePackage' | transloco) }}
+                </label>
+              }
+            </div>
+          }
+
+          <div class="text-muted-foreground text-xs font-semibold tracking-wide uppercase">{{ 'gq.factoryModal.batchSection' | transloco }}</div>
+          <div hlmTableContainer class="max-h-[40dvh] rounded-lg border">
+            <table hlmTable class="min-w-[900px] text-xs" [attr.aria-label]="'gq.factoryModal.batchTableAria' | transloco">
+              <thead hlmTHead class="bg-muted sticky top-0 z-10">
+                <tr hlmTr>
+                  <th hlmTh class="h-8 text-[10px] uppercase">{{ 'gq.factoryModal.style' | transloco }}</th>
+                  <th hlmTh class="h-8 text-[10px] uppercase">{{ 'gq.factoryModal.factory' | transloco }}</th>
+                  <th hlmTh class="h-8 text-[10px] uppercase">{{ 'gq.factoryModal.commentsRemarks' | transloco }}</th>
+                  @if (role() !== 'factory') { <th hlmTh class="h-8 text-[10px] uppercase">{{ 'gq.factoryModal.tmsPrice' | transloco }}</th> }
+                  <th hlmTh class="h-8 text-[10px] uppercase">{{ 'gq.factoryModal.factoryPrice' | transloco }}</th>
+                  <th hlmTh class="h-8 text-[10px] uppercase">{{ 'gq.factoryModal.revisedFactoryPrice' | transloco }}</th>
+                  @if (role() !== 'factory') { <th hlmTh class="h-8 text-[10px] uppercase">{{ 'gq.factoryModal.margin' | transloco }}</th> }
+                  <th hlmTh class="h-8 text-[10px] uppercase">{{ 'gq.factoryModal.status' | transloco }}</th>
+                  <th hlmTh class="h-8 text-center text-[10px] uppercase">{{ 'gq.factoryModal.action' | transloco }}</th>
+                </tr>
+              </thead>
+              <tbody hlmTBody>
+                @for (row of batchDisplayRows(); track row.key) {
+                  <tr hlmTr>
+                    <td hlmTd class="align-top">
+                      <strong>{{ row.style.style_id }}</strong>
+                      @if (row.style.quotations.length > 1) {
+                        <div class="text-muted-foreground text-[11px]">{{ 'gq.factoryModal.factoryCount' | transloco: { count: row.style.quotations.length } }}</div>
+                      }
+                    </td>
+                    <td hlmTd class="align-top whitespace-normal">
+                      @if (row.factory) {
+                        <span [class]="row.isDraft ? toneText('primary') + ' font-semibold' : ''">{{ row.factory.name }}</span>
+                        @if (row.isDraft) { <div class="text-muted-foreground text-[11px]">{{ 'gq.factoryModal.toSend' | transloco }}</div> }
+                      } @else {
+                        <span class="text-muted-foreground">{{ 'gq.factoryModal.selectFactory' | transloco }}</span>
+                      }
+                    </td>
+                    <td hlmTd class="min-w-48 align-top whitespace-normal">
+                      @if (role() === 'merchandiser') {
+                        <textarea hlmInput class="min-h-14 py-1.5 text-xs" rows="2"
+                          [value]="batchRow(row.key, row).comments"
+                          (input)="onBatchFieldChange(row.key, 'comments', $event)"
+                          [attr.aria-label]="'gq.factoryModal.batchComments' | transloco"></textarea>
+                      } @else {
+                        <span class="text-muted-foreground">{{ batchRow(row.key, row).comments || '-' }}</span>
+                      }
+                    </td>
+                    @if (role() !== 'factory') {
+                      <td hlmTd class="align-top">
+                        <span class="flex items-center gap-1">
+                          <input hlmInput type="number" class="h-8 w-24 px-1.5 text-right text-xs"
+                            [value]="batchRow(row.key, row).tmsPrice"
+                            (input)="onBatchFieldChange(row.key, 'tmsPrice', $event)"
+                            [attr.aria-label]="'gq.factoryModal.tmsPrice' | transloco" />
+                          <span class="text-muted-foreground text-[10px]">USD</span>
+                        </span>
+                      </td>
+                    }
+                    <td hlmTd class="align-top tabular-nums">
+                      @if (role() === 'factory') {
+                        <span class="flex items-center gap-1">
+                          <input hlmInput type="number" class="h-8 w-24 px-1.5 text-right text-xs"
+                            [value]="batchRow(row.key, row).factoryPrice"
+                            [disabled]="!canEditBatchPrice(row)"
+                            (input)="onBatchFieldChange(row.key, 'factoryPrice', $event)"
+                            [attr.aria-label]="'gq.factoryModal.factoryPrice' | transloco" />
+                          <span class="text-muted-foreground text-[10px]">USD</span>
+                        </span>
+                      } @else {
+                        @if (batchPriceDisplay(row, batchRow(row.key, row).factoryPrice); as p) {
+                          <strong>{{ moneyUsd(p.usd) }}</strong>
+                        } @else { - }
+                      }
+                    </td>
+                    <td hlmTd class="align-top tabular-nums">
+                      @if (role() === 'factory') {
+                        <span class="flex items-center gap-1">
+                          <input hlmInput type="number" class="h-8 w-24 px-1.5 text-right text-xs"
+                            [value]="batchRow(row.key, row).revisedPrice"
+                            [disabled]="!canEditBatchRevisedPrice(row)"
+                            (input)="onBatchFieldChange(row.key, 'revisedPrice', $event)"
+                            [attr.aria-label]="'gq.factoryModal.revisedFactoryPrice' | transloco" />
+                          <span class="text-muted-foreground text-[10px]">USD</span>
+                        </span>
+                      } @else {
+                        @if (batchPriceDisplay(row, batchRow(row.key, row).revisedPrice); as p) {
+                          <strong>{{ moneyUsd(p.usd) }}</strong>
+                        } @else { - }
+                      }
+                    </td>
+                    @if (role() !== 'factory') { <td hlmTd class="align-top tabular-nums">{{ batchMargin(row) }}</td> }
+                    <td hlmTd class="align-top">
+                      @if (row.isDraft) { {{ batchStatus(row) }} } @else { {{ batchStatus(row) | transloco }} }
+                    </td>
+                    <td hlmTd class="text-center align-top">
+                      @if (role() === 'factory') {
+                        @if (batchAction(row) === 'submit') {
+                          <button hlmBtn variant="ghost" size="icon-sm" type="button" [class]="toneText('green')"
+                            (click)="batchQuickAction(row, 'submit')"
+                            [title]="'gq.factoryModal.submitQuotation' | transloco"
+                            [attr.aria-label]="'gq.factoryModal.submitQuotation' | transloco">
+                            <ng-icon name="lucideCheck" />
+                          </button>
+                        } @else if (batchAction(row) === 'recall') {
+                          <button hlmBtn variant="ghost" size="icon-sm" type="button"
+                            (click)="batchQuickAction(row, 'recall')"
+                            [title]="'gq.factoryModal.recallQuotation' | transloco"
+                            [attr.aria-label]="'gq.factoryModal.recallQuotation' | transloco">
+                            <ng-icon name="lucideUndo2" />
+                          </button>
+                        } @else {
+                          <span class="text-muted-foreground">-</span>
+                        }
+                      } @else if (row.q) {
+                        <div class="flex items-center justify-center gap-0.5">
+                          @if (row.q.status === 'sent_to_factory') {
+                            <button hlmBtn variant="ghost" size="icon-sm" type="button"
+                              (click)="batchTmsAction(row, 'recall')"
+                              [title]="'gq.factoryModal.recallQuotation' | transloco"
+                              [attr.aria-label]="'gq.factoryModal.recallQuotation' | transloco">
+                              <ng-icon name="lucideRotateCcw" />
+                            </button>
+                          }
+                          @if (row.q.status === 'factory_submitted') {
+                            <button hlmBtn variant="ghost" size="icon-sm" type="button" [class]="toneText('green')"
+                              (click)="batchTmsAction(row, 'approve')"
+                              [title]="'gq.factoryModal.approveCosting' | transloco"
+                              [attr.aria-label]="'gq.factoryModal.approveCosting' | transloco">
+                              <ng-icon name="lucideCheck" />
+                            </button>
+                            <button hlmBtn variant="ghost" size="icon-sm" type="button" [class]="toneText('amber')"
+                              (click)="batchTmsAction(row, 'revise')"
+                              [title]="'gq.factoryModal.requestRevision' | transloco"
+                              [attr.aria-label]="'gq.factoryModal.requestRevision' | transloco">
+                              <ng-icon name="lucidePencil" />
+                            </button>
+                            <button hlmBtn variant="ghost" size="icon-sm" type="button" [class]="toneText('red')"
+                              (click)="batchTmsAction(row, 'reject')"
+                              [title]="'gq.factoryModal.rejectCosting' | transloco"
+                              [attr.aria-label]="'gq.factoryModal.rejectCosting' | transloco">
+                              <ng-icon name="lucideX" />
+                            </button>
+                          }
+                          @if (row.q.status === 'approved') {
+                            <button hlmBtn variant="ghost" size="icon-sm" type="button" [class]="toneText('amber')"
+                              (click)="batchTmsAction(row, 'unapprove')"
+                              [title]="'gq.factoryModal.unapproveCosting' | transloco"
+                              [attr.aria-label]="'gq.factoryModal.unapproveCosting' | transloco">
+                              <ng-icon name="lucideUndo2" />
+                            </button>
+                          }
+                          @if (row.q.status !== 'sent_to_factory' && row.q.status !== 'factory_submitted' && row.q.status !== 'approved') {
+                            <span class="text-muted-foreground">-</span>
+                          }
+                        </div>
+                      } @else {
+                        <span class="text-muted-foreground">-</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          @if (role() === 'merchandiser') {
+            <div class="relative">
+              <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2" />
+              <input hlmInput type="search" class="h-11 pl-8 lg:h-9"
+                [placeholder]="'gq.factoryModal.searchPlaceholder' | transloco"
+                [value]="factorySearch()"
+                (input)="onFactorySearchInput($event)"
+                [attr.aria-label]="'gq.factoryModal.searchFactories' | transloco" />
+            </div>
+
+            <div class="text-muted-foreground flex flex-wrap items-center gap-2 text-xs font-semibold tracking-wide uppercase">
+              {{ 'gq.factoryModal.selectFactories' | transloco }}
+              <span class="bg-muted rounded-full px-2 py-0.5 font-normal normal-case">{{ 'gq.factoryModal.found' | transloco: { count: filteredFactories().length, selected: chosenFactories().length } }}</span>
+            </div>
+          }
+        </div>
+
+        <!-- Scrollable factory list -->
+        @if (role() === 'merchandiser') {
+          <div class="border-border min-h-0 flex-1 overflow-y-auto border-t px-4 py-2 sm:px-6">
+            <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+              @for (f of pagedFactories(); track f.id; let i = $index) {
+                @if (i > 0 && !isFavorite(f.id) && isFavorite(pagedFactories()[i - 1].id)) {
+                  <div class="text-muted-foreground col-span-full mt-2 text-[10px] font-semibold tracking-wide uppercase" role="separator">{{ 'gq.factoryModal.otherFactories' | transloco }}</div>
+                }
+                @if (i === 0 && isFavorite(f.id)) {
+                  <div class="text-muted-foreground col-span-full text-[10px] font-semibold tracking-wide uppercase" role="separator">{{ 'gq.factoryModal.pinned' | transloco }}</div>
+                }
+                <label
+                  class="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition-colors"
+                  [class]="isFactoryAlreadyAssigned(f.id) ? 'cursor-not-allowed opacity-60' : isFactoryChosen(f.id) ? 'border-primary bg-primary/5 ring-primary ring-1' : 'hover:bg-accent'">
+                  <input type="checkbox" class="accent-primary size-4 shrink-0"
+                    [checked]="isFactoryChosen(f.id)"
+                    [disabled]="isFactoryAlreadyAssigned(f.id)"
+                    (change)="!isFactoryAlreadyAssigned(f.id) && toggleFactoryChoice(f.id)"
+                    [attr.aria-label]="f.name" />
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-sm font-medium">{{ f.name }}</div>
+                    <div class="text-muted-foreground truncate text-xs">
+                      {{ f.id }}
+                      @if (isFactoryAlreadyAssigned(f.id)) {
+                        <span>&middot; {{ 'gq.factoryModal.alreadyAssigned' | transloco }}</span>
+                      }
+                    </div>
+                  </div>
+                  <button hlmBtn variant="ghost" size="icon-sm" type="button"
+                    [class]="isFavorite(f.id) ? 'text-primary' : 'text-muted-foreground'"
+                    (click)="$event.preventDefault(); $event.stopPropagation(); toggleFavorite(f.id)"
+                    [attr.aria-label]="(isFavorite(f.id) ? ('gq.factoryModal.unpinFactory' | transloco: { factory: f.name }) : ('gq.factoryModal.pinFactory' | transloco: { factory: f.name }))"
+                    [attr.aria-pressed]="isFavorite(f.id)"
+                    [title]="isFavorite(f.id) ? ('gq.factoryModal.unpin' | transloco) : ('gq.factoryModal.pinToTop' | transloco)">
+                    <ng-icon name="lucidePin" [class.fill-current]="isFavorite(f.id)" />
+                  </button>
+                </label>
+              }
+              @if (pagedFactories().length === 0) {
+                <p class="text-muted-foreground col-span-full py-6 text-center text-sm">{{ 'gq.factoryModal.noFactoriesMatch' | transloco: { search: factorySearch() } }}</p>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- Fixed footer: pagination + actions -->
+        <div class="border-border flex flex-wrap items-center gap-2 border-t px-4 py-3 sm:px-6">
+          @if (role() === 'merchandiser' && factoryPageCount() > 1) {
+            <div class="flex items-center gap-1" role="navigation" [attr.aria-label]="'gq.factoryModal.factoryListPages' | transloco">
+              <button hlmBtn variant="outline" size="icon-sm" type="button" [disabled]="factoryPage() === 0" (click)="factoryPagePrev()" [attr.aria-label]="'gq.factoryModal.previousPage' | transloco">
+                <ng-icon name="lucideChevronLeft" />
+              </button>
+              <span class="px-2 text-xs tabular-nums">{{ factoryPage() + 1 }} / {{ factoryPageCount() }}</span>
+              <button hlmBtn variant="outline" size="icon-sm" type="button" [disabled]="factoryPage() === factoryPageCount() - 1" (click)="factoryPageNext()" [attr.aria-label]="'gq.factoryModal.nextPage' | transloco">
+                <ng-icon name="lucideChevronRight" />
+              </button>
+            </div>
+          }
+          <div class="ml-auto flex gap-2">
+            <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="factModal.set(false)">{{ 'gq.factoryModal.cancel' | transloco }}</button>
+            @if (role() === 'merchandiser') {
+              <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="batchSendCount() === 0" (click)="confirmFactory()">
+                {{ 'gq.factoryModal.sendQuotations' | transloco: { count: batchSendCount() } }}
+              </button>
+            } @else {
+              <button hlmBtn type="button" class="h-11 lg:h-9" (click)="saveFactoryBatchQuotation()">{{ 'gq.factoryModal.saveBatch' | transloco }}</button>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!--  REJECT MODAL  -->
+  @if (rejectModal()) {
+    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4 print:hidden" role="dialog" aria-modal="true" aria-label="Reject costing"
+      (click)="rejectModal.set(false)" (keydown.escape)="rejectModal.set(false)">
+      <div class="bg-card text-card-foreground ring-foreground/10 flex w-full max-w-md flex-col gap-4 rounded-xl p-6 shadow-2xl ring-1" (click)="$event.stopPropagation()">
+        <div>
+          <h2 class="text-destructive text-lg font-semibold">{{ 'gq.rejectModal.title' | transloco }}</h2>
+          @if (rejectFactoryName()) {
+            <p class="text-muted-foreground text-sm">{{ 'gq.rejectModal.from' | transloco: { factory: rejectFactoryName() } }}</p>
+          }
+        </div>
+        <textarea hlmInput class="min-h-24 py-2" rows="4"
+          [value]="rejectReason()"
+          (input)="onRejectReasonInput($event)"
+          placeholder="e.g. Total CMT exceeds target. Please revise transportation and CMP..."
+          aria-label="Rejection reason"></textarea>
+        <div class="flex justify-end gap-2">
+          <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="rejectModal.set(false)">{{ 'gq.rejectModal.cancel' | transloco }}</button>
+          <button hlmBtn type="button" class="bg-destructive hover:bg-destructive/90 h-11 text-white lg:h-9" [disabled]="!rejectReason().trim()" (click)="confirmReject()">
+            {{ 'gq.rejectModal.confirm' | transloco }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!--  ADD BOM ITEM MODAL  -->
+  @if (addBomModal()) {
+    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4 print:hidden" role="dialog" aria-modal="true"
+      [attr.aria-label]="'gq.bom.addItemModal.title' | transloco"
+      (click)="addBomModal.set(false)" (keydown.escape)="addBomModal.set(false)">
+      <div class="bg-card text-card-foreground ring-foreground/10 flex max-h-[95dvh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl p-6 shadow-2xl ring-1" (click)="$event.stopPropagation()">
+        <div>
+          <h2 class="text-lg font-semibold">{{ 'gq.bom.addItemModal.title' | transloco }}</h2>
+          <p class="text-muted-foreground text-sm">{{ 'gq.bom.addItemModal.sub' | transloco }}</p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-6">
+          <!-- Row 1: mat_class + material# -->
+          <label class="flex flex-col gap-1.5 text-sm font-medium sm:col-span-3">
+            {{ 'gq.bom.addItemModal.matClass' | transloco }}
+            <select hlmInput class="h-11 lg:h-9" [value]="addBomMatClass()" (change)="onAddBomMatClassChange($event)" aria-label="Material class">
+              @for (mc of MAT_CLASS_ORDER; track mc) {
+                <option [value]="mc" [selected]="mc === addBomMatClass()">{{ matClassLabel(mc) }}</option>
+              }
+            </select>
+          </label>
+          <label class="flex flex-col gap-1.5 text-sm font-medium sm:col-span-3">
+            {{ 'gq.bom.materialNo' | transloco }}
+            <input hlmInput type="text" class="h-11 lg:h-9"
+              [value]="addBomMaterial()"
+              (input)="onAddBomMaterialInput($event)"
+              [placeholder]="'gq.bom.addItemModal.materialPlaceholder' | transloco"
+              aria-label="Material number" />
+          </label>
+
+          <!-- Description (full width) -->
+          <label class="flex flex-col gap-1.5 text-sm font-medium sm:col-span-6">
+            {{ 'gq.bom.description' | transloco }}
+            <input hlmInput type="text" class="h-11 lg:h-9"
+              [value]="addBomDesc()"
+              (input)="onAddBomDescInput($event)"
+              [placeholder]="'gq.bom.addItemModal.descPlaceholder' | transloco"
+              aria-label="Description" />
+          </label>
+
+          <!-- Row 2: consump + UOM -->
+          <label class="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">
+            {{ 'gq.bom.consump' | transloco }}
+            <input hlmInput type="number" class="h-11 text-right lg:h-9" min="0" step="0.001"
+              [value]="addBomConsump()"
+              (input)="addBomConsump.set($any($event.target).value)"
+              placeholder="1.000"
+              aria-label="Consumption" />
+          </label>
+          <label class="flex flex-col gap-1.5 text-sm font-medium sm:col-span-4">
+            {{ 'gq.bom.uom' | transloco }}
+            <select hlmInput class="h-11 lg:h-9" [value]="addBomUom()" (change)="onAddBomUomChange($event)" aria-label="Unit of measure">
+              <option value="">—</option>
+              @for (u of uomList(); track u.uom_id) {
+                <option [value]="u.uom_id" [selected]="u.uom_id === addBomUom()">{{ u.uom_id }} — {{ u.uom_desc }}</option>
+              }
+            </select>
+          </label>
+
+          <!-- Row 3: currency + unit price + wastage -->
+          <label class="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">
+            {{ 'gq.bom.curr' | transloco }}
+            <select hlmInput class="h-11 lg:h-9" [value]="addBomCurrency()" (change)="onAddBomCurrencyChange($event)" aria-label="Currency">
+              @for (c of CURRENCIES; track c) {
+                <option [value]="c" [selected]="c === addBomCurrency()">{{ c }}</option>
+              }
+            </select>
+          </label>
+          <label class="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">
+            {{ 'gq.bom.unitPrice' | transloco }}
+            <input hlmInput type="number" class="h-11 text-right lg:h-9" min="0" step="0.01"
+              [value]="addBomPrice()"
+              (input)="addBomPrice.set($any($event.target).value)"
+              placeholder="0.00"
+              aria-label="Unit price" />
+          </label>
+          <label class="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">
+            {{ 'gq.bom.wastage' | transloco }}
+            <input hlmInput type="number" class="h-11 text-right lg:h-9" min="0" max="100" step="0.5"
+              [value]="addBomWastage()"
+              (input)="addBomWastage.set($any($event.target).value)"
+              placeholder="0"
+              aria-label="Wastage percent" />
+          </label>
+        </div>
+
+        <!-- Actual cost preview -->
+        @if (addBomActualCost() > 0) {
+          <div class="bg-muted/50 flex items-center justify-between rounded-lg px-3 py-2">
+            <span class="text-muted-foreground text-sm">{{ 'gq.bom.actualCost' | transloco }}</span>
+            <span class="text-primary font-semibold tabular-nums">{{ fmtNum(addBomActualCost()) }} {{ addBomCurrency() }}</span>
+          </div>
+        }
+
+        @if (role() === 'factory') {
+          <div class="border-primary/30 bg-primary/5 flex gap-2 rounded-lg border p-3 text-sm" role="note">
+            <ng-icon name="lucideInfo" class="text-primary mt-0.5 shrink-0" />
+            <div>{{ 'gq.bom.addItemModal.ftyNote' | transloco }}</div>
+          </div>
+        }
+
+        <div class="flex justify-end gap-2">
+          <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="addBomModal.set(false)">{{ 'actions.cancel' | transloco }}</button>
+          <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="!addBomDesc().trim()" (click)="confirmAddBomItem()">
+            {{ 'gq.bom.addItemModal.confirm' | transloco }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!--  REMOVE FACTORY CONFIRMATION MODAL  -->
+  @if (removeFactoryModal()) {
+    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4 print:hidden" role="dialog" aria-modal="true" aria-label="Remove factory"
+      (click)="removeFactoryModal.set(false)" (keydown.escape)="removeFactoryModal.set(false)">
+      <div class="bg-card text-card-foreground ring-foreground/10 flex w-full max-w-md flex-col gap-4 rounded-xl p-6 shadow-2xl ring-1" (click)="$event.stopPropagation()">
+        <div>
+          <h2 class="text-destructive text-lg font-semibold">{{ 'gq.removeModal.title' | transloco }}</h2>
+          <p class="text-muted-foreground text-sm">{{ removeFactoryName() }}</p>
+        </div>
+        <div class="border-destructive/30 bg-destructive/10 text-destructive flex gap-3 rounded-lg border p-3" role="alert">
+          <ng-icon name="lucideCircleAlert" class="mt-0.5 shrink-0" />
+          <div>
+            <div class="text-sm font-semibold">{{ 'gq.removeModal.warningTitle' | transloco }}</div>
+            <div class="text-sm">{{ 'gq.removeModal.warningBody' | transloco }}</div>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="removeFactoryModal.set(false)">{{ 'gq.removeModal.cancel' | transloco }}</button>
+          <button hlmBtn type="button" class="bg-destructive hover:bg-destructive/90 h-11 text-white lg:h-9" (click)="confirmRemoveFactory()">
+            {{ 'gq.removeModal.confirm' | transloco }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!--  PRINT TEMPLATE (hidden on screen, shown only during window.print()). Fixed light colours for paper. -->
+  @if (selectedStyle(); as style) {
+    <div class="hidden bg-white p-[10mm] text-[11px] leading-snug text-slate-900 print:block" aria-hidden="true">
+
+      <!-- Print header: style info + image -->
+      <div class="mb-3.5 flex items-stretch justify-between gap-4 border-b-2 border-blue-900 pb-2.5">
+        <div class="flex-1">
+          <div class="mb-1 text-[9px] font-bold tracking-widest text-slate-400 uppercase">{{ 'gq.print.title' | transloco }}</div>
+          <div class="font-mono text-slate-600">{{ style.style_id }}</div>
+          <div class="my-0.5 text-lg font-bold text-blue-900">{{ style.model_name }}</div>
+          <div class="text-slate-600">{{ style.customer_id }} &nbsp;|&nbsp; {{ style.season_id }} &nbsp;|&nbsp; {{ style.composition }}</div>
+          <div class="mt-1 text-[10px] text-slate-400">{{ 'gq.exchangeRate' | transloco }}: 1 USD = {{ fmtNum(style.rate_in_usd, 4) }} {{ displayCurrency(style) }} &nbsp;|&nbsp; {{ 'gq.package' | transloco }}: {{ selectedPkg() }}</div>
+        </div>
+        <div class="flex w-40 shrink-0 items-center justify-center overflow-hidden rounded">
+          @if (style.style_image) {
+            <img [src]="style.style_image" class="h-full w-full object-fill" [alt]="style.model_name" />
+          } @else {
+            <div class="flex h-full w-full items-center justify-center bg-slate-100 text-[10px] text-slate-400">{{ style.prodcat_id }}</div>
+          }
+        </div>
+      </div>
+
+      <!-- BOM section -->
+      <section class="mb-4">
+        <div class="mb-1.5 text-[10px] font-bold tracking-wider text-blue-900 uppercase">{{ 'gq.tabs.bom' | transloco }}</div>
+        @for (group of bomGroups(activeBom()); track group.key) {
+          <div class="mt-2 mb-1 text-[9px] font-bold tracking-wide text-slate-600 uppercase">{{ group.label }}</div>
+          <table class="print-table mb-2 w-full table-fixed border-collapse text-[10px]">
+            <colgroup>
+              <col class="w-[12%]" /><col class="w-[33%]" /><col class="w-[9%]" /><col class="w-[6%]" />
+              <col class="w-[7%]" /><col class="w-[10%]" /><col class="w-[8%]" /><col class="w-[15%]" />
+            </colgroup>
+            <thead>
+              <tr class="bg-slate-50 text-left text-slate-600 [&>th]:border-b [&>th]:border-slate-200 [&>th]:px-1.5 [&>th]:py-1 [&>th]:font-bold [&>th]:whitespace-nowrap">
+                <th>{{ 'gq.bom.materialNo' | transloco }}</th>
+                <th>{{ 'gq.bom.description' | transloco }}</th>
+                <th>{{ 'gq.bom.consump' | transloco }}</th>
+                <th>{{ 'gq.bom.uom' | transloco }}</th>
+                <th>{{ 'gq.bom.curr' | transloco }}</th>
+                <th>{{ 'gq.bom.unitPrice' | transloco }}</th>
+                <th>{{ 'gq.bom.wastage' | transloco }}</th>
+                <th>{{ 'gq.bom.actualCost' | transloco }} ({{ displayCurrency(style) }})</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of group.items; track item._idx) {
+                <tr class="align-top text-slate-700 [&>td]:border-b [&>td]:border-slate-100 [&>td]:px-1.5 [&>td]:py-1 [&>td]:[overflow-wrap:anywhere]">
+                  <td>{{ item.material || '' }}</td>
+                  <td>{{ item.part_desc }}</td>
+                  <td>{{ bomConsum(item) }}</td>
+                  <td>{{ item.consump_uom || '' }}</td>
+                  <td>{{ item.curr_id }}</td>
+                  <td>{{ item.price ? fmtNum(item.price) : '' }}</td>
+                  <td>{{ bomWastage(item) || '0' }}%</td>
+                  <td class="text-right">{{ moneyTxnFromRmb(actualCost(item), style) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </section>
+
+      <!-- Selected factory quotation only -->
+      @if (selQ(); as q) {
+        <section class="print-factory mb-4 border-t border-slate-200 pt-[10mm]">
+          <div class="mb-1.5 flex items-center gap-2 text-[10px] font-bold tracking-wider text-blue-900 uppercase">
+            {{ 'gq.tabs.costing' | transloco }} — {{ q.factory.name }}
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-600 normal-case">{{ statusLabelKey(q.status) | transloco }}</span>
+          </div>
+
+          @if (q.rejectReason) {
+            <div class="mb-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-[10px] text-red-800">{{ 'gq.costing.rejectionReason' | transloco }}: {{ q.rejectReason }}</div>
+          }
+
+          <table class="print-table mb-2 w-full table-fixed border-collapse text-[10px]">
+            <colgroup>
+              <col class="w-[24%]" /><col class="w-[38%]" /><col class="w-[9%]" /><col class="w-[12%]" /><col class="w-[11%]" /><col class="w-[6%]" />
+            </colgroup>
+            <thead>
+              <tr class="bg-slate-50 text-left text-slate-600 [&>th]:border-b [&>th]:border-slate-200 [&>th]:px-1.5 [&>th]:py-1 [&>th]:font-bold">
+                <th>{{ 'gq.costing.costItem' | transloco }}</th>
+                <th>{{ 'gq.costing.descriptionNotes' | transloco }}</th>
+                <th>{{ 'gq.currency' | transloco }}</th>
+                <th>{{ 'gq.costing.amount' | transloco }}</th>
+                <th>{{ displayCurrency(style) }}</th>
+                <th>USD</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of q.factoryCosting; track item.key) {
+                @if (+item.value > 0) {
+                  <tr class="align-top text-slate-700 [&>td]:border-b [&>td]:border-slate-100 [&>td]:px-1.5 [&>td]:py-1">
+                    <td>{{ cmtLabel(item) ? (cmtLabel(item)! | transloco) : item.label }}</td>
+                    <td>{{ item.description }}</td>
+                    <td>{{ item.curr_id }}</td>
+                    <td>{{ fmtNum(item.value) }}</td>
+                    <td>{{ moneyTxnFromRmb(cmtInRmb(item, style.rate_in_usd), style, q) }}</td>
+                    <td>${{ fmtNum(cmtInRmb(item, style.rate_in_usd) / style.rate_in_usd) }}</td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+
+          <!-- Totals -->
+          <div class="my-2 flex flex-col gap-0.5">
+            @for (row of [
+              {labelKey: 'gq.fabric', rmb: qTotals(style,q).fabricTotal,  usd: qTotals(style,q).fabricTotalUSD},
+              {labelKey: 'gq.trim',   rmb: qTotals(style,q).trimTotal,    usd: qTotals(style,q).trimTotalUSD},
+              {labelKey: 'gq.others', rmb: qTotals(style,q).othersTotal,  usd: qTotals(style,q).othersTotalUSD},
+              {labelKey: 'gq.cmt',    rmb: qTotals(style,q).cmtTotal,     usd: qTotals(style,q).cmtTotalUSD},
+              {labelKey: 'gq.total',  rmb: qTotals(style,q).total,        usd: qTotals(style,q).totalUSD}
+            ]; track row.labelKey) {
+              <div class="flex justify-between px-1.5 py-0.5 text-[10px] text-slate-700"
+                [class]="row.labelKey === 'gq.total' ? 'rounded bg-slate-50 py-1 text-[11px] font-bold text-blue-900' : ''">
+                <span>{{ row.labelKey | transloco }}</span>
+                <span>{{ moneyTxnFromRmb(row.rmb, style, q) }} &nbsp;/&nbsp; ${{ fmtNum(row.usd) }} USD</span>
+              </div>
+            }
+            <div class="mt-0.5 flex justify-between rounded border border-emerald-200 bg-emerald-50 px-1.5 py-1 text-[11px] font-bold text-emerald-700">
+              <span>{{ 'gq.costing.fobPrice' | transloco }}
+                @if (q.gross_margin_pct) {
+                  &nbsp;<span class="text-[9px] font-normal text-slate-500">(+{{ q.gross_margin_pct }}% {{ 'gq.costing.grossMargin' | transloco }})</span>
+                }
+              </span>
+              <span>{{ moneyTxnFromRmb(fobPriceRmb(style, q), style, q) }} &nbsp;/&nbsp; ${{ fmtNum(fobPriceRmb(style, q) / style.rate_in_usd) }} USD</span>
+            </div>
+          </div>
+
+          <!-- Pricing summary -->
+          <div class="mt-2 flex flex-wrap gap-4 rounded border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[10px] text-slate-600 [&_strong]:text-blue-900">
+            @if (q.fc_qty)           { <span>{{ 'gq.costing.fcQuantity' | transloco }}: <strong>{{ q.fc_qty }} pcs</strong></span> }
+            @if (q.smv)              { <span>{{ 'gq.costing.smvLabel' | transloco }}: <strong>{{ q.smv }} min</strong></span> }
+            @if (q.gross_margin_pct) { <span>{{ 'gq.costing.grossMargin' | transloco }}: <strong>{{ q.gross_margin_pct }}%</strong></span> }
+            <span>{{ 'gq.costing.priceType' | transloco }}: <strong>{{ q.price_type }}</strong></span>
+            <span>{{ 'gq.costing.fobPrice' | transloco }}: <strong>{{ moneyTxnFromRmb(fobPriceRmb(style, q), style, q) }}</strong></span>
+          </div>
+
+          @if (q.factory_remarks) {
+            <div class="mt-1.5 rounded bg-amber-50 px-2 py-1 text-[10px] text-slate-600">{{ 'gq.costing.factoryRemarks' | transloco }}: {{ q.factory_remarks }}</div>
+          }
+        </section>
+      }
+
+      <div class="mt-4 border-t border-slate-200 pt-2 text-center text-[9px] text-slate-400">
+        {{ 'gq.print.title' | transloco }} &nbsp;·&nbsp; {{ selectedPkg() }} {{ 'gq.package' | transloco }}
+      </div>
+    </div>
+  }
+
+  <!-- UOM dropdown overlay: rendered outside the drawer so position:fixed is relative to the viewport -->
+  @if (uomOpenIdx() >= 0) {
+    <div class="fixed inset-0 z-[79] print:hidden" (click)="closeUomDropdown()" aria-hidden="true"></div>
+    <div class="bg-popover text-popover-foreground ring-foreground/10 fixed z-[80] flex w-64 flex-col rounded-lg shadow-lg ring-1 print:hidden"
+      [class.-translate-y-full]="uomDropdownPos().openUp"
+      role="listbox"
+      aria-label="Unit of measure"
+      [style.top.px]="uomDropdownPos().top"
+      [style.left.px]="uomDropdownPos().left">
+      <div class="border-border flex items-center gap-2 border-b px-3">
+        <ng-icon name="lucideSearch" class="text-muted-foreground shrink-0" />
+        <input type="search" class="placeholder:text-muted-foreground h-10 w-full bg-transparent text-sm outline-none"
+          [placeholder]="'gq.searchUom' | transloco"
+          [value]="uomSearch()"
+          (input)="onUomSearchInput($event)"
+          (click)="$event.stopPropagation()"
+          aria-label="Search units of measure" />
+      </div>
+      <div class="max-h-64 overflow-y-auto p-1">
+        <button type="button" class="hover:bg-accent text-muted-foreground flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm"
+          [class.bg-accent]="!uomCurrentValue()"
+          role="option"
+          (click)="selectUom(uomOpenIdx(), '')">
+          <span class="w-12">—</span>
+          <span>{{ 'gq.clearUom' | transloco }}</span>
+        </button>
+        @if (filteredUoms().length === 0) {
+          <div class="text-muted-foreground px-2 py-4 text-center text-sm">{{ 'gq.noUomFound' | transloco }}</div>
+        }
+        @for (u of filteredUoms(); track u.uom_id) {
+          <button type="button" class="hover:bg-accent flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm"
+            [class.bg-accent]="u.uom_id === uomCurrentValue()"
+            role="option"
+            [attr.aria-selected]="u.uom_id === uomCurrentValue()"
+            (click)="selectUom(uomOpenIdx(), u.uom_id)">
+            <strong class="w-12 shrink-0">{{ u.uom_id }}</strong>
+            <span class="text-muted-foreground truncate">{{ u.uom_desc }}</span>
+          </button>
+        }
+      </div>
+    </div>
+  }
+</div>

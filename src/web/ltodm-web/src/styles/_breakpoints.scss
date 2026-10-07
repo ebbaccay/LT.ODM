@@ -1,0 +1,31 @@
+// Shared breakpoints. Mobile-first: base styles target phones (< 600px).
+$bp-tablet-min: 600px;   // tablet: 600px - 1024px
+$bp-desktop-min: 1025px; // desktop: > 1024px
+
+$touch-target: 44px;
+
+@mixin tablet-up {
+  @media (min-width: $bp-tablet-min) {
+    @content;
+  }
+}
+
+@mixin desktop-up {
+  @media (min-width: $bp-desktop-min) {
+    @content;
+  }
+}
+
+// Phone and tablet (everything below desktop)
+@mixin below-desktop {
+  @media (max-width: $bp-desktop-min - 1px) {
+    @content;
+  }
+}
+
+// Phone only
+@mixin phone-only {
+  @media (max-width: $bp-tablet-min - 1px) {
+    @content;
+  }
+}

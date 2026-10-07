@@ -1,0 +1,214 @@
+<section class="flex flex-col gap-5" [attr.aria-busy]="isLoading()">
+  @let kpi = kpis();
+
+  <!-- Header -->
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'dashboard.title' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm">
+        @if (userName()) {
+          {{ 'dashboard.welcome' | transloco: { name: userName() } }}
+        } @else {
+          {{ 'dashboard.welcomeGeneric' | transloco }}
+        }
+        <span hlmBadge [variant]="role() === 'factory' ? 'default' : 'secondary'">
+          {{ (role() === 'factory' ? 'dashboard.roleFactory' : 'dashboard.roleMerchandiser') | transloco }}
+        </span>
+      </p>
+    </div>
+
+    <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+      @if (availableSeasons().length > 0) {
+        <label class="text-muted-foreground text-sm" for="dash-season-filter">{{ 'dashboard.seasonFilter' | transloco }}</label>
+        <hlm-native-select
+          selectId="dash-season-filter"
+          selectClass="h-11 min-w-36 lg:h-9"
+          [value]="selectedSeason()"
+          [disabled]="isLoading()"
+          (valueChange)="onSeasonChange($event ?? '')"
+        >
+          <option hlmNativeSelectOption value="">{{ 'dashboard.allSeasons' | transloco }}</option>
+          @for (s of availableSeasons(); track s) {
+            <option hlmNativeSelectOption [value]="s">{{ s }}</option>
+          }
+        </hlm-native-select>
+      }
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="refresh()" [disabled]="isLoading()">
+        {{ 'dashboard.refresh' | transloco }}
+      </button>
+      <button hlmBtn type="button" class="h-11 lg:h-9" (click)="goToQuotations()">
+        {{ 'dashboard.openQuotations' | transloco }}
+      </button>
+    </div>
+  </header>
+
+  <!-- KPI tiles -->
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    @for (tile of [
+      { label: 'dashboard.kpi.totalActive', value: (kpi?.total_active ?? 0) + '', hint: ('dashboard.kpi.totalActiveHint' | transloco), warn: false },
+      { label: 'dashboard.kpi.actionRequired', value: totalActionsCount() + '', hint: ('dashboard.kpi.actionRequiredHint' | transloco), warn: totalActionsCount() > 0 },
+      { label: 'dashboard.kpi.winRate', value: winRateLabel(), hint: (kpi?.approved_count ?? 0) + ' ' + ('dashboard.kpi.approved' | transloco) + ' / ' + (kpi?.rejected_count ?? 0) + ' ' + ('dashboard.kpi.rejected' | transloco), warn: false },
+      { label: 'dashboard.kpi.avgSubmit', value: avgSubmitLabel(), hint: ('dashboard.kpi.avgSubmitHint' | transloco), warn: false },
+      { label: 'dashboard.kpi.approvedMtd', value: approvedValueLabel(), hint: ('dashboard.kpi.approvedMtdHint' | transloco), warn: false }
+    ]; track tile.label) {
+      <section hlmCard class="gap-2 py-5">
+        <div hlmCardContent class="flex flex-col gap-1.5 px-5">
+          <span class="text-muted-foreground text-xs font-medium tracking-wide uppercase">{{ tile.label | transloco }}</span>
+          @if (isLoading() && !kpi) {
+            <hlm-skeleton class="h-8 w-20" />
+          } @else {
+            <span class="text-3xl font-semibold tabular-nums" [class]="tile.warn ? toneText('amber') : ''">{{ tile.value }}</span>
+          }
+          <span class="text-muted-foreground text-xs">{{ tile.hint }}</span>
+        </div>
+      </section>
+    }
+  </div>
+
+  <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+    <!-- Action lists -->
+    <section hlmCard class="min-w-0 xl:col-span-2 xl:row-span-2">
+      <div hlmCardHeader>
+        <h2 hlmCardTitle>{{ 'dashboard.actions.title' | transloco }}</h2>
+        <p hlmCardDescription>{{ 'dashboard.actions.subtitle' | transloco }}</p>
+      </div>
+      <div hlmCardContent class="flex flex-col gap-6">
+        @if (isLoading() && totalActionsCount() === 0) {
+          @for (i of [1, 2, 3]; track i) {
+            <hlm-skeleton class="h-14 w-full" />
+          }
+        } @else if (totalActionsCount() === 0) {
+          <div class="text-muted-foreground flex flex-col items-center gap-2 py-10 text-sm">
+            <span class="flex size-10 items-center justify-center rounded-full text-lg" [class]="toneBadge('green')" aria-hidden="true">✓</span>
+            {{ 'dashboard.actions.allClear' | transloco }}
+          </div>
+        }
+
+        @for (group of actionGroups(); track trackKind($index, group)) {
+          @if (group.items.length > 0) {
+            <div class="border-l-2 pl-3" [class]="toneBorder(groupTone[group.tone])">
+              <div class="flex items-center gap-2">
+                <h3 class="text-sm font-semibold">{{ group.label }}</h3>
+                <span hlmBadge variant="secondary" class="tabular-nums">{{ group.items.length }}</span>
+              </div>
+              <p class="text-muted-foreground mt-0.5 mb-2 text-xs">{{ group.hint }}</p>
+              <ul class="flex flex-col gap-1">
+                @for (item of group.items; track trackQid($index, item)) {
+                  <li>
+                    <button
+                      type="button"
+                      class="bg-muted/60 hover:bg-accent focus-visible:ring-ring/50 flex min-h-11 w-full flex-col gap-1.5 rounded-md px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-3 sm:flex-row sm:items-center sm:justify-between"
+                      [attr.aria-label]="'Open ' + item.style_id"
+                      (click)="openItem(item)"
+                    >
+                      <span class="flex min-w-0 flex-col">
+                        <span class="text-sm font-semibold">{{ item.style_id }}</span>
+                        <span class="text-muted-foreground truncate text-xs">{{ item.pack_name }}</span>
+                      </span>
+                      <span class="text-muted-foreground flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        @if (role() !== 'factory') {
+                          <span class="max-w-48 truncate">{{ item.factory_name }}</span>
+                        }
+                        <span class="tabular-nums" [class]="item.days_old >= 3 ? toneText('red') + ' font-semibold' : ''">{{ fmtAge(item.days_old) }}</span>
+                        @if (item.fob_price) {
+                          <span class="text-foreground font-medium">{{ item.price_type || 'FOB' }} ${{ item.fob_price }}</span>
+                        }
+                      </span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+        }
+      </div>
+    </section>
+
+    <!-- Status distribution -->
+    <section hlmCard class="min-w-0">
+      <div hlmCardHeader>
+        <h2 hlmCardTitle>{{ 'dashboard.status.title' | transloco }}</h2>
+        <div hlmCardAction class="text-muted-foreground text-xs">{{ totalQuotations() }} {{ 'dashboard.status.totalLabel' | transloco }}</div>
+      </div>
+      <div hlmCardContent>
+        @if (totalQuotations() === 0) {
+          @if (isLoading()) {
+            <hlm-skeleton class="mx-auto size-40 rounded-full" />
+          } @else {
+            <p class="text-muted-foreground py-8 text-center text-sm">{{ 'dashboard.status.empty' | transloco }}</p>
+          }
+        } @else {
+          <div class="flex flex-col items-center gap-5">
+            <div class="relative size-40 rounded-full" [style.background]="donutGradient()" aria-hidden="true">
+              <div class="bg-card absolute inset-5 flex flex-col items-center justify-center rounded-full">
+                <span class="text-2xl font-semibold tabular-nums">{{ totalQuotations() }}</span>
+                <span class="text-muted-foreground text-[10px] tracking-wide uppercase">{{ 'dashboard.status.totalCap' | transloco }}</span>
+              </div>
+            </div>
+            <ul class="flex w-full flex-col">
+              @for (s of STATUS_ORDER; track trackStatus($index, s)) {
+                @let cnt = statusCountMap().get(s) ?? 0;
+                @if (cnt > 0) {
+                  <li>
+                    <button
+                      type="button"
+                      class="hover:bg-accent focus-visible:ring-ring/50 flex min-h-11 w-full items-center gap-3 rounded-md px-2 text-left text-sm outline-none focus-visible:ring-3 lg:min-h-9"
+                      (click)="openByStatus(s)"
+                    >
+                      <span class="size-2.5 shrink-0 rounded-full" [class]="toneDot(STATUS_CFG[s].tone)"></span>
+                      <span class="flex-1">{{ STATUS_CFG[s].label }}</span>
+                      <span class="font-semibold tabular-nums">{{ cnt }}</span>
+                    </button>
+                  </li>
+                }
+              }
+            </ul>
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- Recent activity -->
+    <section hlmCard class="min-w-0">
+      <div hlmCardHeader>
+        <h2 hlmCardTitle>{{ 'dashboard.activity.title' | transloco }}</h2>
+        <p hlmCardDescription>{{ 'dashboard.activity.subtitle' | transloco }}</p>
+      </div>
+      <div hlmCardContent>
+        @if (recentActivity().length === 0) {
+          @if (isLoading()) {
+            <div class="flex flex-col gap-3">
+              @for (i of [1, 2, 3]; track i) {
+                <hlm-skeleton class="h-10 w-full" />
+              }
+            </div>
+          } @else {
+            <p class="text-muted-foreground py-8 text-center text-sm">{{ 'dashboard.activity.empty' | transloco }}</p>
+          }
+        } @else {
+          <ul class="divide-border flex flex-col divide-y">
+            @for (a of recentActivity(); track trackHist($index, a)) {
+              <li class="flex gap-3 py-2.5 first:pt-0 last:pb-0">
+                <span class="mt-1.5 size-2 shrink-0 rounded-full" [class]="toneDot(STATUS_CFG[a.status].tone)"></span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <strong class="text-sm">{{ a.style_id }}</strong>
+                    <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase" [class]="toneBadge(STATUS_CFG[a.status].tone)">
+                      {{ STATUS_CFG[a.status].label }}
+                    </span>
+                  </div>
+                  <div class="text-muted-foreground truncate text-xs">
+                    @if (role() !== 'factory') {
+                      {{ a.factory_name }} ·
+                    }
+                    {{ a.changed_by }} · {{ fmtDate(a.changed_at) }}
+                  </div>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </section>
+  </div>
+</section>

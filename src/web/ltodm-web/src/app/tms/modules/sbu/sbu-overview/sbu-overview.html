@@ -1,0 +1,395 @@
+<section class="flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div class="min-w-0">
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'sbu.title' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ (isFactoryUser ? 'sbu.subtitleFactory' : 'sbu.subtitle') | transloco }}</p>
+    </div>
+    <div class="flex w-full flex-wrap gap-2 sm:w-auto">
+      @if (selected().size) {
+        <button hlmBtn variant="outline" type="button" class="text-destructive h-11 flex-1 sm:flex-none lg:h-9" [disabled]="deleting()" (click)="deleteSelected()">
+          @if (deleting()) {
+            <hlm-spinner class="size-4" />
+          } @else {
+            <ng-icon name="lucideTrash2" />
+          }
+          {{ 'sbu.deleteSelected' | transloco: { count: selected().size } }}
+        </button>
+      }
+      <button hlmBtn type="button" class="h-11 flex-1 sm:flex-none lg:h-9" (click)="openAdd()">
+        <ng-icon name="lucidePlus" />
+        {{ 'sbu.add' | transloco }}
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Filters ──────────────────────────────────────────── -->
+  <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_repeat(3,11rem)]">
+    <div class="relative sm:col-span-2 lg:col-span-1">
+      <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+      <input
+        hlmInput
+        type="search"
+        class="h-11 w-full pl-9 lg:h-9"
+        [placeholder]="'sbu.searchPlaceholder' | transloco"
+        [attr.aria-label]="'sbu.searchPlaceholder' | transloco"
+        [value]="search()"
+        (input)="search.set($any($event.target).value)"
+      />
+    </div>
+    <label class="sr-only" for="sbu-f1">{{ 'sbu.category' | transloco }}</label>
+    <hlm-native-select class="w-full" selectId="sbu-f1" selectClass="h-11 w-full lg:h-9" [value]="category()" (valueChange)="category.set($event ?? '')">
+      <option hlmNativeSelectOption value="">{{ 'sbu.allCategories' | transloco }}</option>
+      @for (c of categoryOptions(); track c) {
+        <option hlmNativeSelectOption [value]="c">{{ c }}</option>
+      }
+    </hlm-native-select>
+    <label class="sr-only" for="sbu-f2">{{ 'sbu.country' | transloco }}</label>
+    <hlm-native-select class="w-full" selectId="sbu-f2" selectClass="h-11 w-full lg:h-9" [value]="country()" (valueChange)="country.set($event ?? '')">
+      <option hlmNativeSelectOption value="">{{ 'sbu.allCountries' | transloco }}</option>
+      @for (c of countryOptions(); track c) {
+        <option hlmNativeSelectOption [value]="c">{{ c }}</option>
+      }
+    </hlm-native-select>
+    <label class="sr-only" for="sbu-f3">{{ 'sbu.source' | transloco }}</label>
+    <hlm-native-select class="w-full" selectId="sbu-f3" selectClass="h-11 w-full lg:h-9" [value]="source()" (valueChange)="source.set($any($event ?? ''))">
+      <option hlmNativeSelectOption value="">{{ 'sbu.allSources' | transloco }}</option>
+      <option hlmNativeSelectOption value="manual">{{ 'sbu.sourceManual' | transloco }}</option>
+      <option hlmNativeSelectOption value="gq">{{ 'sbu.sourceGq' | transloco }}</option>
+    </hlm-native-select>
+  </div>
+
+  <!-- ── List ─────────────────────────────────────────────── -->
+  @if (pending() > 0 && !products().length) {
+    <div class="flex flex-col gap-2">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div hlmSkeleton class="h-16 rounded-lg"></div>
+      }
+    </div>
+  } @else if (!filtered().length) {
+    <section hlmCard class="items-center gap-3 px-5 py-14 text-center">
+      <ng-icon name="lucidePackageSearch" class="text-muted-foreground text-4xl" />
+      <p class="font-medium">{{ (hasFilters() ? 'sbu.noMatch' : 'sbu.empty') | transloco }}</p>
+      @if (hasFilters()) {
+        <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="clearFilters()">{{ 'sbu.clearFilters' | transloco }}</button>
+      } @else {
+        <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="openAdd()">{{ 'sbu.addFirst' | transloco }}</button>
+      }
+    </section>
+  } @else {
+    <section hlmCard class="gap-0 py-0">
+      <!-- Desktop table -->
+      <div class="hidden overflow-x-auto md:block">
+        <table class="w-full text-sm">
+          <thead class="text-muted-foreground border-b text-left text-xs">
+            <tr>
+              <th class="w-10 py-2.5 pl-4">
+                <input
+                  type="checkbox"
+                  class="accent-primary size-4 cursor-pointer align-middle"
+                  [checked]="allOnPageSelected()"
+                  [disabled]="!selectable().length"
+                  [attr.aria-label]="'sbu.selectPage' | transloco"
+                  (change)="togglePage($any($event.target).checked)"
+                />
+              </th>
+              <th class="px-3 py-2.5 font-medium">{{ 'sbu.product' | transloco }}</th>
+              <th class="px-3 py-2.5 font-medium">{{ 'sbu.sbuFactory' | transloco }}</th>
+              <th class="px-3 py-2.5 font-medium">{{ 'sbu.country' | transloco }}</th>
+              <th class="px-3 py-2.5 font-medium">{{ 'sbu.category' | transloco }}</th>
+              <th class="px-3 py-2.5 text-right font-medium">{{ 'sbu.fob' | transloco }}</th>
+              <th class="px-3 py-2.5 text-right font-medium">{{ 'sbu.leadTime' | transloco }}</th>
+              <th class="py-2.5 pr-4"><span class="sr-only">{{ 'sbu.actions' | transloco }}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of paged(); track p.id) {
+              <tr class="hover:bg-muted/40 border-b last:border-0" [class.bg-primary/5]="selected().has(p.id)">
+                <td class="py-2 pl-4">
+                  @if (p.source === 'manual') {
+                    <input
+                      type="checkbox"
+                      class="accent-primary size-4 cursor-pointer align-middle"
+                      [checked]="selected().has(p.id)"
+                      [attr.aria-label]="'sbu.selectProduct' | transloco: { name: p.name }"
+                      (change)="toggle(p.id, $any($event.target).checked)"
+                    />
+                  }
+                </td>
+                <td class="px-3 py-2">
+                  <div class="flex min-w-0 items-center gap-3">
+                    <ng-container *ngTemplateOutlet="thumb; context: { $implicit: p, size: 'size-11' }" />
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-1.5">
+                        <span class="truncate font-medium" [title]="p.name">{{ p.name }}</span>
+                        @if (p.source === 'gq') {
+                          <span hlmBadge variant="secondary" class="shrink-0" [title]="'sbu.gqHint' | transloco">GQ</span>
+                        }
+                      </div>
+                      <span class="text-muted-foreground font-mono text-xs">{{ p.styleCode }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td class="max-w-48 truncate px-3 py-2" [title]="p.sbu">{{ p.sbu || '—' }}</td>
+                <td class="px-3 py-2">{{ p.country || '—' }}</td>
+                <td class="text-muted-foreground px-3 py-2">{{ p.category || '—' }}</td>
+                <td class="px-3 py-2 text-right font-medium tabular-nums">${{ p.fobPrice | number: '1.2-2' }}</td>
+                <td class="px-3 py-2 text-right tabular-nums">
+                  @if (p.leadTimeDays !== null) {
+                    {{ 'sbu.days' | transloco: { count: p.leadTimeDays } }}
+                  } @else {
+                    <span class="text-muted-foreground">—</span>
+                  }
+                </td>
+                <td class="py-2 pr-4 text-right">
+                  <button hlmBtn variant="ghost" size="sm" type="button" (click)="open(p)" [attr.aria-label]="(p.source === 'gq' ? 'sbu.view' : 'sbu.edit') | transloco">
+                    <ng-icon [name]="p.source === 'gq' ? 'lucideEye' : 'lucidePencil'" />
+                    {{ (p.source === 'gq' ? 'sbu.view' : 'sbu.edit') | transloco }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Phone cards -->
+      <ul class="divide-y md:hidden">
+        @for (p of paged(); track p.id) {
+          <li class="flex items-start gap-3 px-4 py-3">
+            @if (p.source === 'manual') {
+              <input
+                type="checkbox"
+                class="accent-primary mt-3 size-5 shrink-0 cursor-pointer"
+                [checked]="selected().has(p.id)"
+                [attr.aria-label]="'sbu.selectProduct' | transloco: { name: p.name }"
+                (change)="toggle(p.id, $any($event.target).checked)"
+              />
+            } @else {
+              <span class="size-5 shrink-0"></span>
+            }
+            <button type="button" class="flex min-w-0 flex-1 items-start gap-3 text-left" (click)="open(p)">
+              <ng-container *ngTemplateOutlet="thumb; context: { $implicit: p, size: 'size-14' }" />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5">
+                  <span class="truncate font-medium">{{ p.name }}</span>
+                  @if (p.source === 'gq') {
+                    <span hlmBadge variant="secondary" class="shrink-0">GQ</span>
+                  }
+                </div>
+                <p class="text-muted-foreground font-mono text-xs">{{ p.styleCode }}</p>
+                <p class="text-muted-foreground truncate text-xs">{{ p.sbu }}{{ p.sbu && p.country ? ' · ' : '' }}{{ p.country }}</p>
+              </div>
+              <div class="shrink-0 text-right">
+                <p class="font-semibold tabular-nums">${{ p.fobPrice | number: '1.2-2' }}</p>
+                @if (p.leadTimeDays !== null) {
+                  <p class="text-muted-foreground text-xs tabular-nums">{{ 'sbu.days' | transloco: { count: p.leadTimeDays } }}</p>
+                }
+              </div>
+            </button>
+          </li>
+        }
+      </ul>
+
+      <!-- Paging -->
+      <div class="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2.5">
+        <span class="text-muted-foreground text-sm">{{ 'sbu.showing' | transloco: { shown: paged().length, total: filtered().length } }}</span>
+        @if (pageCount() > 1) {
+          <div class="flex items-center gap-1">
+            <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [disabled]="page() <= 1" (click)="goTo(page() - 1)" [attr.aria-label]="'sbu.prevPage' | transloco">
+              <ng-icon name="lucideChevronLeft" />
+            </button>
+            <span class="min-w-16 text-center text-sm tabular-nums">{{ 'sbu.pageOf' | transloco: { page: page(), count: pageCount() } }}</span>
+            <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [disabled]="page() >= pageCount()" (click)="goTo(page() + 1)" [attr.aria-label]="'sbu.nextPage' | transloco">
+              <ng-icon name="lucideChevronRight" />
+            </button>
+          </div>
+        }
+      </div>
+    </section>
+  }
+</section>
+
+<ng-template #thumb let-p let-size="size">
+  <div class="bg-muted text-muted-foreground flex shrink-0 items-center justify-center overflow-hidden rounded-md" [class]="size">
+    @if (p.image) {
+      <img [appAuthSrc]="p.image" [alt]="p.name" class="size-full object-cover" loading="lazy" (loadError)="p.image = ''" />
+    } @else {
+      <ng-icon name="lucideImage" class="opacity-50" />
+    }
+  </div>
+</ng-template>
+
+<!-- ── Add / edit / view dialog ─────────────────────────────── -->
+<app-modal
+  size="lg"
+  [open]="dialogOpen()"
+  [heading]="(viewOnly() ? 'sbu.viewTitle' : editing() ? 'sbu.editTitle' : 'sbu.addTitle') | transloco"
+  (closed)="dialogOpen.set(false)"
+>
+  <div class="flex flex-col gap-5 sm:flex-row">
+    <!-- Photo -->
+    <div class="flex shrink-0 flex-col gap-2 sm:w-44">
+      <span hlmLabel>{{ 'sbu.photo' | transloco }}</span>
+      <div class="flex items-center gap-3 sm:flex-col sm:items-stretch">
+        <div class="bg-muted text-muted-foreground relative flex aspect-square w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border sm:w-full">
+          @if (draft().image) {
+            <img [appAuthSrc]="resolveImageUrl(draft().image)" [alt]="draft().name" class="size-full object-cover" />
+          } @else {
+            <ng-icon name="lucideImage" class="text-4xl opacity-40" />
+          }
+          @if (uploading()) {
+            <div class="bg-background/70 absolute inset-0 flex items-center justify-center"><hlm-spinner /></div>
+          }
+        </div>
+        @if (!viewOnly()) {
+          <div class="flex flex-1 flex-col gap-2">
+            <input #photoInput type="file" accept="image/*" class="sr-only" tabindex="-1" aria-hidden="true" (change)="onImagePicked($event)" />
+            <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="uploading()" (click)="photoInput.click()">
+              <ng-icon name="lucideImagePlus" />
+              {{ (draft().image ? 'sbu.changePhoto' : 'sbu.addPhoto') | transloco }}
+            </button>
+            @if (draft().image) {
+              <button hlmBtn variant="ghost" type="button" class="text-destructive h-11 lg:h-9" [disabled]="uploading()" (click)="removeImage()">{{ 'sbu.removePhoto' | transloco }}</button>
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Fields -->
+    <div class="flex min-w-0 flex-1 flex-col gap-4">
+      @if (viewOnly()) {
+        <p class="bg-muted/60 text-muted-foreground rounded-md px-3 py-2 text-sm">{{ 'sbu.gqReadOnly' | transloco }}</p>
+      }
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div class="flex flex-col gap-1.5 sm:col-span-2">
+          <label hlmLabel for="sbu-name">{{ 'sbu.name' | transloco }}</label>
+          <input hlmInput id="sbu-name" class="h-11 lg:h-9" maxlength="255" [readOnly]="viewOnly()" [value]="draft().name" (input)="setDraft({ name: $any($event.target).value })" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="sbu-code">{{ 'sbu.styleCode' | transloco }}</label>
+          <input hlmInput id="sbu-code" class="h-11 font-mono lg:h-9" maxlength="100" [readOnly]="viewOnly()" [value]="draft().styleCode" (input)="setDraft({ styleCode: $any($event.target).value })" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="sbu-cat">{{ 'sbu.category' | transloco }}</label>
+          @if (viewOnly()) {
+            <input hlmInput id="sbu-cat" class="h-11 lg:h-9" readonly [value]="draft().category" />
+          } @else {
+            <hlm-native-select class="w-full" selectId="sbu-cat" selectClass="h-11 w-full lg:h-9" [value]="draft().category" (valueChange)="setDraft({ category: $event ?? '' })">
+              <option hlmNativeSelectOption value="">—</option>
+              @for (c of categoryOptions(); track c) {
+                <option hlmNativeSelectOption [value]="c">{{ c }}</option>
+              }
+            </hlm-native-select>
+          }
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="sbu-sbu">{{ 'sbu.sbuFactory' | transloco }}</label>
+          <input hlmInput id="sbu-sbu" class="h-11 lg:h-9" maxlength="255" [readOnly]="viewOnly()" [value]="draft().sbu" (input)="setDraft({ sbu: $any($event.target).value })" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="sbu-country">{{ 'sbu.country' | transloco }}</label>
+          @if (viewOnly()) {
+            <input hlmInput id="sbu-country" class="h-11 lg:h-9" readonly [value]="draft().country" />
+          } @else {
+            <hlm-native-select class="w-full" selectId="sbu-country" selectClass="h-11 w-full lg:h-9" [value]="draft().country" (valueChange)="setDraft({ country: $event ?? '' })">
+              <option hlmNativeSelectOption value="">—</option>
+              @for (c of countryOptions(); track c) {
+                <option hlmNativeSelectOption [value]="c">{{ c }}</option>
+              }
+            </hlm-native-select>
+          }
+        </div>
+        @if (!viewOnly()) {
+          <div class="flex flex-col gap-1.5">
+            <label hlmLabel for="sbu-lead">{{ 'sbu.leadTimeDays' | transloco }}</label>
+            <input
+              hlmInput
+              id="sbu-lead"
+              type="number"
+              min="0"
+              max="999"
+              step="1"
+              inputmode="numeric"
+              class="h-11 tabular-nums lg:h-9"
+              [appNumber]="draft().leadTimeDays"
+              (appNumberChange)="setDraft({ leadTimeDays: $event })"
+            />
+          </div>
+        }
+      </div>
+
+      <!-- Cost breakdown -->
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span hlmLabel>{{ 'sbu.costBreakdown' | transloco }}</span>
+          @if (!viewOnly()) {
+            <button hlmBtn variant="ghost" size="sm" type="button" class="h-11 lg:h-8" (click)="addLine()">
+              <ng-icon name="lucidePlus" />{{ 'sbu.addLine' | transloco }}
+            </button>
+          }
+        </div>
+        @if (viewOnly()) {
+          <dl class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm">
+            @for (line of lines(); track $index) {
+              <dt class="text-muted-foreground truncate">{{ line.item }}</dt>
+              <dd class="text-right tabular-nums">${{ line.amount | number: '1.2-2' }}</dd>
+            }
+          </dl>
+        } @else {
+          @for (line of lines(); track $index) {
+            <div class="grid grid-cols-[minmax(0,1fr)_7rem_auto] items-center gap-2">
+              <input
+                hlmInput
+                class="h-11 lg:h-9"
+                maxlength="100"
+                [attr.aria-label]="('sbu.lineItem' | transloco) + ' ' + ($index + 1)"
+                [placeholder]="'sbu.linePlaceholder' | transloco"
+                [value]="line.item"
+                (input)="setLine($index, { item: $any($event.target).value })"
+              />
+              <input
+                hlmInput
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                class="h-11 text-right tabular-nums lg:h-9"
+                [attr.aria-label]="('sbu.lineAmount' | transloco) + ' ' + ($index + 1)"
+                [appNumber]="line.amount"
+                (appNumberChange)="setLine($index, { amount: $event ?? 0 })"
+              />
+              <button hlmBtn variant="ghost" size="icon" type="button" class="text-destructive size-11 lg:size-9" [attr.aria-label]="'actions.remove' | transloco" (click)="removeLine($index)">
+                <ng-icon name="lucideX" />
+              </button>
+            </div>
+          } @empty {
+            <p class="text-muted-foreground text-sm">{{ 'sbu.noLines' | transloco }}</p>
+          }
+          @if (unnamedLine()) {
+            <p class="text-destructive text-sm" role="alert">{{ 'sbu.unnamedLine' | transloco }}</p>
+          }
+        }
+        <div class="flex items-center justify-between border-t pt-2">
+          <span class="text-sm font-medium">{{ 'sbu.totalFob' | transloco }}</span>
+          <span class="text-lg font-semibold tabular-nums">${{ (viewOnly() ? editing()?.fobPrice ?? 0 : total()) | number: '1.2-2' }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ng-container footer>
+    @if (viewOnly()) {
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="dialogOpen.set(false)">{{ 'actions.close' | transloco }}</button>
+    } @else {
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="dialogOpen.set(false)">{{ 'actions.cancel' | transloco }}</button>
+      <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="!canSave()" (click)="save()">
+        @if (saving()) {
+          <hlm-spinner class="size-4" />{{ 'common.saving' | transloco }}
+        } @else {
+          {{ (editing() ? 'sbu.saveChanges' : 'sbu.add') | transloco }}
+        }
+      </button>
+    }
+  </ng-container>
+</app-modal>

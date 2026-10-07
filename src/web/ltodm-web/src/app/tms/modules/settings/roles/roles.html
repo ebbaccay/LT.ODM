@@ -1,0 +1,113 @@
+<section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+        {{ 'settings.roles.title' | transloco }}
+        @if (!loading() && roles().length) {
+          <span hlmBadge variant="secondary">{{ roles().length }}</span>
+        }
+      </h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'settings.roles.subtitle' | transloco }}</p>
+    </div>
+    <button hlmBtn type="button" class="h-11 w-full sm:w-auto lg:h-9" (click)="openAdd()">
+      <ng-icon name="lucidePlus" />
+      {{ 'settings.roles.addRole' | transloco }}
+    </button>
+  </header>
+
+  <section hlmCard class="gap-0 py-0">
+    @if (loading()) {
+      <div class="flex flex-col gap-3 p-5">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div hlmSkeleton class="h-12 w-full"></div>
+        }
+      </div>
+    } @else if (roles().length === 0) {
+      <div class="flex flex-col items-center gap-2 px-5 py-14 text-center">
+        <ng-icon name="lucideShieldCheck" class="text-muted-foreground text-4xl" />
+        <p class="font-medium">{{ 'settings.roles.empty' | transloco }}</p>
+        <p class="text-muted-foreground text-sm">{{ 'settings.roles.emptyHint' | transloco }}</p>
+      </div>
+    } @else {
+      <!-- Header row (sm and up); rows stack into cards on phones -->
+      <div class="text-muted-foreground hidden grid-cols-[minmax(0,10rem)_minmax(0,12rem)_minmax(0,1fr)_5rem_6rem] gap-4 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase sm:grid">
+        <span>{{ 'settings.roles.colName' | transloco }}</span>
+        <span>{{ 'settings.roles.colDisplayName' | transloco }}</span>
+        <span>{{ 'common.description' | transloco }}</span>
+        <span class="text-right">{{ 'settings.roles.colUsers' | transloco }}</span>
+        <span class="sr-only">{{ 'actions.edit' | transloco }}</span>
+      </div>
+      <ul class="divide-y" role="list">
+        @for (role of roles(); track role.roleId) {
+          <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-3 sm:grid-cols-[minmax(0,10rem)_minmax(0,12rem)_minmax(0,1fr)_5rem_6rem]">
+            <span class="min-w-0">
+              <code class="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{{ role.name }}</code>
+            </span>
+            <span class="col-start-1 truncate text-sm font-medium sm:col-start-auto">{{ role.displayName || role.name }}</span>
+            <span class="text-muted-foreground col-start-1 truncate text-sm sm:col-start-auto">{{ role.description || '—' }}</span>
+            <span class="text-muted-foreground col-start-1 text-sm sm:col-start-auto sm:text-right">
+              <span class="sm:hidden">{{ 'settings.roles.colUsers' | transloco }}: </span>{{ role.userCount }}
+            </span>
+            <div class="col-start-2 row-span-4 row-start-1 flex justify-end gap-1 sm:col-start-auto sm:row-span-1 sm:row-start-auto">
+              <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-9" (click)="openEdit(role)" [attr.aria-label]="('actions.edit' | transloco) + ' ' + role.name">
+                <ng-icon name="lucidePencil" />
+              </button>
+              @if (canDelete(role)) {
+                <button hlmBtn variant="ghost" size="icon" type="button" class="text-destructive size-11 lg:size-9" (click)="confirmDelete(role)" [attr.aria-label]="('actions.delete' | transloco) + ' ' + role.name">
+                  <ng-icon name="lucideTrash2" />
+                </button>
+              } @else {
+                <span class="size-11 lg:size-9" aria-hidden="true"></span>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</section>
+
+<app-modal [open]="dialogOpen()" [heading]="dialogTitle() | transloco" (closed)="closeDialog()">
+  <form id="role-form" class="flex flex-col gap-4" (submit)="$event.preventDefault(); save()">
+    <div class="flex flex-col gap-1.5">
+      <label hlmLabel for="role-name">{{ 'settings.roles.colName' | transloco }}</label>
+      <input
+        hlmInput
+        id="role-name"
+        class="h-11 font-mono lg:h-9"
+        autocomplete="off"
+        placeholder="Merchandiser"
+        [value]="form().name"
+        [disabled]="!!editingRole()"
+        [attr.aria-invalid]="showNameError() || null"
+        aria-describedby="role-name-hint"
+        (input)="patch('name', $any($event.target).value)"
+      />
+      <p id="role-name-hint" class="text-xs" [class]="showNameError() ? 'text-destructive' : 'text-muted-foreground'">
+        {{ (editingRole() ? 'settings.roles.nameFixed' : 'settings.roles.keyHint') | transloco }}
+      </p>
+    </div>
+    <div class="flex flex-col gap-1.5">
+      <label hlmLabel for="role-display">{{ 'settings.roles.colDisplayName' | transloco }}</label>
+      <input hlmInput id="role-display" class="h-11 lg:h-9" maxlength="128" [value]="form().displayName" (input)="patch('displayName', $any($event.target).value)" />
+    </div>
+    <div class="flex flex-col gap-1.5">
+      <label hlmLabel for="role-desc">{{ 'common.description' | transloco }}</label>
+      <input
+        hlmInput
+        id="role-desc"
+        class="h-11 lg:h-9"
+        maxlength="256"
+        [placeholder]="'settings.roles.descPlaceholder' | transloco"
+        [value]="form().description"
+        (input)="patch('description', $any($event.target).value)"
+      />
+    </div>
+  </form>
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="closeDialog()">{{ 'actions.cancel' | transloco }}</button>
+    <button hlmBtn type="submit" form="role-form" class="h-11 lg:h-9" [disabled]="saving()">
+      {{ (saving() ? 'common.saving' : 'actions.save') | transloco }}
+    </button>
+  </ng-container>
+</app-modal>

@@ -1,0 +1,226 @@
+<section class="flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'settings.refLists.title' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'settings.refLists.subtitle' | transloco }}</p>
+    </div>
+    <button hlmBtn type="button" class="h-11 w-full sm:w-auto lg:h-9" [disabled]="!list()" (click)="openAdd()">
+      <ng-icon name="lucidePlus" />
+      {{ 'settings.refLists.add' | transloco }}
+    </button>
+  </header>
+
+  <div class="grid gap-5 lg:grid-cols-[14rem_minmax(0,1fr)]">
+    <!-- List picker: a select on small screens, a side list from lg up -->
+    <div class="lg:hidden">
+      <label hlmLabel for="ref-list" class="sr-only">{{ 'settings.refLists.list' | transloco }}</label>
+      <hlm-native-select selectId="ref-list" selectClass="h-11 w-full" [value]="listKey()" (valueChange)="pick($event ?? '')">
+        @for (l of lists(); track l.key) {
+          <option hlmNativeSelectOption [value]="l.key">{{ 'settings.refLists.lists.' + l.key | transloco }}</option>
+        }
+      </hlm-native-select>
+    </div>
+    <nav class="hidden lg:block" [attr.aria-label]="'settings.refLists.list' | transloco">
+      <ul class="flex flex-col gap-0.5" role="list">
+        @for (l of lists(); track l.key) {
+          <li>
+            <button
+              type="button"
+              class="hover:bg-muted w-full rounded-md px-3 py-2 text-left text-sm transition-colors"
+              [class.bg-muted]="l.key === listKey()"
+              [class.font-medium]="l.key === listKey()"
+              [attr.aria-current]="l.key === listKey() ? 'page' : null"
+              (click)="pick(l.key)"
+            >
+              {{ 'settings.refLists.lists.' + l.key | transloco }}
+            </button>
+          </li>
+        }
+      </ul>
+    </nav>
+
+    <section hlmCard class="gap-0 py-0" [attr.aria-busy]="loading()">
+      @if (list(); as l) {
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+          <h2 class="flex items-center gap-2 font-medium">
+            {{ 'settings.refLists.lists.' + l.key | transloco }}
+            @if (!loading()) {
+              <span hlmBadge variant="secondary">{{ items().length }}</span>
+            }
+          </h2>
+          <div class="relative w-full sm:w-64">
+            <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+            <input
+              hlmInput
+              type="search"
+              class="h-11 w-full pl-9 lg:h-9"
+              [placeholder]="'settings.refLists.search' | transloco"
+              [attr.aria-label]="'settings.refLists.search' | transloco"
+              [value]="search()"
+              (input)="search.set($any($event.target).value)"
+            />
+          </div>
+        </div>
+        <p class="text-muted-foreground border-b px-5 py-2 text-xs">{{ 'settings.refLists.hints.' + l.key | transloco }}</p>
+
+        @if (loading()) {
+          <div class="flex flex-col gap-3 p-5">
+            @for (i of [1, 2, 3, 4]; track i) {
+              <div hlmSkeleton class="h-10 w-full"></div>
+            }
+          </div>
+        } @else if (filtered().length === 0) {
+          <div class="flex flex-col items-center gap-2 px-5 py-14 text-center">
+            <ng-icon name="lucideListChecks" class="text-muted-foreground text-4xl" />
+            <p class="font-medium">{{ (items().length ? 'settings.refLists.noMatch' : 'settings.refLists.empty') | transloco }}</p>
+          </div>
+        } @else {
+          <!-- Header row (sm and up); rows stack into cards on phones -->
+          <div
+            class="text-muted-foreground hidden gap-4 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase sm:grid"
+            [class]="l.hasSortOrder ? 'grid-cols-[4rem_minmax(0,8rem)_minmax(0,1fr)_6rem_6rem]' : 'grid-cols-[minmax(0,10rem)_minmax(0,1fr)_6rem_6rem]'"
+          >
+            @if (l.hasSortOrder) {
+              <span>{{ 'settings.refLists.colSort' | transloco }}</span>
+            }
+            <span>{{ 'settings.refLists.colCode' | transloco }}</span>
+            <span>{{ 'settings.refLists.names.' + l.key | transloco }}</span>
+            <span class="text-right">{{ 'settings.refLists.colUsedBy' | transloco }}</span>
+            <span class="sr-only">{{ 'actions.edit' | transloco }}</span>
+          </div>
+          <ul class="divide-y" role="list">
+            @for (i of filtered(); track i.code) {
+              <li
+                class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-2.5"
+                [class]="l.hasSortOrder ? 'sm:grid-cols-[4rem_minmax(0,8rem)_minmax(0,1fr)_6rem_6rem]' : 'sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_6rem_6rem]'"
+              >
+                @if (l.hasSortOrder) {
+                  <span class="text-muted-foreground col-start-1 text-sm tabular-nums">
+                    <span class="sm:hidden">{{ 'settings.refLists.colSort' | transloco }}: </span>{{ i.sortOrder }}
+                  </span>
+                }
+                <span class="col-start-1 flex min-w-0 items-center gap-2 sm:col-start-auto">
+                  <code class="bg-muted truncate rounded px-1.5 py-0.5 font-mono text-xs">{{ i.code }}</code>
+                  @if (i.isActive === false) {
+                    <span hlmBadge variant="outline" class="shrink-0">{{ 'common.inactive' | transloco }}</span>
+                  }
+                </span>
+                <span class="col-start-1 truncate text-sm sm:col-start-auto" [class.text-muted-foreground]="!i.name">{{ i.name || '—' }}</span>
+                <span class="text-muted-foreground col-start-1 text-sm tabular-nums sm:col-start-auto sm:text-right">
+                  <span class="sm:hidden">{{ 'settings.refLists.colUsedBy' | transloco }}: </span>{{ i.usageCount }}
+                </span>
+                <div class="col-start-2 row-span-4 row-start-1 flex justify-end gap-1 sm:col-start-auto sm:row-span-1 sm:row-start-auto">
+                  <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-9" (click)="openEdit(i)" [attr.aria-label]="('actions.edit' | transloco) + ' ' + i.code">
+                    <ng-icon name="lucidePencil" />
+                  </button>
+                  @if (!inUse(i)) {
+                    <button hlmBtn variant="ghost" size="icon" type="button" class="text-destructive size-11 lg:size-9" (click)="confirmDelete(i)" [attr.aria-label]="('actions.delete' | transloco) + ' ' + i.code">
+                      <ng-icon name="lucideTrash2" />
+                    </button>
+                  } @else {
+                    <span class="size-11 lg:size-9" aria-hidden="true" [title]="'settings.refLists.inUse' | transloco"></span>
+                  }
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      } @else {
+        <div class="flex flex-col gap-3 p-5">
+          @for (i of [1, 2, 3]; track i) {
+            <div hlmSkeleton class="h-10 w-full"></div>
+          }
+        </div>
+      }
+    </section>
+  </div>
+</section>
+
+@if (list(); as l) {
+  <app-modal [open]="dialogOpen()" [heading]="(dialogTitle() | transloco) + ' · ' + ('settings.refLists.lists.' + l.key | transloco)" (closed)="closeDialog()">
+    <form id="ref-item-form" class="flex flex-col gap-4" (submit)="$event.preventDefault(); save()">
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="ref-code">{{ 'settings.refLists.colCode' | transloco }}</label>
+        <input
+          hlmInput
+          id="ref-code"
+          class="h-11 font-mono lg:h-9"
+          autocomplete="off"
+          [class.uppercase]="l.codeCase === 'upper'"
+          [class.lowercase]="l.codeCase === 'lower'"
+          [attr.maxlength]="l.codeMaxLength"
+          [placeholder]="'settings.refLists.codeExamples.' + l.key | transloco"
+          [value]="form().code"
+          [disabled]="!!editing()"
+          [attr.aria-invalid]="(touched() && !codeValid()) || null"
+          aria-describedby="ref-code-hint"
+          (input)="patch('code', $any($event.target).value)"
+        />
+        <p id="ref-code-hint" class="text-xs" [class]="touched() && !codeValid() ? 'text-destructive' : 'text-muted-foreground'">
+          @if (editing()) {
+            {{ 'settings.refLists.codeFixed' | transloco }}
+          } @else {
+            {{ 'settings.refLists.codeRules.' + l.key | transloco: { max: l.codeMaxLength } }}
+          }
+        </p>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="ref-name">
+          {{ 'settings.refLists.names.' + l.key | transloco }}
+          @if (!l.nameRequired) {
+            <span class="text-muted-foreground font-normal">({{ 'common.optional' | transloco }})</span>
+          }
+        </label>
+        <input
+          hlmInput
+          id="ref-name"
+          class="h-11 lg:h-9"
+          [attr.maxlength]="l.nameMaxLength"
+          [value]="form().name"
+          [attr.aria-invalid]="(touched() && !nameValid()) || null"
+          (input)="patch('name', $any($event.target).value)"
+        />
+        @if (touched() && !nameValid()) {
+          <p class="text-destructive text-xs">{{ 'settings.refLists.nameRule' | transloco: { max: l.nameMaxLength } }}</p>
+        }
+      </div>
+      @if (l.hasSortOrder) {
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="ref-sort">{{ 'settings.refLists.colSort' | transloco }}</label>
+          <input
+            hlmInput
+            id="ref-sort"
+            type="number"
+            min="0"
+            max="32767"
+            step="1"
+            inputmode="numeric"
+            class="h-11 lg:h-9"
+            [value]="form().sortOrder"
+            [attr.aria-invalid]="(touched() && !sortValid()) || null"
+            aria-describedby="ref-sort-hint"
+            (input)="patch('sortOrder', $any($event.target).value)"
+          />
+          <p id="ref-sort-hint" class="text-xs" [class]="touched() && !sortValid() ? 'text-destructive' : 'text-muted-foreground'">
+            {{ 'settings.refLists.sortHint' | transloco }}
+          </p>
+        </div>
+      }
+      @if (l.hasIsActive) {
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center gap-3">
+            <hlm-checkbox inputId="ref-active" [checked]="form().isActive" (checkedChange)="patch('isActive', $event === true)" />
+            <label hlmLabel for="ref-active" class="font-normal">{{ 'common.active' | transloco }}</label>
+          </div>
+          <p class="text-muted-foreground text-xs">{{ 'settings.refLists.activeHint' | transloco }}</p>
+        </div>
+      }
+    </form>
+    <ng-container footer>
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="closeDialog()">{{ 'actions.cancel' | transloco }}</button>
+      <button hlmBtn type="submit" form="ref-item-form" class="h-11 lg:h-9" [disabled]="saving()">
+        {{ (saving() ? 'common.saving' : 'actions.save') | transloco }}
+      </button>
+    </ng-container>
+  </app-modal>
+}

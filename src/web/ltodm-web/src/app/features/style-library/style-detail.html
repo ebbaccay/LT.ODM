@@ -1,0 +1,341 @@
+<section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
+  <a routerLink="/styles" class="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm">
+    <ng-icon name="lucideArrowLeft" />{{ 'styles.detail.back' | transloco }}
+  </a>
+
+  @if (loading()) {
+    <div hlmSkeleton class="h-56 w-full"></div>
+    <div hlmSkeleton class="h-80 w-full"></div>
+  } @else if (notFound()) {
+    <section hlmCard class="items-center gap-2 px-5 py-14 text-center">
+      <p class="font-medium">{{ 'styles.detail.notFound' | transloco }}</p>
+      <p class="text-muted-foreground text-sm">{{ 'styles.detail.notFoundHint' | transloco }} <a routerLink="/styles" class="text-primary underline-offset-2 hover:underline">{{ 'styles.detail.backToStyles' | transloco }}</a></p>
+    </section>
+  } @else if (style(); as s) {
+    <!-- Header -->
+    <section hlmCard class="gap-5 p-5 lg:flex-row">
+      <div class="grid shrink-0 grid-cols-2 gap-3 lg:w-80">
+        @for (img of [{ url: s.imageUrl, kind: 'photo', title: 'styles.detail.photo' | transloco, open: 'styles.detail.openPhoto' | transloco, none: 'styles.detail.noPhoto' | transloco }, { url: s.sketchUrl, kind: 'sketch', title: 'styles.detail.sketch' | transloco, open: 'styles.detail.openSketch' | transloco, none: 'styles.detail.noSketch' | transloco }]; track img.kind) {
+          <button
+            type="button"
+            class="bg-muted flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border"
+            [disabled]="!img.url"
+            [attr.aria-label]="img.url ? img.open : img.none"
+            (click)="preview.set({ url: img.url!, title: img.title + ' · ' + s.styleNo })"
+          >
+            @if (img.url) {
+              <img [appAuthSrc]="img.url" [alt]="img.title" class="size-full object-contain" />
+            } @else {
+              <span class="text-muted-foreground flex flex-col items-center gap-1 text-xs"><ng-icon name="lucideImage" class="text-2xl" />{{ img.none }}</span>
+            }
+          </button>
+        }
+      </div>
+
+      <div class="flex min-w-0 flex-1 flex-col gap-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h1 class="font-mono text-2xl font-semibold tracking-tight break-all">{{ s.styleNo }}</h1>
+            <p class="text-muted-foreground">{{ s.modelName || '—' }}</p>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <span hlmBadge variant="secondary">{{ s.customerName }}</span>
+              <span hlmBadge variant="secondary">{{ s.seasonCode }}</span>
+              @if (currentLink()?.relation) {
+                <span hlmBadge variant="outline"><ng-icon name="lucideGitBranch" />{{ (currentLink()!.relation === 'Variant' ? 'styles.detail.variant' : 'styles.detail.carryOver') | transloco }}</span>
+              }
+            </div>
+          </div>
+          @if (canEdit()) {
+            <div class="flex w-full flex-wrap gap-2 sm:w-auto">
+              <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" (click)="editOpen.set(true)"><ng-icon name="lucidePencil" />{{ 'styles.detail.edit' | transloco }}</button>
+              <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" (click)="copyOpen.set(true)"><ng-icon name="lucideCopy" />{{ 'styles.detail.reuse' | transloco }}</button>
+              <button hlmBtn variant="ghost" type="button" class="text-destructive h-11 lg:h-9" [attr.aria-label]="'styles.detail.deleteStyle' | transloco" (click)="deleteStyle()"><ng-icon name="lucideTrash2" /></button>
+            </div>
+          }
+        </div>
+
+        <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 xl:grid-cols-4">
+          @for (fact of [
+            { label: 'styles.detail.modelId', value: s.modelCode },
+            { label: 'styles.detail.productType', value: s.productTypeName },
+            { label: 'styles.detail.weave', value: s.weaveTypeName },
+            { label: 'styles.detail.gender', value: s.gender ? (genderLabel(s.gender) | transloco) : null },
+            { label: 'styles.detail.businessUnit', value: s.businessUnitName },
+            { label: 'styles.detail.leadTime', value: s.garmentLeadTimeDays !== null ? ('styles.detail.leadTimeDays' | transloco: { days: s.garmentLeadTimeDays }) : null },
+            { label: 'styles.detail.baseStyle', value: s.baseStyleNo !== s.styleNo ? s.baseStyleNo : null }
+          ]; track fact.label) {
+            <div class="min-w-0">
+              <dt class="text-muted-foreground text-xs">{{ fact.label | transloco }}</dt>
+              <dd class="truncate" [title]="fact.value ?? ''">{{ fact.value || '—' }}</dd>
+            </div>
+          }
+        </dl>
+        @if (s.description) {
+          <p class="text-sm">{{ s.description }}</p>
+        }
+        <p class="text-muted-foreground text-xs">
+          {{ 'styles.detail.createdBy' | transloco: { user: s.createdBy, date: (s.createdUtc | date: 'medium') } }}@if (s.importBatchId) { {{ 'styles.detail.importBatch' | transloco: { id: s.importBatchId } }} }
+          @if (s.updatedBy) { · {{ 'styles.detail.changedBy' | transloco: { user: s.updatedBy, date: (s.updatedUtc | date: 'medium') } }} }
+        </p>
+        <!-- AI Studio on this style -->
+        <div class="flex flex-wrap gap-2">
+          @if (currentLink()?.sourceStyleId) {
+            <a hlmBtn variant="outline" class="h-9 text-xs" routerLink="/ai/compare" [queryParams]="{ styleId: s.styleId }"><ng-icon name="lucideGitCompareArrows" />{{ 'styles.detail.aiCompare' | transloco }}</a>
+          }
+          <a hlmBtn variant="outline" class="h-9 text-xs" routerLink="/ai/bom-check" [queryParams]="{ styleId: s.styleId }"><ng-icon name="lucideShieldAlert" />{{ 'styles.detail.aiBomCheck' | transloco }}</a>
+          <a hlmBtn variant="outline" class="h-9 text-xs" routerLink="/ai/render" [queryParams]="{ styleId: s.styleId }"><ng-icon name="lucideWandSparkles" />{{ 'styles.detail.aiRender' | transloco }}</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tabs -->
+    <div class="bg-muted flex w-full rounded-lg p-1 sm:w-fit" role="tablist">
+      @for (t of [
+        { id: 'colorways', label: 'styles.detail.tabColorways', count: colorways().length },
+        { id: 'bom', label: 'styles.detail.tabBom', count: bomLineCount() },
+        { id: 'history', label: 'styles.detail.tabHistory', count: family().length }
+      ]; track t.id) {
+        <button
+          type="button"
+          role="tab"
+          class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium whitespace-nowrap transition-colors lg:min-h-8"
+          [class]="tab() === t.id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+          [attr.aria-selected]="tab() === t.id"
+          (click)="tab.set($any(t.id))"
+        >
+          {{ t.label | transloco }} <span class="text-muted-foreground text-xs tabular-nums">{{ t.count | number }}</span>
+        </button>
+      }
+    </div>
+
+    @switch (tab()) {
+      <!-- Colorways -->
+      @case ('colorways') {
+        <section hlmCard class="gap-0 py-0">
+          <div class="flex items-center justify-between gap-3 border-b px-5 py-3">
+            <h2 class="font-semibold">{{ 'styles.detail.colorways' | transloco }}</h2>
+            @if (canEdit()) {
+              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="openColorway(null)"><ng-icon name="lucidePlus" />{{ 'styles.detail.addColorway' | transloco }}</button>
+            }
+          </div>
+          @if (!colorways().length) {
+            <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ 'styles.detail.noColorways' | transloco }}</p>
+          } @else {
+            <ul class="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3" role="list">
+              @for (c of colorways(); track c.colorwayId) {
+                <li class="flex gap-3 rounded-md border p-3" [class.opacity-60]="c.status === 'DROPPED'">
+                  <button
+                    type="button"
+                    class="bg-muted flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md border"
+                    [disabled]="!c.imageUrl"
+                    [attr.aria-label]="(c.imageUrl ? 'styles.detail.openImageOf' : 'styles.detail.noImage') | transloco: { code: c.colorwayCode }"
+                    (click)="preview.set({ url: c.imageUrl!, title: c.colorwayCode })"
+                  >
+                    @if (c.imageUrl) {
+                      <img [appAuthSrc]="c.imageUrl" alt="" class="size-full object-cover" />
+                    } @else {
+                      <ng-icon name="lucideImage" class="text-muted-foreground" />
+                    }
+                  </button>
+                  <div class="min-w-0 flex-1">
+                    <p class="flex items-center gap-2">
+                      <span class="font-mono text-sm font-medium">{{ c.colorwayCode }}</span>
+                      <span class="rounded-full px-2 py-0.5 text-xs" [class]="toneBadge(c.status === 'DROPPED' ? 'neutral' : 'green')">{{ (c.status === 'DROPPED' ? 'styles.detail.dropped' : 'styles.detail.inRange') | transloco }}</span>
+                    </p>
+                    <p class="text-muted-foreground line-clamp-2 text-xs">{{ c.colorwayName || '—' }}</p>
+                    <button type="button" class="text-primary mt-1 text-xs underline-offset-2 hover:underline" (click)="bomColorway.set(c.colorwayId); tab.set('bom')">{{ 'styles.detail.viewBomColours' | transloco }}</button>
+                  </div>
+                  @if (canEdit()) {
+                    <div class="flex flex-col">
+                      <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [attr.aria-label]="'styles.detail.editItem' | transloco: { code: c.colorwayCode }" (click)="openColorway(c)"><ng-icon name="lucidePencil" /></button>
+                      <button hlmBtn variant="ghost" size="icon" type="button" class="text-destructive size-11 lg:size-8" [attr.aria-label]="'styles.detail.deleteItem' | transloco: { code: c.colorwayCode }" (click)="deleteColorway(c)"><ng-icon name="lucideTrash2" /></button>
+                    </div>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </section>
+      }
+
+      <!-- BOM -->
+      @case ('bom') {
+        <!-- --bom-actions: room for the image, edit and delete buttons, so the column names line up with every line -->
+        <section hlmCard class="gap-0 py-0" [style.--bom-actions]="canEdit() ? '6.5rem' : '2rem'">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+            <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <label for="bom-colorway" class="text-muted-foreground text-sm">{{ 'styles.detail.colorway' | transloco }}</label>
+              <hlm-native-select
+                selectId="bom-colorway"
+                selectClass="h-11 w-full sm:w-64 lg:h-8"
+                [value]="bomColorway()?.toString() ?? ''"
+                (valueChange)="bomColorway.set($event ? +$event : null)"
+              >
+                <option hlmNativeSelectOption value="">{{ 'styles.detail.allLines' | transloco }}</option>
+                @for (c of colorways(); track c.colorwayId) {
+                  <option hlmNativeSelectOption [value]="c.colorwayId.toString()">{{ c.colorwayCode }}{{ c.colorwayName ? ' · ' + c.colorwayName : '' }}</option>
+                }
+              </hlm-native-select>
+            </div>
+            @if (canEdit()) {
+              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="openLine(null)"><ng-icon name="lucidePlus" />{{ 'styles.detail.addBomLine' | transloco }}</button>
+            }
+          </div>
+
+          @if (!bomSections().length) {
+            <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ (bomColorway() ? 'styles.detail.noLinesForColorway' : 'styles.detail.noLines') | transloco }}</p>
+          } @else {
+            <!-- Column names (wide screens; on narrow ones each line labels its own values) -->
+            <div
+              class="text-muted-foreground hidden border-b px-5 py-2 text-xs font-medium lg:grid lg:grid-cols-[3rem_minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,6rem)_minmax(0,6rem)_minmax(0,1.3fr)_var(--bom-actions)] lg:items-center lg:gap-x-4"
+              aria-hidden="true"
+            >
+              <span>{{ 'styles.detail.bomColumns.part' | transloco }}</span>
+              <span>{{ 'styles.detail.bomColumns.material' | transloco }}</span>
+              <span>{{ 'styles.detail.bomColumns.supplier' | transloco }}</span>
+              <span class="text-right" [title]="'styles.detail.lcoConsumption' | transloco">{{ 'styles.detail.bomColumns.lcoConsumption' | transloco }}</span>
+              <span class="text-right" [title]="'styles.detail.brandConsumption' | transloco">{{ 'styles.detail.bomColumns.brandConsumption' | transloco }}</span>
+              <span>{{ (bomColorway() ? 'styles.detail.bomColumns.materialColour' : 'styles.detail.bomColumns.colorways') | transloco }}</span>
+              <span class="sr-only">{{ 'styles.detail.bomColumns.actions' | transloco }}</span>
+            </div>
+            @for (sec of bomSections(); track sec.code) {
+              @let secName = sec.name || ('styles.detail.unclassified' | transloco);
+              <div class="bg-muted/40 flex items-center justify-between gap-3 border-b px-5 py-2">
+                <h3 class="text-sm font-semibold">{{ secName }} <span class="text-muted-foreground font-normal">· {{ sec.lines.length }}</span></h3>
+                @if (canEdit()) {
+                  <button hlmBtn variant="ghost" size="sm" type="button" class="h-11 lg:h-7" [attr.aria-label]="'styles.detail.addLineTo' | transloco: { section: secName }" (click)="openLine(null, sec.code)"><ng-icon name="lucidePlus" />{{ 'styles.detail.add' | transloco }}</button>
+                }
+              </div>
+              <ul class="divide-y border-b" role="list">
+                @for (l of sec.lines; track l.bomLineId) {
+                  <li class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 px-5 py-3 text-sm lg:grid-cols-[3rem_minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,6rem)_minmax(0,6rem)_minmax(0,1.3fr)_var(--bom-actions)] lg:items-center">
+                    <span class="text-muted-foreground hidden tabular-nums lg:block">{{ l.partNo ?? '' }}</span>
+                    <div class="min-w-0">
+                      <a [routerLink]="['/materials', l.materialId]" class="block truncate font-mono text-xs font-medium underline-offset-2 hover:underline" [title]="'styles.detail.openMaterial' | transloco">{{ l.materialCode }}</a>
+                      <p class="text-muted-foreground line-clamp-2 text-xs" [title]="l.materialDescription ?? ''">{{ l.materialDescription || '—' }}</p>
+                      <p class="text-muted-foreground text-xs lg:hidden">
+                        @if (l.partNo !== null) { {{ 'styles.detail.part' | transloco: { no: l.partNo } }} · }{{ l.materialTypeName || l.materialTypeCode }} · {{ consumption(l.brandConsumption ?? l.lcoConsumption, l.uomCode) }}
+                      </p>
+                    </div>
+                    <div class="text-muted-foreground hidden min-w-0 text-xs lg:block">
+                      <p class="truncate" [title]="l.supplierName ?? ''">{{ l.supplierName || '—' }}</p>
+                      @if (l.nominatedSupplierName && l.nominatedSupplierName !== l.supplierName) {
+                        <p class="truncate" [title]="'styles.detail.nominated' | transloco: { name: l.nominatedSupplierName }">{{ 'styles.detail.nominatedShort' | transloco: { name: l.nominatedSupplierName } }}</p>
+                      }
+                    </div>
+                    <span class="hidden text-right tabular-nums lg:block" [title]="'styles.detail.lcoConsumption' | transloco">{{ consumption(l.lcoConsumption, l.uomCode) }}</span>
+                    <span class="hidden text-right tabular-nums lg:block" [title]="'styles.detail.brandConsumption' | transloco">{{ consumption(l.brandConsumption, l.uomCode) }}</span>
+                    <div class="col-start-1 min-w-0 text-xs lg:col-start-auto">
+                      @if (bomColorway(); as cw) {
+                        @let colour = colourFor(l, cw);
+                        <span class="font-mono">{{ colour?.materialColorCode || '—' }}</span>
+                        @if (colour?.materialColorDescription) { <span class="text-muted-foreground"> · {{ colour!.materialColorDescription }}</span> }
+                      } @else {
+                        <span class="text-muted-foreground" [title]="lineColorwayCodes(l)">
+                          {{ l.colorways.length === colorways().length && colorways().length ? ('styles.detail.allColorways' | transloco) : ('styles.detail.someColorways' | transloco: { count: l.colorways.length, total: colorways().length }) }}
+                        </span>
+                      }
+                    </div>
+                    <div class="row-span-2 row-start-1 flex items-start gap-1 lg:row-span-1 lg:row-start-auto lg:items-center">
+                      @if (l.imageUrl) {
+                        <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [attr.aria-label]="'styles.detail.openImageOf' | transloco: { code: l.materialCode }" (click)="preview.set({ url: l.imageUrl, title: l.materialCode })"><ng-icon name="lucideImage" /></button>
+                      }
+                      @if (canEdit()) {
+                        <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [attr.aria-label]="'styles.detail.editItem' | transloco: { code: l.materialCode }" (click)="openLine(l)"><ng-icon name="lucidePencil" /></button>
+                        <button hlmBtn variant="ghost" size="icon" type="button" class="text-destructive size-11 lg:size-8" [attr.aria-label]="'styles.detail.deleteItem' | transloco: { code: l.materialCode }" (click)="deleteLine(l)"><ng-icon name="lucideTrash2" /></button>
+                      }
+                    </div>
+                  </li>
+                }
+              </ul>
+            }
+          }
+        </section>
+      }
+
+      <!-- History -->
+      @case ('history') {
+        <section hlmCard class="gap-0 py-0">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+            <div>
+              <h2 class="font-semibold">{{ 'styles.detail.historyTitle' | transloco }}</h2>
+              <p class="text-muted-foreground text-xs">{{ 'styles.detail.historyHint' | transloco: { styleNo: s.styleNo } }}</p>
+            </div>
+            @if (canEdit()) {
+              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="historyOpen.set(true)">
+                <ng-icon name="lucideLink" />{{ (currentLink()?.sourceStyleId ? 'styles.detail.changeReusedFrom' : 'styles.detail.setReusedFrom') | transloco }}
+              </button>
+            }
+          </div>
+          @if (family().length <= 1 && !currentLink()?.sourceStyleId) {
+            <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ 'styles.detail.noFamily' | transloco }}</p>
+          } @else {
+            <ol class="flex flex-col p-5">
+              @for (m of family(); track m.styleId; let last = $last) {
+                <li class="relative flex gap-4 pb-5" [class.pb-0]="last">
+                  @if (!last) {
+                    <span class="bg-border absolute top-8 bottom-0 left-[1.1rem] w-px" aria-hidden="true"></span>
+                  }
+                  <span
+                    class="relative z-10 flex size-9 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold"
+                    [class]="m.isCurrent ? 'bg-primary text-primary-foreground border-primary' : 'bg-background'"
+                  >{{ m.seasonCode.slice(2, 4) }}{{ m.seasonCode.slice(5) }}</span>
+                  <div class="min-w-0 flex-1 pt-1">
+                    <p class="flex flex-wrap items-center gap-2">
+                      @if (m.isCurrent) {
+                        <span class="font-mono text-sm font-semibold">{{ m.styleNo }}</span>
+                        <span hlmBadge variant="secondary">{{ 'styles.detail.thisStyle' | transloco }}</span>
+                      } @else {
+                        <a [routerLink]="['/styles', m.styleId]" class="text-primary font-mono text-sm font-medium underline-offset-2 hover:underline">{{ m.styleNo }}</a>
+                      }
+                      <span class="text-muted-foreground text-xs">{{ m.seasonCode }}</span>
+                    </p>
+                    @if (m.source) {
+                      <p class="text-muted-foreground text-xs">
+                        {{ relationLabel(m) | transloco }} {{ m.source.styleNo }}
+                        · {{ linkSourceLabel(m) | transloco: { user: m.linkedBy } }}
+                        @if (m.note) { · {{ m.note }} }
+                      </p>
+                    } @else if (m.sourceStyleId) {
+                      <p class="text-muted-foreground text-xs">{{ 'styles.detail.anotherStyle' | transloco: { relation: (relationLabel(m) | transloco) } }}</p>
+                    } @else {
+                      <p class="text-muted-foreground text-xs">{{ 'styles.detail.firstInFamily' | transloco }}</p>
+                    }
+                  </div>
+                  @if (canEdit() && m.sourceStyleId) {
+                    <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [attr.aria-label]="'styles.detail.removeLinkOf' | transloco: { styleNo: m.styleNo }" (click)="removeLink(m)"><ng-icon name="lucideUnlink" /></button>
+                  }
+                </li>
+              }
+            </ol>
+          }
+        </section>
+      }
+    }
+
+    <!-- Dialogs -->
+    <app-style-form-dialog [open]="editOpen()" [style]="s" [lookups]="lookups()" (closed)="editOpen.set(false)" (saved)="onStyleSaved()" />
+    <app-copy-style-dialog [open]="copyOpen()" [style]="s" [lookups]="lookups()" (closed)="copyOpen.set(false)" (saved)="onCopied($event)" />
+    <app-history-dialog [open]="historyOpen()" [style]="s" (closed)="historyOpen.set(false)" (saved)="onHistorySaved()" />
+    <app-colorway-dialog [open]="colorwayOpen()" [styleId]="s.styleId" [colorway]="editingColorway()" (closed)="colorwayOpen.set(false)" (saved)="onColorwaySaved()" />
+    <app-bom-line-dialog
+      [open]="lineOpen()"
+      [styleId]="s.styleId"
+      [line]="editingLine()"
+      [colorways]="colorways()"
+      [lookups]="lookups()"
+      [defaultContentClass]="newLineClass()"
+      (closed)="lineOpen.set(false)"
+      (saved)="onLineSaved()"
+    />
+  }
+</section>
+
+<app-modal [open]="!!preview()" [heading]="preview()?.title ?? ''" size="lg" (closed)="preview.set(null)">
+  @if (preview(); as p) {
+    <img [appAuthSrc]="p.url" [alt]="p.title" class="mx-auto max-h-[70dvh] rounded-md object-contain" />
+  }
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="preview.set(null)">{{ 'styles.detail.close' | transloco }}</button>
+  </ng-container>
+</app-modal>

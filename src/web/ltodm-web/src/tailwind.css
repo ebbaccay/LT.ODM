@@ -1,0 +1,267 @@
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css';
+
+@import '@spartan-ng/brain/hlm-tailwind-preset.css';
+
+/* Same breakpoints as src/styles/_breakpoints.scss: phone < 600px, tablet 600-1024px, desktop > 1024px. */
+@theme {
+  --breakpoint-*: initial;
+  --breakpoint-sm: 600px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1025px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1920px;
+}
+
+/* Page background behind cards (Sakai's "surface ground"); --background stays the control/card white. */
+@theme inline {
+  --color-ground: var(--ground);
+}
+
+:root {
+  color-scheme: light;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans',
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --ground: oklch(0.985 0 0);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: #0d47a1; /* LT ODM brand primary (placeholder) */
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: #3b6ab3;
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: #0d47a1;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: #3b6ab3;
+}
+
+:root.dark {
+  color-scheme: dark;
+
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --ground: var(--background);
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: #698dc5;
+  --primary-foreground: #031228;
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: #698dc5;
+  --sidebar-primary-foreground: #031228;
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.552 0.016 285.938);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-ground text-foreground;
+  }
+
+  /* Thin scrollbars everywhere; the thumb follows the theme. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent) transparent;
+  }
+  /* Older WebKit (Safari < 18.2) ignores scrollbar-width. */
+  @supports not (scrollbar-width: thin) {
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      border-radius: 9999px;
+      background: color-mix(in oklab, var(--muted-foreground) 40%, transparent);
+    }
+  }
+}
+
+/* Slow drifting colour blobs behind the glass sign-in card (only with motion-safe:). */
+@theme {
+  --animate-blob: blob 22s ease-in-out infinite;
+
+  @keyframes blob {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    33% {
+      transform: translate(3rem, -4rem) scale(1.08);
+    }
+    66% {
+      transform: translate(-2.5rem, 2rem) scale(0.95);
+    }
+  }
+}
+
+/*
+  Dashboard colours that go with the chosen accent, so charts are not all one colour. Worked out from --primary
+  (whatever the theme panel set, custom colours included): --dash-1 is the accent itself, --dash-2 and --dash-4 sit
+  60 degrees either side of it on the colour wheel, --dash-3 is its complement. Lightness and chroma are fixed per
+  mode so every one stays readable on the cards. Used for marks and icons only; text keeps the text colours.
+*/
+@theme inline {
+  --color-dash-1: var(--dash-1);
+  --color-dash-2: var(--dash-2);
+  --color-dash-3: var(--dash-3);
+  --color-dash-4: var(--dash-4);
+}
+
+:root {
+  /* Browsers without relative colours: fixed teal / amber / magenta that suit the default blue. */
+  --dash-1: var(--primary);
+  --dash-2: oklch(0.62 0.13 200);
+  --dash-3: oklch(0.72 0.16 75);
+  --dash-4: oklch(0.6 0.2 330);
+}
+
+@supports (color: oklch(from red l c h)) {
+  :root {
+    --dash-2: oklch(from var(--primary) 0.62 0.15 calc(h - 60));
+    --dash-3: oklch(from var(--primary) 0.72 0.16 calc(h + 180));
+    --dash-4: oklch(from var(--primary) 0.6 0.18 calc(h + 60));
+  }
+  :root.dark {
+    --dash-2: oklch(from var(--primary) 0.74 0.14 calc(h - 60));
+    --dash-3: oklch(from var(--primary) 0.8 0.15 calc(h + 180));
+    --dash-4: oklch(from var(--primary) 0.72 0.17 calc(h + 60));
+  }
+}
+
+/*
+  Glass theme (theme panel > Glass effect; LayoutService puts .glass on <html>). Panels turn translucent and blur
+  the colour glow behind the page (app.layout). Outside any layer so it wins over the components' own bg-card /
+  ring / shadow utilities. Data grids stay solid so figures stay easy to read.
+*/
+:root.glass {
+  --glass-panel: color-mix(in oklab, var(--card) 58%, transparent);
+  --glass-overlay: color-mix(in oklab, var(--popover) 82%, transparent);
+  --glass-bar: color-mix(in oklab, var(--background) 55%, transparent);
+  --glass-edge: oklch(1 0 0 / 0.55);
+  --glass-line: oklch(1 0 0 / 0.5);
+  --glass-shadow: 0 12px 32px -16px color-mix(in oklab, var(--primary) 35%, transparent);
+}
+:root.glass.dark {
+  --glass-panel: color-mix(in oklab, var(--card) 45%, transparent);
+  --glass-overlay: color-mix(in oklab, var(--popover) 78%, transparent);
+  --glass-bar: color-mix(in oklab, var(--background) 50%, transparent);
+  --glass-edge: oklch(1 0 0 / 0.1);
+  --glass-line: oklch(1 0 0 / 0.09);
+  --glass-shadow: 0 16px 40px -18px oklch(0 0 0 / 0.7);
+}
+
+/* Cards: the card component and plain bg-card boxes. */
+:root.glass :is([data-slot='card'], .bg-card) {
+  background-color: var(--glass-panel);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+}
+:root.glass [data-slot='card'] {
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-edge),
+    0 0 0 1px var(--glass-line),
+    var(--glass-shadow);
+}
+/* A card inside a card: tint only (blurring twice costs a lot and shows nothing more). */
+:root.glass :is([data-slot='card'], .bg-card) :is([data-slot='card'], .bg-card) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Menus, popovers, slide-out panels: more opaque, so what is under them never competes with their text. */
+:root.glass
+  :is([data-slot='popover-content'], [data-slot='dropdown-menu'], [data-slot='sheet-content']) {
+  background-color: var(--glass-overlay);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+}
+
+/* App chrome. */
+:root.glass app-topbar > header,
+:root.glass app-sidebar > aside,
+:root.glass app-sidebar > nav,
+:root.glass .bg-sidebar {
+  background-color: var(--glass-bar);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+}
+
+/* No blur available, transparency turned off in the OS, or high contrast: solid panels and no glow. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root.glass {
+    --glass-panel: var(--card);
+    --glass-overlay: var(--popover);
+    --glass-bar: var(--background);
+  }
+}
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  :root.glass {
+    --glass-panel: var(--card);
+    --glass-overlay: var(--popover);
+    --glass-bar: var(--background);
+  }
+  .glass-glow {
+    display: none;
+  }
+}
+@media print {
+  .glass-glow {
+    display: none;
+  }
+  :root.glass :is([data-slot='card'], .bg-card) {
+    background-color: var(--card);
+    box-shadow: none;
+  }
+}

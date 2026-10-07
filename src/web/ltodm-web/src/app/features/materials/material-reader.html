@@ -1,0 +1,135 @@
+<app-ai-provider-banner uses="text" />
+<p class="text-muted-foreground text-sm">{{ 'materials.reader.hint' | transloco }}</p>
+
+<!-- Scope and reading -->
+<section hlmCard class="gap-3 p-4">
+  <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+    <hlm-native-select selectId="reader-cc" selectClass="h-11 w-full lg:h-9 sm:w-48" [attr.aria-label]="'materials.allContentClasses' | transloco" [value]="contentClass()" (valueChange)="setFilter('contentClass', $event ?? '')">
+      <option hlmNativeSelectOption value="" [selected]="contentClass() === ''">{{ 'materials.allContentClasses' | transloco }}</option>
+      @for (o of lookups()?.contentClasses ?? []; track o.code) {
+        <option hlmNativeSelectOption [value]="o.code" [selected]="o.code === contentClass()">{{ o.name }}</option>
+      }
+    </hlm-native-select>
+    @if (canEdit()) {
+      <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
+        @if (reading()) {
+          <span class="flex items-center gap-2 text-sm">
+            <hlm-spinner class="size-4" />
+            {{ 'materials.reader.progress' | transloco: { read: progress()?.read ?? 0, remaining: progress()?.remaining ?? toRead() } }}
+          </span>
+          @if (readAll()) {
+            <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="stop()"><ng-icon name="lucideSquare" />{{ 'materials.reader.stop' | transloco }}</button>
+          }
+        } @else {
+          <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="!toRead()" (click)="read(false)"><ng-icon name="lucideSparkles" />{{ 'materials.reader.readNext' | transloco }}</button>
+          <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="!toRead()" (click)="read(true)"><ng-icon name="lucideSparkles" />{{ 'materials.reader.readAll' | transloco: { count: (toRead() | number) } }}</button>
+        }
+      </div>
+    }
+  </div>
+  @if (canEdit() && toRead() > 25) {
+    <p class="text-muted-foreground text-xs">{{ 'materials.reader.readAllHint' | transloco: { calls: ((toRead() / 25) | number: '1.0-0'), minutes: ((toRead() / 25 * 8 / 60) | number: '1.0-0') } }}</p>
+  }
+  <div class="flex flex-wrap gap-2">
+    @for (s of states; track s) {
+      <button
+        type="button"
+        class="rounded-full border px-3 py-1 text-xs"
+        [class]="status() === s ? 'bg-primary text-primary-foreground border-transparent' : 'text-muted-foreground'"
+        [attr.aria-pressed]="status() === s"
+        (click)="setFilter('specStatus', s)"
+      >
+        {{ (s ? 'materials.reader.state.' + s : 'materials.reader.allStates') | transloco }} <span class="tabular-nums">{{ countFor(s) | number }}</span>
+      </button>
+    }
+  </div>
+</section>
+
+<!-- Review bar -->
+@if (canEdit() && selectable().length) {
+  <div class="flex flex-wrap items-center gap-2 text-sm">
+    <span class="text-muted-foreground">{{ 'materials.reader.selected' | transloco: { count: selected().size } }}</span>
+    @if (highConfidence().length) {
+      <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-8" (click)="selectHighConfidence()">{{ 'materials.reader.selectSure' | transloco: { count: highConfidence().length } }}</button>
+    }
+    <button hlmBtn type="button" class="h-11 lg:h-8" [disabled]="!selected().size || reviewing()" (click)="review(selectedIds(), 'Accepted')"><ng-icon name="lucideCheck" />{{ 'materials.reader.accept' | transloco }}</button>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [disabled]="!selected().size || reviewing()" (click)="review(selectedIds(), 'Rejected')"><ng-icon name="lucideX" />{{ 'materials.reader.reject' | transloco }}</button>
+  </div>
+}
+
+<!-- Materials -->
+<section hlmCard class="gap-0 py-0" [attr.aria-busy]="loading()">
+  @if (loading() && !items().length) {
+    <div class="flex flex-col gap-3 p-5">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div hlmSkeleton class="h-16 w-full"></div>
+      }
+    </div>
+  } @else if (!items().length) {
+    <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ 'materials.reader.none' | transloco }}</p>
+  } @else {
+    <ul class="divide-y" role="list">
+      @for (m of items(); track m.materialId) {
+        <li class="flex gap-3 px-4 py-3">
+          @if (canEdit()) {
+            <input
+              type="checkbox"
+              class="mt-1 size-4 shrink-0"
+              [attr.aria-label]="m.materialCode"
+              [disabled]="m.state !== 'Pending'"
+              [checked]="selected().has(m.materialId)"
+              (change)="toggle(m.materialId)"
+            />
+          }
+          <div class="grid min-w-0 flex-1 gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+            <div class="min-w-0">
+              <p class="flex flex-wrap items-center gap-2">
+                <a [routerLink]="['/materials', m.materialId]" class="text-primary font-mono text-sm font-medium underline-offset-2 hover:underline">{{ m.materialCode }}</a>
+                <span class="rounded px-1.5 py-0.5 text-[11px]" [class]="stateClass(m.state)">{{ 'materials.reader.state.' + m.state | transloco }}</span>
+                <span class="text-muted-foreground text-xs">{{ 'materials.rowStyles' | transloco: { count: m.styles } }}</span>
+              </p>
+              <p class="text-muted-foreground mt-0.5 line-clamp-2 text-xs" [title]="m.description ?? ''">{{ m.description }}</p>
+            </div>
+            @if (m.state !== 'Unread') {
+              <div class="min-w-0 text-sm">
+                <p class="font-medium">{{ m.composition || ('materials.reader.noFibres' | transloco) }}</p>
+                <p class="text-muted-foreground text-xs">
+                  @if (m.recycledPct) { {{ 'materials.reader.recycled' | transloco: { pct: m.recycledPct } }} · }
+                  {{ m.construction || '—' }}
+                  @if (m.weightGsm) { · {{ m.weightGsm }} g/m² }
+                  @if (m.widthCm) { · {{ m.widthCm }} cm }
+                  @if (m.suggestedContentClass && m.suggestedContentClass !== m.contentClassCode) {
+                    · <span class="text-amber-700 dark:text-amber-400">{{ 'materials.reader.suggestsClass' | transloco: { code: m.suggestedContentClass } }}</span>
+                  }
+                </p>
+                @if (m.notes) {
+                  <p class="flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400"><ng-icon name="lucideTriangleAlert" class="mt-0.5 shrink-0" />{{ m.notes }}</p>
+                }
+                <p class="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                  <span [class]="confidenceClass(m.confidence)">{{ 'materials.reader.confidence' | transloco: { pct: (m.confidence | percent) } }}</span>
+                  <span>· {{ m.model }}</span>
+                  @if (canEdit() && m.state === 'Pending') {
+                    <button type="button" class="text-primary hover:underline" [disabled]="reviewing()" (click)="review([m.materialId], 'Accepted')">{{ 'materials.reader.accept' | transloco }}</button>
+                    <button type="button" class="text-destructive hover:underline" [disabled]="reviewing()" (click)="review([m.materialId], 'Rejected')">{{ 'materials.reader.reject' | transloco }}</button>
+                  }
+                  @if (canEdit() && (m.state === 'Accepted' || m.state === 'Rejected')) {
+                    <button type="button" class="hover:underline" [disabled]="reviewing()" (click)="review([m.materialId], 'Pending')">{{ 'materials.reader.undo' | transloco }}</button>
+                  }
+                </p>
+              </div>
+            } @else {
+              <p class="text-muted-foreground text-xs">{{ 'materials.reader.notRead' | transloco }}</p>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+    @if (items().length < (page()?.total ?? 0)) {
+      <div class="border-t px-5 py-3 text-center">
+        <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" [disabled]="loading()" (click)="load(true)">
+          {{ 'styles.showMore' | transloco: { shown: (items().length | number), total: (page()!.total | number) } }}
+        </button>
+      </div>
+    }
+  }
+</section>

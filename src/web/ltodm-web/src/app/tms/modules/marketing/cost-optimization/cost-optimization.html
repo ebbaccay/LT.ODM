@@ -1,0 +1,483 @@
+@if (!qid()) {
+  <!-- ══ Pick a concept and a style ══════════════════════════ -->
+  <section class="flex flex-col gap-5">
+    <header>
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'nav.costOptimization' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'co.subtitle' | transloco }}</p>
+    </header>
+
+    <section hlmCard class="gap-3 overflow-visible px-5 py-4">
+      <app-concept-picker
+        [concepts]="concepts()"
+        [loaded]="conceptsLoaded()"
+        [selected]="selectedConceptRecid()"
+        [label]="'co.step1.title' | transloco"
+        [placeholder]="'mo.searchConceptsPlaceholder' | transloco"
+        [emptyText]="('co.step1.noConceptsFound' | transloco) + ' ' + ('co.step1.noConceptsHint' | transloco)"
+        [noMatchText]="'common.noMatches' | transloco"
+        (selectedChange)="selectConcept($event)"
+      />
+      @if (header(); as h) {
+        <div class="flex flex-wrap items-center gap-1.5 text-sm">
+          <span class="font-medium">{{ h.conceptName }}</span>
+          @for (v of [h.customer, h.season]; track $index) {
+            @if (v) {
+              <span hlmBadge variant="secondary">{{ v }}</span>
+            }
+          }
+          @if (h.targetFob) {
+            <span class="text-muted-foreground ml-1">{{ 'mo.targetFob' | transloco }} <strong class="text-foreground tabular-nums">${{ h.targetFob | number: '1.2-2' }}</strong></span>
+          }
+        </div>
+      }
+    </section>
+
+    @if (stylesLoading()) {
+      <div class="flex flex-col gap-2">
+        @for (i of [1, 2, 3]; track i) {
+          <div hlmSkeleton class="h-16 w-full rounded-lg"></div>
+        }
+      </div>
+    } @else if (noCollection()) {
+      <section hlmCard class="items-center gap-3 px-5 py-12 text-center">
+        <p class="font-medium">{{ 'co.noCollection' | transloco }}</p>
+        <a hlmBtn variant="outline" routerLink="/collection-builder" class="h-11 lg:h-9">{{ 'nav.collectionBuilder' | transloco }}</a>
+      </section>
+    } @else if (header()) {
+      <section hlmCard class="gap-0 py-0">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+          <h2 class="font-semibold">{{ 'co.step2.title' | transloco }}</h2>
+          @if (styles().length) {
+            <div class="relative w-full sm:w-64">
+              <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+              <input
+                hlmInput
+                type="search"
+                class="h-11 w-full pl-9 lg:h-9"
+                [attr.aria-label]="'actions.search' | transloco"
+                [placeholder]="'co.searchPlaceholder' | transloco"
+                [value]="styleSearch()"
+                (input)="styleSearch.set($any($event.target).value)"
+              />
+            </div>
+          }
+        </div>
+        @if (!styles().length) {
+          <div class="flex flex-col items-center gap-3 px-5 py-12 text-center">
+            <p class="text-muted-foreground text-sm">{{ 'co.noStyles' | transloco }}</p>
+            <a hlmBtn variant="outline" routerLink="/collection-builder" class="h-11 lg:h-9">{{ 'nav.collectionBuilder' | transloco }}</a>
+          </div>
+        } @else if (!filteredStyles().length) {
+          <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ 'co.step2.noMatch' | transloco: { query: styleSearch() } }}</p>
+        } @else {
+          <div class="text-muted-foreground hidden grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_6rem_6rem_6rem_8rem_7rem] gap-4 border-b px-5 py-2.5 text-xs font-medium tracking-wide uppercase lg:grid">
+            <span></span>
+            <span>{{ 'co.step2.colStyle' | transloco }}</span>
+            <span>{{ 'co.step2.colFactory' | transloco }}</span>
+            <span class="text-right">{{ 'co.step2.colCurrentFob' | transloco }}</span>
+            <span class="text-right">{{ 'co.step2.colTargetFob' | transloco }}</span>
+            <span class="text-right">{{ 'co.step2.colGap' | transloco }}</span>
+            <span>{{ 'co.step2.colStatus' | transloco }}</span>
+            <span></span>
+          </div>
+          <ul class="divide-y" role="list">
+            @for (s of filteredStyles(); track s.qid) {
+              @let st = styleStatus(s);
+              <li class="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-3 lg:grid-cols-[3rem_minmax(0,1.5fr)_minmax(0,1fr)_6rem_6rem_6rem_8rem_7rem]">
+                <div class="bg-muted text-muted-foreground row-span-3 flex size-12 items-center justify-center overflow-hidden rounded-md lg:row-span-1">
+                  @if (s.imageUrl) {
+                    <img [appAuthSrc]="s.imageUrl" [alt]="s.styleName" class="size-full object-cover" loading="lazy" (loadError)="s.imageUrl = ''" />
+                  } @else {
+                    <ng-icon name="lucideImage" class="opacity-50" />
+                  }
+                </div>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-medium">{{ s.styleName }}</p>
+                  <p class="text-muted-foreground truncate font-mono text-xs">{{ s.styleId }}</p>
+                </div>
+                <span class="text-muted-foreground col-start-2 truncate text-xs lg:col-start-auto lg:text-sm">{{ s.factoryName || '—' }}</span>
+                <span class="col-start-2 text-sm tabular-nums lg:col-start-auto lg:text-right">
+                  <span class="text-muted-foreground lg:hidden">{{ 'co.step2.colCurrentFob' | transloco }}: </span>${{ s.currentFob | number: '1.2-2' }}
+                </span>
+                <span class="hidden text-right text-sm tabular-nums lg:block">{{ targetFob() ? '$' + (targetFob() | number: '1.2-2') : '—' }}</span>
+                <span
+                  class="hidden text-right text-sm font-medium tabular-nums lg:block"
+                  [class]="gap(s) > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
+                >
+                  @if (targetFob()) {
+                    {{ gap(s) > 0 ? '+' : '' }}{{ gap(s) | number: '1.2-2' }}
+                  } @else {
+                    —
+                  }
+                </span>
+                <span class="hidden lg:block">
+                  @if (st) {
+                    <span class="rounded-full px-2 py-0.5 text-xs font-medium" [class]="toneBadge(st.tone)">{{ st.key | transloco }}</span>
+                  }
+                </span>
+                <div class="col-start-3 row-span-3 row-start-1 flex flex-col items-end gap-1 lg:col-start-auto lg:row-span-1 lg:row-start-auto">
+                  @if (st) {
+                    <span class="rounded-full px-2 py-0.5 text-xs font-medium lg:hidden" [class]="toneBadge(st.tone)">{{ st.key | transloco }}</span>
+                  }
+                  <button hlmBtn [variant]="s.hasSession ? 'outline' : 'default'" type="button" class="h-11 w-full lg:h-9" (click)="openStyle(s)">
+                    {{ (s.hasSession ? 'co.step2.actionContinue' : 'co.step2.actionStart') | transloco }}
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    }
+  </section>
+} @else {
+  <!-- ══ Optimize one style ══════════════════════════════════ -->
+  @let s = style();
+  @let c = costs();
+  <section class="flex flex-col gap-5">
+    <header class="flex flex-wrap items-center gap-3">
+      <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-9" [attr.aria-label]="'co.backToStyles' | transloco" (click)="backToStyles()">
+        <ng-icon name="lucideArrowLeft" />
+      </button>
+      <div class="min-w-0">
+        <p class="text-muted-foreground truncate text-sm">{{ header()?.conceptName }}</p>
+        <h1 class="truncate text-2xl font-semibold tracking-tight">{{ s?.styleName || qid() }}</h1>
+      </div>
+    </header>
+
+    @if (sessionLoading() || (stylesLoading() && !c)) {
+      <div class="grid gap-4 xl:grid-cols-3">
+        @for (i of [1, 2, 3]; track i) {
+          <div hlmSkeleton class="h-96 rounded-xl"></div>
+        }
+      </div>
+    } @else if (!c || !currentFob()) {
+      <section hlmCard class="items-center gap-2 px-5 py-12 text-center">
+        <ng-icon name="lucideCircleAlert" class="text-muted-foreground text-3xl" />
+        <p class="font-medium">{{ 'co.noCosts' | transloco }}</p>
+      </section>
+    } @else {
+      <div class="grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,18rem)_minmax(0,1fr)_minmax(0,22rem)]">
+        <!-- ── Product ──────────────────────────────────────── -->
+        <section hlmCard class="min-w-0 gap-0 py-0">
+          <h2 class="border-b px-5 py-3 font-semibold">{{ 'co.productInfo.title' | transloco }}</h2>
+          <div class="flex flex-col gap-4 p-5">
+            <div class="bg-muted text-muted-foreground flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg">
+              @if (s?.imageUrl) {
+                <img [appAuthSrc]="s!.imageUrl" [alt]="s!.styleName" class="size-full object-cover" />
+              } @else {
+                <ng-icon name="lucideImage" class="text-3xl opacity-50" />
+              }
+            </div>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+              <dt class="text-muted-foreground">{{ 'co.productInfo.client' | transloco }}</dt>
+              <dd class="truncate">{{ header()?.customer || '—' }}</dd>
+              <dt class="text-muted-foreground">{{ 'co.productInfo.sbu' | transloco }}</dt>
+              <dd class="truncate">{{ s?.factoryName || '—' }}</dd>
+              <dt class="text-muted-foreground">{{ 'co.productInfo.season' | transloco }}</dt>
+              <dd class="truncate">{{ header()?.season || '—' }}</dd>
+              <dt class="text-muted-foreground">{{ 'co.step2.colStyle' | transloco }}</dt>
+              <dd class="truncate font-mono text-xs leading-5">{{ s?.styleId || qid() }}</dd>
+            </dl>
+            <dl class="grid grid-cols-2 gap-2 text-center">
+              <div class="bg-muted/50 rounded-lg px-2 py-2">
+                <dt class="text-muted-foreground text-xs">{{ 'co.step2.colCurrentFob' | transloco }}</dt>
+                <dd class="text-lg font-semibold tabular-nums">${{ currentFob() | number: '1.2-2' }}</dd>
+              </div>
+              <div class="bg-muted/50 rounded-lg px-2 py-2">
+                <dt class="text-muted-foreground text-xs">{{ 'co.step2.colTargetFob' | transloco }}</dt>
+                <dd class="text-lg font-semibold tabular-nums">{{ targetFob() ? '$' + (targetFob() | number: '1.2-2') : '—' }}</dd>
+              </div>
+            </dl>
+            @if (targetFob()) {
+              <p class="text-sm" [class]="gapToTarget() > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'">
+                {{ gapToTarget() > 0 ? ('co.aboveTarget' | transloco: { amount: (gapToTarget() | number: '1.2-2') }) : ('co.productInfo.atOrBelowTarget' | transloco) }}
+              </p>
+            }
+          </div>
+        </section>
+
+        <!-- ── Simulator ────────────────────────────────────── -->
+        <section hlmCard class="min-w-0 gap-0 py-0 lg:row-span-2 xl:row-span-1">
+          <h2 class="border-b px-5 py-3 font-semibold">{{ 'co.simulator.title' | transloco }}</h2>
+          <div class="flex flex-col gap-4 p-5">
+            <div class="text-muted-foreground grid grid-cols-[5rem_minmax(0,1fr)_4.5rem_4.5rem] gap-3 text-xs font-medium tracking-wide uppercase">
+              <span></span>
+              <span class="flex flex-wrap items-center gap-x-3 normal-case" aria-hidden="true">
+                <span class="flex items-center gap-1"><span class="bg-muted-foreground/40 h-2 w-3 rounded-full"></span><span class="hidden sm:inline">{{ 'co.current' | transloco }}</span></span>
+                <span class="flex items-center gap-1"><span class="bg-primary h-2 w-3 rounded-full"></span><span class="hidden sm:inline">{{ 'co.optimized' | transloco }}</span></span>
+              </span>
+              <span class="text-right">{{ 'co.current' | transloco }}</span>
+              <span class="text-right">{{ 'co.optimized' | transloco }}</span>
+            </div>
+            <ul class="flex flex-col gap-3" role="list">
+              @for (line of lines(); track line.label) {
+                <li class="grid grid-cols-[5rem_minmax(0,1fr)_4.5rem_4.5rem] items-center gap-3 text-sm">
+                  <span>{{ 'co.cost.' + line.label.toLowerCase() | transloco }}</span>
+                  <span class="flex flex-col gap-1" aria-hidden="true">
+                    <span class="bg-muted-foreground/30 h-2 rounded-full" [style.width.%]="line.currentPct"></span>
+                    <span class="bg-primary h-2 rounded-full transition-[width]" [style.width.%]="line.optimizedPct"></span>
+                  </span>
+                  <span class="text-right tabular-nums">${{ line.current | number: '1.2-2' }}</span>
+                  <span class="text-right font-medium tabular-nums" [class]="line.optimized < line.current ? 'text-emerald-600 dark:text-emerald-400' : ''">
+                    ${{ line.optimized | number: '1.2-2' }}
+                  </span>
+                </li>
+              }
+              <li class="grid grid-cols-[5rem_minmax(0,1fr)_4.5rem_4.5rem] items-center gap-3 border-t pt-3 text-sm font-semibold">
+                <span>{{ 'co.simulator.totalFob' | transloco }}</span>
+                <span></span>
+                <span class="text-right tabular-nums">${{ currentFob() | number: '1.2-2' }}</span>
+                <span class="text-right tabular-nums" [class]="appliedSavings() > 0 ? 'text-emerald-600 dark:text-emerald-400' : ''">
+                  ${{ projectedFob() | number: '1.2-2' }}
+                </span>
+              </li>
+            </ul>
+            <dl class="grid grid-cols-3 gap-2 text-center">
+              <div class="bg-muted/50 rounded-lg px-2 py-2">
+                <dt class="text-muted-foreground text-xs">{{ 'co.dialog.totalSaving' | transloco }}</dt>
+                <dd class="font-semibold text-emerald-600 tabular-nums dark:text-emerald-400">−${{ appliedSavings() | number: '1.2-2' }}</dd>
+              </div>
+              <div class="bg-muted/50 rounded-lg px-2 py-2">
+                <dt class="text-muted-foreground text-xs">{{ 'co.reduction' | transloco }}</dt>
+                <dd class="font-semibold tabular-nums">{{ reductionPct() }}%</dd>
+              </div>
+              <div class="bg-muted/50 rounded-lg px-2 py-2">
+                <dt class="text-muted-foreground text-xs">{{ 'co.vsTarget' | transloco }}</dt>
+                <dd class="font-semibold tabular-nums" [class]="projectedGap() > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'">
+                  @if (targetFob()) {
+                    {{ projectedGap() > 0 ? '+' : '' }}{{ projectedGap() | number: '1.2-2' }}
+                  } @else {
+                    —
+                  }
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+
+        <!-- ── AI ideas + review ────────────────────────────── -->
+        <section hlmCard class="min-w-0 gap-0 py-0" [attr.aria-busy]="generating() || persisting()">
+          <h2 class="flex items-center gap-2 border-b px-5 py-3 font-semibold">
+            <ng-icon name="lucideSparkles" class="text-primary" />{{ 'co.ai.title' | transloco }}
+          </h2>
+          <div class="flex flex-col gap-3 p-5">
+            @if (isDraft()) {
+              <button hlmBtn [variant]="suggestions().length ? 'outline' : 'default'" type="button" class="h-11 w-full" [disabled]="generating() || persisting()" (click)="generate()">
+                @if (generating() || persisting()) {
+                  <hlm-spinner />{{ 'co.ai.generating' | transloco }}
+                } @else {
+                  <ng-icon name="lucideSparkles" />{{ (suggestions().length ? 'co.ai.regenerate' : 'co.ai.generate') | transloco }}
+                }
+              </button>
+              @if (suggestions().length) {
+                <p class="text-muted-foreground text-xs">{{ 'co.pickHint' | transloco }}</p>
+              }
+            }
+
+            <ul class="flex flex-col gap-2" role="list">
+              @for (sg of suggestions(); track sg.id) {
+                <li>
+                  <button
+                    type="button"
+                    class="flex w-full gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-default"
+                    [class]="sg.applied ? 'border-primary bg-primary/5' : 'hover:bg-accent/50'"
+                    [attr.aria-pressed]="sg.applied"
+                    [disabled]="!isDraft() || persisting()"
+                    (click)="toggle(sg)"
+                  >
+                    <span
+                      class="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border"
+                      [class]="sg.applied ? 'border-primary bg-primary text-primary-foreground' : 'border-input'"
+                      aria-hidden="true"
+                    >
+                      @if (sg.applied) {
+                        <ng-icon name="lucideCheck" class="text-xs" />
+                      }
+                    </span>
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-sm font-medium">{{ sg.title }}</span>
+                      @if (sg.detail) {
+                        <span class="text-muted-foreground mt-0.5 block text-xs">{{ sg.detail }}</span>
+                      }
+                      <span class="mt-1.5 flex flex-wrap items-center gap-x-2 text-xs tabular-nums">
+                        <span hlmBadge variant="secondary">{{ 'co.cost.' + sg.category.toLowerCase() | transloco }}</span>
+                        <span class="text-muted-foreground">${{ sg.fromPrice | number: '1.2-2' }} → ${{ sg.toPrice | number: '1.2-2' }}</span>
+                        <span class="font-semibold text-emerald-600 dark:text-emerald-400">−${{ sg.saving | number: '1.2-2' }}</span>
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              } @empty {
+                @if (!generating() && !persisting()) {
+                  <li class="text-muted-foreground py-6 text-center text-sm">{{ (isDraft() ? 'co.noIdeas' : 'co.noIdeasSent') | transloco }}</li>
+                }
+              }
+            </ul>
+
+            @if (isDraft() && suggestions().length) {
+              <div class="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" [disabled]="persisting() || suggestions().every((x) => x.applied)" (click)="applyAll()">
+                  {{ 'co.applyAll' | transloco }}
+                </button>
+                <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="!appliedSavings() || persisting()" (click)="openReview()">
+                  <ng-icon name="lucideSend" />{{ 'co.ai.sendForReview' | transloco }}
+                </button>
+              </div>
+            }
+
+            @if (session(); as ss) {
+              @if (ss.status === 'under_review' || ss.reviewStatus === 'pending') {
+                <div class="flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm" role="status">
+                  <ng-icon name="lucideClock" class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div class="min-w-0 flex-1">
+                    <p class="font-medium">{{ 'co.ai.reviewPending' | transloco }}</p>
+                    <p class="text-muted-foreground">{{ 'co.ai.reviewPendingMsg' | transloco: { name: ss.sentToName } }}</p>
+                    <button hlmBtn variant="outline" type="button" class="mt-2 h-11 lg:h-8" [disabled]="recalling()" [attr.aria-label]="'co.ai.recallAriaLabel' | transloco" (click)="recall()">
+                      @if (recalling()) {
+                        <hlm-spinner />{{ 'co.ai.recalling' | transloco }}
+                      } @else {
+                        <ng-icon name="lucideUndo2" />{{ 'co.ai.recall' | transloco }}
+                      }
+                    </button>
+                  </div>
+                </div>
+              } @else if (ss.status === 'accepted') {
+                <div class="flex gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm" role="status">
+                  <ng-icon name="lucideCheck" class="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <div>
+                    <p class="font-medium">{{ 'co.ai.reviewApproved' | transloco }}</p>
+                    @if (ss.reviewerComment) {
+                      <p class="text-muted-foreground">{{ ss.reviewerComment }}</p>
+                    }
+                  </div>
+                </div>
+              } @else if (ss.status === 'rejected') {
+                <div class="flex gap-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm" role="status">
+                  <ng-icon name="lucideCircleAlert" class="mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
+                  <div>
+                    <p class="font-medium">{{ 'co.ai.reviewRejected' | transloco }}</p>
+                    @if (ss.reviewerComment) {
+                      <p class="text-muted-foreground">{{ ss.reviewerComment }}</p>
+                    }
+                    <p class="text-muted-foreground mt-1 text-xs">{{ 'co.rejectedNoRevise' | transloco }}</p>
+                  </div>
+                </div>
+              }
+            }
+          </div>
+        </section>
+      </div>
+    }
+  </section>
+}
+
+<!-- ── Send for review ────────────────────────────────────── -->
+<app-modal [open]="reviewOpen()" [heading]="'co.dialog.title' | transloco" size="lg" (closed)="reviewOpen.set(false)">
+  <div class="flex flex-col gap-4">
+    <dl class="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+      @for (f of [
+        { label: 'co.dialog.currentFob', value: currentFob(), cls: '' },
+        { label: 'co.dialog.totalSaving', value: -appliedSavings(), cls: 'text-emerald-600 dark:text-emerald-400' },
+        { label: 'co.dialog.projectedFob', value: projectedFob(), cls: '' },
+        { label: 'co.dialog.targetFob', value: targetFob(), cls: '' }
+      ]; track f.label) {
+        <div class="bg-muted/50 rounded-lg px-2 py-2">
+          <dt class="text-muted-foreground text-xs">{{ f.label | transloco }}</dt>
+          <dd class="font-semibold tabular-nums" [class]="f.cls">{{ f.value < 0 ? '−$' + (-f.value | number: '1.2-2') : '$' + (f.value | number: '1.2-2') }}</dd>
+        </div>
+      }
+    </dl>
+
+    <div>
+      <h3 class="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">{{ 'co.dialog.appliedSuggestions' | transloco }}</h3>
+      <dl class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 text-sm">
+        @for (sg of suggestions(); track sg.id) {
+          @if (sg.applied) {
+            <dt class="truncate">{{ sg.title }}</dt>
+            <dd class="text-right text-emerald-600 tabular-nums dark:text-emerald-400">−${{ sg.saving | number: '1.2-2' }}</dd>
+          }
+        }
+      </dl>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-sm font-medium" id="co-factory-label">{{ 'co.dialog.selectFactory' | transloco }}</span>
+        <span class="text-muted-foreground text-xs">{{ factoryMatches() }} {{ 'co.dialog.factoriesFound' | transloco }}</span>
+      </div>
+      <div class="relative">
+        <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+        <input
+          hlmInput
+          type="search"
+          class="h-11 w-full pl-9 lg:h-9"
+          [attr.aria-label]="'co.dialog.searchFactory' | transloco"
+          [placeholder]="'co.dialog.searchFactory' | transloco"
+          [value]="factorySearch()"
+          (input)="factorySearch.set($any($event.target).value)"
+        />
+      </div>
+      <ul class="max-h-64 divide-y overflow-y-auto rounded-md border" role="radiogroup" aria-labelledby="co-factory-label">
+        @for (f of visibleFactories(); track f.id) {
+          @let chosen = chosenFactory()?.id === f.id;
+          <li class="flex items-center gap-2 pr-1" [class]="chosen ? 'bg-primary/5' : ''">
+            <button type="button" role="radio" class="flex min-h-11 min-w-0 flex-1 items-center gap-3 px-3 py-1.5 text-left" [attr.aria-checked]="chosen" (click)="chosenFactory.set(chosen ? null : f)">
+              <span class="flex size-4 shrink-0 items-center justify-center rounded-full border" [class]="chosen ? 'border-primary' : 'border-input'" aria-hidden="true">
+                @if (chosen) {
+                  <span class="bg-primary size-2 rounded-full"></span>
+                }
+              </span>
+              <span class="min-w-0">
+                <span class="block truncate text-sm">{{ f.name }}</span>
+                <span class="text-muted-foreground block font-mono text-xs">{{ f.id }}</span>
+              </span>
+            </button>
+            <button
+              hlmBtn
+              variant="ghost"
+              size="icon"
+              type="button"
+              class="size-11 shrink-0 lg:size-8"
+              [class.text-primary]="favorites().has(f.id)"
+              [attr.aria-pressed]="favorites().has(f.id)"
+              [attr.aria-label]="('co.pinFactory' | transloco) + ' ' + f.name"
+              [title]="'co.pinFactory' | transloco"
+              (click)="toggleFavorite(f.id)"
+            >
+              <ng-icon name="lucidePin" [class.opacity-40]="!favorites().has(f.id)" />
+            </button>
+          </li>
+        } @empty {
+          <li class="text-muted-foreground px-3 py-6 text-center text-sm">
+            {{ factories().length ? ('co.dialog.noFactoriesMatch' | transloco: { query: factorySearch() }) : ('co.dialog.loadingFactories' | transloco) }}
+          </li>
+        }
+      </ul>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label hlmLabel for="co-notes">{{ 'co.dialog.notes' | transloco }}</label>
+      <textarea
+        hlmInput
+        id="co-notes"
+        rows="3"
+        maxlength="1000"
+        class="min-h-20 py-2"
+        [placeholder]="'co.dialog.notesPlaceholder' | transloco"
+        [value]="reviewNotes()"
+        (input)="reviewNotes.set($any($event.target).value)"
+      ></textarea>
+    </div>
+  </div>
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="submitting()" (click)="reviewOpen.set(false)">{{ 'actions.cancel' | transloco }}</button>
+    <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="submitting() || !chosenFactory()" (click)="submitReview()">
+      @if (submitting()) {
+        <hlm-spinner />{{ 'co.dialog.submitting' | transloco }}
+      } @else {
+        <ng-icon name="lucideSend" />{{ 'co.dialog.submit' | transloco }}
+      }
+    </button>
+  </ng-container>
+</app-modal>

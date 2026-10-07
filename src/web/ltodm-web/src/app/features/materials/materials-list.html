@@ -1,0 +1,156 @@
+<section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
+  <header>
+    <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+      {{ 'materials.title' | transloco }}
+      @if (total()) {
+        <span hlmBadge variant="secondary">{{ total() | number }}</span>
+      }
+    </h1>
+    <p class="text-muted-foreground mt-1 text-sm">{{ 'materials.subtitle' | transloco }}</p>
+  </header>
+
+  <div class="bg-muted flex w-full flex-wrap rounded-lg p-1 sm:w-fit" role="tablist" [attr.aria-label]="'materials.viewsLabel' | transloco">
+    @for (v of views; track v) {
+      <button
+        type="button"
+        role="tab"
+        class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium sm:flex-initial"
+        [class]="view() === v ? 'bg-background shadow-sm' : 'text-muted-foreground'"
+        [attr.aria-selected]="view() === v"
+        (click)="setView(v)"
+      >
+        {{ 'materials.view.' + v | transloco }}
+      </button>
+    }
+  </div>
+
+  @if (view() === 'reader') {
+    <app-material-reader [lookups]="lookups()" />
+  } @else if (view() !== 'all') {
+    <app-material-insights [lookups]="lookups()" />
+  } @else {
+  @let f = filter();
+  @let l = lookups();
+  <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div class="relative w-full lg:max-w-md">
+        <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+        <input
+          hlmInput
+          type="search"
+          class="h-11 w-full pl-9 lg:h-9"
+          [attr.aria-label]="'materials.searchLabel' | transloco"
+          [placeholder]="'materials.searchPlaceholder' | transloco"
+          [value]="f.search"
+          (input)="onSearch($event)"
+        />
+      </div>
+      <div class="bg-muted flex w-full rounded-lg p-1 sm:w-fit" role="group" [attr.aria-label]="'materials.sortLabel' | transloco">
+        @for (s of [{ id: '', label: 'materials.sortUsed' }, { id: 'code', label: 'materials.sortCode' }]; track s.id) {
+          <button
+            type="button"
+            class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium sm:flex-initial"
+            [class]="f.sort === s.id ? 'bg-background shadow-sm' : 'text-muted-foreground'"
+            [attr.aria-pressed]="f.sort === s.id"
+            (click)="setFilter('sort', s.id)"
+          >
+            {{ s.label | transloco }}
+          </button>
+        }
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-center">
+      @for (sel of [
+        { key: 'contentClass', label: 'materials.allContentClasses', items: l?.contentClasses ?? [] },
+        { key: 'materialType', label: 'materials.allMaterialTypes', items: l?.materialTypes ?? [] },
+        { key: 'supplier', label: 'materials.allSuppliers', items: l?.suppliers ?? [] },
+        { key: 'customer', label: 'styles.allCustomers', items: l?.customers ?? [] },
+        { key: 'season', label: 'styles.allSeasons', items: l?.seasons ?? [] }
+      ]; track sel.key) {
+        <hlm-native-select
+          [selectId]="'mat-filter-' + sel.key"
+          selectClass="h-11 w-full lg:h-9 lg:w-44"
+          [attr.aria-label]="sel.label | transloco"
+          [value]="filterValue(sel.key)"
+          (valueChange)="setFilter($any(sel.key), $event ?? '')"
+        >
+          <option hlmNativeSelectOption value="">{{ sel.label | transloco }}</option>
+          @for (o of sel.items; track o.code) {
+            <option hlmNativeSelectOption [value]="o.code">{{ o.code === o.name ? o.code : o.name }}</option>
+          }
+        </hlm-native-select>
+      }
+      @if (activeFilters() || f.search) {
+        <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" (click)="clearFilters()"><ng-icon name="lucideX" />{{ 'styles.clear' | transloco }}</button>
+      }
+    </div>
+    @if (scoped()) {
+      <p class="text-muted-foreground text-xs">{{ 'materials.scopedHint' | transloco }}</p>
+    }
+  </div>
+
+  <section hlmCard class="gap-0 py-0">
+    @if (loading() && !items().length) {
+      <div class="flex flex-col gap-3 p-5">
+        @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+          <div hlmSkeleton class="h-14 w-full"></div>
+        }
+      </div>
+    } @else if (!items().length) {
+      <div class="flex flex-col items-center gap-2 px-5 py-14 text-center">
+        <ng-icon name="lucideListTree" class="text-muted-foreground text-4xl" />
+        <p class="font-medium">{{ 'materials.noMatch' | transloco }}</p>
+      </div>
+    } @else {
+      <div class="text-muted-foreground hidden grid-cols-[minmax(0,1.6fr)_minmax(0,9rem)_minmax(0,4rem)_minmax(0,4rem)_minmax(0,4rem)_minmax(0,1fr)_minmax(0,5.5rem)] gap-4 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase lg:grid">
+        <span>{{ 'materials.colMaterial' | transloco }}</span>
+        <span>{{ 'materials.colType' | transloco }}</span>
+        <span class="text-right">{{ 'materials.colStyles' | transloco }}</span>
+        <span class="text-right">{{ 'materials.colLines' | transloco }}</span>
+        <span class="text-right">{{ 'materials.colSeasons' | transloco }}</span>
+        <span>{{ 'materials.colSupplier' | transloco }}</span>
+        <span>{{ 'materials.colLatest' | transloco }}</span>
+      </div>
+      <ul class="divide-y" role="list">
+        @for (m of items(); track m.materialId) {
+          <li>
+            <a
+              [routerLink]="['/materials', m.materialId]"
+              class="hover:bg-accent/40 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-0.5 px-5 py-3 transition-colors lg:grid-cols-[minmax(0,1.6fr)_minmax(0,9rem)_minmax(0,4rem)_minmax(0,4rem)_minmax(0,4rem)_minmax(0,1fr)_minmax(0,5.5rem)]"
+            >
+              <span class="min-w-0">
+                <span class="block truncate font-mono text-sm font-medium">{{ m.materialCode }}</span>
+                <span class="text-muted-foreground block truncate text-xs" [title]="m.description ?? ''">{{ m.description || '—' }}</span>
+              </span>
+              <span class="text-muted-foreground text-right text-xs lg:hidden">
+                {{ 'materials.rowStyles' | transloco: { count: m.styles } }}
+              </span>
+              <span class="hidden min-w-0 text-sm lg:block">
+                <span class="block truncate">{{ m.contentClassName || m.contentClassCode || '—' }}</span>
+                <span class="text-muted-foreground block truncate text-xs">{{ m.materialTypeName || m.materialTypeCode }}</span>
+              </span>
+              <span class="hidden text-right text-sm font-medium tabular-nums lg:block">{{ m.styles | number }}</span>
+              <span class="hidden text-right text-sm tabular-nums lg:block">{{ m.lines | number }}</span>
+              <span class="hidden text-right text-sm tabular-nums lg:block">{{ m.seasons }}</span>
+              <span class="hidden min-w-0 text-sm lg:block">
+                <span class="block truncate">{{ m.topSupplierName || '—' }}</span>
+                @if (m.suppliers > 1) {
+                  <span class="text-muted-foreground block text-xs">{{ 'materials.moreSuppliers' | transloco: { count: m.suppliers - 1 } }}</span>
+                }
+              </span>
+              <span class="text-muted-foreground hidden text-sm lg:block">{{ m.latestSeason }}</span>
+            </a>
+          </li>
+        }
+      </ul>
+      @if (items().length < total()) {
+        <div class="border-t px-5 py-3 text-center">
+          <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" [disabled]="loading()" (click)="load(true)">
+            {{ 'styles.showMore' | transloco: { shown: (items().length | number), total: (total() | number) } }}
+          </button>
+        </div>
+      }
+    }
+  </section>
+  }
+</section>

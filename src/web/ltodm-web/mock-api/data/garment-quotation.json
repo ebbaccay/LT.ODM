@@ -1,0 +1,768 @@
+{
+ "web_rd_gq_dashboard_summary": [
+  {
+   "columns": [
+    "status",
+    "cnt"
+   ],
+   "rows": [
+    [
+     "new",
+     14
+    ],
+    [
+     "sent_to_factory",
+     22
+    ],
+    [
+     "factory_submitted",
+     9
+    ],
+    [
+     "for_revision",
+     4
+    ],
+    [
+     "approved",
+     31
+    ],
+    [
+     "rejected",
+     6
+    ]
+   ]
+  },
+  {
+   "columns": [
+    "qid",
+    "pack_name",
+    "style_id",
+    "customer_id",
+    "season_id",
+    "factory_id",
+    "factory_name",
+    "status",
+    "fob_price",
+    "price_type",
+    "updated_at",
+    "days_old",
+    "action_kind"
+   ],
+   "rows": [
+    [
+     "Q-1042",
+     "SS27 Denim Pack",
+     "DNM-2201",
+     "ADIDAS",
+     "SS27",
+     "F001",
+     "Guangzhou Apex Garments",
+     "new",
+     null,
+     null,
+     "2026-10-05T07:37:53.138Z",
+     0,
+     "for_quotation"
+    ],
+    [
+     "Q-1043",
+     "SS27 Denim Pack",
+     "DNM-2202",
+     "ADIDAS",
+     "SS27",
+     "F001",
+     "Guangzhou Apex Garments",
+     "new",
+     null,
+     null,
+     "2026-10-04T07:37:53.138Z",
+     1,
+     "for_quotation"
+    ],
+    [
+     "Q-1031",
+     "FW26 Outerwear",
+     "OTW-1180",
+     "PUMA",
+     "FW26",
+     "F002",
+     "Shanghai Star Textiles",
+     "factory_submitted",
+     "18.40",
+     "FOB",
+     "2026-10-03T07:37:53.138Z",
+     2,
+     "review"
+    ],
+    [
+     "Q-1029",
+     "FW26 Outerwear",
+     "OTW-1177",
+     "PUMA",
+     "FW26",
+     "F003",
+     "Dongguan PinPoint",
+     "factory_submitted",
+     "22.15",
+     "FOB",
+     "2026-10-04T07:37:53.138Z",
+     1,
+     "review"
+    ],
+    [
+     "Q-1012",
+     "SS27 Knit Tops",
+     "KNT-3301",
+     "UNIQLO",
+     "SS27",
+     "F004",
+     "Foshan Elite Fashion",
+     "sent_to_factory",
+     null,
+     null,
+     "2026-09-29T07:37:53.138Z",
+     6,
+     "stale"
+    ],
+    [
+     "Q-1020",
+     "SS27 Knit Tops",
+     "KNT-3305",
+     "UNIQLO",
+     "SS27",
+     "F002",
+     "Shanghai Star Textiles",
+     "sent_to_factory",
+     null,
+     null,
+     "2026-10-03T07:37:53.138Z",
+     2,
+     "tms_sent"
+    ],
+    [
+     "Q-0999",
+     "FW26 Fleece",
+     "FLC-0901",
+     "PUMA",
+     "FW26",
+     "F001",
+     "Guangzhou Apex Garments",
+     "approved",
+     "12.80",
+     "FOB",
+     "2026-10-02T07:37:53.138Z",
+     3,
+     "tms_approved"
+    ]
+   ]
+  },
+  {
+   "columns": [
+    "total_active",
+    "approved_count",
+    "rejected_count",
+    "win_rate_pct",
+    "avg_submit_days",
+    "approved_value_mtd"
+   ],
+   "rows": [
+    [
+     49,
+     31,
+     6,
+     83.8,
+     3.4,
+     412560
+    ]
+   ]
+  },
+  {
+   "columns": [
+    "history_id",
+    "qid",
+    "pack_name",
+    "style_id",
+    "factory_id",
+    "factory_name",
+    "status",
+    "changed_by",
+    "changed_at"
+   ],
+   "rows": [
+    [
+     5501,
+     "Q-1031",
+     "FW26 Outerwear",
+     "OTW-1180",
+     "F002",
+     "Shanghai Star Textiles",
+     "factory_submitted",
+     "fty.shanghai",
+     "2026-10-05T05:13:53.138Z"
+    ],
+    [
+     5500,
+     "Q-0999",
+     "FW26 Fleece",
+     "FLC-0901",
+     "F001",
+     "Guangzhou Apex Garments",
+     "approved",
+     "jdoe",
+     "2026-10-04T22:01:53.138Z"
+    ],
+    [
+     5498,
+     "Q-1029",
+     "FW26 Outerwear",
+     "OTW-1177",
+     "F003",
+     "Dongguan PinPoint",
+     "factory_submitted",
+     "fty.dongguan",
+     "2026-10-04T07:37:53.138Z"
+    ],
+    [
+     5490,
+     "Q-1007",
+     "SS27 Knit Tops",
+     "KNT-3299",
+     "F004",
+     "Foshan Elite Fashion",
+     "rejected",
+     "jdoe",
+     "2026-10-03T19:37:53.138Z"
+    ],
+    [
+     5487,
+     "Q-1005",
+     "SS27 Denim Pack",
+     "DNM-2190",
+     "F001",
+     "Guangzhou Apex Garments",
+     "for_revision",
+     "jdoe",
+     "2026-10-03T07:37:53.138Z"
+    ]
+   ]
+  },
+  {
+   "columns": [
+    "season_id"
+   ],
+   "rows": [
+    [
+     "SS27"
+    ],
+    [
+     "FW26"
+    ],
+    [
+     "SS26"
+    ]
+   ]
+  }
+ ],
+ "web_rd_product_package": [
+  {
+   "columns": [
+    "pack_name"
+   ],
+   "rows": [
+    [
+     "SS27 Denim Pack"
+    ],
+    [
+     "FW26 Outerwear"
+    ]
+   ]
+  }
+ ],
+ "web_rd_package_styles": [
+  {
+   "columns": [
+    "customer_id",
+    "style_id",
+    "season_id",
+    "prodcat_id",
+    "model_name",
+    "composition",
+    "curr_id",
+    "rate_in_usd",
+    "style_image"
+   ],
+   "rows": [
+    [
+     "ADIDAS",
+     "DNM-2201",
+     "SS27",
+     "JEANS",
+     "Relaxed Taper Jean",
+     "98% Cotton 2% Elastane",
+     "RMB",
+     7.18,
+     ""
+    ],
+    [
+     "ADIDAS",
+     "DNM-2202",
+     "SS27",
+     "JACKET",
+     "Trucker Denim Jacket",
+     "100% Cotton",
+     "RMB",
+     7.18,
+     ""
+    ],
+    [
+     "ADIDAS",
+     "DNM-2205",
+     "SS27",
+     "SHORTS",
+     "Carpenter Short",
+     "100% Cotton",
+     "RMB",
+     7.18,
+     ""
+    ],
+    [
+     "ADIDAS",
+     "DNM-2210",
+     "SS27",
+     "SKIRT",
+     "A-Line Denim Skirt",
+     "99% Cotton 1% Elastane",
+     "RMB",
+     7.18,
+     ""
+    ]
+   ]
+  }
+ ],
+ "web_rd_package_style_bom_quote": [
+  {
+   "columns": [
+    "mat_class",
+    "material",
+    "part_desc",
+    "consump",
+    "consump_uom",
+    "wastage_pct",
+    "curr_id",
+    "price"
+   ],
+   "rows": [
+    [
+     "FABRICS",
+     "FB-10021",
+     "12oz Indigo Denim, 147cm",
+     "1.45",
+     "MTR",
+     "3",
+     "RMB",
+     "32.50"
+    ],
+    [
+     "FABRICS",
+     "FB-20400",
+     "Pocketing 100% Cotton",
+     "0.30",
+     "MTR",
+     "2",
+     "RMB",
+     "8.20"
+    ],
+    [
+     "TRIMS",
+     "TR-5501",
+     "Shank Button 17mm Antique Brass",
+     "1",
+     "PCS",
+     "1",
+     "RMB",
+     "0.85"
+    ],
+    [
+     "TRIMS",
+     "TR-6620",
+     "YKK Metal Zip #4.5, 18cm",
+     "1",
+     "PCS",
+     "1",
+     "RMB",
+     "2.40"
+    ],
+    [
+     "TRIMS",
+     "TR-7001",
+     "Rivets Copper 8mm",
+     "6",
+     "PCS",
+     "1",
+     "RMB",
+     "0.12"
+    ],
+    [
+     "LABELS",
+     "LB-0101",
+     "Main Woven Label",
+     "1",
+     "PCS",
+     "0",
+     "RMB",
+     "0.45"
+    ],
+    [
+     "PACKAGING",
+     "PK-0300",
+     "Polybag 30x40cm",
+     "1",
+     "PCS",
+     "0",
+     "RMB",
+     "0.20"
+    ]
+   ]
+  }
+ ],
+ "web_rd_get_uom_list": [
+  {
+   "columns": [
+    "UOM_ID",
+    "UOM_DESC"
+   ],
+   "rows": [
+    [
+     "PCS",
+     "Pieces"
+    ],
+    [
+     "MTR",
+     "Meters"
+    ],
+    [
+     "YDS",
+     "Yards"
+    ],
+    [
+     "KGS",
+     "Kilograms"
+    ],
+    [
+     "SET",
+     "Set"
+    ],
+    [
+     "DZ",
+     "Dozen"
+    ]
+   ]
+  }
+ ],
+ "web_rd_get_factory_list": [
+  {
+   "columns": [
+    "Partner_ID",
+    "Full_name"
+   ],
+   "rows": [
+    [
+     "F001",
+     "Guangzhou Apex Garments Co."
+    ],
+    [
+     "F002",
+     "Shanghai Star Textiles Ltd."
+    ],
+    [
+     "F003",
+     "Dongguan PinPoint Manufacturing"
+    ],
+    [
+     "F004",
+     "Foshan Elite Fashion Ltd."
+    ],
+    [
+     "F005",
+     "Ningbo Bluewave Apparel"
+    ],
+    [
+     "F006",
+     "Ho Chi Minh Textile JSC"
+    ]
+   ]
+  }
+ ],
+ "web_rd_gq_load_style_pricing": [
+  {
+   "columns": [
+    "style_id",
+    "tms_fob",
+    "costing_curr"
+   ],
+   "rows": [
+    [
+     "DNM-2201",
+     "18.50",
+     "USD"
+    ],
+    [
+     "DNM-2202",
+     "24.00",
+     "USD"
+    ]
+   ]
+  }
+ ],
+ "web_rd_gq_load_bom_draft": [
+  {
+   "columns": [
+    "style_id",
+    "bom_json"
+   ],
+   "rows": []
+  }
+ ],
+ "web_rd_gq_quotations": [
+  {
+   "columns": [
+    "qid",
+    "pack_name",
+    "style_id",
+    "factory_id",
+    "factory_name",
+    "status",
+    "bom_json",
+    "cmt_json",
+    "smv",
+    "smv_rate",
+    "factory_remarks",
+    "fc_qty",
+    "ttl_production",
+    "gross_margin_pct",
+    "adjustment",
+    "fob_price",
+    "revised_factory_fob",
+    "tms_comments",
+    "price_type",
+    "fty_rate_usd",
+    "reject_reason",
+    "sent_at"
+   ],
+   "rows": [
+    [
+     "Q-1",
+     "SS27 Denim Pack",
+     "DNM-2201",
+     "F001",
+     "Guangzhou Apex Garments Co.",
+     "factory_submitted",
+     "",
+     "[{\"key\":\"cut_make_pack\",\"label\":\"Cut / Make / Pack\",\"value\":\"28.50\",\"description\":\"Includes 2 needle topstitch\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"transportation\",\"label\":\"Transportation\",\"value\":\"1.20\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"print\",\"label\":\"Print\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"embroidery\",\"label\":\"Embroidery\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"gmt_wash\",\"label\":\"Gmt Wash\",\"value\":\"6.80\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"misc_charges\",\"label\":\"Misc Charges\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"testing_inspection\",\"label\":\"Testing / Inspection Fee\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false}]",
+     "22.5",
+     "1.25",
+     "Can switch to recycled pocketing at no extra cost.",
+     "3000",
+     "",
+     "12",
+     "",
+     "",
+     "",
+     "",
+     "FOB",
+     "7.15",
+     "",
+     "Oct 01, 09:30 AM"
+    ],
+    [
+     "Q-2",
+     "SS27 Denim Pack",
+     "DNM-2201",
+     "F002",
+     "Shanghai Star Textiles Ltd.",
+     "factory_submitted",
+     "",
+     "[{\"key\":\"cut_make_pack\",\"label\":\"Cut / Make / Pack\",\"value\":\"31.00\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"transportation\",\"label\":\"Transportation\",\"value\":\"0.90\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"print\",\"label\":\"Print\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"embroidery\",\"label\":\"Embroidery\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"gmt_wash\",\"label\":\"Gmt Wash\",\"value\":\"7.40\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"misc_charges\",\"label\":\"Misc Charges\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"testing_inspection\",\"label\":\"Testing / Inspection Fee\",\"value\":\"0.60\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false}]",
+     "24",
+     "1.30",
+     "",
+     "3000",
+     "",
+     "10",
+     "",
+     "",
+     "",
+     "",
+     "FOB",
+     "",
+     "",
+     "Oct 01, 10:05 AM"
+    ],
+    [
+     "Q-3",
+     "SS27 Denim Pack",
+     "DNM-2201",
+     "F004",
+     "Foshan Elite Fashion Ltd.",
+     "sent_to_factory",
+     "",
+     "[{\"key\":\"cut_make_pack\",\"label\":\"Cut / Make / Pack\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"transportation\",\"label\":\"Transportation\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"print\",\"label\":\"Print\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"embroidery\",\"label\":\"Embroidery\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"gmt_wash\",\"label\":\"Gmt Wash\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"misc_charges\",\"label\":\"Misc Charges\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"testing_inspection\",\"label\":\"Testing / Inspection Fee\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false}]",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "",
+     "FOB",
+     "",
+     "",
+     "Oct 02, 02:10 PM"
+    ],
+    [
+     "Q-4",
+     "SS27 Denim Pack",
+     "DNM-2202",
+     "F001",
+     "Guangzhou Apex Garments Co.",
+     "approved",
+     "",
+     "[{\"key\":\"cut_make_pack\",\"label\":\"Cut / Make / Pack\",\"value\":\"42.00\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"transportation\",\"label\":\"Transportation\",\"value\":\"1.50\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"print\",\"label\":\"Print\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"embroidery\",\"label\":\"Embroidery\",\"value\":\"3.20\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"gmt_wash\",\"label\":\"Gmt Wash\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"misc_charges\",\"label\":\"Misc Charges\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"testing_inspection\",\"label\":\"Testing / Inspection Fee\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false}]",
+     "31",
+     "1.35",
+     "",
+     "1500",
+     "",
+     "15",
+     "",
+     "",
+     "",
+     "",
+     "FOB",
+     "",
+     "",
+     "Sep 28, 11:00 AM"
+    ],
+    [
+     "Q-5",
+     "SS27 Denim Pack",
+     "DNM-2205",
+     "F003",
+     "Dongguan PinPoint Manufacturing",
+     "rejected",
+     "",
+     "[{\"key\":\"cut_make_pack\",\"label\":\"Cut / Make / Pack\",\"value\":\"21.00\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"transportation\",\"label\":\"Transportation\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"print\",\"label\":\"Print\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"embroidery\",\"label\":\"Embroidery\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"gmt_wash\",\"label\":\"Gmt Wash\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"misc_charges\",\"label\":\"Misc Charges\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"testing_inspection\",\"label\":\"Testing / Inspection Fee\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false}]",
+     "14",
+     "1.50",
+     "",
+     "2000",
+     "",
+     "8",
+     "",
+     "",
+     "",
+     "",
+     "FOB",
+     "",
+     "CMP too high vs target; please review sewing SMV.",
+     "Sep 30, 04:45 PM"
+    ]
+   ]
+  }
+ ],
+ "web_rd_gq_remarks": [
+  {
+   "columns": [
+    "qid",
+    "rid",
+    "role",
+    "display_name",
+    "remark_text",
+    "created_at"
+   ],
+   "rows": [
+    [
+     "Q-1",
+     "1",
+     "merchandiser",
+     "Jane Doe",
+     "Please quote with the 12oz indigo; customer wants the heavier hand feel.",
+     "2026-10-01T02:10:00Z"
+    ],
+    [
+     "Q-1",
+     "2",
+     "factory",
+     "Apex Sales",
+     "Noted. Quoted with 12oz. Lead time 45 days after fabric approval.",
+     "2026-10-01T04:30:00Z"
+    ],
+    [
+     "Q-1",
+     "3",
+     "merchandiser",
+     "Jane Doe",
+     "Thanks. Can you check if the wash cost can come down by 10%?",
+     "2026-10-02T01:15:00Z"
+    ]
+   ]
+  }
+ ],
+ "web_rd_gq_costing_history": [
+  {
+   "columns": [
+    "history_id",
+    "qid",
+    "factory_id",
+    "factory_name",
+    "status",
+    "changed_by",
+    "changed_at",
+    "rate_in_usd",
+    "fty_rate_usd",
+    "cmt_json",
+    "bom_json",
+    "adjustment",
+    "gross_margin_pct",
+    "factory_remarks"
+   ],
+   "rows": [
+    [
+     11,
+     "Q-1",
+     "F001",
+     "Guangzhou Apex Garments Co.",
+     "factory_submitted",
+     "apex.sales",
+     "2026-10-01T01:30:00Z",
+     "7.18",
+     "7.15",
+     "[{\"key\":\"cut_make_pack\",\"label\":\"Cut / Make / Pack\",\"value\":\"28.50\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"transportation\",\"label\":\"Transportation\",\"value\":\"1.20\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"print\",\"label\":\"Print\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"embroidery\",\"label\":\"Embroidery\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"gmt_wash\",\"label\":\"Gmt Wash\",\"value\":\"6.80\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"misc_charges\",\"label\":\"Misc Charges\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"testing_inspection\",\"label\":\"Testing / Inspection Fee\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false}]",
+     "",
+     "",
+     "12",
+     "Can switch to recycled pocketing."
+    ],
+    [
+     10,
+     "Q-1",
+     "F001",
+     "Guangzhou Apex Garments Co.",
+     "for_revision",
+     "jdoe",
+     "2026-09-29T08:00:00Z",
+     "7.18",
+     "",
+     "[{\"key\":\"cut_make_pack\",\"label\":\"Cut / Make / Pack\",\"value\":\"30.00\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"transportation\",\"label\":\"Transportation\",\"value\":\"1.20\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"print\",\"label\":\"Print\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"embroidery\",\"label\":\"Embroidery\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"gmt_wash\",\"label\":\"Gmt Wash\",\"value\":\"7.50\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"misc_charges\",\"label\":\"Misc Charges\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false},{\"key\":\"testing_inspection\",\"label\":\"Testing / Inspection Fee\",\"value\":\"\",\"description\":\"\",\"curr_id\":\"RMB\",\"isCustom\":false}]",
+     "",
+     "",
+     "12",
+     ""
+    ]
+   ]
+  }
+ ]
+}

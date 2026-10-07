@@ -1,0 +1,156 @@
+<section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+        {{ 'styles.title' | transloco }}
+        @if (total()) {
+          <span hlmBadge variant="secondary">{{ total() | number }}</span>
+        }
+      </h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'styles.subtitle' | transloco }}</p>
+    </div>
+    @if (canEdit()) {
+      <button hlmBtn type="button" class="h-11 lg:h-9" (click)="createOpen.set(true)"><ng-icon name="lucidePlus" />{{ 'styles.newStyle' | transloco }}</button>
+    }
+  </header>
+
+  <!-- Filters -->
+  @let f = filter();
+  @let l = lookups();
+  <div class="flex flex-col gap-3">
+    <div class="relative w-full lg:max-w-md">
+      <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+      <input
+        hlmInput
+        type="search"
+        class="h-11 w-full pl-9 lg:h-9"
+        [attr.aria-label]="'styles.searchLabel' | transloco"
+        [placeholder]="'styles.searchPlaceholder' | transloco"
+        [value]="f.search"
+        (input)="onSearch($event)"
+      />
+    </div>
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-center">
+      @for (sel of [
+        { key: 'customer', label: 'styles.allCustomers', items: l?.customers ?? [] },
+        { key: 'season', label: 'styles.allSeasons', items: l?.seasons ?? [] },
+        { key: 'businessUnit', label: 'styles.allBusinessUnits', items: l?.businessUnits ?? [] },
+        { key: 'productType', label: 'styles.allProductTypes', items: l?.productTypes ?? [] }
+      ]; track sel.key) {
+        <hlm-native-select
+          [selectId]="'filter-' + sel.key"
+          selectClass="h-11 w-full lg:h-9 lg:w-44"
+          [attr.aria-label]="sel.label | transloco"
+          [value]="filterValue(sel.key)"
+          (valueChange)="setFilter($any(sel.key), $event ?? '')"
+        >
+          <option hlmNativeSelectOption value="">{{ sel.label | transloco }}</option>
+          @for (o of sel.items; track o.code) {
+            <option hlmNativeSelectOption [value]="o.code">{{ o.code === o.name ? o.code : o.name }}</option>
+          }
+        </hlm-native-select>
+      }
+      <hlm-native-select selectId="filter-gender" selectClass="h-11 w-full lg:h-9 lg:w-36" [attr.aria-label]="'styles.detail.gender' | transloco" [value]="f.gender" (valueChange)="setFilter('gender', $event ?? '')">
+        <option hlmNativeSelectOption value="">{{ 'styles.allGenders' | transloco }}</option>
+        @for (g of genders; track g.code) {
+          <option hlmNativeSelectOption [value]="g.code">{{ 'styles.gender.' + g.code | transloco }}</option>
+        }
+      </hlm-native-select>
+      @if (activeFilters() || f.search) {
+        <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" (click)="clearFilters()"><ng-icon name="lucideX" />{{ 'styles.clear' | transloco }}</button>
+      }
+    </div>
+    @if (extraChips().length) {
+      <div class="flex flex-wrap gap-1.5">
+        @for (c of extraChips(); track c.key) {
+          <span hlmBadge variant="secondary" class="gap-1">
+            <span class="text-muted-foreground">{{ c.label | transloco }}:</span> {{ c.value }}
+            <button type="button" class="hover:text-foreground -mr-1 rounded p-0.5" [attr.aria-label]="'styles.removeFilter' | transloco: { filter: (c.label | transloco) }" (click)="setFilter(c.key, '')">
+              <ng-icon name="lucideX" class="text-xs" />
+            </button>
+          </span>
+        }
+      </div>
+    }
+  </div>
+
+  <!-- List -->
+  <section hlmCard class="gap-0 py-0">
+    @if (loading() && !styles().length) {
+      <div class="flex flex-col gap-3 p-5">
+        @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+          <div hlmSkeleton class="h-16 w-full"></div>
+        }
+      </div>
+    } @else if (!styles().length) {
+      <div class="flex flex-col items-center gap-2 px-5 py-14 text-center">
+        <ng-icon name="lucideShirt" class="text-muted-foreground text-4xl" />
+        @if (f.search || activeFilters()) {
+          <p class="font-medium">{{ 'styles.noMatch' | transloco }}</p>
+          <p class="text-muted-foreground text-sm">{{ 'styles.noMatchHint' | transloco }}</p>
+        } @else {
+          <p class="font-medium">{{ 'styles.empty' | transloco }}</p>
+          <p class="text-muted-foreground text-sm">{{ (canEdit() ? 'styles.emptyHintEdit' : 'styles.emptyHint') | transloco }}</p>
+        }
+      </div>
+    } @else {
+      <div class="text-muted-foreground hidden grid-cols-[3.5rem_minmax(0,1.5fr)_minmax(0,8rem)_minmax(0,1fr)_minmax(0,4.5rem)_minmax(0,4.5rem)_minmax(0,7rem)] gap-4 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase lg:grid">
+        <span class="sr-only">{{ 'styles.colPhoto' | transloco }}</span>
+        <span>{{ 'styles.colStyle' | transloco }}</span>
+        <span>{{ 'styles.colCustomerSeason' | transloco }}</span>
+        <span>{{ 'styles.colBusinessUnit' | transloco }}</span>
+        <span class="text-right">{{ 'styles.colColorways' | transloco }}</span>
+        <span class="text-right">{{ 'styles.colBomLines' | transloco }}</span>
+        <span>{{ 'styles.colLastChanged' | transloco }}</span>
+      </div>
+      <ul class="divide-y" role="list">
+        @for (s of styles(); track s.styleId) {
+          <li>
+            <a
+              [routerLink]="['/styles', s.styleId]"
+              class="hover:bg-accent/40 grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-0.5 px-5 py-3 transition-colors lg:grid-cols-[3.5rem_minmax(0,1.5fr)_minmax(0,8rem)_minmax(0,1fr)_minmax(0,4.5rem)_minmax(0,4.5rem)_minmax(0,7rem)]"
+            >
+              <span class="bg-muted row-span-2 flex size-14 items-center justify-center overflow-hidden rounded-md border lg:row-span-1">
+                @let thumb = s.imageUrl || s.sketchUrl;
+                @if (thumb && !brokenImages().has(s.styleId)) {
+                  <img [appAuthSrc]="thumb" alt="" class="size-full object-cover" loading="lazy" (loadError)="markBroken(s.styleId)" />
+                } @else {
+                  <ng-icon name="lucideImage" class="text-muted-foreground" />
+                }
+              </span>
+              <span class="min-w-0">
+                <span class="flex items-center gap-2">
+                  <span class="truncate font-mono text-sm font-medium">{{ s.styleNo }}</span>
+                  @if (s.hasHistory) {
+                    <ng-icon name="lucideGitBranch" class="text-muted-foreground shrink-0" [title]="'styles.hasHistory' | transloco" />
+                  }
+                </span>
+                <span class="text-muted-foreground block truncate text-xs">{{ s.modelName || s.description || '—' }}</span>
+                <span class="text-muted-foreground block truncate text-xs lg:hidden">
+                  {{ s.customerCode }} · {{ s.seasonCode }} · {{ 'styles.rowCounts' | transloco: { colorways: s.colorwayCount, lines: s.bomLineCount } }}
+                </span>
+              </span>
+              <span class="hidden text-sm lg:block">{{ s.customerCode }} · {{ s.seasonCode }}</span>
+              <span class="hidden min-w-0 text-sm lg:block">
+                <span class="block truncate">{{ s.businessUnitName || '—' }}</span>
+                <span class="text-muted-foreground block truncate text-xs">{{ s.productTypeName }}{{ s.gender ? ' · ' + (genderLabel(s.gender) | transloco) : '' }}</span>
+              </span>
+              <span class="hidden text-right text-sm tabular-nums lg:block">{{ s.colorwayCount }}</span>
+              <span class="hidden text-right text-sm tabular-nums lg:block">{{ s.bomLineCount }}</span>
+              <span class="text-muted-foreground hidden text-sm lg:block">{{ s.lastChangedUtc | date: 'mediumDate' }}</span>
+            </a>
+          </li>
+        }
+      </ul>
+      @if (styles().length < total()) {
+        <div class="border-t px-5 py-3 text-center">
+          <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" [disabled]="loading()" (click)="load(true)">
+            {{ 'styles.showMore' | transloco: { shown: (styles().length | number), total: (total() | number) } }}
+          </button>
+        </div>
+      }
+    }
+  </section>
+</section>
+
+<app-style-form-dialog [open]="createOpen()" [lookups]="lookups()" (closed)="createOpen.set(false)" (saved)="onCreated($event)" />

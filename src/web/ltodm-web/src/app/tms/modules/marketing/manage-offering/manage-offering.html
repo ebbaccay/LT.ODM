@@ -1,0 +1,438 @@
+<section class="flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div class="min-w-0">
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'mo.title' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'mo.subtitle' | transloco }}</p>
+    </div>
+    <button hlmBtn type="button" class="h-11 w-full sm:w-auto lg:h-9" [disabled]="!selectedConcept() || productsPending() > 0" (click)="openPicker()">
+      <ng-icon name="lucidePlus" />
+      {{ 'mo.submitProduct' | transloco }}
+    </button>
+  </header>
+
+  <!-- ── Concept selector ─────────────────────────────────── -->
+  <section hlmCard class="gap-3 overflow-visible px-5 py-4">
+    <app-concept-picker
+      [concepts]="concepts()"
+      [loaded]="conceptsLoaded()"
+      [selected]="selectedConceptRecid()"
+      [label]="'mo.conceptLabel' | transloco"
+      [placeholder]="'mo.searchConceptsPlaceholder' | transloco"
+      [emptyText]="'mo.noSavedConcepts' | transloco"
+      [noMatchText]="'common.noMatches' | transloco"
+      (selectedChange)="selectConcept($event)"
+    />
+    @if (selectedConcept(); as c) {
+      <div class="flex flex-wrap items-center gap-1.5 text-sm">
+        @for (v of [c.customer, c.season, c.target_market]; track $index) {
+          @if (v) {
+            <span hlmBadge variant="secondary">{{ v }}</span>
+          }
+        }
+        @if (c.fob_price) {
+          <span class="text-muted-foreground ml-1">{{ 'mo.targetFob' | transloco }} <strong class="text-foreground tabular-nums">${{ c.fob_price }}</strong></span>
+        }
+      </div>
+    }
+  </section>
+
+  <!-- ── Filter ───────────────────────────────────────────── -->
+  @if (selectedConcept()) {
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      @if (!isFactoryUser) {
+        <div class="bg-muted inline-flex rounded-lg p-1" role="tablist">
+          @for (mode of ['all', 'mine']; track mode) {
+            <button
+              type="button"
+              role="tab"
+              class="flex min-h-11 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors lg:min-h-8"
+              [class]="filterMode() === mode ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+              [attr.aria-selected]="filterMode() === mode"
+              (click)="filterMode.set($any(mode))"
+            >
+              {{ (mode === 'all' ? 'mo.filterAll' : 'mo.filterMine') | transloco }}
+              <span hlmBadge variant="secondary">{{ mode === 'all' ? submissions().length : myCount() }}</span>
+            </button>
+          }
+        </div>
+      }
+      <span class="text-muted-foreground text-sm">{{ 'mo.showingCount' | transloco: { count: visibleSubmissions().length } }}</span>
+    </div>
+  }
+
+  <!-- ── Submissions ──────────────────────────────────────── -->
+  @if (loadingSubmissions()) {
+    <div class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      @for (i of [1, 2, 3]; track i) {
+        <div hlmSkeleton class="h-72 rounded-xl"></div>
+      }
+    </div>
+  } @else if (!selectedConcept()) {
+    @if (conceptsLoaded() && concepts().length) {
+      <p class="text-muted-foreground py-10 text-center text-sm">{{ 'mo.selectConcept' | transloco }}</p>
+    }
+  } @else if (!visibleSubmissions().length) {
+    <section hlmCard class="items-center gap-3 px-5 py-14 text-center">
+      <ng-icon name="lucidePackageSearch" class="text-muted-foreground text-4xl" />
+      <p class="font-medium">{{ 'mo.noSubmissions' | transloco }}</p>
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="productsPending() > 0" (click)="openPicker()">{{ 'mo.submitFirst' | transloco }}</button>
+    </section>
+  } @else {
+    <div class="grid items-start gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      @for (s of visibleSubmissions(); track s.recid) {
+        @let busy = busyRecid() === s.recid;
+        <article hlmCard class="min-w-0 gap-0 py-0" [attr.aria-label]="s.productName" [attr.aria-busy]="busy">
+          <div class="flex items-center justify-between gap-2 px-4 pt-4">
+            <span class="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
+              <ng-icon name="lucideMapPin" class="shrink-0" />
+              <span class="truncate">{{ s.sbu || ('mo.unknownSbu' | transloco) }}</span>
+            </span>
+            <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium" [class]="toneBadge(statusTone[s.status] ?? 'neutral')">
+              {{ ('mo.status.' + s.status.toLowerCase()) | transloco }}
+            </span>
+          </div>
+
+          <div class="flex gap-3 p-4">
+            <div class="bg-muted text-muted-foreground flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-md">
+              @if (s.imageUrl) {
+                <img [appAuthSrc]="s.imageUrl" [alt]="s.productName" class="size-full object-cover" loading="lazy" (loadError)="s.imageUrl = ''" />
+              } @else {
+                <ng-icon name="lucideImage" class="text-2xl opacity-50" [attr.aria-label]="'mo.noImage' | transloco" />
+              }
+            </div>
+            <div class="min-w-0 flex-1">
+              <h3 class="truncate font-semibold" [title]="s.productName">{{ s.productName }}</h3>
+              <p class="text-muted-foreground font-mono text-xs">{{ s.styleCode }}</p>
+              <p class="text-muted-foreground mt-1 truncate text-xs">
+                {{ s.username }}
+                @if (s.submittedDate) {
+                  · {{ s.submittedDate.slice(0, 10) }}
+                }
+              </p>
+              @if (s.targetFob > 0) {
+                <p class="mt-1 text-xs">
+                  {{ 'mo.targetFob' | transloco }} <span class="font-medium tabular-nums">${{ s.targetFob | number: '1.2-2' }}</span>
+                </p>
+              }
+              @if (s.statusReason && (s.status === 'Rejected' || s.status === 'For Review')) {
+                <p class="text-muted-foreground mt-1 text-xs italic">{{ s.statusReason }}</p>
+              }
+            </div>
+          </div>
+
+          @if (s.notes) {
+            <p class="bg-muted/50 mx-4 mb-3 rounded-md px-3 py-2 text-sm whitespace-pre-line">{{ s.notes }}</p>
+          }
+
+          <div class="border-t px-4 py-3">
+            <h4 class="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">
+              {{ 'mo.costBreakdown' | transloco }} <span class="normal-case">{{ 'mo.costSnapshot' | transloco }}</span>
+            </h4>
+            @if (costItems(s.costBreakdown); as lines) {
+              @if (lines.length) {
+                <dl class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 text-sm">
+                  @for (line of lines; track $index) {
+                    <dt class="text-muted-foreground truncate">{{ line.item }}</dt>
+                    <dd class="text-right tabular-nums">${{ line.amount | number: '1.2-2' }}</dd>
+                  }
+                </dl>
+              } @else {
+                <p class="text-muted-foreground text-xs">{{ 'mo.noCostBreakdown' | transloco }}</p>
+              }
+            }
+            @if (costOptSuggestions(s.costBreakdown); as tips) {
+              @if (tips.length) {
+                <h4 class="mt-3 mb-1.5 text-xs font-medium tracking-wide text-emerald-700 uppercase dark:text-emerald-400">{{ 'mo.aiOptimizationSuggestions' | transloco }}</h4>
+                <dl class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 text-sm">
+                  @for (tip of tips; track $index) {
+                    <dt class="text-muted-foreground truncate">{{ tip.item }}</dt>
+                    <dd class="text-right text-emerald-700 tabular-nums dark:text-emerald-400">−${{ tip.amount | number: '1.2-2' }}</dd>
+                  }
+                </dl>
+              }
+            }
+            @if (costOptFob(s); as f) {
+              <dl class="bg-muted/50 mt-3 grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 rounded-md px-3 py-2 text-sm">
+                <dt>{{ 'mo.originalFob' | transloco }}</dt>
+                <dd class="text-right tabular-nums">${{ f.originalFob | number: '1.2-2' }}</dd>
+                <dt>{{ 'mo.potentialSavings' | transloco }}</dt>
+                <dd class="text-right text-emerald-700 tabular-nums dark:text-emerald-400">
+                  −${{ f.savings | number: '1.2-2' }} <span class="text-xs">({{ f.savingsPct | number: '1.1-1' }}% {{ 'mo.off' | transloco }})</span>
+                </dd>
+              </dl>
+            }
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+            <div>
+              <p class="text-muted-foreground text-xs">{{ (s.status === 'For Review' ? 'mo.projectedFob' : 'mo.totalFob') | transloco }}</p>
+              <p class="text-lg font-semibold tabular-nums" [class]="fobTone(s)">${{ s.fobPrice | number: '1.2-2' }}</p>
+            </div>
+            <div class="flex flex-wrap justify-end gap-1.5">
+              @if (busy) {
+                <hlm-spinner class="m-2" />
+              } @else {
+                @if (isOwn(s) && s.status === 'Draft') {
+                  <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-9" [attr.aria-label]="'mo.editNotesAriaLabel' | transloco" [title]="'mo.notesBtn' | transloco" (click)="openNotes(s)">
+                    <ng-icon name="lucidePencil" />
+                  </button>
+                  <button hlmBtn variant="ghost" size="icon" type="button" class="text-destructive size-11 lg:size-9" [attr.aria-label]="'mo.deleteAriaLabel' | transloco" [title]="'mo.deleteAriaLabel' | transloco" (click)="remove(s)">
+                    <ng-icon name="lucideTrash2" />
+                  </button>
+                  <button hlmBtn type="button" class="h-11 lg:h-9" (click)="quickSubmit(s)">
+                    <ng-icon name="lucideSend" />{{ 'mo.submitOffer' | transloco }}
+                  </button>
+                }
+                @if (canReview(s)) {
+                  @if (s.status === 'Factory Submitted') {
+                    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [attr.aria-label]="'mo.reviseAriaLabel' | transloco" (click)="revise(s)">
+                      <ng-icon name="lucideRotateCcw" />{{ 'mo.revise' | transloco }}
+                    </button>
+                  }
+                  <button hlmBtn variant="outline" type="button" class="text-destructive h-11 lg:h-9" (click)="reject(s)">
+                    <ng-icon name="lucideX" />{{ 'actions.reject' | transloco }}
+                  </button>
+                  <button hlmBtn type="button" class="h-11 bg-emerald-600 text-white hover:bg-emerald-700 lg:h-9" (click)="approve(s)">
+                    <ng-icon name="lucideCheck" />{{ 'actions.approve' | transloco }}
+                  </button>
+                }
+                @if (!isFactoryUser && s.status === 'Accepted') {
+                  <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [attr.aria-label]="'mo.unapproveAriaLabel' | transloco" (click)="unapprove(s)">
+                    <ng-icon name="lucideUndo2" />{{ 'mo.unapprove' | transloco }}
+                  </button>
+                }
+                @if (canPropose(s)) {
+                  <button hlmBtn type="button" class="h-11 lg:h-9" [attr.aria-label]="'mo.submitProposalAriaLabel' | transloco" (click)="openProposal(s)">
+                    <ng-icon name="lucidePencil" />{{ 'mo.submitProposal' | transloco }}
+                  </button>
+                }
+              }
+            </div>
+          </div>
+        </article>
+      }
+    </div>
+  }
+</section>
+
+<!-- ── Product picker ─────────────────────────────────────── -->
+<app-modal
+  [open]="pickerOpen()"
+  [heading]="(pickerProduct() ? 'mo.confirmSubmission' : 'mo.selectProduct') | transloco"
+  size="lg"
+  (closed)="pickerOpen.set(false)"
+>
+  @if (pickerProduct(); as p) {
+    <div class="flex flex-col gap-4">
+      <p class="text-muted-foreground text-sm">{{ 'mo.confirmSubmissionSub' | transloco }}</p>
+      <div class="flex flex-col gap-4 sm:flex-row">
+        <div class="bg-muted text-muted-foreground flex aspect-square w-full shrink-0 items-center justify-center overflow-hidden rounded-lg sm:w-40">
+          @if (p.image) {
+            <img [appAuthSrc]="p.image" [alt]="p.name" class="size-full object-cover" (loadError)="p.image = ''" />
+          } @else {
+            <ng-icon name="lucideImage" class="text-4xl opacity-50" />
+          }
+        </div>
+        <div class="min-w-0 flex-1">
+          <h3 class="font-semibold">{{ p.name }}</h3>
+          <p class="text-muted-foreground font-mono text-xs">{{ p.styleCode }}</p>
+          <p class="text-muted-foreground mt-1 text-xs">{{ summary(p) }}</p>
+          @if (costItems(p.costBreakdown); as lines) {
+            <dl class="mt-3 grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 text-sm">
+              @for (line of lines; track $index) {
+                <dt class="text-muted-foreground">{{ line.item }}</dt>
+                <dd class="text-right tabular-nums">${{ line.amount | number: '1.2-2' }}</dd>
+              }
+              <dt class="border-t pt-1 font-medium">{{ 'mo.totalFob' | transloco }}</dt>
+              <dd class="border-t pt-1 text-right font-semibold tabular-nums">${{ p.fobPrice | number: '1.2-2' }}</dd>
+            </dl>
+            @if (!lines.length) {
+              <p class="text-muted-foreground mt-1 text-xs">{{ 'mo.noCostOnProduct' | transloco }}</p>
+            }
+          }
+        </div>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="mo-picker-notes">{{ 'mo.notesOptional' | transloco }}</label>
+        <textarea
+          hlmInput
+          id="mo-picker-notes"
+          rows="3"
+          maxlength="4000"
+          class="min-h-20 py-2"
+          [placeholder]="'mo.notesPlaceholder' | transloco"
+          [value]="pickerNotes()"
+          (input)="pickerNotes.set($any($event.target).value)"
+        ></textarea>
+      </div>
+    </div>
+  } @else {
+    <div class="flex flex-col gap-3">
+      @if (selectedConcept(); as c) {
+        <p class="text-muted-foreground text-sm">{{ c.concept_name }} · {{ c.customer }}</p>
+      }
+      <div class="relative">
+        <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+        <input
+          hlmInput
+          type="search"
+          class="h-11 w-full pl-9 lg:h-9"
+          [attr.aria-label]="'actions.search' | transloco"
+          [placeholder]="'mo.searchPlaceholder' | transloco"
+          [value]="pickerSearch()"
+          (input)="pickerSearch.set($any($event.target).value)"
+        />
+      </div>
+      @if (!filteredProducts().length) {
+        <p class="text-muted-foreground py-10 text-center text-sm">{{ 'mo.noProductsMatch' | transloco }}</p>
+      } @else {
+        <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3" role="list" [attr.aria-label]="'mo.availableProductsAriaLabel' | transloco">
+          @for (p of filteredProducts(); track p.id) {
+            <li>
+              <button type="button" class="hover:border-primary focus-visible:border-primary flex w-full flex-col overflow-hidden rounded-lg border text-left transition-colors" (click)="pickerProduct.set(p)">
+                <span class="bg-muted text-muted-foreground flex aspect-[4/3] w-full items-center justify-center overflow-hidden">
+                  @if (p.image) {
+                    <img [appAuthSrc]="p.image" [alt]="p.name" class="size-full object-cover" loading="lazy" (loadError)="p.image = ''" />
+                  } @else {
+                    <ng-icon name="lucideImage" class="text-2xl opacity-50" />
+                  }
+                </span>
+                <span class="flex flex-col gap-0.5 p-2.5">
+                  <span class="truncate text-sm font-medium">{{ p.name }}</span>
+                  <span class="text-muted-foreground truncate font-mono text-xs">{{ p.styleCode }}</span>
+                  <span class="flex items-center justify-between gap-2 text-xs">
+                    <span class="text-muted-foreground truncate">{{ p.category }}</span>
+                    <span class="font-semibold tabular-nums">${{ p.fobPrice | number: '1.2-2' }}</span>
+                  </span>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  }
+  <ng-container footer>
+    @if (pickerProduct()) {
+      <button hlmBtn variant="ghost" type="button" class="mr-auto h-11 lg:h-9" (click)="pickerProduct.set(null)">{{ 'mo.changeProduct' | transloco }}</button>
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="pickerOpen.set(false)">{{ 'actions.cancel' | transloco }}</button>
+      <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="saving()" (click)="submitOffer()">
+        @if (saving()) {
+          <hlm-spinner />{{ 'mo.submitting' | transloco }}
+        } @else {
+          <ng-icon name="lucideSend" />{{ 'mo.submitOffer' | transloco }}
+        }
+      </button>
+    } @else {
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="pickerOpen.set(false)">{{ 'actions.cancel' | transloco }}</button>
+    }
+  </ng-container>
+</app-modal>
+
+<!-- ── Notes ──────────────────────────────────────────────── -->
+<app-modal [open]="!!notesFor()" [heading]="'mo.editNotes' | transloco" (closed)="notesFor.set(null)">
+  <div class="flex flex-col gap-1.5">
+    <label hlmLabel for="mo-notes">{{ 'mo.notesLabel' | transloco }}</label>
+    <textarea
+      hlmInput
+      id="mo-notes"
+      rows="5"
+      maxlength="4000"
+      class="min-h-28 py-2"
+      [placeholder]="'mo.notesPlaceholder' | transloco"
+      [value]="notesText()"
+      (input)="notesText.set($any($event.target).value)"
+    ></textarea>
+  </div>
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="notesFor.set(null)">{{ 'actions.cancel' | transloco }}</button>
+    <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="saving()" (click)="saveNotes()">
+      {{ (saving() ? 'mo.saving' : 'mo.saveNotes') | transloco }}
+    </button>
+  </ng-container>
+</app-modal>
+
+<!-- ── Factory cost proposal ──────────────────────────────── -->
+<app-modal [open]="!!proposalFor()" [heading]="'mo.ftyProposalTitle' | transloco" size="lg" (closed)="proposalFor.set(null)">
+  @if (proposalFor(); as s) {
+    <div class="flex flex-col gap-4">
+      <p class="text-muted-foreground text-sm">{{ s.productName }} · <span class="font-mono">{{ s.styleCode }}</span></p>
+
+      @if (costOptSuggestions(s.costBreakdown); as tips) {
+        @if (tips.length) {
+          <div class="rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2">
+            <h4 class="mb-1 text-xs font-medium tracking-wide text-emerald-700 uppercase dark:text-emerald-400">{{ 'mo.aiSuggestionsRef' | transloco }}</h4>
+            <dl class="grid grid-cols-[1fr_auto] gap-x-3 text-sm">
+              @for (tip of tips; track $index) {
+                <dt class="text-muted-foreground">{{ tip.item }}</dt>
+                <dd class="text-right text-emerald-700 tabular-nums dark:text-emerald-400">−${{ tip.amount | number: '1.2-2' }}</dd>
+              }
+            </dl>
+          </div>
+        }
+      }
+
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium">{{ 'mo.costBreakdown' | transloco }}</span>
+          <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-8" (click)="addProposalItem()">
+            <ng-icon name="lucidePlus" />{{ 'mo.addItem' | transloco }}
+          </button>
+        </div>
+        @for (line of proposalItems(); track $index) {
+          <div class="grid grid-cols-[minmax(0,1fr)_7rem_auto] items-center gap-2">
+            <input
+              hlmInput
+              class="h-11 lg:h-9"
+              maxlength="100"
+              [attr.aria-label]="('mo.itemLabel' | transloco) + ' ' + ($index + 1)"
+              [placeholder]="'mo.itemPlaceholder' | transloco"
+              [value]="line.item"
+              (input)="setProposalItem($index, { item: $any($event.target).value })"
+            />
+            <input
+              hlmInput
+              type="number"
+              min="0"
+              step="0.01"
+              inputmode="decimal"
+              class="h-11 text-right tabular-nums lg:h-9"
+              [attr.aria-label]="('mo.amountLabel' | transloco) + ' ' + ($index + 1)"
+              [appNumber]="line.amount"
+              (appNumberChange)="setProposalItem($index, { amount: $event ?? 0 })"
+            />
+            <button hlmBtn variant="ghost" size="icon" type="button" class="text-destructive size-11 lg:size-9" [attr.aria-label]="'actions.remove' | transloco" (click)="removeProposalItem($index)">
+              <ng-icon name="lucideX" />
+            </button>
+          </div>
+        } @empty {
+          <p class="text-muted-foreground text-sm">{{ 'mo.ftyNoItems' | transloco }}</p>
+        }
+        <div class="flex items-center justify-between border-t pt-2">
+          <span class="text-sm font-medium">{{ 'mo.totalFob' | transloco }}</span>
+          <span class="text-lg font-semibold tabular-nums">${{ proposalTotal() | number: '1.2-2' }}</span>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="mo-proposal-notes">{{ 'mo.notesOptional' | transloco }}</label>
+        <textarea
+          hlmInput
+          id="mo-proposal-notes"
+          rows="3"
+          maxlength="4000"
+          class="min-h-20 py-2"
+          [placeholder]="'mo.ftyProposalNotesPlaceholder' | transloco"
+          [value]="proposalNotes()"
+          (input)="proposalNotes.set($any($event.target).value)"
+        ></textarea>
+      </div>
+    </div>
+  }
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="proposalFor.set(null)">{{ 'actions.cancel' | transloco }}</button>
+    <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="saving() || !proposalValid()" (click)="submitProposal()">
+      {{ (saving() ? 'mo.submittingProposal' : 'mo.submitProposal') | transloco }}
+    </button>
+  </ng-container>
+</app-modal>

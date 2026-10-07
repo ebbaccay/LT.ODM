@@ -1,0 +1,121 @@
+// Theme bridge for screens ported from TMS (src/app/tms).
+//
+// TMS modules declare their own palette (--navy, --slate-*, --teal, --green-fg, ...) at the top of each
+// component stylesheet. Ported stylesheets end with:
+//
+//   @use 'tms-theme' as tms;
+//   :host { @include tms.tokens; }
+//
+// which re-points those names at the LT ODM theme, so the screens follow the accent colour,
+// light/dark mode and radius chosen in the theme panel. Status colours use light-dark(), driven by the
+// color-scheme that tailwind.css sets for light and dark mode.
+
+@mixin tokens {
+  // Neutrals (TMS used the Tailwind slate scale)
+  --white: var(--card);
+  --slate-50: color-mix(in oklch, var(--muted) 55%, var(--card));
+  --slate-100: var(--muted);
+  --slate-200: var(--border);
+  --slate-300: color-mix(in oklch, var(--border) 55%, var(--muted-foreground));
+  --slate-400: color-mix(in oklch, var(--muted-foreground) 75%, var(--border));
+  --slate-500: var(--muted-foreground);
+  --slate-600: color-mix(in oklch, var(--foreground) 55%, var(--muted-foreground));
+  --slate-700: color-mix(in oklch, var(--foreground) 80%, var(--muted-foreground));
+  --slate-800: color-mix(in oklch, var(--foreground) 92%, var(--muted-foreground));
+  --slate-900: var(--foreground);
+
+  // Brand (TMS navy / blue) -> theme primary
+  --navy: var(--primary);
+  --navy-mid: var(--primary);
+  --navy-lt: color-mix(in oklch, var(--primary) 72%, var(--card));
+  --navy-10: color-mix(in oklch, var(--primary) 10%, transparent);
+  --blue-50: color-mix(in oklch, var(--primary) 6%, var(--card));
+  --blue-100: color-mix(in oklch, var(--primary) 12%, var(--card));
+  --blue-200: color-mix(in oklch, var(--primary) 25%, var(--card));
+  --blue-400: color-mix(in oklch, var(--primary) 65%, var(--card));
+  --blue-600: var(--primary);
+  --blue-700: color-mix(in oklch, var(--primary) 88%, var(--foreground));
+  --blue-900: color-mix(in oklch, var(--primary) 60%, var(--foreground));
+  --denim: var(--primary);
+  --denim-lt: color-mix(in oklch, var(--primary) 70%, var(--card));
+  --denim-pale: color-mix(in oklch, var(--primary) 10%, var(--card));
+  // TMS --accent is a brand highlight; Spartan uses --accent for hover surfaces, so ported styles use --tms-accent.
+  --tms-accent: var(--primary);
+  --tms-accent-lt: color-mix(in oklch, var(--primary) 15%, var(--card));
+
+  // Secondary accent and status colours (readable in both modes)
+  --teal: light-dark(oklch(60% 0.118 184.704), oklch(77.7% 0.152 181.912));
+  --teal-lt: light-dark(oklch(70.4% 0.14 182.503), oklch(85.5% 0.138 181.071));
+  --teal-pale: color-mix(in oklch, oklch(70.4% 0.14 182.503) 12%, transparent);
+  --green: light-dark(oklch(59.6% 0.145 163.225), oklch(76.5% 0.177 163.223));
+  --green-fg: light-dark(oklch(50.8% 0.118 165.612), oklch(76.5% 0.177 163.223));
+  --green-bg: color-mix(in oklch, oklch(69.6% 0.17 162.48) 14%, transparent);
+  --green-pale: color-mix(in oklch, oklch(69.6% 0.17 162.48) 8%, transparent);
+  --red: light-dark(oklch(57.7% 0.245 27.325), oklch(70.4% 0.191 22.216));
+  --red-fg: light-dark(oklch(50.5% 0.213 27.518), oklch(70.4% 0.191 22.216));
+  --red-bg: color-mix(in oklch, oklch(63.7% 0.237 25.331) 14%, transparent);
+  --red-pale: color-mix(in oklch, oklch(63.7% 0.237 25.331) 8%, transparent);
+  --amber: light-dark(oklch(66.6% 0.179 58.318), oklch(82.8% 0.189 84.429));
+  --amber-fg: light-dark(oklch(55.5% 0.163 48.998), oklch(82.8% 0.189 84.429));
+  --amber-bg: color-mix(in oklch, oklch(76.9% 0.188 70.08) 16%, transparent);
+  --amber-lt: light-dark(oklch(82.8% 0.189 84.429), oklch(87.9% 0.169 91.605));
+  --amber-pale: color-mix(in oklch, oklch(76.9% 0.188 70.08) 8%, transparent);
+  --violet-fg: light-dark(oklch(49.1% 0.27 292.581), oklch(70.2% 0.183 293.541));
+  --violet-bg: color-mix(in oklch, oklch(60.6% 0.25 292.717) 14%, transparent);
+  --sky-fg: light-dark(oklch(50% 0.134 242.749), oklch(74.6% 0.16 232.661));
+  --sky-bg: color-mix(in oklch, oklch(68.5% 0.169 237.323) 14%, transparent);
+
+  // Shape and type
+  --r-xs: calc(var(--radius) - 6px);
+  --r-sm: calc(var(--radius) - 4px);
+  --r-md: calc(var(--radius) - 2px);
+  --r-lg: var(--radius);
+  --r-xl: calc(var(--radius) + 4px);
+  --radius-xs: calc(var(--radius) - 6px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --font-body: inherit;
+  --font-display: inherit;
+}
+
+// SAP UI5 theme parameters used directly by some TMS stylesheets.
+@mixin sap-parameters {
+  --sapBackgroundColor: var(--background);
+  --sapShell_Background: var(--background);
+  --sapShellColor: var(--card);
+  --sapBaseColor: var(--card);
+  --sapTile_Background: var(--card);
+  --sapLayer_Background: var(--muted);
+  --sapGroup_ContentBackground: var(--card);
+  --sapGroup_TitleBackground: var(--card);
+  --sapGroup_ContentBorderColor: var(--border);
+  --sapList_Background: var(--card);
+  --sapList_BorderColor: var(--border);
+  --sapList_Hover_Background: var(--accent);
+  --sapBorderColor: var(--border);
+  --sapContent_ForegroundBorderColor: var(--border);
+  --sapTextColor: var(--foreground);
+  --sapContent_LabelColor: var(--muted-foreground);
+  --sapContent_NonInteractiveIconColor: var(--muted-foreground);
+  --sapHighlightColor: var(--primary);
+  --sapHighlightBorderColor: var(--primary);
+  --sapHighlightBackground: color-mix(in oklch, var(--primary) 10%, var(--card));
+  --sapSelectedColor: var(--primary);
+  --sapAssistant_Active_Background: var(--primary);
+  --sapFocusColor: var(--ring);
+  --sapContent_FocusColor: var(--ring);
+  --sapInformationColor: var(--primary);
+  --sapInformationBorderColor: var(--primary);
+  --sapInformationBackground: color-mix(in oklch, var(--primary) 8%, var(--card));
+  --sapNegativeColor: var(--destructive);
+  --sapErrorBorderColor: var(--destructive);
+  --sapButton_TextColor: var(--primary);
+  --sapButton_Lite_Background: transparent;
+  --sapButton_Hover_Background: var(--accent);
+  --sapContent_Shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+  --sapContent_ShadowHigh: 0 10px 30px rgb(0 0 0 / 0.15);
+  --sapContent_ShadowHelp: 0 4px 12px rgb(0 0 0 / 0.1);
+  --sapFontFamily: var(--font-sans);
+  --sapFontHeader: var(--font-sans);
+}

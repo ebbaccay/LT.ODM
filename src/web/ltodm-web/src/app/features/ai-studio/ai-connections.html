@@ -1,0 +1,253 @@
+<section class="flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight"><ng-icon name="lucidePlug" />{{ 'aiSettings.title' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 max-w-3xl text-sm">{{ 'aiSettings.subtitle' | transloco }}</p>
+    </div>
+    <button hlmBtn type="button" class="h-11 lg:h-9" (click)="openConnection(null)"><ng-icon name="lucidePlus" />{{ 'aiSettings.addConnection' | transloco }}</button>
+  </header>
+
+  @if (loading()) {
+    <div hlmSkeleton class="h-72 w-full"></div>
+  } @else if (settings(); as s) {
+    <!-- Jobs -->
+    <section hlmCard class="gap-0 py-0">
+      <div class="border-b px-5 py-3">
+        <h2 class="font-semibold">{{ 'aiSettings.jobsTitle' | transloco }}</h2>
+        <p class="text-muted-foreground text-xs">{{ 'aiSettings.jobsHint' | transloco }}</p>
+      </div>
+      <ul class="divide-y" role="list">
+        @for (p of s.purposes; track p.purpose) {
+          @let d = drafts()[p.purpose];
+          @let fb = fallbackFor(p.purpose);
+          @let chosen = connectionById(d.connectionId);
+          <li class="grid gap-3 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,16rem)_minmax(0,16rem)_auto] lg:items-center">
+            <div class="min-w-0">
+              <p class="flex flex-wrap items-center gap-2 font-medium">
+                {{ 'aiSettings.purpose.' + p.purpose + '.title' | transloco }}
+                <span class="rounded px-1.5 py-0.5 text-[11px] font-normal" [class]="p.inUse ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' : 'bg-violet-500/15 text-violet-700 dark:text-violet-400'">
+                  {{ (p.inUse ? 'aiSettings.inUse' : 'aiSettings.prepared') | transloco }}
+                </span>
+              </p>
+              <p class="text-muted-foreground text-xs">{{ 'aiSettings.purpose.' + p.purpose + '.what' | transloco }}</p>
+              @if (chosen) {
+                <p class="mt-1 flex items-center gap-1 text-xs" [class]="leavesNetwork(chosen) ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'">
+                  <ng-icon [name]="leavesNetwork(chosen) ? 'lucideCloud' : 'lucideServer'" />{{ (leavesNetwork(chosen) ? 'aiSettings.cloud' : 'aiSettings.inHouse') | transloco }}
+                </p>
+              } @else if (fb) {
+                <p class="text-muted-foreground mt-1 text-xs">
+                  {{ 'aiSettings.usingDefault' | transloco: { provider: fb.provider, model: fb.model } }}
+                  @if (!fb.isConfigured) { · <span class="text-amber-700 dark:text-amber-400">{{ 'aiSettings.defaultNotSet' | transloco }}</span> }
+                </p>
+              }
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-muted-foreground text-xs" [for]="'job-conn-' + p.purpose">{{ 'aiSettings.connection' | transloco }}</label>
+              <hlm-native-select [selectId]="'job-conn-' + p.purpose" selectClass="h-11 w-full lg:h-9" [value]="d.connectionId" (valueChange)="setDraft(p.purpose, { connectionId: $event ?? '' })">
+                <option hlmNativeSelectOption value="">{{ (fb ? 'aiSettings.appDefault' : 'aiSettings.notSet') | transloco }}</option>
+                @for (c of activeConnections(); track c.connectionId) {
+                  <option hlmNativeSelectOption [value]="'' + c.connectionId" [selected]="'' + c.connectionId === d.connectionId">{{ c.name }}</option>
+                }
+              </hlm-native-select>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-muted-foreground text-xs" [for]="'job-model-' + p.purpose">{{ 'aiSettings.model' | transloco }}</label>
+              <div class="flex gap-1">
+                <input
+                  hlmInput
+                  class="h-11 w-full lg:h-9"
+                  [id]="'job-model-' + p.purpose"
+                  [attr.list]="'job-models-' + p.purpose"
+                  [disabled]="!d.connectionId"
+                  [placeholder]="'aiSettings.modelPlaceholder' | transloco"
+                  [value]="d.model"
+                  (input)="setDraft(p.purpose, { model: $any($event.target).value })"
+                />
+                <datalist [id]="'job-models-' + p.purpose">
+                  @for (m of modelsByConnection()[+d.connectionId] ?? []; track m) {
+                    <option [value]="m"></option>
+                  }
+                </datalist>
+                @if (chosen && chosen.kind !== 'Custom') {
+                  <button hlmBtn variant="outline" size="icon" type="button" class="size-11 shrink-0 lg:size-9" [attr.aria-label]="'aiSettings.listModels' | transloco" [title]="'aiSettings.listModels' | transloco" (click)="loadModels(d.connectionId)">
+                    <ng-icon name="lucideCpu" />
+                  </button>
+                }
+              </div>
+            </div>
+            <!-- Same label space as the fields beside it, so the button lines up with the inputs. -->
+            <div class="flex flex-col gap-1">
+              <span class="invisible hidden text-xs lg:block" aria-hidden="true">&nbsp;</span>
+              <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="!dirty(p.purpose) || savingPurpose() === p.purpose" (click)="savePurpose(p.purpose)">
+                @if (savingPurpose() === p.purpose) {
+                  <hlm-spinner class="size-4" />
+                }
+                {{ 'actions.save' | transloco }}
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    </section>
+
+    <!-- Connections -->
+    <section class="flex flex-col gap-3">
+      <h2 class="font-semibold">{{ 'aiSettings.connectionsTitle' | transloco }}</h2>
+      @if (!s.connections.length) {
+        <section hlmCard class="items-center gap-2 px-5 py-10 text-center">
+          <ng-icon name="lucidePlug" class="text-muted-foreground text-3xl" />
+          <p class="font-medium">{{ 'aiSettings.noConnections' | transloco }}</p>
+          <p class="text-muted-foreground max-w-xl text-sm">{{ 'aiSettings.noConnectionsHint' | transloco }}</p>
+        </section>
+      }
+      <div class="grid gap-3 lg:grid-cols-2">
+        @for (c of s.connections; track c.connectionId) {
+          <section hlmCard class="gap-3 p-4" [class.opacity-60]="!c.isActive">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="flex flex-wrap items-center gap-2 font-medium">
+                  {{ c.name }}
+                  <span hlmBadge variant="secondary">{{ 'aiSettings.kind.' + c.kind | transloco }}</span>
+                  @if (!c.isActive) {
+                    <span hlmBadge variant="outline">{{ 'aiSettings.inactive' | transloco }}</span>
+                  }
+                </p>
+                <p class="text-muted-foreground truncate font-mono text-xs" [title]="c.endpoint">{{ c.endpoint }}</p>
+              </div>
+              <div class="flex shrink-0 gap-1">
+                <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [attr.aria-label]="'aiSettings.edit' | transloco: { name: c.name }" (click)="openConnection(c)"><ng-icon name="lucidePencil" /></button>
+                <button hlmBtn variant="ghost" size="icon" type="button" class="text-destructive size-11 lg:size-8" [attr.aria-label]="'aiSettings.deleteConnection' | transloco" [disabled]="c.usedBy.length > 0" (click)="remove(c)"><ng-icon name="lucideTrash2" /></button>
+              </div>
+            </div>
+            <dl class="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <dt class="text-muted-foreground">{{ 'aiSettings.where' | transloco }}</dt>
+                <dd class="flex items-center gap-1" [class]="leavesNetwork(c) ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'">
+                  <ng-icon [name]="leavesNetwork(c) ? 'lucideCloud' : 'lucideServer'" />{{ (leavesNetwork(c) ? 'aiSettings.cloud' : 'aiSettings.inHouse') | transloco }}
+                </dd>
+              </div>
+              <div>
+                <dt class="text-muted-foreground">{{ 'aiSettings.apiKey' | transloco }}</dt>
+                <dd class="font-mono">{{ c.hasApiKey ? '••••' + c.apiKeyHint : ('aiSettings.noKey' | transloco) }}</dd>
+              </div>
+              <div class="col-span-2">
+                <dt class="text-muted-foreground">{{ 'aiSettings.usedBy' | transloco }}</dt>
+                <dd>
+                  @for (u of c.usedBy; track u; let last = $last) {
+                    {{ 'aiSettings.purpose.' + u + '.title' | transloco }}{{ last ? '' : ', ' }}
+                  } @empty {
+                    <span class="text-muted-foreground">{{ 'aiSettings.unused' | transloco }}</span>
+                  }
+                </dd>
+              </div>
+            </dl>
+            @if (c.notes) {
+              <p class="text-muted-foreground text-xs">{{ c.notes }}</p>
+            }
+            <p class="text-muted-foreground text-[11px]">{{ 'aiSettings.changedBy' | transloco: { user: c.updatedBy, date: (c.updatedUtc | date: 'medium') } }}</p>
+          </section>
+        }
+      </div>
+    </section>
+
+    <p class="text-muted-foreground text-xs">{{ 'aiSettings.securityNote' | transloco }}</p>
+  }
+</section>
+
+<!-- Connection dialog -->
+<app-modal [open]="dialogOpen()" [heading]="(editing() ? 'aiSettings.editConnection' : 'aiSettings.addConnection') | transloco" size="lg" (closed)="dialogOpen.set(false)">
+  @let f = form();
+  @let errs = fieldErrors();
+  <form class="flex flex-col gap-4" (submit)="$event.preventDefault(); save()">
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div class="flex flex-col gap-1">
+        <label class="text-sm font-medium" for="ai-name">{{ 'aiSettings.name' | transloco }}</label>
+        <input hlmInput id="ai-name" class="h-11 lg:h-9" maxlength="100" [placeholder]="'aiSettings.namePlaceholder' | transloco" [value]="f.name" (input)="patch({ name: $any($event.target).value })" />
+        @if (errs['name']) { <p class="text-destructive text-xs">{{ errs['name'] }}</p> }
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-sm font-medium" for="ai-kind">{{ 'aiSettings.type' | transloco }}</label>
+        <hlm-native-select selectId="ai-kind" selectClass="h-11 w-full lg:h-9" [value]="f.kind" (valueChange)="patch({ kind: $any($event) })">
+          @for (k of settings()?.kinds ?? []; track k) {
+            <option hlmNativeSelectOption [value]="k" [selected]="k === f.kind">{{ 'aiSettings.kind.' + k | transloco }}</option>
+          }
+        </hlm-native-select>
+      </div>
+    </div>
+    <p class="text-muted-foreground -mt-2 text-xs">{{ 'aiSettings.kindHint.' + f.kind | transloco }}</p>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium" for="ai-endpoint">{{ 'aiSettings.endpoint' | transloco }}</label>
+      <input hlmInput id="ai-endpoint" class="h-11 font-mono text-sm lg:h-9" maxlength="400" [placeholder]="endpointPlaceholder()" [value]="f.endpoint" (input)="patch({ endpoint: $any($event.target).value })" />
+      @if (errs['endpoint']) { <p class="text-destructive text-xs">{{ errs['endpoint'] }}</p> }
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium" for="ai-key">{{ 'aiSettings.apiKey' | transloco }}</label>
+      <input
+        hlmInput
+        id="ai-key"
+        type="password"
+        autocomplete="new-password"
+        class="h-11 font-mono text-sm lg:h-9"
+        maxlength="500"
+        [disabled]="f.clearApiKey"
+        [placeholder]="(editing()?.hasApiKey ? 'aiSettings.keepKey' : 'aiSettings.keyOptional') | transloco: { hint: editing()?.apiKeyHint ?? '' }"
+        [value]="f.apiKey"
+        (input)="patch({ apiKey: $any($event.target).value })"
+      />
+      @if (editing()?.hasApiKey) {
+        <label class="flex items-center gap-2 text-xs">
+          <input type="checkbox" class="size-4" [checked]="f.clearApiKey" (change)="patch({ clearApiKey: $any($event.target).checked, apiKey: '' })" />
+          {{ 'aiSettings.removeKey' | transloco }}
+        </label>
+      }
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <label class="flex items-start gap-2 text-sm" [class.opacity-60]="f.kind === 'Gemini'">
+        <input type="checkbox" class="mt-0.5 size-4" [checked]="f.kind !== 'Gemini' && f.inHouse" [disabled]="f.kind === 'Gemini'" (change)="patch({ inHouse: $any($event.target).checked })" />
+        <span>{{ 'aiSettings.inHouseLabel' | transloco }}<span class="text-muted-foreground block text-xs">{{ (f.kind === 'Gemini' ? 'aiSettings.geminiCloud' : 'aiSettings.inHouseHint') | transloco }}</span></span>
+      </label>
+      <div class="flex flex-col gap-1">
+        <label class="text-sm font-medium" for="ai-timeout">{{ 'aiSettings.timeout' | transloco }}</label>
+        <input hlmInput id="ai-timeout" type="number" min="5" max="600" class="h-11 w-32 lg:h-9" [value]="f.timeoutSeconds" (input)="patch({ timeoutSeconds: +$any($event.target).value })" />
+        @if (errs['timeoutSeconds']) { <p class="text-destructive text-xs">{{ errs['timeoutSeconds'] }}</p> }
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium" for="ai-notes">{{ 'aiSettings.notes' | transloco }}</label>
+      <input hlmInput id="ai-notes" class="h-11 lg:h-9" maxlength="400" [placeholder]="'aiSettings.notesPlaceholder' | transloco" [value]="f.notes" (input)="patch({ notes: $any($event.target).value })" />
+    </div>
+
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" class="size-4" [checked]="f.isActive" (change)="patch({ isActive: $any($event.target).checked })" />
+      {{ 'aiSettings.active' | transloco }}
+    </label>
+
+    @if (testResult(); as r) {
+      <div class="rounded-md border p-3 text-sm" [class]="r.ok ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-red-500/40 bg-red-500/10'">
+        <p class="flex items-center gap-2 font-medium"><ng-icon [name]="r.ok ? 'lucideCircleCheck' : 'lucideTriangleAlert'" />{{ r.message }}</p>
+        @if (r.models.length) {
+          <p class="text-muted-foreground mt-1 line-clamp-3 font-mono text-xs">{{ r.models.slice(0, 30).join(', ') }}{{ r.models.length > 30 ? ' …' : '' }}</p>
+        }
+      </div>
+    }
+  </form>
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="testing() || !f.endpoint.trim()" (click)="test()">
+      @if (testing()) {
+        <hlm-spinner class="size-4" />
+      }
+      {{ 'aiSettings.test' | transloco }}
+    </button>
+    <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" (click)="dialogOpen.set(false)">{{ 'actions.cancel' | transloco }}</button>
+    <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="saving() || !f.name.trim() || !f.endpoint.trim()" (click)="save()">
+      @if (saving()) {
+        <hlm-spinner class="size-4" />
+      }
+      {{ 'actions.save' | transloco }}
+    </button>
+  </ng-container>
+</app-modal>

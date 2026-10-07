@@ -1,0 +1,292 @@
+@let h = header();
+<section class="flex flex-col gap-5">
+  <!-- ── Screen header and controls (not printed) ───────────── -->
+  <header class="flex flex-wrap items-end justify-between gap-3 print:hidden">
+    <div class="min-w-0">
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'nav.customerProposal' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'csm.subtitle' | transloco }}</p>
+    </div>
+    @if (h) {
+      <button hlmBtn type="button" class="h-11 w-full sm:w-auto lg:h-9" (click)="print()">
+        <ng-icon name="lucideFileDown" />{{ 'csm.generatePdf' | transloco }}
+      </button>
+    }
+  </header>
+
+  <section hlmCard class="gap-3 overflow-visible px-5 py-4 print:hidden">
+    <app-concept-picker
+      [concepts]="concepts()"
+      [loaded]="conceptsLoaded()"
+      [selected]="conceptRecid()"
+      [label]="'csm.picker.title' | transloco"
+      [placeholder]="'csm.picker.searchPlaceholder' | transloco"
+      [emptyText]="'csm.picker.empty' | transloco"
+      [noMatchText]="'common.noMatches' | transloco"
+      (selectedChange)="selectConcept($event)"
+    />
+    @if (h) {
+      <nav class="-mx-1 flex gap-1 overflow-x-auto" [attr.aria-label]="'csm.platformSectionsAriaLabel' | transloco">
+        @for (s of sections; track s) {
+          <button type="button" class="text-muted-foreground hover:bg-accent hover:text-foreground min-h-11 shrink-0 rounded-md px-3 text-sm font-medium lg:min-h-8" (click)="scrollTo(s)">
+            {{ 'csm.section.' + s | transloco }}
+          </button>
+        }
+      </nav>
+    }
+  </section>
+
+  @if (loading()) {
+    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div class="flex flex-col gap-4">
+        <div hlmSkeleton class="h-56 rounded-xl"></div>
+        <div hlmSkeleton class="h-72 rounded-xl"></div>
+      </div>
+      <div hlmSkeleton class="h-80 rounded-xl"></div>
+    </div>
+  } @else if (noCollection()) {
+    <section hlmCard class="items-center gap-3 px-5 py-12 text-center">
+      <ng-icon name="lucidePackageOpen" class="text-muted-foreground text-4xl" />
+      <p class="font-medium">{{ 'csm.noCollection' | transloco }}</p>
+      <a hlmBtn variant="outline" routerLink="/collection-builder" class="h-11 lg:h-9">{{ 'nav.collectionBuilder' | transloco }}</a>
+    </section>
+  } @else if (!h) {
+    @if (conceptsLoaded() && concepts().length) {
+      <section hlmCard class="items-center gap-2 px-5 py-12 text-center print:hidden">
+        <ng-icon name="lucidePackageOpen" class="text-muted-foreground text-4xl" />
+        <p class="font-medium">{{ 'csm.empty.title' | transloco }}</p>
+        <p class="text-muted-foreground text-sm">{{ 'csm.empty.hint' | transloco }}</p>
+      </section>
+    }
+  } @else {
+    <!-- ── Print cover (print only) ────────────────────────── -->
+    <header class="mb-2 hidden border-b pb-4 print:block">
+      <p class="text-xs tracking-widest text-slate-500 uppercase">{{ 'csm.printTitle' | transloco }}</p>
+      <h1 class="mt-1 text-3xl font-semibold">{{ h.conceptName }}</h1>
+      <p class="mt-1 text-sm text-slate-600">{{ meta() }}</p>
+      <p class="mt-1 text-xs text-slate-500">{{ today | date: 'longDate' }}</p>
+    </header>
+
+    <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] print:block print:pr-1">
+      <div class="flex min-w-0 flex-col gap-4">
+        <!-- 1. Concept -->
+        <section hlmCard class="proposal-block scroll-mt-20 gap-0 py-0 print:mb-4 print:shadow-none print:ring-0 print:border print:border-slate-300" id="proposal-concept">
+          <h2 class="flex items-center gap-3 border-b px-5 py-3 font-semibold">
+            <span class="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-full text-xs">1</span>
+            {{ h.conceptName }}
+          </h2>
+          <div class="grid gap-5 p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,16rem)]">
+            <div class="flex min-w-0 flex-col gap-3">
+              <p class="text-muted-foreground text-sm">{{ meta() }}</p>
+              @if (h.conceptBrief) {
+                <p class="text-sm leading-relaxed whitespace-pre-line">{{ h.conceptBrief }}</p>
+              }
+              <div>
+                <h3 class="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">{{ 'csm.keyDirection' | transloco }}</h3>
+                @if (h.fabricDirection.length) {
+                  <ul class="flex flex-col gap-1 text-sm">
+                    @for (d of h.fabricDirection; track $index) {
+                      <li class="flex gap-2"><span class="bg-primary mt-1.5 size-1.5 shrink-0 rounded-full"></span>{{ d }}</li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="text-muted-foreground text-sm">{{ 'csm.noFabricDirections' | transloco }}</p>
+                }
+              </div>
+              @if (h.sustainabilityNotes.length) {
+                <div>
+                  <h3 class="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">{{ 'cs.saved.detailSustainabilityNotes' | transloco }}</h3>
+                  <ul class="flex flex-col gap-1 text-sm">
+                    @for (n of h.sustainabilityNotes; track $index) {
+                      <li class="flex gap-2"><span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-500"></span>{{ n }}</li>
+                    }
+                  </ul>
+                </div>
+              }
+              @if (h.activeTags.length) {
+                <div class="flex flex-wrap gap-1.5">
+                  @for (t of h.activeTags; track t) {
+                    <span hlmBadge variant="secondary">{{ t }}</span>
+                  }
+                </div>
+              }
+            </div>
+            @if (previews().length) {
+              <div class="grid grid-cols-2 gap-2 self-start" [attr.aria-label]="'csm.collectionPreviewAriaLabel' | transloco">
+                @for (p of previews(); track p.itemRecid; let first = $first) {
+                  <img
+                    [appAuthSrc]="p.imageUrl"
+                    [alt]="p.name"
+                    class="bg-muted w-full rounded-md object-cover"
+                    [class]="first ? 'col-span-2 aspect-[4/3]' : 'aspect-square'"
+                    (loadError)="p.imageUrl = ''"
+                  />
+                }
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- 2. Lineup -->
+        <section hlmCard class="proposal-block scroll-mt-20 gap-0 py-0 print:mb-4 print:shadow-none print:ring-0 print:border print:border-slate-300" id="proposal-lineup">
+          <h2 class="flex items-center gap-3 border-b px-5 py-3 font-semibold">
+            <span class="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-full text-xs">2</span>
+            {{ 'csm.productLineupTitle' | transloco }}
+            <span hlmBadge variant="secondary">{{ items().length }}</span>
+          </h2>
+          @if (!items().length) {
+            <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ 'csm.noStylesAdded' | transloco }}</p>
+          } @else {
+            <ul class="grid grid-cols-2 gap-3 p-5 sm:grid-cols-3 xl:grid-cols-4 print:grid-cols-4" role="list">
+              @for (p of items(); track p.itemRecid) {
+                <li class="proposal-block flex flex-col overflow-hidden rounded-lg border">
+                  <div class="bg-muted text-muted-foreground flex aspect-[4/3] items-center justify-center overflow-hidden">
+                    @if (p.imageUrl) {
+                      <img [appAuthSrc]="p.imageUrl" [alt]="p.name" class="size-full object-cover" loading="lazy" (loadError)="p.imageUrl = ''" />
+                    } @else {
+                      <ng-icon name="lucideImage" class="text-2xl opacity-50" />
+                    }
+                  </div>
+                  <div class="flex flex-1 flex-col gap-0.5 p-2.5">
+                    <p class="truncate text-sm font-medium" [title]="p.name">{{ p.name }}</p>
+                    <p class="text-muted-foreground truncate text-xs">
+                      <span class="font-mono">{{ p.styleCode }}</span>@if (p.category) { · {{ p.category }} }
+                    </p>
+                    <div class="mt-auto flex items-center justify-between gap-2 pt-1 text-xs">
+                      <span class="text-muted-foreground truncate">{{ p.origin }}</span>
+                      <span class="shrink-0 font-semibold tabular-nums">{{ p.fob ? '$' + (p.fob | number: '1.2-2') : '—' }}</span>
+                    </div>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+
+        <!-- 3. Costs -->
+        <section hlmCard class="proposal-block scroll-mt-20 gap-0 py-0 print:mb-4 print:shadow-none print:ring-0 print:border print:border-slate-300" id="proposal-costs">
+          <h2 class="flex items-center gap-3 border-b px-5 py-3 font-semibold">
+            <span class="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-full text-xs">3</span>
+            {{ 'csm.section.costs' | transloco }}
+          </h2>
+          <div class="flex flex-col gap-4 p-5">
+            <dl class="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+              <div class="bg-muted/50 rounded-lg px-2 py-2">
+                <dt class="text-muted-foreground text-xs">{{ 'csm.costopt.costed' | transloco }}</dt>
+                <dd class="text-lg font-semibold tabular-nums">{{ costed().length }} / {{ items().length }}</dd>
+              </div>
+              <div class="bg-muted/50 rounded-lg px-2 py-2">
+                <dt class="text-muted-foreground text-xs">{{ 'csm.averageFob' | transloco }}</dt>
+                <dd class="text-lg font-semibold tabular-nums">{{ avgFob() ? '$' + (avgFob() | number: '1.2-2') : '—' }}</dd>
+              </div>
+              <div class="bg-muted/50 rounded-lg px-2 py-2">
+                <dt class="text-muted-foreground text-xs">{{ 'csm.targetFob' | transloco }}</dt>
+                <dd class="text-lg font-semibold tabular-nums">{{ targetFob() ? '$' + (targetFob() | number: '1.2-2') : '—' }}</dd>
+              </div>
+              <div class="bg-muted/50 rounded-lg px-2 py-2">
+                <dt class="text-muted-foreground text-xs">{{ 'csm.costopt.fobGap' | transloco }}</dt>
+                <dd class="text-lg font-semibold tabular-nums" [class]="fobGap() > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'">
+                  @if (avgFob() && targetFob()) {
+                    {{ fobGap() > 0 ? '+' : '' }}{{ fobGap() | number: '1.2-2' }}
+                  } @else {
+                    —
+                  }
+                </dd>
+              </div>
+            </dl>
+            @if (items().length) {
+              <ul class="divide-y rounded-lg border" role="list">
+                @for (p of items(); track p.itemRecid) {
+                  @let gap = p.fob && targetFob() ? p.fob - targetFob() : 0;
+                  <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-0.5 px-4 py-2.5 sm:grid-cols-[minmax(0,1fr)_6rem_10rem]">
+                    <span class="min-w-0">
+                      <span class="block truncate text-sm font-medium">{{ p.name }}</span>
+                      <span class="text-muted-foreground block truncate text-xs">{{ p.category || '—' }}</span>
+                    </span>
+                    <span class="text-right text-sm font-semibold tabular-nums">{{ p.fob ? '$' + (p.fob | number: '1.2-2') : '—' }}</span>
+                    <span class="col-span-2 text-xs sm:col-span-1 sm:text-right">
+                      @if (!p.fob) {
+                        <span class="text-muted-foreground">{{ 'csm.costopt.statusDraft' | transloco }}</span>
+                      } @else if (gap > 0) {
+                        <span class="text-red-600 dark:text-red-400">+${{ gap | number: '1.2-2' }} {{ 'csm.costopt.aboveTarget' | transloco }}</span>
+                      } @else if (targetFob()) {
+                        <span class="text-emerald-600 dark:text-emerald-400">{{ 'csm.costopt.atTarget' | transloco }}</span>
+                      }
+                    </span>
+                  </li>
+                }
+              </ul>
+            }
+            <div class="flex flex-wrap items-center justify-between gap-3 print:hidden">
+              <p class="text-muted-foreground text-sm">{{ 'csm.costopt.hint' | transloco }}</p>
+              <a
+                hlmBtn
+                variant="outline"
+                class="h-11 lg:h-9"
+                [routerLink]="['/cost-optimization']"
+                [queryParams]="{ collectionRecid: h.collectionRecid }"
+              >
+                <ng-icon name="lucideCalculator" />{{ 'csm.costopt.openBtn' | transloco }}
+              </a>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ── Sidebar: summary + FOB bars + offer (also printed, after the sections) ── -->
+      <aside class="flex flex-col gap-4 lg:sticky lg:top-20 print:static" id="proposal-offer">
+        <section hlmCard class="proposal-block gap-0 py-0 print:mb-4 print:shadow-none print:ring-0 print:border print:border-slate-300">
+          <h2 class="border-b px-5 py-3 font-semibold">{{ 'csm.offerSummaryTitle' | transloco }}</h2>
+          <dl class="flex flex-col gap-2 p-5 text-sm">
+            <div class="flex justify-between gap-3">
+              <dt class="text-muted-foreground">{{ 'csm.totalStyles' | transloco }}</dt>
+              <dd class="font-semibold tabular-nums">{{ items().length }}</dd>
+            </div>
+            <div class="flex justify-between gap-3">
+              <dt class="text-muted-foreground">{{ 'csm.averageFob' | transloco }}</dt>
+              <dd class="font-semibold tabular-nums">{{ avgFob() ? '$' + (avgFob() | number: '1.2-2') : '—' }}</dd>
+            </div>
+            <div class="flex justify-between gap-3">
+              <dt class="text-muted-foreground">{{ 'csm.targetFob' | transloco }}</dt>
+              <dd class="text-primary text-lg font-semibold tabular-nums">{{ targetFob() ? '$' + (targetFob() | number: '1.2-2') : '—' }}</dd>
+            </div>
+            @if (targetFob() && costed().length) {
+              <div class="flex justify-between gap-3 border-t pt-2">
+                <dt class="text-muted-foreground">{{ 'csm.withinTarget' | transloco }}</dt>
+                <dd class="font-semibold tabular-nums">{{ withinTarget() }} / {{ costed().length }}</dd>
+              </div>
+            }
+          </dl>
+        </section>
+
+        @if (costed().length) {
+          <section hlmCard class="proposal-block gap-0 py-0 print:shadow-none print:ring-0 print:border print:border-slate-300">
+            <h2 class="border-b px-5 py-3 font-semibold">{{ 'csm.fobBreakdown' | transloco }}</h2>
+            <ul class="flex flex-col gap-2 p-5" role="list" [attr.aria-label]="'csm.fobBreakdownAriaLabel' | transloco">
+              @for (p of costed(); track p.itemRecid) {
+                <li class="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)_3.5rem] items-center gap-2 text-xs">
+                  <span class="truncate" [title]="p.name">{{ p.name }}</span>
+                  <span class="bg-muted relative h-2 rounded-full" aria-hidden="true">
+                    <span
+                      class="absolute inset-y-0 left-0 rounded-full"
+                      [class]="targetFob() && p.fob > targetFob() ? 'bg-red-500' : 'bg-primary'"
+                      [style.width.%]="(p.fob / barMax()) * 100"
+                    ></span>
+                    @if (targetFob()) {
+                      <span class="bg-foreground/60 absolute -inset-y-1 w-0.5" [style.left.%]="(targetFob() / barMax()) * 100"></span>
+                    }
+                  </span>
+                  <span class="text-right font-medium tabular-nums">${{ p.fob | number: '1.2-2' }}</span>
+                </li>
+              }
+            </ul>
+            @if (targetFob()) {
+              <p class="text-muted-foreground flex items-center gap-1.5 px-5 pb-4 text-xs">
+                <span class="bg-foreground/60 h-3 w-0.5"></span>{{ 'csm.targetLine' | transloco: { value: (targetFob() | number: '1.2-2') } }}
+              </p>
+            }
+          </section>
+        }
+      </aside>
+    </div>
+  }
+</section>

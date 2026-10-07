@@ -1,0 +1,170 @@
+<section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
+  <header>
+    <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight"><ng-icon name="lucideShieldAlert" />{{ 'ai.bom.title' | transloco }}</h1>
+    <p class="text-muted-foreground mt-1 text-sm">{{ 'ai.bom.subtitle' | transloco }}</p>
+  </header>
+  <app-ai-provider-banner uses="text" />
+
+  <!-- Scope -->
+  <section hlmCard class="gap-4 p-5">
+    <div class="bg-muted flex w-full rounded-lg p-1 sm:w-fit" role="tablist">
+      @for (s of [{ id: 'group', label: 'ai.bom.scopeGroup' }, { id: 'style', label: 'ai.bom.scopeStyle' }]; track s.id) {
+        <button
+          type="button"
+          role="tab"
+          class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium sm:flex-initial"
+          [class]="scope() === s.id ? 'bg-background shadow-sm' : 'text-muted-foreground'"
+          [attr.aria-selected]="scope() === s.id"
+          (click)="setScope($any(s.id))"
+        >
+          {{ s.label | transloco }}
+        </button>
+      }
+    </div>
+    @if (scope() === 'style') {
+      <div class="flex flex-col gap-1">
+        <label class="text-sm font-medium" for="bom-style">{{ 'ai.bom.pickStyle' | transloco }}</label>
+        <app-style-picker inputId="bom-style" label="ai.bom.pickStyle" (picked)="pickStyle($event)" />
+        @if (query().styleId && pickedStyle()) {
+          <p class="text-muted-foreground text-xs">{{ 'ai.bom.checking' | transloco: { style: pickedStyle() } }}</p>
+        }
+      </div>
+    } @else {
+      @let l = lookups();
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <hlm-native-select selectId="bom-customer" selectClass="h-11 w-full lg:h-9 sm:w-44" [attr.aria-label]="'styles.allCustomers' | transloco" [value]="query().customer ?? ''" (valueChange)="setGroup('customer', $event ?? '')">
+          <option hlmNativeSelectOption value="">{{ 'styles.allCustomers' | transloco }}</option>
+          @for (o of l?.customers ?? []; track o.code) {
+            <option hlmNativeSelectOption [value]="o.code">{{ o.name }}</option>
+          }
+        </hlm-native-select>
+        <hlm-native-select selectId="bom-season" selectClass="h-11 w-full lg:h-9 sm:w-44" [attr.aria-label]="'styles.allSeasons' | transloco" [value]="query().season ?? ''" (valueChange)="setGroup('season', $event ?? '')">
+          <option hlmNativeSelectOption value="">{{ 'styles.allSeasons' | transloco }}</option>
+          @for (o of l?.seasons ?? []; track o.code) {
+            <option hlmNativeSelectOption [value]="o.code">{{ o.code }}</option>
+          }
+        </hlm-native-select>
+        <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="loading()" (click)="runGroup()">
+          <ng-icon name="lucideClipboardCheck" />{{ 'ai.bom.run' | transloco }}
+        </button>
+      </div>
+      <p class="text-muted-foreground text-xs">{{ 'ai.bom.groupHint' | transloco }}</p>
+    }
+  </section>
+
+  @if (loading()) {
+    <div hlmSkeleton class="h-28 w-full"></div>
+    <div hlmSkeleton class="h-80 w-full"></div>
+  } @else if (result(); as r) {
+    <!-- Totals per rule -->
+    <section hlmCard class="gap-4 p-5">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="text-sm">
+          {{ 'ai.bom.checked' | transloco: { styles: (r.stylesChecked | number), lines: (r.linesChecked | number), findings: (r.totalFindings | number) } }}
+        </p>
+        @if (r.totalFindings) {
+          <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="explaining()" (click)="explain()">
+            @if (explaining()) {
+              <hlm-spinner class="size-4" />
+            } @else {
+              <ng-icon name="lucideSparkles" />
+            }
+            {{ (explanation() ? 'ai.bom.explainAgain' : 'ai.bom.explain') | transloco }}
+          </button>
+        }
+      </div>
+      @if (ruleTotals().length) {
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          @for (t of ruleTotals(); track t.rule) {
+            <button
+              type="button"
+              class="hover:bg-accent/40 flex flex-col gap-1 rounded-md border p-3 text-left"
+              [class.ring-2]="ruleFilter() === t.rule"
+              [class.ring-primary]="ruleFilter() === t.rule"
+              [attr.aria-pressed]="ruleFilter() === t.rule"
+              (click)="toggleRule(t.rule)"
+            >
+              <span class="flex items-center justify-between gap-2">
+                <span class="text-sm font-medium">{{ 'ai.bom.rule.' + t.rule | transloco }}</span>
+                <span class="rounded px-1.5 py-0.5 text-xs" [class]="severityTone(t.worst)">{{ 'ai.bom.severity.' + t.worst | transloco }}</span>
+              </span>
+              <span class="text-2xl font-semibold tabular-nums">{{ t.lines | number }}</span>
+              <span class="text-muted-foreground text-xs">{{ 'ai.bom.inStyles' | transloco: { count: t.styles } }}</span>
+              @if (noteFor(t.rule); as note) {
+                <span class="text-xs"><ng-icon name="lucideSparkles" class="text-primary mr-1 align-[-2px]" />{{ note }}</span>
+              }
+            </button>
+          }
+        </div>
+      } @else {
+        <p class="text-sm">{{ 'ai.bom.allClear' | transloco }}</p>
+      }
+    </section>
+
+    <!-- AI explanation -->
+    @if (explanation(); as x) {
+      <section hlmCard class="gap-2 border-primary/40 p-5">
+        <h2 class="flex items-center gap-2 font-semibold"><ng-icon name="lucideSparkles" />{{ 'ai.bom.explanationTitle' | transloco }}</h2>
+        <p class="text-sm">{{ x.summary }}</p>
+        @if (x.priorities.length) {
+          <p class="text-muted-foreground text-xs">{{ 'ai.bom.prioritiesHint' | transloco: { count: x.priorities.length } }}</p>
+        }
+        <p class="text-muted-foreground text-xs">{{ 'ai.bom.aiNote' | transloco }}</p>
+      </section>
+    }
+
+    <!-- Findings -->
+    @if (r.findings.length) {
+      <section hlmCard class="gap-0 py-0">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+          <h2 class="font-semibold">{{ 'ai.bom.findings' | transloco }}</h2>
+          <div class="flex flex-wrap items-center gap-2">
+            @for (s of severities; track s) {
+              <button
+                type="button"
+                class="rounded-full border px-3 py-1 text-xs"
+                [class]="severityFilter() === s ? severityTone(s) + ' border-transparent' : 'text-muted-foreground'"
+                [attr.aria-pressed]="severityFilter() === s"
+                (click)="severityFilter.set(severityFilter() === s ? '' : s)"
+              >
+                {{ 'ai.bom.severity.' + s | transloco }}
+              </button>
+            }
+            @if (ruleFilter() || severityFilter()) {
+              <button hlmBtn variant="ghost" type="button" class="h-9" (click)="ruleFilter.set(''); severityFilter.set('')"><ng-icon name="lucideX" />{{ 'styles.clear' | transloco }}</button>
+            }
+          </div>
+        </div>
+        <ul class="divide-y" role="list">
+          @for (f of findings(); track f.bomLineId + f.ruleCode) {
+            @let p = priorityById().get(f.bomLineId);
+            @let d = detail(f);
+            <li class="flex flex-col gap-1 px-5 py-3 text-sm" [class.bg-primary/5]="!!p">
+              <div class="flex flex-wrap items-center gap-2">
+                @if (p) {
+                  <span class="bg-primary text-primary-foreground rounded px-1.5 py-0.5 text-xs font-medium">#{{ p.rank }}</span>
+                }
+                <span class="rounded px-1.5 py-0.5 text-xs" [class]="severityTone(f.severity)">{{ 'ai.bom.severity.' + f.severity | transloco }}</span>
+                <span class="text-xs font-medium">{{ 'ai.bom.rule.' + f.ruleCode | transloco }}</span>
+                <a [routerLink]="['/styles', f.styleId]" class="text-primary font-mono text-xs underline-offset-2 hover:underline">{{ f.styleNo }}</a>
+                <span class="text-muted-foreground text-xs">{{ f.seasonCode }} · {{ 'ai.bom.line' | transloco: { seq: f.lineSeq } }}@if (f.contentClassCode) { · {{ f.contentClassCode }} }</span>
+              </div>
+              <p class="truncate" [title]="f.materialDescription ?? ''"><span class="font-mono text-xs">{{ f.materialCode }}</span> <span class="text-muted-foreground text-xs">{{ f.materialDescription }}</span></p>
+              <p class="text-xs">{{ d.key | transloco: d.params }}</p>
+              @if (p) {
+                <p class="text-xs"><ng-icon name="lucideSparkles" class="text-primary mr-1 align-[-2px]" />{{ p.why }} <strong>{{ p.action }}</strong></p>
+              }
+            </li>
+          } @empty {
+            <li class="text-muted-foreground px-5 py-8 text-center text-sm">{{ 'ai.bom.noneForFilter' | transloco }}</li>
+          }
+        </ul>
+        @if (r.totalFindings > r.findings.length) {
+          <p class="text-muted-foreground border-t px-5 py-3 text-center text-xs">
+            {{ 'ai.bom.firstOnly' | transloco: { shown: (r.findings.length | number), total: (r.totalFindings | number) } }}
+          </p>
+        }
+      </section>
+    }
+  }
+</section>

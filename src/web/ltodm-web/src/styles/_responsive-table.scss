@@ -1,0 +1,70 @@
+﻿@use 'breakpoints' as bp;
+
+// Usage: <table class="responsive-table"> ... <td data-label="Style no.">...</td>
+// Below the tablet breakpoint each row becomes a stacked card using the data-label attribute.
+.responsive-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 0.75rem;
+    text-align: left;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tr {
+    display: block;
+    margin-bottom: 1rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  td {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: bp.$touch-target;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+
+    &:last-child {
+      border-bottom: 0;
+    }
+
+    &::before {
+      content: attr(data-label);
+      font-weight: 600;
+    }
+  }
+
+  @include bp.tablet-up {
+    thead {
+      display: table-header-group;
+    }
+
+    tr {
+      display: table-row;
+      margin: 0;
+      background: none;
+      border: 0;
+    }
+
+    td {
+      display: table-cell;
+      border-bottom: 1px solid var(--border);
+
+      &::before {
+        content: none;
+      }
+    }
+
+    th {
+      border-bottom: 2px solid var(--border);
+    }
+  }
+}

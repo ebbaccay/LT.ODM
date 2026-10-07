@@ -1,0 +1,305 @@
+<section class="flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div class="min-w-0">
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'sp.title' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'sp.subtitle' | transloco }}</p>
+    </div>
+    <button hlmBtn variant="outline" type="button" class="h-11 w-full sm:w-auto lg:h-9" [disabled]="loading()" (click)="refresh()">
+      <ng-icon name="lucideRefreshCw" />
+      {{ 'actions.refresh' | transloco }}
+    </button>
+  </header>
+
+  <!-- ── Filters ──────────────────────────────────────────── -->
+  <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_repeat(3,11rem)]">
+    <div class="relative sm:col-span-2 lg:col-span-1">
+      <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+      <input
+        hlmInput
+        type="search"
+        class="h-11 w-full pl-9 lg:h-9"
+        [placeholder]="'sp.searchPlaceholder' | transloco"
+        [attr.aria-label]="'sp.searchPlaceholder' | transloco"
+        [value]="search()"
+        (input)="search.set($any($event.target).value)"
+      />
+    </div>
+    <label class="sr-only" for="sp-f1">{{ 'sp.country' | transloco }}</label>
+    <hlm-native-select class="w-full" selectId="sp-f1" selectClass="h-11 w-full lg:h-9" [value]="country()" (valueChange)="country.set($event ?? '')">
+      <option hlmNativeSelectOption value="">{{ 'sp.allCountries' | transloco }}</option>
+      @for (c of countries(); track c) {
+        <option hlmNativeSelectOption [value]="c">{{ c }}</option>
+      }
+    </hlm-native-select>
+    <label class="sr-only" for="sp-f2">{{ 'sp.statusFilter' | transloco }}</label>
+    <hlm-native-select class="w-full" selectId="sp-f2" selectClass="h-11 w-full lg:h-9" [value]="status()" (valueChange)="status.set($any($event ?? ''))">
+      <option hlmNativeSelectOption value="">{{ 'sp.allStatuses' | transloco }}</option>
+      <option hlmNativeSelectOption value="catalog">{{ 'sp.catalogOnly' | transloco }}</option>
+      @for (s of statuses; track s) {
+        <option hlmNativeSelectOption [value]="s">{{ ('sp.status.' + s.toLowerCase()) | transloco }}</option>
+      }
+    </hlm-native-select>
+    <label class="sr-only" for="sp-f3">{{ 'sp.sortBy' | transloco }}</label>
+    <hlm-native-select class="w-full" selectId="sp-f3" selectClass="h-11 w-full lg:h-9" [value]="sort()" (valueChange)="sort.set($any($event ?? 'overall'))">
+      @for (k of sortKeys; track k) {
+        <option hlmNativeSelectOption [value]="k">{{ 'sp.sortBy' | transloco }}: {{ ('sp.sort.' + k) | transloco }}</option>
+      }
+    </hlm-native-select>
+  </div>
+
+  @if (loading() && !rows().length) {
+    <div class="grid gap-4 lg:grid-cols-3">
+      <div hlmSkeleton class="h-44 rounded-xl"></div>
+      <div hlmSkeleton class="h-44 rounded-xl lg:col-span-2"></div>
+    </div>
+    <div hlmSkeleton class="h-64 rounded-xl"></div>
+  } @else if (failed() && !rows().length) {
+    <section hlmCard class="items-center gap-3 px-5 py-14 text-center">
+      <p class="font-medium">{{ 'sp.loadFailed' | transloco }}</p>
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="refresh()">{{ 'actions.refresh' | transloco }}</button>
+    </section>
+  } @else if (!filtered().length) {
+    <section hlmCard class="items-center gap-3 px-5 py-14 text-center">
+      <ng-icon name="lucideFactory" class="text-muted-foreground text-4xl" />
+      <p class="font-medium">{{ (hasFilters() ? 'sp.noMatch' : 'sp.empty') | transloco }}</p>
+      @if (hasFilters()) {
+        <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="clearFilters()">{{ 'sp.clearFilters' | transloco }}</button>
+      }
+    </section>
+  } @else {
+    <!-- ── Best overall + countries ───────────────────────── -->
+    <div class="grid items-start gap-4 lg:grid-cols-3">
+      @if (top(); as t) {
+        <section hlmCard class="gap-3 px-5 py-4">
+          <div class="text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wide uppercase">
+            <ng-icon name="lucideAward" class="text-primary text-base" />
+            {{ 'sp.bestOverall' | transloco }}
+          </div>
+          <div class="flex items-center gap-3">
+            <ng-container *ngTemplateOutlet="thumb; context: { $implicit: t, size: 'size-14' }" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate font-semibold" [title]="t.name">{{ t.name }}</p>
+              <p class="text-muted-foreground text-sm">{{ t.country }}</p>
+            </div>
+            <div class="text-right">
+              <p class="text-3xl font-semibold tabular-nums">{{ t.overall }}</p>
+              <p class="text-muted-foreground text-xs">{{ 'sp.outOf100' | transloco }}</p>
+            </div>
+          </div>
+          @if (t.highlights.length) {
+            <div class="flex flex-wrap gap-1.5">
+              @for (h of t.highlights; track h.key) {
+                <span hlmBadge variant="secondary">{{ h.key | transloco: h.params }}</span>
+              }
+            </div>
+          }
+          <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="detail.set(t)">{{ 'sp.viewDetails' | transloco }}</button>
+        </section>
+      }
+
+      <section hlmCard class="gap-0 py-0 lg:col-span-2">
+        <h2 class="border-b px-5 py-3 text-sm font-semibold">{{ 'sp.byCountry' | transloco }}</h2>
+        <ul class="grid gap-px sm:grid-cols-2">
+          @for (c of summaries(); track c.country) {
+            <li>
+              <button
+                type="button"
+                class="hover:bg-muted/50 flex w-full items-center justify-between gap-3 px-5 py-3 text-left"
+                [class.bg-primary/5]="country() === c.country"
+                [attr.aria-pressed]="country() === c.country"
+                (click)="country.set(country() === c.country ? '' : c.country)"
+              >
+                <span class="min-w-0">
+                  <span class="block truncate font-medium">{{ c.country || '—' }}</span>
+                  <span class="text-muted-foreground text-xs">{{ 'sp.countryMeta' | transloco: { factories: c.factories, products: c.products } }}</span>
+                </span>
+                <span class="text-right">
+                  <span class="block text-lg font-semibold tabular-nums">{{ c.overall ?? '—' }}</span>
+                  <span class="text-muted-foreground text-xs">{{ 'sp.avgScore' | transloco }}</span>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+    </div>
+
+    <!-- ── Factories ──────────────────────────────────────── -->
+    <section hlmCard class="gap-0 py-0">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
+        <h2 class="text-sm font-semibold">{{ 'sp.factories' | transloco: { count: filtered().length } }}</h2>
+        <p class="text-muted-foreground flex items-center gap-1.5 text-xs">
+          <ng-icon name="lucideInfo" class="shrink-0" />
+          {{ 'sp.scoreHint' | transloco }}
+        </p>
+      </div>
+
+      <!-- Desktop table -->
+      <div class="hidden overflow-x-auto md:block">
+        <table class="w-full text-sm">
+          <thead class="text-muted-foreground border-b text-left text-xs">
+            <tr>
+              <th class="py-2.5 pl-5 font-medium">{{ 'sp.factory' | transloco }}</th>
+              <th class="px-3 py-2.5 font-medium">{{ 'sp.status.title' | transloco }}</th>
+              <th class="px-3 py-2.5 text-right font-medium">{{ 'sp.avgFob' | transloco }}</th>
+              <th class="px-3 py-2.5 text-right font-medium">{{ 'sp.leadTime' | transloco }}</th>
+              <th class="w-32 px-3 py-2.5 font-medium">{{ 'sp.sort.cost' | transloco }}</th>
+              <th class="w-32 px-3 py-2.5 font-medium">{{ 'sp.sort.delivery' | transloco }}</th>
+              <th class="w-32 px-3 py-2.5 font-medium">{{ 'sp.sort.quality' | transloco }}</th>
+              <th class="py-2.5 pr-5 text-right font-medium">{{ 'sp.sort.overall' | transloco }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of filtered(); track r.id) {
+              <tr class="hover:bg-muted/40 cursor-pointer border-b last:border-0" tabindex="0" (click)="detail.set(r)" (keydown.enter)="detail.set(r)">
+                <td class="py-2 pl-5">
+                  <div class="flex min-w-0 items-center gap-3">
+                    <ng-container *ngTemplateOutlet="thumb; context: { $implicit: r, size: 'size-10' }" />
+                    <div class="min-w-0">
+                      <p class="max-w-56 truncate font-medium" [title]="r.name">{{ r.name }}</p>
+                      <p class="text-muted-foreground text-xs">{{ r.country }}</p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-3 py-2">
+                  <ng-container *ngTemplateOutlet="statusBadge; context: { $implicit: r }" />
+                </td>
+                <td class="px-3 py-2 text-right tabular-nums">{{ r.avgFob === null ? '—' : '$' + (r.avgFob | number: '1.2-2') }}</td>
+                <td class="px-3 py-2 text-right tabular-nums">
+                  {{ r.leadDays === null ? '—' : ('sp.days' | transloco: { count: r.leadDays }) }}
+                </td>
+                <td class="px-3 py-2"><ng-container *ngTemplateOutlet="bar; context: { $implicit: r.cost }" /></td>
+                <td class="px-3 py-2"><ng-container *ngTemplateOutlet="bar; context: { $implicit: r.delivery }" /></td>
+                <td class="px-3 py-2"><ng-container *ngTemplateOutlet="bar; context: { $implicit: r.quality }" /></td>
+                <td class="py-2 pr-5 text-right text-base font-semibold tabular-nums">{{ r.overall ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Phone cards -->
+      <ul class="divide-y md:hidden">
+        @for (r of filtered(); track r.id) {
+          <li>
+            <button type="button" class="flex w-full items-center gap-3 px-4 py-3 text-left" (click)="detail.set(r)">
+              <ng-container *ngTemplateOutlet="thumb; context: { $implicit: r, size: 'size-12' }" />
+              <div class="min-w-0 flex-1">
+                <p class="truncate font-medium">{{ r.name }}</p>
+                <p class="text-muted-foreground truncate text-xs">
+                  {{ r.country }}
+                  @if (r.avgFob !== null) {
+                    · ${{ r.avgFob | number: '1.2-2' }}
+                  }
+                  @if (r.leadDays !== null) {
+                    · {{ 'sp.days' | transloco: { count: r.leadDays } }}
+                  }
+                </p>
+                <div class="mt-1"><ng-container *ngTemplateOutlet="statusBadge; context: { $implicit: r }" /></div>
+              </div>
+              <div class="shrink-0 text-right">
+                <p class="text-xl font-semibold tabular-nums">{{ r.overall ?? '—' }}</p>
+                <p class="text-muted-foreground text-xs">{{ 'sp.sort.overall' | transloco }}</p>
+              </div>
+            </button>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+</section>
+
+<ng-template #thumb let-r let-size="size">
+  <div class="bg-muted text-muted-foreground flex shrink-0 items-center justify-center overflow-hidden rounded-md" [class]="size">
+    @if (r.image) {
+      <img [appAuthSrc]="resolveImageUrl(r.image)" alt="" class="size-full object-cover" loading="lazy" (loadError)="r.image = ''" />
+    } @else {
+      <ng-icon name="lucideFactory" class="opacity-50" />
+    }
+  </div>
+</ng-template>
+
+<ng-template #statusBadge let-r>
+  @if (r.status) {
+    <span class="rounded-full px-2 py-0.5 text-xs font-medium" [class]="statusClass(r.status)">{{ ('sp.status.' + r.status.toLowerCase()) | transloco }}</span>
+  } @else {
+    <span class="text-muted-foreground text-xs">{{ 'sp.catalogOnly' | transloco }}</span>
+  }
+</ng-template>
+
+<ng-template #bar let-score>
+  @if (score === null) {
+    <span class="text-muted-foreground text-xs" [title]="'sp.noData' | transloco">{{ 'sp.na' | transloco }}</span>
+  } @else {
+    <div class="flex items-center gap-2">
+      <div class="bg-muted h-1.5 flex-1 overflow-hidden rounded-full">
+        <div class="bg-primary h-full rounded-full" [style.width]="barWidth(score)"></div>
+      </div>
+      <span class="w-7 text-right text-xs tabular-nums">{{ score | number: '1.1-1' }}</span>
+    </div>
+  }
+</ng-template>
+
+<!-- ── Detail ───────────────────────────────────────────────── -->
+<app-modal [open]="!!detail()" [heading]="detail()?.name ?? ''" (closed)="detail.set(null)">
+  @if (detail(); as d) {
+    <div class="flex flex-col gap-4">
+      <div class="flex items-center gap-3">
+        <ng-container *ngTemplateOutlet="thumb; context: { $implicit: d, size: 'size-16' }" />
+        <div class="min-w-0 flex-1">
+          <p class="text-muted-foreground text-sm">{{ d.country }}</p>
+          <ng-container *ngTemplateOutlet="statusBadge; context: { $implicit: d }" />
+        </div>
+        <div class="text-right">
+          <p class="text-3xl font-semibold tabular-nums">{{ d.overall ?? '—' }}</p>
+          <p class="text-muted-foreground text-xs">{{ 'sp.outOf100' | transloco }}</p>
+        </div>
+      </div>
+
+      <dl class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+        <div class="bg-muted/50 rounded-lg px-3 py-2">
+          <dt class="text-muted-foreground text-xs">{{ 'sp.avgFob' | transloco }}</dt>
+          <dd class="font-semibold tabular-nums">{{ d.avgFob === null ? '—' : '$' + (d.avgFob | number: '1.2-2') }}</dd>
+        </div>
+        <div class="bg-muted/50 rounded-lg px-3 py-2">
+          <dt class="text-muted-foreground text-xs">{{ 'sp.leadTime' | transloco }}</dt>
+          <dd class="font-semibold tabular-nums">{{ d.leadDays === null ? '—' : ('sp.days' | transloco: { count: d.leadDays }) }}</dd>
+        </div>
+        <div class="bg-muted/50 rounded-lg px-3 py-2">
+          <dt class="text-muted-foreground text-xs">{{ 'sp.products' | transloco }}</dt>
+          <dd class="font-semibold tabular-nums">{{ d.products }}</dd>
+        </div>
+        <div class="bg-muted/50 rounded-lg px-3 py-2">
+          <dt class="text-muted-foreground text-xs">{{ 'sp.quotations' | transloco }}</dt>
+          <dd class="font-semibold tabular-nums">{{ d.quotations }}</dd>
+        </div>
+      </dl>
+
+      @if (d.leadStatus) {
+        <p class="text-sm">{{ ('sp.lead.' + d.leadStatus) | transloco }}</p>
+      }
+
+      <div class="flex flex-col gap-2">
+        @for (k of ['cost', 'delivery', 'quality']; track k) {
+          <div class="grid grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-sm">
+            <span class="text-muted-foreground">{{ ('sp.sort.' + k) | transloco }}</span>
+            <ng-container *ngTemplateOutlet="bar; context: { $implicit: $any(d)[k] }" />
+          </div>
+        }
+      </div>
+
+      @if (d.highlights.length) {
+        <div class="flex flex-wrap gap-1.5">
+          @for (h of d.highlights; track h.key) {
+            <span hlmBadge variant="secondary">{{ h.key | transloco: h.params }}</span>
+          }
+        </div>
+      }
+
+      <p class="text-muted-foreground border-t pt-3 text-xs">{{ 'sp.howScored' | transloco }}</p>
+    </div>
+  }
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="detail.set(null)">{{ 'actions.close' | transloco }}</button>
+  </ng-container>
+</app-modal>
