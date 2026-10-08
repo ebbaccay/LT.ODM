@@ -90,6 +90,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/v1/auth/forgot-password') return json(202);
   if (p === '/api/v1/auth/reset-password/validate') return json(200, { valid: true });
   if (p === '/api/v1/auth/reset-password' || p === '/api/v1/auth/change-password') return json(204);
+  // Translation corrections (Settings > Translations): none in the mock, the deployed texts are used.
+  if (/^\/api\/v1\/translations\/[^/]+\/overrides$/.test(p)) return json(200, {});
 
   if (!signedIn && p.startsWith('/api/')) return json(401, { title: 'Unauthorized' });
 

@@ -111,6 +111,11 @@ export const TMS_ROUTES: Routes = [
         loadComponent: () => import('../features/ai-studio/ai-connections').then((m) => m.AiConnections),
         title: 'titles.aiConnections',
       },
+      {
+        path: 'translations',
+        loadComponent: () => import('./modules/settings/translations/translations').then((m) => m.Translations),
+        title: 'titles.translations',
+      },
       { path: 'content-classes', redirectTo: 'reference-lists?list=contentClasses' },
       { path: '', pathMatch: 'full', redirectTo: 'user-roles' },
     ],

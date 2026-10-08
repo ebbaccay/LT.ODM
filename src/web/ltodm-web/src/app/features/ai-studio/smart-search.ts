@@ -1,9 +1,10 @@
 import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideArrowRight, lucideImage, lucideScanSearch, lucideSparkles } from '@ng-icons/lucide';
+import { lucideArrowRight, lucideBookText, lucideImage, lucideListChecks, lucideScanSearch, lucideSparkles } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -13,14 +14,16 @@ import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { AuthImgDirective } from '@tms/shared/ui/auth-img';
 import { problemMessage } from '../../core/auth/auth.service';
 import { AiProviderBanner } from './ai-provider-banner';
+import { catchError, of, switchMap } from 'rxjs';
 import { AiStudioService, StyleSearchResult } from './ai-studio.service';
 
+/** Shown only if the server's examples cannot be loaded. */
 const EXAMPLES = ['ai.search.example1', 'ai.search.example2', 'ai.search.example3', 'ai.search.example4'];
 
 /**
- * AI Studio > Smart search: a request in plain words becomes Styles filters. The AI only fills filters with the
- * library's own codes (the API drops anything else), so results are always real styles; "Open in Styles" shows the
- * same filters on the Styles list.
+ * AI Studio > Smart search: a request in plain words becomes Styles filters. The phrase list reads it first (no AI);
+ * only a request with words it does not know goes to AI, and only when the Text job can run. Either way filters hold
+ * only the library's own codes, so results are always real styles; "Open in Styles" shows the same filters there.
  */
 @Component({
   selector: 'app-smart-search',
@@ -29,7 +32,7 @@ const EXAMPLES = ['ai.search.example1', 'ai.search.example2', 'ai.search.example
     DecimalPipe, RouterLink, NgIcon, AuthImgDirective, AiProviderBanner, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmInputImports,
     HlmSpinnerImports, TranslocoPipe,
   ],
-  providers: [provideIcons({ lucideArrowRight, lucideImage, lucideScanSearch, lucideSparkles })],
+  providers: [provideIcons({ lucideArrowRight, lucideBookText, lucideImage, lucideListChecks, lucideScanSearch, lucideSparkles })],
   template: `
     <section class="flex flex-col gap-5">
       <header>
@@ -60,15 +63,51 @@ const EXAMPLES = ['ai.search.example1', 'ai.search.example2', 'ai.search.example
           </button>
         </div>
         <div class="flex flex-wrap gap-2">
-          @for (e of examples; track e) {
-            <button type="button" class="bg-muted hover:bg-accent rounded-full px-3 py-1 text-xs" (click)="useExample(e)">{{ e | transloco }}</button>
+          @for (e of examples(); track e) {
+            <button type="button" class="bg-muted hover:bg-accent rounded-full px-3 py-1 text-xs" (click)="useExample(e)">{{ e }}</button>
+          } @empty {
+            @for (e of fallbackExamples; track e) {
+              <button type="button" class="bg-muted hover:bg-accent rounded-full px-3 py-1 text-xs" (click)="useExample(t(e))">{{ e | transloco }}</button>
+            }
           }
         </div>
+        @if (phrases()?.groups?.length) {
+          <details class="text-sm">
+            <summary class="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
+              <ng-icon name="lucideBookText" />{{ 'ai.search.phrasesTitle' | transloco }}
+            </summary>
+            <div hlmCard class="mt-2 gap-3 p-4">
+              <p class="text-muted-foreground text-xs">{{ 'ai.search.phrasesHint' | transloco }}</p>
+              <dl class="grid gap-x-4 gap-y-2 text-xs sm:grid-cols-[9rem_1fr]">
+                @for (g of phrases()!.groups; track g.criterion) {
+                  <dt class="font-medium">{{ 'ai.search.group.' + g.criterion | transloco }}</dt>
+                  <dd class="flex flex-wrap gap-1">
+                    @for (w of g.words; track w) {
+                      <button type="button" class="hover:bg-accent rounded border px-1.5 py-0.5" (click)="addWord(w)">{{ w }}</button>
+                    }
+                  </dd>
+                }
+              </dl>
+            </div>
+          </details>
+        }
       </form>
 
       @if (result(); as r) {
         <section hlmCard class="gap-3 p-5">
-          <p class="text-sm"><span class="text-muted-foreground">{{ 'ai.search.readAs' | transloco }}</span> {{ r.explanation || '—' }}</p>
+          @if (r.source === 'ai') {
+            <p class="text-sm">
+              <span hlmBadge variant="outline" class="mr-1.5"><ng-icon name="lucideSparkles" />{{ 'ai.search.sourceAi' | transloco }}</span>
+              <span class="text-muted-foreground">{{ 'ai.search.readAs' | transloco }}</span> {{ r.explanation || '—' }}
+            </p>
+          } @else {
+            <p class="flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
+              <ng-icon name="lucideListChecks" />{{ 'ai.search.byRules' | transloco }}
+            </p>
+          }
+          @if (r.unmatched.length) {
+            <p class="text-xs text-amber-700 dark:text-amber-400">{{ 'ai.search.unmatched' | transloco: { words: r.unmatched.join(', ') } }}</p>
+          }
           <div class="flex flex-wrap gap-1.5">
             @for (c of chips(); track c.label + c.value) {
               <span hlmBadge variant="secondary"><span class="text-muted-foreground">{{ c.label | transloco }}:</span>&nbsp;{{ c.value }}</span>
@@ -123,7 +162,11 @@ export class SmartSearch {
   private readonly svc = inject(AiStudioService);
   private readonly transloco = inject(TranslocoService);
 
-  readonly examples = EXAMPLES;
+  readonly fallbackExamples = EXAMPLES;
+  readonly phrases = toSignal(this.svc.phrases().pipe(catchError(() => of(null))), { initialValue: null });
+  readonly examples = computed(() => this.phrases()?.examples ?? []);
+  /** AI can read what the phrase list does not (the Text job is set up and no switch blocks it). */
+  private readonly aiReady = toSignal(this.svc.status().pipe(catchError(() => of(null))), { initialValue: null });
   readonly query = signal('');
   readonly busy = signal(false);
   readonly result = signal<StyleSearchResult | null>(null);
@@ -161,17 +204,31 @@ export class SmartSearch {
     return p;
   });
 
-  useExample(key: string): void {
-    this.query.set(this.transloco.translate(key));
+  useExample(phrase: string): void {
+    this.query.set(phrase);
     this.run();
   }
 
+  t = (key: string) => this.transloco.translate(key);
+
+  /** Adds a word from the phrase list to the request. */
+  addWord(word: string): void {
+    const q = this.query().trim();
+    this.query.set(q ? `${q} ${word}` : word);
+    document.getElementById('ai-search')?.focus();
+  }
+
+  /** The phrase list first; AI only for words it does not know, and only when AI can run. */
   run(event?: Event): void {
     event?.preventDefault();
     const q = this.query().trim();
     if (q.length < 3 || this.busy()) return;
     this.busy.set(true);
-    this.svc.search(q).subscribe({
+    const aiCanRun = !!this.aiReady()?.text.isConfigured;
+    this.svc
+      .searchByRules(q)
+      .pipe(switchMap((r) => (r.unmatched.length && aiCanRun ? this.svc.search(q).pipe(catchError((e) => (this.aiFailed(e), of(r)))) : of(r))))
+      .subscribe({
       next: (r) => {
         this.result.set(r);
         this.busy.set(false);
@@ -181,5 +238,10 @@ export class SmartSearch {
         toast.error(this.transloco.translate('ai.failed'), { description: problemMessage(e) });
       },
     });
+  }
+
+  /** AI could not read it: the phrase list's result is shown instead. */
+  private aiFailed(e: unknown): void {
+    toast.warning(this.transloco.translate('ai.search.aiFailed'), { description: problemMessage(e) });
   }
 }

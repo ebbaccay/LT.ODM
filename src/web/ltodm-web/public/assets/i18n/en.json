@@ -100,7 +100,8 @@
       "userRoles": "User Roles",
       "import": "Import",
       "refLists": "Reference lists",
-      "aiConnections": "AI connections"
+      "aiConnections": "AI connections",
+      "translations": "Translations"
     },
     "navConfig": {
       "title": "Menu",
@@ -375,6 +376,65 @@
         "uoms": "pc",
         "suppliers": "1100131"
       }
+    },
+    "translations": {
+      "title": "Translations",
+      "subtitle": "Correct the screen texts without a new release. Edit a text here, or download the Excel workbook, change it and upload it. Only texts that differ from the release are kept.",
+      "history": "History",
+      "download": "Download Excel",
+      "upload": "Upload Excel",
+      "keys": "{{ count }} texts",
+      "correctedCount": "{{ count }} corrected",
+      "releaseChangedCount": "{{ count }} changed by a release",
+      "filter": "Show",
+      "filters": {
+        "all": "All texts",
+        "corrected": "Corrected",
+        "untranslated": "Not translated",
+        "releaseChanged": "Changed by a release"
+      },
+      "search": "Search key or text",
+      "lastChange": "Last change by {{ by }}, {{ at }}",
+      "noMatch": "No texts match.",
+      "empty": "No translation files were found on the server.",
+      "colKey": "Key",
+      "missing": "(missing)",
+      "showMore": "Show more ({{ shown }} of {{ total }})",
+      "releaseChangedHint": "A release changed the original text after it was corrected here. Check that the correction still fits.",
+      "editTitle": "Edit text",
+      "placeholdersHint": "Keep these placeholders, the app fills them in:",
+      "placeholdersBroken": "The placeholders must stay as they are.",
+      "corrected": "Corrected",
+      "released": "Released text",
+      "useReleased": "Use released text",
+      "blankHint": "Leave a box empty to go back to the released text.",
+      "saved": "Translation saved.",
+      "uploadTitle": "Upload translations",
+      "dropHere": "Drop the edited workbook here, or choose a file",
+      "dropHint": "Excel workbook (.xlsx) downloaded from this page, up to 10 MB",
+      "chooseAnother": "Choose another file",
+      "onlyXlsx": "Only Excel workbooks (.xlsx) can be uploaded.",
+      "checking": "Checking the workbook…",
+      "previewRows": "{{ count }} rows read",
+      "previewChanges": "{{ count }} changes",
+      "previewErrors": "{{ count }} errors (skipped)",
+      "previewWarnings": "{{ count }} warnings",
+      "problems": "Problems",
+      "row": "Row {{ row }}",
+      "moreProblems": "…and {{ count }} more.",
+      "changes": "Changes",
+      "backToReleased": "Back to released text",
+      "noChanges": "Nothing to change: the workbook matches the texts in use.",
+      "apply": "Apply {{ count }} changes",
+      "applied": "{{ count }} translation changes applied.",
+      "historyTitle": "Translation history",
+      "historyHint": "Every save keeps the version it replaced. Restoring a version keeps the current one too, so it can be undone.",
+      "noHistory": "No corrections saved yet.",
+      "inUse": "In use",
+      "restore": "Restore",
+      "restoreTitle": "Restore this version?",
+      "restoreMessage": "The corrections in use are replaced by this version ({{ count }} corrected texts). The current version stays in the history.",
+      "restored": "Version restored."
     }
   },
   "shell": {
@@ -1732,7 +1792,8 @@
     "materials": "Materials",
     "material": "Material",
     "aiConnections": "AI connections",
-    "styleCompare": "Compare styles"
+    "styleCompare": "Compare styles",
+    "translations": "Translations"
   },
   "layout": {
     "appSubtitle": "Style Library",
@@ -2180,7 +2241,8 @@
       "copy": "Copy prompt",
       "copied": "Prompt copied.",
       "copyFailed": "Could not copy. Select the text and copy it yourself."
-    }
+    },
+    "chipBusinessUnits": "Business units"
   },
   "ai": {
     "failed": "The AI request did not work.",
@@ -2196,6 +2258,10 @@
         "aiOff": "AI features are turned off by an administrator. Nothing is sent to any AI service.",
         "jobOff": "This AI job is turned off by an administrator. Nothing is sent to any AI service.",
         "cloudBlocked": "This feature is set to a cloud service ({{ provider }}), but cloud AI is not allowed on this server, so nothing is sent outside LT."
+      },
+      "job": {
+        "text": "Text (prompt)",
+        "image": "Picture"
       }
     },
     "picker": {
@@ -2205,7 +2271,7 @@
     },
     "search": {
       "title": "Smart search",
-      "subtitle": "Describe the styles you need in your own words. AI turns the request into library filters, so every result is a real style.",
+      "subtitle": "Describe the styles you need in your own words. Words from the phrase list are searched straight away, without AI; AI is used only for the rest. Every result is a real style.",
       "label": "What are you looking for?",
       "placeholder": "e.g. men's woven jackets for SS27 with recycled fabric",
       "run": "Search",
@@ -2227,6 +2293,23 @@
         "weave": "Weave",
         "material": "Material",
         "keywords": "Keywords"
+      },
+      "byRules": "Understood with the phrase list. No AI was used.",
+      "sourceAi": "AI",
+      "unmatched": "Not understood without AI: {{ words }}. AI is not available here, so these words were ignored.",
+      "aiFailed": "AI could not read the rest of the request, so only the words from the phrase list were used.",
+      "phrasesTitle": "Words understood without AI",
+      "phrasesHint": "A request made only of these words is searched straight away, without AI. Other words go to AI when it is available. Click a word to add it to the request.",
+      "group": {
+        "gender": "Gender",
+        "season": "Season",
+        "productType": "Product type",
+        "detail": "Detail",
+        "weave": "Weave",
+        "businessUnit": "Business unit",
+        "customer": "Customer",
+        "material": "Material (on the BOM)",
+        "styleNo": "Style number"
       }
     },
     "compare": {
@@ -2339,7 +2422,9 @@
         "FamilyDrift": "{{ now }} {{ uom }} now vs {{ before }} {{ uom }} in {{ style }} ({{ pct }}%).",
         "LcoMissing": "Brand consumption {{ brand }} {{ uom }}; LCO consumption not entered.",
         "NoSupplier": "No SAP supplier on this line."
-      }
+      },
+      "searchLabel": "Search findings",
+      "searchPlaceholder": "Style, material, season, rule…"
     },
     "render": {
       "title": "Style render",

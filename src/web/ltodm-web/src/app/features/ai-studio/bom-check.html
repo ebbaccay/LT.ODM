@@ -118,7 +118,19 @@
       <section hlmCard class="gap-0 py-0">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
           <h2 class="font-semibold">{{ 'ai.bom.findings' | transloco }}</h2>
-          <div class="flex flex-wrap items-center gap-2">
+          <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <div class="relative w-full sm:w-64">
+              <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+              <input
+                hlmInput
+                type="search"
+                class="h-11 w-full pl-9 lg:h-8"
+                [attr.aria-label]="'ai.bom.searchLabel' | transloco"
+                [placeholder]="'ai.bom.searchPlaceholder' | transloco"
+                [value]="search()"
+                (input)="search.set($any($event.target).value)"
+              />
+            </div>
             @for (s of severities; track s) {
               <button
                 type="button"
@@ -130,8 +142,8 @@
                 {{ 'ai.bom.severity.' + s | transloco }}
               </button>
             }
-            @if (ruleFilter() || severityFilter()) {
-              <button hlmBtn variant="ghost" type="button" class="h-9" (click)="ruleFilter.set(''); severityFilter.set('')"><ng-icon name="lucideX" />{{ 'styles.clear' | transloco }}</button>
+            @if (ruleFilter() || severityFilter() || search().trim()) {
+              <button hlmBtn variant="ghost" type="button" class="h-9" (click)="clearFilters()"><ng-icon name="lucideX" />{{ 'styles.clear' | transloco }}</button>
             }
           </div>
         </div>
@@ -149,7 +161,7 @@
                 <a [routerLink]="['/styles', f.styleId]" class="text-primary font-mono text-xs underline-offset-2 hover:underline">{{ f.styleNo }}</a>
                 <span class="text-muted-foreground text-xs">{{ f.seasonCode }} · {{ 'ai.bom.line' | transloco: { seq: f.lineSeq } }}@if (f.contentClassCode) { · {{ f.contentClassCode }} }</span>
               </div>
-              <p class="truncate" [title]="f.materialDescription ?? ''"><span class="font-mono text-xs">{{ f.materialCode }}</span> <span class="text-muted-foreground text-xs">{{ f.materialDescription }}</span></p>
+              <p class="truncate" [title]="f.materialDescription ?? ''"><span class="mr-1.5 font-mono text-xs">{{ f.materialCode }}</span><span class="text-muted-foreground text-xs">{{ f.materialDescription }}</span></p>
               <p class="text-xs">{{ d.key | transloco: d.params }}</p>
               @if (p) {
                 <p class="text-xs"><ng-icon name="lucideSparkles" class="text-primary mr-1 align-[-2px]" />{{ p.why }} <strong>{{ p.action }}</strong></p>

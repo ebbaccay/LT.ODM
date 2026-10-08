@@ -20,7 +20,12 @@ import { AiProviderInfo, AiStudioService } from './ai-studio.service';
       @if (p.info.blocked) {
         <p class="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-800 dark:text-red-300">
           <ng-icon name="lucideTriangleAlert" class="mt-0.5 shrink-0" />
-          <span>{{ 'ai.provider.blocked.' + p.info.blocked | transloco: { provider: p.info.provider } }}</span>
+          <span>
+            @if (p.labelled) {
+              <strong>{{ 'ai.provider.job.' + p.kind | transloco }}:</strong>
+            }
+            {{ 'ai.provider.blocked.' + p.info.blocked | transloco: { provider: p.info.provider } }}
+          </span>
         </p>
       } @else if (!p.info.isConfigured) {
         <p class="text-muted-foreground flex items-start gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
@@ -56,9 +61,15 @@ export class AiProviderBanner {
   readonly providers = computed(() => {
     const s = this.status();
     if (!s) return [];
-    const list: { kind: 'text' | 'image'; info: AiProviderInfo }[] = [];
-    if (this.uses() !== 'image') list.push({ kind: 'text', info: s.text });
-    if (this.uses() !== 'text') list.push({ kind: 'image', info: s.image });
+    const list: { kind: 'text' | 'image'; info: AiProviderInfo; labelled: boolean }[] = [];
+    if (this.uses() !== 'image') list.push({ kind: 'text', info: s.text, labelled: false });
+    if (this.uses() !== 'text') list.push({ kind: 'image', info: s.image, labelled: false });
+    // A page using both jobs: when both are blocked for the same reason, one line says it; otherwise each blocked line names its job.
+    if (list.length === 2 && list.every((p) => p.info.blocked)) {
+      const [t, i] = list;
+      if (t.info.blocked === i.info.blocked && (t.info.blocked === 'aiOff' || t.info.provider === i.info.provider)) return [t];
+    }
+    if (list.length === 2) list.forEach((p) => (p.labelled = !!p.info.blocked));
     return list;
   });
 }

@@ -7,6 +7,7 @@
 | Database `LTODM` | SQL Server | Everything except files | Full daily + log backups per your SQL policy |
 | Uploads | `Files:Root`, e.g. `D:\LTODM\uploads` ([File storage](08-file-storage.md)) | Style sketches and photos, AI renders, concept and SBU images (the database only stores their addresses) | Daily, with the database |
 | Data-protection key ring | `DataProtection:KeysFolder`, e.g. `D:\LTODM\keys` | Decrypts AI API keys saved in Settings > AI connections | After it changes (rarely); keep with the database backup, access-restricted |
+| Translation corrections | `Translations:OverridesFolder`, e.g. `D:\LTODM\i18n` | Texts corrected in Settings > Translations, with their history | Daily, with the database |
 | Server settings | App-pool environment variables, edited `web.config` | Rebuilding the server | When they change; store secrets in your password vault, not in the backup share |
 
 Restoring the database without the uploads leaves styles with broken images; restoring without the key ring means re-typing the AI API keys (everything else works).
@@ -16,9 +17,10 @@ Restoring the database without the uploads leaves styles with broken images; res
 1. **Build** on the build machine with `tools\build-release.ps1` ([IIS deployment §1](03-iis-deployment.md#1-build-a-release-build-machine)); it runs the tests and puts the web app into the API's `wwwroot`.
 2. **Database first**: run the release's SQL scripts in the documented order ([Database §2](02-database.md#2-deploy-the-scripts)). They are idempotent and only add or change what is new; existing procedures keep working until the new API starts.
 3. **Stop the site**: put `app_offline.htm` in `D:\LTODM\api` (IIS stops the app and shows that page), or stop the app pool.
-4. **Copy** the release's `api\` folder over `D:\LTODM\api` (first delete the old `wwwroot`, so old bundles do not pile up). **Put your `web.config` back**, or merge its changes (request limit, environment variables, stdout path). `uploads` and `keys` live outside the site folder and are not touched.
+4. **Copy** the release's `api\` folder over `D:\LTODM\api` (first delete the old `wwwroot`, so old bundles do not pile up). **Put your `web.config` back**, or merge its changes (request limit, environment variables, stdout path). `uploads`, `keys` and `i18n` live outside the site folder and are not touched.
 5. **Start**: delete `app_offline.htm` / start the pool. Check `/health`, sign in, open a few pages.
-6. Users with the app open see **"New version available"** and can reload; the service worker fetches the new files.
+6. If texts were corrected in Settings > Translations, open that page and filter on **Changed by a release**: those corrections were made to a text the release has since reworded.
+7. Users with the app open see **"New version available"** and can reload; the service worker fetches the new files.
 
 Roll back: copy the previous release back. Database changes are additive, so the previous API keeps working with the updated database.
 

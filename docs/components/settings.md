@@ -31,6 +31,19 @@ Loads the Style Library workbook (sheets *Style Header*, *Article*, *BOM Detail*
 
 Unfinished imports can be reopened from **Recent imports**; staged imports older than a day are cancelled automatically.
 
+## Translations (`/settings/translations`)
+
+Corrects the screen texts (English and Chinese) without a new release. The texts that come with a release (`wwwroot/assets/i18n/<lang>.json`) stay the base; a correction is kept only while it differs from the released text, so a later release still brings its new and reworded texts.
+
+- **List**: every text key with its text per language. Corrected texts are highlighted. **Show** filters to *Corrected*, *Not translated* (missing, or the same as the English text) or *Changed by a release* (a release reworded the original after it was corrected here: check the correction still fits). Search looks at keys and texts.
+- **Edit**: click a row, change the text for any language, **Save**. Leave a box empty, or click **Use released text**, to go back to the released text. Placeholders such as `{{ name }}` must stay exactly as in the English text (the app fills them in); the page and the API refuse a text that drops or renames one.
+- **Download Excel**: a workbook with the sheet *Translations* (Key, one column per language headed e.g. `Chinese (Simplified) (zh-Hans)`, and *Corrected in LT ODM*; corrected cells are yellow) and a *How to use* sheet for the translator. Rows can be sorted or filtered; extra columns are ignored.
+- **Upload Excel**: choose the edited workbook (.xlsx, up to 10 MB). The server lists what would change (old → new per key and language) and any problems: a broken placeholder or a key listed twice (**error**, that cell or row is skipped), a key the app no longer uses (**warning**, skipped). Nothing is saved until **Apply**. An empty cell, or the released text typed back, removes the correction. Keys missing from the file are left as they are.
+- **History**: every save (edit, upload, restore) keeps the version it replaced (last 30 by default); **Restore** brings an earlier version back and keeps the current one, so it can be undone.
+- Saved changes show at once for the Admin who saved them; other users get them the next time the app loads (sign-in pages included).
+- New keys still need a release: the screens refer to keys, so this page changes the wording of existing keys only.
+- Corrections are a file on the server (`Translations:OverridesFolder`, see [Configuration](../installation/04-configuration.md#files)); export now and then and copy the texts into `src/web/ltodm-web/public/assets/i18n` so the repository catches up.
+
 ## AI connections (`/settings/ai`)
 
 Which AI service each job uses. See [AI overview](../ai/overview.md) for how it works and [Data sent to AI services](../ai/data-sent.md) before connecting a cloud service.

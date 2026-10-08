@@ -27,14 +27,25 @@ public sealed class AiStudioController(StyleAiAssistant assistant, IAiJsonClient
 
     // ----- Smart search -----
 
+    /// <summary>The phrase list, then AI for requests it does not fully understand (when the Text job can run).</summary>
     [HttpPost("style-search")]
     [EnableRateLimiting(RateLimitPolicies.Ai)]
-    public Task<IActionResult> Search(StyleSearchRequest request, CancellationToken ct)
+    public Task<IActionResult> Search(StyleSearchRequest request, CancellationToken ct) => SearchWith(request, useAi: true, ct);
+
+    /// <summary>The phrase list only (never calls AI, so not AI rate-limited): the screen tries this first.</summary>
+    [HttpPost("style-search/rules")]
+    public Task<IActionResult> SearchByRules(StyleSearchRequest request, CancellationToken ct) => SearchWith(request, useAi: false, ct);
+
+    /// <summary>Words understood without AI, and example requests that find styles.</summary>
+    [HttpGet("style-search/phrases")]
+    public async Task<StyleSearchPhrasesDto> Phrases(CancellationToken ct) => await assistant.PhrasesAsync(ct);
+
+    private Task<IActionResult> SearchWith(StyleSearchRequest request, bool useAi, CancellationToken ct)
     {
         var query = request.Query?.Trim() ?? "";
         if (query.Length is < 3 or > 300)
             return Task.FromResult<IActionResult>(Invalid("query", "Describe the styles you are looking for in 3 to 300 characters."));
-        return WithText(async () => Ok(await assistant.SearchAsync(query, ct)));
+        return Run(async () => Ok(await assistant.SearchAsync(query, useAi, ct)));
     }
 
     // ----- Change summary -----

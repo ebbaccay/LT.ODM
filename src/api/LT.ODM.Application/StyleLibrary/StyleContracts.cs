@@ -34,8 +34,8 @@ public sealed record StyleLookupsDto(
     IReadOnlyList<LookupItem> SeasonTerms);
 
 /// <summary>
-/// Season and ProductType may hold several codes separated by commas (AI Studio search: "jackets" covers JACKET, JACKETS, JACKETMDW).
-/// Material matches BOM material codes and descriptions. IsActive null lists active and inactive styles.
+/// Season, BusinessUnit and ProductType may hold several codes separated by commas (AI Studio search: "jackets" covers JACKET, JACKETS,
+/// JACKETMDW; "running" covers RUA, RUB, RUX). Material matches BOM material codes and descriptions; several words must all be on one BOM line. IsActive null lists active and inactive styles.
 /// </summary>
 public sealed record StyleListQuery(
     string? Search, string? Customer, string? Season, string? BusinessUnit, string? ProductType, string? WeaveType, string? Gender,

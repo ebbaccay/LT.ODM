@@ -16,12 +16,35 @@ public static class StyleAiRoles
 
 public sealed record StyleSearchRequest(string? Query);
 
-/// <summary>Filters the AI read from the request; every code is one of the library's codes.</summary>
+/// <summary>
+/// Filters read from the request (phrase list or AI); every code is one of the library's codes. BusinessUnit may hold
+/// several codes separated by commas ("running" = RUA,RUB,RUX); Material may hold several words, all on one BOM line.
+/// </summary>
 public sealed record StyleSearchFiltersDto(
     string? Search, string? Material, string? Customer, IReadOnlyList<string> Seasons, string? BusinessUnit,
     IReadOnlyList<string> ProductTypes, string? WeaveType, string? Gender);
 
-public sealed record StyleSearchResultDto(StyleSearchFiltersDto Filters, string Explanation, PagedResult<StyleListItemDto> Results);
+/// <summary>How the request was read.</summary>
+public static class StyleSearchSources
+{
+    /// <summary>The phrase list understood it (no AI call).</summary>
+    public const string Rules = "rules";
+    /// <summary>The AI read it.</summary>
+    public const string Ai = "ai";
+}
+
+/// <summary>
+/// Source: rules or ai. Explanation: the AI's reading (null for rules). Unmatched: words the phrase list did not understand
+/// and that were ignored because AI was not used (not asked for, turned off or not set up).
+/// </summary>
+public sealed record StyleSearchResultDto(
+    StyleSearchFiltersDto Filters, string? Explanation, PagedResult<StyleListItemDto> Results, string Source, IReadOnlyList<string> Unmatched);
+
+/// <summary>Words understood without AI for one criterion (gender, season, productType, detail, weave, businessUnit, customer, material, styleNo).</summary>
+public sealed record StyleSearchPhraseGroupDto(string Criterion, IReadOnlyList<string> Words);
+
+/// <summary>Examples: requests the phrase list understands that find styles in today's library.</summary>
+public sealed record StyleSearchPhrasesDto(IReadOnlyList<string> Examples, IReadOnlyList<StyleSearchPhraseGroupDto> Groups);
 
 // ----- Change summary -----
 

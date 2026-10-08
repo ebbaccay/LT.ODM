@@ -150,7 +150,10 @@ public sealed class AiStudioTests(ApiFactory factory) : IClassFixture<ApiFactory
         factory.ImageAi.IsConfigured = false;
         try
         {
-            Assert.Equal(HttpStatusCode.ServiceUnavailable, (await client.PostAsJsonAsync("/api/v1/ai/style-search", new { query = "mens jackets" })).StatusCode);
+            // Search: nothing understood without AI -> 503; words from the phrase list still search.
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, (await client.PostAsJsonAsync("/api/v1/ai/style-search", new { query = "something unusual" })).StatusCode);
+            var partial = await (await client.PostAsJsonAsync("/api/v1/ai/style-search", new { query = "mens parkas" })).Content.ReadFromJsonAsync<StyleSearchResultDto>();
+            Assert.Equal(("rules", "MALE", "parkas"), (partial!.Source, partial.Filters.Gender, Assert.Single(partial.Unmatched)));
             Assert.Equal(HttpStatusCode.ServiceUnavailable, (await client.PostAsJsonAsync("/api/v1/ai/bom-check/explain", new { season = "2027-SS" })).StatusCode);
             Assert.Equal(HttpStatusCode.ServiceUnavailable, (await client.PostAsJsonAsync("/api/v1/ai/style-render/7", new { useSketch = false })).StatusCode);
             // The rules still work without AI.
@@ -183,7 +186,7 @@ public sealed class AiStudioTests(ApiFactory factory) : IClassFixture<ApiFactory
               "keywords": "", "explanation": "Men's adidas jackets in recycled fabric." }
             """;
         var styles = new FakeStyleRepository();
-        var result = await Assistant(text, styles).SearchAsync("adidas mens jackets recycled");
+        var result = await Assistant(text, styles).SearchAsync("adidas mens jackets recycled", useAi: true);   // the fake library has no product types: AI reads it
 
         Assert.Equal("ADI", result.Filters.Customer);      // the library's spelling
         Assert.Empty(result.Filters.Seasons);              // not a library season
@@ -191,7 +194,84 @@ public sealed class AiStudioTests(ApiFactory factory) : IClassFixture<ApiFactory
         Assert.Equal("MALE", result.Filters.Gender);
         Assert.Null(result.Filters.Search);
         Assert.Equal(("ADI", "recycled", "MALE"), (styles.LastListQuery!.Customer, styles.LastListQuery.Material, styles.LastListQuery.Gender));
+        Assert.Equal("ai", result.Source);
     }
+
+    // ----- Phrase list: no AI for requests it understands -----
+
+    private static readonly StyleLookupsDto Library = new(
+        Customers: [new("ADI", "ADI"), new("SKE", "SKE"), new("TMS", "TMS")],
+        Seasons: [new("2026-FW", "2026-FW"), new("2027-SS", "2027-SS"), new("2027-FW", "2027-FW"), new("2028-SS", "2028-SS")],
+        BusinessUnits: [new("RUA", "Running A"), new("RUB", "Running B"), new("FTB", "Football"), new("ALO", "ALO Yoga"), new("SPW", "Adidas Sportswear")],
+        ProductTypes:
+        [
+            new("JACKET", "JACKET"), new("JACKETS", "JACKETS"), new("JACKETMDW", "JACKET (MIDWEIGHT)"), new("TRKSJACKET", "TRACKSUIT JACKET"),
+            new("TSHIRTSL", "T-SHIRT (SHORT SLEEVE)"), new("TSHIRTLS", "T-SHIRT (LONG SLEEVE)"), new("GSHIRTSL", "GRAPHIC TEE (SHORT SLEEVE)"),
+            new("SHORT1/2", "SHORTS (1/2)"), new("TIGHTS (7/8)", "TIGHTS (7/8)"), new("TRACKTOP", "TRACK TOP"), new("HTRACKTOP", "HOODED TRACK TOP"),
+            new("PANTS1/1", "PANTS (1/1)"), new("DRESS", "DRESS"), new("HOODED SWEAT", "HOODED SWEAT"), new("PFLEECEHZP", "POLARFLEECE-HALF ZIP"),
+        ],
+        WeaveTypes: [new("KNT", "Knit"), new("WVN", "Woven")], MaterialTypes: [], ContentClasses: [], Uoms: [], Suppliers: [],
+        SeasonTerms: [new("SP", "Spring"), new("SS", "Spring/Summer"), new("SU", "Summer"), new("FA", "Fall"), new("FW", "Fall/Winter"), new("WI", "Winter")]);
+
+    [Fact]
+    public void Phrase_list_reads_common_requests_without_ai()
+    {
+        var r = StyleQueryParser.Parse("Men's jackets for SS27", Library);
+        Assert.True(r.Complete);
+        Assert.Equal(("MALE", "2027-SS"), (r.Filters.Gender, Assert.Single(r.Filters.Seasons)));
+        Assert.Equal(["JACKET", "JACKETS", "JACKETMDW", "TRKSJACKET"], r.Filters.ProductTypes);
+
+        r = StyleQueryParser.Parse("Women's tights for running", Library);
+        Assert.Equal(("FEMALE", "RUA,RUB", "TIGHTS (7/8)"), (r.Filters.Gender, r.Filters.BusinessUnit, Assert.Single(r.Filters.ProductTypes)));
+
+        r = StyleQueryParser.Parse("Styles that use recycled fleece", Library);
+        Assert.Equal(("RECYCLED FLEECE", true), (r.Filters.Material, r.Complete));
+
+        // Detail in brackets narrows; "short sleeve" is not shorts; tee = T-shirt and graphic tee.
+        r = StyleQueryParser.Parse("short sleeve tees 2027", Library);
+        Assert.Equal(["TSHIRTSL", "GSHIRTSL"], r.Filters.ProductTypes);
+        Assert.Equal(6, r.Filters.Seasons.Count);   // a year alone = every season of that year
+
+        r = StyleQueryParser.Parse("adidas woven track tops FW 2026 with zip", Library);
+        Assert.Equal(("ADI", "WVN", "ZIP", "2026-FW"), (r.Filters.Customer, r.Filters.WeaveType, r.Filters.Material, Assert.Single(r.Filters.Seasons)));
+        Assert.Equal(["TRACKTOP", "HTRACKTOP"], r.Filters.ProductTypes);   // "zip" stays a trim, not the half-zip type
+
+        r = StyleQueryParser.Parse("kids' hoodies fall/winter", Library);
+        Assert.Equal(("KIDS", "HOODED SWEAT"), (r.Filters.Gender, Assert.Single(r.Filters.ProductTypes)));
+        Assert.Equal(["2026-FW", "2027-FW"], r.Filters.Seasons);   // a term alone = the library's seasons with that term
+
+        r = StyleQueryParser.Parse("S2808MR0000A", Library);
+        Assert.Equal(("S2808MR0000A", true), (r.Filters.Search, r.Complete));
+    }
+
+    [Fact]
+    public void Phrase_list_leaves_words_it_does_not_know_to_ai()
+    {
+        var r = StyleQueryParser.Parse("Kids' pants with an elastic waist", Library);
+        Assert.False(r.Complete);
+        Assert.Equal("waist", Assert.Single(r.Unmatched));
+        Assert.Equal(("KIDS", "ELASTIC"), (r.Filters.Gender, r.Filters.Material));
+
+        Assert.Contains("without", StyleQueryParser.Parse("jackets without hood", Library).Unmatched);    // meaning-changing words
+        Assert.Contains("women", StyleQueryParser.Parse("men and women jackets", Library).Unmatched);       // two genders: AI decides
+        Assert.False(StyleQueryParser.Parse("show me some styles", Library).Complete);                    // no criterion at all
+    }
+
+    [Fact]
+    public async Task Search_uses_the_phrase_list_before_ai()
+    {
+        var text = new FakeAiJsonClient();
+        var styles = new FakeStyleRepository { Lookups = Library };
+        var result = await Assistant(text, styles).SearchAsync("women's dresses for SS28", useAi: true);
+        Assert.Equal(("rules", "FEMALE", "DRESS", "2028-SS"), (result.Source, styles.LastListQuery!.Gender, styles.LastListQuery.ProductType, styles.LastListQuery.Season));
+        Assert.Empty(text.Calls);   // no AI call
+
+        await Assistant(text, styles).SearchAsync("dresses for the beach", useAi: false);
+        Assert.Empty(text.Calls);   // the rules endpoint never calls AI
+        await Assistant(text, styles).SearchAsync("dresses for the beach", useAi: true);
+        Assert.Single(text.Calls);
+    }
+
 
     [Fact]
     public async Task Explanations_only_point_at_findings_that_were_sent()

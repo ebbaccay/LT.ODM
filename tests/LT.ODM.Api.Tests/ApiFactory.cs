@@ -32,6 +32,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public FakeAiSettingsRepository AiSettings { get; } = new();
     /// <summary>Uploaded images go to a temp folder that is deleted with the factory.</summary>
     public string FilesRoot { get; } = Path.Combine(Path.GetTempPath(), "ltodm-tests-" + Guid.NewGuid().ToString("N"));
+    /// <summary>Stands in for wwwroot/assets/i18n; tests write the &lt;lang&gt;.json files they need.</summary>
+    public string TranslationsBase => Path.Combine(FilesRoot, "i18n-base");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -45,6 +47,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Files:Root", FilesRoot);
         builder.UseSetting("DataProtection:KeysFolder", Path.Combine(FilesRoot, "keys"));
         builder.UseSetting("RateLimiting:AiPermitPerMinute", "1000");
+        builder.UseSetting("Translations:BaseFolder", TranslationsBase);
+        builder.UseSetting("Translations:OverridesFolder", Path.Combine(FilesRoot, "i18n"));
 
         builder.ConfigureTestServices(services =>
         {

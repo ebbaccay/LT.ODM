@@ -100,7 +100,8 @@
       "userRoles": "用户角色",
       "import": "导入",
       "refLists": "参考列表",
-      "aiConnections": "AI 连接"
+      "aiConnections": "AI 连接",
+      "translations": "翻译"
     },
     "navConfig": {
       "title": "菜单",
@@ -375,6 +376,65 @@
         "uoms": "pc",
         "suppliers": "1100131"
       }
+    },
+    "translations": {
+      "title": "翻译",
+      "subtitle": "无需发布新版本即可修正界面文字。可在此直接编辑，或下载 Excel 工作簿修改后再上传。仅保存与发布版本不同的文字。",
+      "history": "历史记录",
+      "download": "下载 Excel",
+      "upload": "上传 Excel",
+      "keys": "{{ count }} 条文字",
+      "correctedCount": "已修正 {{ count }} 条",
+      "releaseChangedCount": "{{ count }} 条被新版本更改",
+      "filter": "显示",
+      "filters": {
+        "all": "全部文字",
+        "corrected": "已修正",
+        "untranslated": "未翻译",
+        "releaseChanged": "被新版本更改"
+      },
+      "search": "搜索键或文字",
+      "lastChange": "最近修改：{{ by }}，{{ at }}",
+      "noMatch": "没有匹配的文字。",
+      "empty": "服务器上未找到翻译文件。",
+      "colKey": "键",
+      "missing": "（缺失）",
+      "showMore": "显示更多（{{ shown }} / {{ total }}）",
+      "releaseChangedHint": "此处修正后，新版本更改了原文。请确认修正内容仍然适用。",
+      "editTitle": "编辑文字",
+      "placeholdersHint": "请保留以下占位符，系统会自动填入：",
+      "placeholdersBroken": "占位符必须保持不变。",
+      "corrected": "已修正",
+      "released": "发布版本文字",
+      "useReleased": "使用发布版本文字",
+      "blankHint": "留空即恢复为发布版本文字。",
+      "saved": "翻译已保存。",
+      "uploadTitle": "上传翻译",
+      "dropHere": "将修改后的工作簿拖到此处，或选择文件",
+      "dropHint": "从本页下载的 Excel 工作簿（.xlsx），不超过 10 MB",
+      "chooseAnother": "选择其他文件",
+      "onlyXlsx": "只能上传 Excel 工作簿（.xlsx）。",
+      "checking": "正在检查工作簿…",
+      "previewRows": "已读取 {{ count }} 行",
+      "previewChanges": "{{ count }} 处更改",
+      "previewErrors": "{{ count }} 个错误（已跳过）",
+      "previewWarnings": "{{ count }} 个警告",
+      "problems": "问题",
+      "row": "第 {{ row }} 行",
+      "moreProblems": "……另有 {{ count }} 个。",
+      "changes": "更改",
+      "backToReleased": "恢复为发布版本文字",
+      "noChanges": "无需更改：工作簿与当前使用的文字一致。",
+      "apply": "应用 {{ count }} 处更改",
+      "applied": "已应用 {{ count }} 处翻译更改。",
+      "historyTitle": "翻译历史记录",
+      "historyHint": "每次保存都会保留被替换的版本。恢复某个版本时也会保留当前版本，因此可以撤销。",
+      "noHistory": "尚未保存任何修正。",
+      "inUse": "使用中",
+      "restore": "恢复",
+      "restoreTitle": "恢复此版本？",
+      "restoreMessage": "当前使用的修正将被此版本替换（{{ count }} 条已修正文字）。当前版本会保留在历史记录中。",
+      "restored": "版本已恢复。"
     }
   },
   "shell": {
@@ -1732,7 +1792,8 @@
     "materials": "物料",
     "material": "物料",
     "aiConnections": "AI 连接",
-    "styleCompare": "比较款式"
+    "styleCompare": "比较款式",
+    "translations": "翻译"
   },
   "layout": {
     "appSubtitle": "款式库",
@@ -2180,7 +2241,8 @@
       "copy": "复制提示词",
       "copied": "提示词已复制。",
       "copyFailed": "无法复制。请手动选中文本并复制。"
-    }
+    },
+    "chipBusinessUnits": "业务部门"
   },
   "ai": {
     "failed": "AI 请求未成功。",
@@ -2196,6 +2258,10 @@
         "aiOff": "管理员已关闭 AI 功能。不会向任何 AI 服务发送数据。",
         "jobOff": "管理员已关闭此 AI 任务。不会向任何 AI 服务发送数据。",
         "cloudBlocked": "此功能设置为云服务（{{ provider }}），但此服务器不允许使用云 AI，因此不会向 LT 以外发送任何数据。"
+      },
+      "job": {
+        "text": "文本（提示词）",
+        "image": "图片"
       }
     },
     "picker": {
@@ -2205,7 +2271,7 @@
     },
     "search": {
       "title": "智能搜索",
-      "subtitle": "用自己的话描述需要的款式。AI 会把需求转换为款式库筛选条件，所以每个结果都是真实款式。",
+      "subtitle": "用自己的话描述所需款式。词库中的词会直接搜索，无需 AI；只有其余部分才使用 AI。所有结果都是真实款式。",
       "label": "您在找什么？",
       "placeholder": "例如：SS27 男款梭织夹克，使用再生面料",
       "run": "搜索",
@@ -2227,6 +2293,23 @@
         "weave": "织法",
         "material": "物料",
         "keywords": "关键词"
+      },
+      "byRules": "已通过词库理解，未使用 AI。",
+      "sourceAi": "AI",
+      "unmatched": "无需 AI 无法理解的词：{{ words }}。此处无法使用 AI，因此已忽略这些词。",
+      "aiFailed": "AI 无法读取请求的其余部分，因此只使用了词库中的词。",
+      "phrasesTitle": "无需 AI 即可理解的词",
+      "phrasesHint": "只由这些词组成的请求会直接搜索，无需 AI。其他词在 AI 可用时交给 AI。点击一个词即可加入请求。",
+      "group": {
+        "gender": "性别",
+        "season": "季节",
+        "productType": "产品类型",
+        "detail": "细节",
+        "weave": "织法",
+        "businessUnit": "业务部门",
+        "customer": "客户",
+        "material": "物料（物料清单）",
+        "styleNo": "款号"
       }
     },
     "compare": {
@@ -2339,7 +2422,9 @@
         "FamilyDrift": "现为 {{ now }} {{ uom }}，在 {{ style }} 中为 {{ before }} {{ uom }}（{{ pct }}%）。",
         "LcoMissing": "品牌用量 {{ brand }} {{ uom }}；未录入 LCO 用量。",
         "NoSupplier": "此行没有 SAP 供应商。"
-      }
+      },
+      "searchLabel": "搜索检查结果",
+      "searchPlaceholder": "款号、物料、季节、规则…"
     },
     "render": {
       "title": "款式效果图",

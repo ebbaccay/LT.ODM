@@ -16,7 +16,7 @@
 
 ## List
 
-Search by style number, model, description or colorway code; filter by customer, season, business unit, product type, gender and status. The list shows **active styles** by default; pick *Inactive styles* or *All statuses* to see the rest (inactive rows are tagged). Each row's thumbnail is the style photo, or the sketch when there is no photo (or the photo file is missing). Filters are kept in the address, so a filtered list can be bookmarked or shared. AI Studio's smart search can also set weave, material and several seasons or product types at once; these show as removable chips.
+Search by style number, model, description or colorway code; filter by customer, season, business unit, product type, gender and status. The list shows **active styles** by default; pick *Inactive styles* or *All statuses* to see the rest (inactive rows are tagged). Each row's thumbnail is the style photo, or the sketch when there is no photo (or the photo file is missing). Filters are kept in the address, so a filtered list can be bookmarked or shared. AI Studio's smart search can also set weave, material and several seasons, business units or product types at once; these show as removable chips. A material filter with several words finds styles with a BOM line containing all of them.
 
 ## Style page
 

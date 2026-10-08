@@ -14,8 +14,9 @@ public sealed class FakeStyleRepository : IStyleRepository
 
     public List<(string Action, int? Id, object? Request, string ChangedBy)> Writes { get; } = [];
 
-    public Task<StyleLookupsDto> GetLookupsAsync(CancellationToken ct = default)
-        => Task.FromResult(new StyleLookupsDto([new LookupItem("ADI", "adidas")], [], [], [], [], [], [], [], [], []));
+    public StyleLookupsDto Lookups { get; init; } = new([new LookupItem("ADI", "adidas")], [], [], [], [], [], [], [], [], []);
+
+    public Task<StyleLookupsDto> GetLookupsAsync(CancellationToken ct = default) => Task.FromResult(Lookups);
 
     public StyleListQuery? LastListQuery { get; private set; }
 

@@ -5,6 +5,7 @@ using LT.ODM.Application.Ai;
 using LT.ODM.Application.MarketTrends;
 using LT.ODM.Application.StyleAi;
 using LT.ODM.Application.StyleLibrary;
+using LT.ODM.Application.Translations;
 using LT.ODM.Infrastructure.Ai;
 using LT.ODM.Infrastructure.Data;
 using LT.ODM.Infrastructure.Email;
@@ -13,6 +14,7 @@ using LT.ODM.Infrastructure.Repositories;
 using LT.ODM.Infrastructure.Security;
 using LT.ODM.Infrastructure.StyleLibrary;
 using LT.ODM.Infrastructure.Tms;
+using LT.ODM.Infrastructure.Translations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -78,6 +80,24 @@ public static class DependencyInjection
         services.AddScoped<ConceptMatcher>();
         services.AddScoped<IMaterialSpecRepository, MaterialSpecRepository>();
         services.AddScoped<MaterialReader>();
+        return services;
+    }
+
+    /// <summary>
+    /// Settings > Translations: corrections layered on the deployed translation files. Relative folders start at
+    /// <paramref name="contentRoot"/>; defaults are the web root's assets/i18n and App_Data/i18n.
+    /// </summary>
+    public static IServiceCollection AddTranslations(this IServiceCollection services, IConfiguration configuration, string contentRoot, string webRoot)
+    {
+        services.Configure<TranslationOptions>(configuration.GetSection(TranslationOptions.SectionName));
+        services.PostConfigure<TranslationOptions>(o =>
+        {
+            o.BaseFolder = Path.GetFullPath(string.IsNullOrWhiteSpace(o.BaseFolder) ? Path.Combine(webRoot, "assets", "i18n") : o.BaseFolder, contentRoot);
+            o.OverridesFolder = Path.GetFullPath(string.IsNullOrWhiteSpace(o.OverridesFolder) ? Path.Combine("App_Data", "i18n") : o.OverridesFolder, contentRoot);
+        });
+        services.AddSingleton<ITranslationStore, FileTranslationStore>();
+        services.AddSingleton<ITranslationWorkbook, TranslationWorkbook>();
+        services.AddScoped<TranslationService>();
         return services;
     }
 

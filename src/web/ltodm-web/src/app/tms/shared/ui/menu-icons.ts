@@ -21,6 +21,7 @@ import {
   lucideGitCompareArrows,
   lucideGlobe,
   lucideImages,
+  lucideLanguages,
   lucideLayers,
   lucideLayoutDashboard,
   lucideLightbulb,
@@ -68,7 +69,7 @@ export const MENU_ICONS = {
   lucideShoppingBag, lucideClipboardList, lucideCalendar, lucideChartPie, lucideDatabase, lucideBadgeCheck,
   lucideBell, lucideBookOpen, lucideBriefcase, lucideGlobe, lucideWrench,
   lucideSparkles, lucideScanSearch, lucideGitCompareArrows, lucideShieldAlert, lucideWandSparkles,
-  lucideFlaskConical, lucidePlug,
+  lucideFlaskConical, lucidePlug, lucideLanguages,
 };
 
 export const MENU_ICON_NAMES = Object.keys(MENU_ICONS);

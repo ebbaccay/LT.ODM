@@ -44,6 +44,7 @@ Typical stored sizes: a 1600 x 1067 photo or AI render **250-400 KB** (a phone p
 
 - **Import workbooks** (Settings > Import): read in memory and copied into the `staging` tables; the `.xlsx` itself is not kept.
 - **Images given as `https://` addresses** in an imported workbook (Sketch / Image columns): only the address is stored; the app does not download them.
+- **Translation corrections** (Settings > Translations): one JSON file, `overrides.json`, plus its `history\` folder, in `Translations:OverridesFolder` (default `<API folder>\App_Data\i18n`; on servers e.g. `D:\LTODM\i18n`, outside the site). Back it up with the uploads. Uploaded translation workbooks are read in memory and not kept.
 - **API keys** of AI connections: in the database, encrypted (see `DataProtection:KeysFolder` in [Configuration](04-configuration.md)).
 
 ## Deleting

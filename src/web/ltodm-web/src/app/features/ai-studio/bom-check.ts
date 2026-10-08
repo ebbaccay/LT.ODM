@@ -4,11 +4,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideClipboardCheck, lucideShieldAlert, lucideSparkles, lucideX } from '@ng-icons/lucide';
+import { lucideClipboardCheck, lucideSearch, lucideShieldAlert, lucideSparkles, lucideX } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
+import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
@@ -33,10 +34,10 @@ const SEVERITY_TONE: Record<Severity, Tone> = { High: 'red', Medium: 'amber', Lo
   selector: 'app-bom-check',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DecimalPipe, RouterLink, NgIcon, AiProviderBanner, StylePicker, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmNativeSelectImports,
+    DecimalPipe, RouterLink, NgIcon, AiProviderBanner, StylePicker, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmInputImports, HlmNativeSelectImports,
     HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe,
   ],
-  providers: [provideIcons({ lucideClipboardCheck, lucideShieldAlert, lucideSparkles, lucideX })],
+  providers: [provideIcons({ lucideClipboardCheck, lucideSearch, lucideShieldAlert, lucideSparkles, lucideX })],
   templateUrl: './bom-check.html',
 })
 export class BomCheckPage implements OnInit {
@@ -61,6 +62,8 @@ export class BomCheckPage implements OnInit {
   readonly explaining = signal(false);
   readonly ruleFilter = signal<BomRule | ''>('');
   readonly severityFilter = signal<Severity | ''>('');
+  /** Search over the findings shown: style, season, customer, material, section and rule. Every word must match. */
+  readonly search = signal('');
 
   /** Lines (and styles) per rule, all severities together. */
   readonly ruleTotals = computed(() => {
@@ -79,8 +82,10 @@ export class BomCheckPage implements OnInit {
     const rule = this.ruleFilter();
     const sev = this.severityFilter();
     const prio = this.priorityById();
+    const terms = this.search().trim().toLowerCase().split(/\s+/).filter(Boolean);
     return (this.result()?.findings ?? [])
       .filter((f) => (!rule || f.ruleCode === rule) && (!sev || f.severity === sev))
+      .filter((f) => !terms.length || terms.every((t) => this.searchText(f).includes(t)))
       .sort((a, b) => (prio.get(a.bomLineId)?.rank ?? 999) - (prio.get(b.bomLineId)?.rank ?? 999));
   });
 
@@ -125,6 +130,7 @@ export class BomCheckPage implements OnInit {
     this.explanation.set(null);
     this.ruleFilter.set('');
     this.severityFilter.set('');
+    this.search.set('');
     this.svc.bomCheck(this.query()).subscribe({
       next: (r) => {
         this.result.set(r);
@@ -160,6 +166,21 @@ export class BomCheckPage implements OnInit {
   noteFor = (rule: BomRule) => this.explanation()?.ruleNotes.find((n) => n.ruleCode === rule)?.note ?? null;
 
   /** The finding's numbers in words (translation key + parameters). */
+  /** Lower-cased text a finding is searched by (the rule by its code and its name in the current language). */
+  private searchText(f: BomCheckFinding): string {
+    return [
+      f.styleNo, f.seasonCode, f.customerCode, f.materialCode, f.materialDescription, f.contentClassCode, f.partNo, f.refStyleNo, f.ruleCode,
+      this.transloco.translate('ai.bom.rule.' + f.ruleCode),
+    ].filter((v) => v !== null && v !== undefined).join(' ').toLowerCase();
+  }
+
+  /** Clears the severity, rule and search filters. */
+  clearFilters(): void {
+    this.ruleFilter.set('');
+    this.severityFilter.set('');
+    this.search.set('');
+  }
+
   detail(f: BomCheckFinding): { key: string; params: Record<string, string | number> } {
     const uom = f.uomCode ?? '';
     const n = (v: number | null) => (v === null ? '—' : String(+Number(v).toFixed(4)));

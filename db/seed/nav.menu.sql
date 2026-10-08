@@ -89,7 +89,8 @@ INSERT @items VALUES
     (N'nav.settings',         N'settings.nav.userRoles',      'settings/user-roles',  'lucideUsers',            30,   N'Admin'),
     (N'nav.settings',         N'settings.nav.import',         'settings/import',      'lucideFileSpreadsheet',  40,   N'Admin'),
     (N'nav.settings',         N'settings.nav.refLists',       'settings/reference-lists', 'lucideListChecks',   50,   N'Admin'),
-    (N'nav.settings',         N'settings.nav.aiConnections',  'settings/ai',          'lucidePlug',             60,   N'Admin');
+    (N'nav.settings',         N'settings.nav.aiConnections',  'settings/ai',          'lucidePlug',             60,   N'Admin'),
+    (N'nav.settings',         N'settings.nav.translations',   'settings/translations', 'lucideLanguages',       70,   N'Admin');
 
 BEGIN TRANSACTION;
 

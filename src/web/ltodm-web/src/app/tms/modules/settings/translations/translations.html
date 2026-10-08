@@ -1,0 +1,350 @@
+<section class="flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'settings.translations.title' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'settings.translations.subtitle' | transloco }}</p>
+    </div>
+    <div class="flex w-full flex-wrap gap-2 sm:w-auto">
+      <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-none lg:h-9" (click)="openHistory()">
+        <ng-icon name="lucideHistory" />{{ 'settings.translations.history' | transloco }}
+      </button>
+      <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-none lg:h-9" [disabled]="exporting() || loading()" (click)="download()">
+        @if (exporting()) {
+          <hlm-spinner />
+        } @else {
+          <ng-icon name="lucideDownload" />
+        }
+        {{ 'settings.translations.download' | transloco }}
+      </button>
+      <button hlmBtn type="button" class="h-11 flex-1 sm:flex-none lg:h-9" [disabled]="loading()" (click)="openUpload()">
+        <ng-icon name="lucideUpload" />{{ 'settings.translations.upload' | transloco }}
+      </button>
+    </div>
+  </header>
+
+  <section hlmCard class="gap-0 py-0" [attr.aria-busy]="loading()">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+      <div class="flex flex-wrap items-center gap-2 text-sm">
+        @if (!loading()) {
+          <span hlmBadge variant="secondary">{{ 'settings.translations.keys' | transloco: { count: (rows().length | number) } }}</span>
+          <span hlmBadge variant="outline">{{ 'settings.translations.correctedCount' | transloco: { count: correctedCount() } }}</span>
+          @if (releaseChangedCount()) {
+            <span hlmBadge variant="outline" class="border-amber-500/50 text-amber-700 dark:text-amber-400">
+              {{ 'settings.translations.releaseChangedCount' | transloco: { count: releaseChangedCount() } }}
+            </span>
+          }
+        }
+      </div>
+      <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+        <label hlmLabel for="tr-filter" class="sr-only">{{ 'settings.translations.filter' | transloco }}</label>
+        <hlm-native-select selectId="tr-filter" selectClass="h-11 w-full sm:w-48 lg:h-9" [value]="filter()" (valueChange)="setFilter($event)">
+          <option hlmNativeSelectOption value="all">{{ 'settings.translations.filters.all' | transloco }}</option>
+          <option hlmNativeSelectOption value="corrected">{{ 'settings.translations.filters.corrected' | transloco }}</option>
+          <option hlmNativeSelectOption value="untranslated">{{ 'settings.translations.filters.untranslated' | transloco }}</option>
+          <option hlmNativeSelectOption value="releaseChanged">{{ 'settings.translations.filters.releaseChanged' | transloco }}</option>
+        </hlm-native-select>
+        <div class="relative w-full sm:w-64">
+          <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+          <input
+            hlmInput
+            type="search"
+            class="h-11 w-full pl-9 lg:h-9"
+            [placeholder]="'settings.translations.search' | transloco"
+            [attr.aria-label]="'settings.translations.search' | transloco"
+            [value]="search()"
+            (input)="setSearch($any($event.target).value)"
+          />
+        </div>
+      </div>
+    </div>
+    @if (updatedUtc(); as at) {
+      <p class="text-muted-foreground border-b px-5 py-2 text-xs">
+        {{ 'settings.translations.lastChange' | transloco: { by: updatedBy() || '—', at: (at | date: 'medium') } }}
+      </p>
+    }
+
+    @if (loading()) {
+      <div class="flex flex-col gap-3 p-5">
+        @for (i of [1, 2, 3, 4, 5]; track i) {
+          <div hlmSkeleton class="h-12 w-full"></div>
+        }
+      </div>
+    } @else if (filtered().length === 0) {
+      <div class="flex flex-col items-center gap-2 px-5 py-14 text-center">
+        <ng-icon name="lucideLanguages" class="text-muted-foreground text-4xl" />
+        <p class="font-medium">{{ (rows().length ? 'settings.translations.noMatch' : 'settings.translations.empty') | transloco }}</p>
+      </div>
+    } @else {
+      <!-- Header row (md and up); rows stack on phones -->
+      <div
+        class="text-muted-foreground hidden gap-4 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase md:grid"
+        [style.grid-template-columns]="'minmax(0,16rem) repeat(' + languages().length + ', minmax(0,1fr))'"
+      >
+        <span>{{ 'settings.translations.colKey' | transloco }}</span>
+        @for (l of languages(); track l.code) {
+          <span>{{ l.label }}</span>
+        }
+      </div>
+      <ul class="divide-y" role="list">
+        @for (r of visible(); track r.key) {
+          <li>
+            <button
+              type="button"
+              class="hover:bg-muted/60 grid w-full gap-x-4 gap-y-1 px-5 py-2.5 text-left transition-colors md:[grid-template-columns:var(--cols)]"
+              [style.--cols]="'minmax(0,16rem) repeat(' + languages().length + ', minmax(0,1fr))'"
+              [attr.aria-label]="('actions.edit' | transloco) + ' ' + r.key"
+              (click)="openEdit(r)"
+            >
+              <span class="flex min-w-0 items-start gap-2">
+                <code class="text-muted-foreground font-mono text-xs break-all">{{ r.key }}</code>
+                @if (r.baseChanged.length) {
+                  <ng-icon name="lucideTriangleAlert" class="mt-0.5 shrink-0 text-amber-600" [title]="'settings.translations.releaseChangedHint' | transloco" />
+                }
+              </span>
+              @for (l of languages(); track l.code) {
+                <span class="flex min-w-0 items-start gap-2 text-sm">
+                  <span class="text-muted-foreground w-16 shrink-0 text-xs md:hidden">{{ l.code }}</span>
+                  <span
+                    class="min-w-0 rounded px-1 break-words whitespace-pre-line"
+                    [class]="isCorrected(r, l.code) ? 'bg-amber-100 dark:bg-amber-500/20' : ''"
+                    [class.text-muted-foreground]="isUntranslated(r, l.code)"
+                    [class.italic]="!text(r, l.code)"
+                  >
+                    {{ text(r, l.code) || ('settings.translations.missing' | transloco) }}
+                  </span>
+                </span>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+      @if (filtered().length > visible().length) {
+        <div class="border-t px-5 py-3 text-center">
+          <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" (click)="showMore()">
+            {{ 'settings.translations.showMore' | transloco: { shown: (visible().length | number), total: (filtered().length | number) } }}
+          </button>
+        </div>
+      }
+    }
+  </section>
+</section>
+
+<!-- Edit one key -->
+@if (editing(); as r) {
+  <app-modal [open]="true" size="lg" [heading]="'settings.translations.editTitle' | transloco" (closed)="closeEdit()">
+    <form id="tr-edit-form" class="flex flex-col gap-4" (submit)="$event.preventDefault(); save()">
+      <code class="bg-muted rounded px-2 py-1 font-mono text-xs break-all">{{ r.key }}</code>
+      @if (expected().length) {
+        <p class="text-muted-foreground text-xs">
+          {{ 'settings.translations.placeholdersHint' | transloco }}
+          @for (p of expected(); track p) {
+            <code class="bg-muted ml-1 rounded px-1 font-mono">{{ braces(p) }}</code>
+          }
+        </p>
+      }
+      @for (l of languages(); track l.code) {
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between gap-2">
+            <label hlmLabel [for]="'tr-' + l.code">{{ l.label }}</label>
+            @if (isCorrected(r, l.code)) {
+              <span hlmBadge variant="outline" class="border-amber-500/50 text-amber-700 dark:text-amber-400">{{ 'settings.translations.corrected' | transloco }}</span>
+            }
+          </div>
+          <textarea
+            hlmTextarea
+            rows="2"
+            class="min-h-11 w-full"
+            [id]="'tr-' + l.code"
+            [value]="drafts()[l.code] ?? ''"
+            [attr.aria-invalid]="draftProblems()[l.code] || null"
+            (input)="setDraft(l.code, $any($event.target).value)"
+          ></textarea>
+          @if (draftProblems()[l.code]) {
+            <p class="text-destructive text-xs">{{ 'settings.translations.placeholdersBroken' | transloco }}</p>
+          }
+          @if (r.baseChanged.includes(l.code)) {
+            <p class="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+              <ng-icon name="lucideTriangleAlert" class="mt-0.5 shrink-0" />{{ 'settings.translations.releaseChangedHint' | transloco }}
+            </p>
+          }
+          @if (drafts()[l.code] !== (r.base[l.code] ?? '')) {
+            <div class="text-muted-foreground flex flex-wrap items-start justify-between gap-2 text-xs">
+              <span class="min-w-0 break-words whitespace-pre-line">
+                {{ 'settings.translations.released' | transloco }}: {{ r.base[l.code] || ('settings.translations.missing' | transloco) }}
+              </span>
+              <button hlmBtn variant="ghost" size="sm" type="button" class="h-9 lg:h-7" (click)="useReleased(l.code)">
+                <ng-icon name="lucideRotateCcw" />{{ 'settings.translations.useReleased' | transloco }}
+              </button>
+            </div>
+          }
+        </div>
+      }
+      <p class="text-muted-foreground text-xs">{{ 'settings.translations.blankHint' | transloco }}</p>
+    </form>
+    <ng-container footer>
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="closeEdit()">{{ 'actions.cancel' | transloco }}</button>
+      <button hlmBtn type="submit" form="tr-edit-form" class="h-11 lg:h-9" [disabled]="saving() || !dirty()">
+        {{ (saving() ? 'common.saving' : 'actions.save') | transloco }}
+      </button>
+    </ng-container>
+  </app-modal>
+}
+
+<!-- Upload the edited workbook -->
+<app-modal [open]="uploadOpen()" size="lg" [heading]="'settings.translations.uploadTitle' | transloco" (closed)="closeUpload()">
+  <div class="flex flex-col gap-4">
+    <label
+      for="tr-file"
+      class="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors"
+      [class]="dragging() ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent/40'"
+      (dragover)="onDragOver($event)"
+      (dragleave)="dragging.set(false)"
+      (drop)="onDrop($event)"
+    >
+      <ng-icon name="lucideFileSpreadsheet" class="text-muted-foreground text-3xl" />
+      @if (file(); as f) {
+        <span class="font-medium break-all">{{ f.name }}</span>
+        <span class="text-muted-foreground text-sm">{{ 'settings.translations.chooseAnother' | transloco }}</span>
+      } @else {
+        <span class="font-medium">{{ 'settings.translations.dropHere' | transloco }}</span>
+        <span class="text-muted-foreground text-sm">{{ 'settings.translations.dropHint' | transloco }}</span>
+      }
+      <input id="tr-file" type="file" class="sr-only" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" (change)="onFileInput($event)" />
+    </label>
+
+    @if (checking()) {
+      <p class="text-muted-foreground flex items-center gap-2 text-sm"><hlm-spinner />{{ 'settings.translations.checking' | transloco }}</p>
+    }
+
+    @if (uploadError(); as err) {
+      <div class="border-destructive/40 bg-destructive/5 flex gap-3 rounded-md border p-3 text-sm" role="alert">
+        <ng-icon name="lucideCircleAlert" class="text-destructive mt-0.5 shrink-0" />
+        <p class="min-w-0 font-medium">{{ err }}</p>
+      </div>
+    }
+
+    @if (preview(); as p) {
+      <div class="flex flex-wrap gap-2">
+        <span hlmBadge variant="secondary">{{ 'settings.translations.previewRows' | transloco: { count: (p.rows | number) } }}</span>
+        <span hlmBadge>{{ 'settings.translations.previewChanges' | transloco: { count: p.changes.length } }}</span>
+        @if (previewErrors()) {
+          <span hlmBadge variant="destructive">{{ 'settings.translations.previewErrors' | transloco: { count: previewErrors() } }}</span>
+        }
+        @if (previewWarnings()) {
+          <span hlmBadge variant="outline">{{ 'settings.translations.previewWarnings' | transloco: { count: previewWarnings() } }}</span>
+        }
+      </div>
+
+      @if (p.problems.length) {
+        <section class="flex flex-col gap-2">
+          <h3 class="text-sm font-semibold">{{ 'settings.translations.problems' | transloco }}</h3>
+          <ul class="divide-y rounded-md border text-sm" role="list">
+            @for (x of p.problems; track $index) {
+              <li class="flex gap-2 px-3 py-2">
+                <ng-icon
+                  [name]="x.severity === 'Error' ? 'lucideCircleAlert' : 'lucideTriangleAlert'"
+                  class="mt-0.5 shrink-0"
+                  [class]="x.severity === 'Error' ? 'text-destructive' : 'text-amber-600'"
+                />
+                <div class="min-w-0">
+                  <p class="text-muted-foreground text-xs">
+                    @if (x.rowNo) {
+                      {{ 'settings.translations.row' | transloco: { row: x.rowNo } }}
+                    }
+                    @if (x.key) {
+                      · <code class="font-mono break-all">{{ x.key }}</code>
+                    }
+                    @if (x.lang) {
+                      · {{ langLabel(x.lang) }}
+                    }
+                  </p>
+                  <p>{{ x.message }}</p>
+                </div>
+              </li>
+            }
+          </ul>
+          @if (p.problemCount > p.problems.length) {
+            <p class="text-muted-foreground text-xs">{{ 'settings.translations.moreProblems' | transloco: { count: p.problemCount - p.problems.length } }}</p>
+          }
+        </section>
+      }
+
+      @if (p.changes.length) {
+        <section class="flex flex-col gap-2">
+          <h3 class="text-sm font-semibold">{{ 'settings.translations.changes' | transloco }}</h3>
+          <ul class="divide-y rounded-md border text-sm" role="list">
+            @for (c of p.changes; track $index) {
+              <li class="flex flex-col gap-1 px-3 py-2">
+                <p class="text-muted-foreground flex flex-wrap items-center gap-x-2 text-xs">
+                  <code class="font-mono break-all">{{ c.key }}</code>
+                  <span>· {{ langLabel(c.lang) }}</span>
+                  @if (c.revert) {
+                    <span hlmBadge variant="outline">{{ 'settings.translations.backToReleased' | transloco }}</span>
+                  }
+                </p>
+                <p class="text-muted-foreground break-words whitespace-pre-line line-through">{{ c.from || ('settings.translations.missing' | transloco) }}</p>
+                <p class="break-words whitespace-pre-line">{{ c.to || ('settings.translations.missing' | transloco) }}</p>
+              </li>
+            }
+          </ul>
+        </section>
+      } @else {
+        <p class="text-muted-foreground text-sm">{{ 'settings.translations.noChanges' | transloco }}</p>
+      }
+    }
+  </div>
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="closeUpload()">{{ 'actions.cancel' | transloco }}</button>
+    <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="!preview()?.changes?.length || applying() || checking()" (click)="apply()">
+      @if (applying()) {
+        <hlm-spinner />
+      }
+      {{ 'settings.translations.apply' | transloco: { count: preview()?.changes?.length ?? 0 } }}
+    </button>
+  </ng-container>
+</app-modal>
+
+<!-- Saved versions -->
+<app-modal [open]="historyOpen()" size="lg" [heading]="'settings.translations.historyTitle' | transloco" (closed)="historyOpen.set(false)">
+  <p class="text-muted-foreground mb-3 text-sm">{{ 'settings.translations.historyHint' | transloco }}</p>
+  @if (historyLoading()) {
+    <div class="flex flex-col gap-3">
+      @for (i of [1, 2, 3]; track i) {
+        <div hlmSkeleton class="h-12 w-full"></div>
+      }
+    </div>
+  } @else if (!versions().length) {
+    <p class="text-muted-foreground py-8 text-center text-sm">{{ 'settings.translations.noHistory' | transloco }}</p>
+  } @else {
+    <ul class="divide-y rounded-md border" role="list">
+      @for (v of versions(); track v.id) {
+        <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2.5">
+          <div class="min-w-0 text-sm">
+            <p class="flex flex-wrap items-center gap-2 font-medium">
+              {{ v.savedUtc ? (v.savedUtc | date: 'medium') : '—' }}
+              @if (v.current) {
+                <span hlmBadge variant="secondary">{{ 'settings.translations.inUse' | transloco }}</span>
+              }
+            </p>
+            <p class="text-muted-foreground text-xs break-words">
+              {{ v.savedBy || '—' }} · {{ v.source || '' }} · {{ 'settings.translations.correctedCount' | transloco: { count: v.overrides } }}
+            </p>
+          </div>
+          @if (!v.current) {
+            <button hlmBtn variant="outline" size="sm" type="button" class="h-11 lg:h-8" [disabled]="!!restoring()" (click)="restore(v)">
+              @if (restoring() === v.id) {
+                <hlm-spinner />
+              } @else {
+                <ng-icon name="lucideRotateCcw" />
+              }
+              {{ 'settings.translations.restore' | transloco }}
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  }
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="historyOpen.set(false)">{{ 'actions.close' | transloco }}</button>
+  </ng-container>
+</app-modal>

@@ -33,10 +33,11 @@ D:\LTODM\
   api\          the site (the release's api\ folder)
   uploads\      Files:Root - uploaded images (back up; see File storage)
   keys\         DataProtection:KeysFolder - encrypts saved AI API keys (back up, keep private)
+  i18n\         Translations:OverridesFolder - text corrections from Settings > Translations (back up)
   logs\         stdout logs, only when troubleshooting
 ```
 
-Rights for the app-pool account: **Read** on `api`, **Modify** on `uploads`, `keys` and `logs`. Keep `uploads` and `keys` outside `api`, so a release never overwrites them. See [File storage](08-file-storage.md).
+Rights for the app-pool account: **Read** on `api`, **Modify** on `uploads`, `keys`, `i18n` and `logs`. Keep `uploads`, `keys` and `i18n` outside `api`, so a release never overwrites them; set `Files__Root`, `DataProtection__KeysFolder` and `Translations__OverridesFolder` to these folders. See [File storage](08-file-storage.md).
 
 ## 3. Application pool
 
@@ -74,6 +75,7 @@ Edit `D:\LTODM\api\web.config` (keep the `<aspNetCore>` element that `dotnet pub
         <environmentVariables>
           <environmentVariable name="Files__Root" value="D:\LTODM\uploads" />
           <environmentVariable name="DataProtection__KeysFolder" value="D:\LTODM\keys" />
+          <environmentVariable name="Translations__OverridesFolder" value="D:\LTODM\i18n" />
           <environmentVariable name="Auth__PublicBaseUrl" value="https://ltodm.lt.local" />
         </environmentVariables>
       </aspNetCore>
@@ -93,7 +95,7 @@ Set at least these before starting the site (details in [Configuration](04-confi
 - `Auth__PublicBaseUrl`
 - `Email__Host`, `Email__Port`, `Email__FromAddress`
 - `AgGrid__LicenseKey`
-- `Files__Root`, `DataProtection__KeysFolder`
+- `Files__Root`, `DataProtection__KeysFolder`, `Translations__OverridesFolder`
 
 The API **refuses to start** without the connection string, `Jwt:SigningKey` and `Auth:PublicBaseUrl`. The reason is in the Windows Application event log (source *IIS AspNetCore Module V2*) or, with stdout logging on, in `D:\LTODM\logs`.
 

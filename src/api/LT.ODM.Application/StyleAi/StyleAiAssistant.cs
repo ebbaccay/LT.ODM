@@ -49,9 +49,63 @@ public sealed class StyleAiAssistant(
         {DataOnly}
         """;
 
-    public async Task<StyleSearchResultDto> SearchAsync(string query, CancellationToken ct = default)
+    /// <summary>
+    /// The phrase list first: a request it fully understands is searched without AI. Otherwise, with useAi, the AI reads it
+    /// (when the Text job can run); without AI the words understood are searched and the rest are returned as Unmatched.
+    /// 503 (StyleRuleException) only when nothing was understood and AI cannot run.
+    /// </summary>
+    public async Task<StyleSearchResultDto> SearchAsync(string query, bool useAi, CancellationToken ct = default)
     {
         var l = await styles.GetLookupsAsync(ct);
+        var parsed = StyleQueryParser.Parse(query, l);
+        if (parsed.Complete) return await RulesResultAsync(parsed, ct);
+        if (useAi)
+        {
+            var info = await text.GetInfoAsync(ct);
+            if (info.IsConfigured) return await AiSearchAsync(query, l, ct);
+            if (!parsed.HasCriteria) throw new StyleRuleException(503, AiUnavailable.Message("AI search", info) + " Use words from the phrase list instead.");
+        }
+        return await RulesResultAsync(parsed, ct);
+    }
+
+    private async Task<StyleSearchResultDto> RulesResultAsync(StyleQueryParser.Result parsed, CancellationToken ct)
+    {
+        var results = parsed.HasCriteria ? await ListAsync(parsed.Filters, 50, ct) : new PagedResult<StyleListItemDto>([], 0);
+        return new StyleSearchResultDto(parsed.Filters, null, results, StyleSearchSources.Rules, parsed.Unmatched);
+    }
+
+    private Task<PagedResult<StyleListItemDto>> ListAsync(StyleSearchFiltersDto f, int take, CancellationToken ct)
+        => styles.ListAsync(new StyleListQuery(f.Search, f.Customer, Join(f.Seasons), f.BusinessUnit, Join(f.ProductTypes), f.WeaveType, f.Gender,
+            0, take, f.Material), ct);
+
+    /// <summary>Requests to show as examples; only those the phrase list fully understands and that find styles are shown.</summary>
+    private static readonly string[] ExampleTemplates =
+    [
+        "Men's jackets for {season}", "Women's tights for running", "Styles that use recycled fleece", "Kids' pants for {year}",
+        "Long sleeve t-shirts for {season}", "Woven shorts", "Women's dresses for {year}", "Track tops with recycled polyester",
+        "Knit t-shirts with elastane", "Football jerseys",
+    ];
+
+    /// <summary>The phrase list and up to 6 example requests that find styles in today's library.</summary>
+    public async Task<StyleSearchPhrasesDto> PhrasesAsync(CancellationToken ct = default)
+    {
+        var l = await styles.GetLookupsAsync(ct);
+        // The newest season with styles fills {season}; its year fills {year}.
+        var newest = l.Seasons.Select(s => s.Code).Where(c => c.Length == 7 && c[4] == '-').Order().LastOrDefault();
+        var examples = new List<string>();
+        foreach (var template in ExampleTemplates)
+        {
+            if (examples.Count == 6) break;
+            if (template.Contains('{') && newest is null) continue;
+            var phrase = template.Replace("{season}", newest is null ? "" : newest[5..] + newest[2..4]).Replace("{year}", newest?[..4] ?? "");
+            var parsed = StyleQueryParser.Parse(phrase, l);
+            if (parsed.Complete && (await ListAsync(parsed.Filters, 1, ct)).Total > 0) examples.Add(phrase);
+        }
+        return new StyleSearchPhrasesDto(examples, StyleQueryParser.Vocabulary(l));
+    }
+
+    private async Task<StyleSearchResultDto> AiSearchAsync(string query, StyleLookupsDto l, CancellationToken ct)
+    {
         var schema = Obj(new()
         {
             ["keywords"] = Str("Style number, model name or colorway code"),
@@ -94,9 +148,7 @@ public sealed class StyleAiAssistant(
             WeaveType: Pick("weaveType", l.WeaveTypes),
             Gender: Pick("gender", genders));
 
-        var results = await styles.ListAsync(new StyleListQuery(filters.Search, filters.Customer, Join(filters.Seasons), filters.BusinessUnit,
-            Join(filters.ProductTypes), filters.WeaveType, filters.Gender, 0, 50, filters.Material), ct);
-        return new StyleSearchResultDto(filters, Text(r, "explanation", 300), results);
+        return new StyleSearchResultDto(filters, Text(r, "explanation", 300), await ListAsync(filters, 50, ct), StyleSearchSources.Ai, []);
     }
 
     private static string? Join(IReadOnlyList<string> codes) => codes.Count == 0 ? null : string.Join(',', codes);

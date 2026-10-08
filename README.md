@@ -165,6 +165,7 @@ Users with the `Admin` role see a **Settings** group at the bottom of the sideba
   - **Add user** takes a name, user name, email, roles, user group and location, but no password. The user gets an email with a one-time link to set their own password (the reset-password page with welcome wording). The link expires after `Auth:InviteTokenHours` (default 72); until it is used the account cannot sign in.
   - **Send password link** (envelope icon) emails a new one-time link, for an expired invite, a forgotten password or a locked account. Earlier links stop working; the current password keeps working until the link is used.
   - Without SMTP settings (development), these emails are written to the API console log, so you can copy the link from there.
+- **Translations** (`/settings/translations`): correct the English and Chinese screen texts without a release, one by one or by downloading and uploading an Excel workbook (checked before it is applied). Corrections are stored in `Translations:OverridesFolder` (default `App_Data/i18n`) and layered on the deployed `assets/i18n` files by `TranslationLoader`; see [docs/components/settings.md](docs/components/settings.md#translations-settingstranslations).
 
 There is one role system: `auth.Roles` controls sign-in, the menu, the Settings API (`/api/v1/admin`, `[Authorize(Roles = "Admin")]`) and the role checks in ported TMS screens (which see the role names in lower case, e.g. `admin`). Role, user group and location changes reach a signed-in user at their next token refresh, within 15 minutes. Hiding a page from the menu does not block its address; screens that must be restricted also need a route guard (`roleGuard('Admin')`) and a role check in the API, as Settings has. Every access and role change is written to `auth.LoginAudit` (`AccessChanged`, `RoleChanged`).
 
@@ -193,7 +194,7 @@ To finish a module: add typed endpoints, switch its screens to them, then delete
 | `NavConfigService` | feeds the sidebar from the `nav` tables (main groups, plus groups pinned to the bottom) |
 | `SettingsAdminService` | calls `/api/v1/admin` instead of the TMS `tms_nav_*`, `tms_roles` and `tms_user_roles` procedures (those tables are not ported) |
 | `ConfirmDialogService` | unchanged API; dialog restyled and mounted once in `App` |
-| Transloco (`public/assets/i18n/en.json`, `zh-Hans.json`) | unchanged |
+| Transloco (`public/assets/i18n/en.json`, `zh-Hans.json`) | unchanged; corrections from Settings > Translations are layered on top (`GET /api/v1/translations/<lang>/overrides`) |
 
 Users have two TMS attributes: `UserGroup` (`FTY` = factory user) and `Location` (factory code). Set them in Settings > User roles, or with `create-user --group FTY --location F001`.
 

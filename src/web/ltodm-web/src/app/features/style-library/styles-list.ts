@@ -64,6 +64,7 @@ export class StylesList implements OnInit {
     const f = this.filter();
     const chips: { key: FilterKey; label: string; value: string }[] = [];
     if (f.season.includes(',')) chips.push({ key: 'season', label: 'styles.chipSeasons', value: f.season.replaceAll(',', ', ') });
+    if (f.businessUnit.includes(',')) chips.push({ key: 'businessUnit', label: 'styles.chipBusinessUnits', value: f.businessUnit.replaceAll(',', ', ') });
     if (f.productType.includes(',')) chips.push({ key: 'productType', label: 'styles.chipProductTypes', value: f.productType.replaceAll(',', ', ') });
     if (f.weaveType) chips.push({ key: 'weaveType', label: 'styles.chipWeave', value: f.weaveType });
     if (f.material) chips.push({ key: 'material', label: 'styles.chipMaterial', value: f.material });

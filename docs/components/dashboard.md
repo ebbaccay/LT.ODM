@@ -13,4 +13,6 @@ A summary of the Style Library:
 
 Admins see shortcuts to import styles when the library is empty.
 
+The charts use the primary colour and its companion colours, and the cards follow the glass effect; both are set in the theme panel (see [Appearance](appearance.md)).
+
 **Quotation Dashboard** (Home > Quotation Dashboard, Admin, Merchandiser, Factory) is the ported TMS dashboard of garment quotations; see [Garment Quotation](garment-quotation.md).

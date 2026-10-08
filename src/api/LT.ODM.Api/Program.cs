@@ -54,6 +54,9 @@ builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddTmsProcedures(builder.Configuration);
 builder.Services.AddConceptStudio(builder.Configuration, Path.Combine(builder.Environment.ContentRootPath, "App_Data", "uploads"));
 builder.Services.AddAiStudio(builder.Configuration);
+// Settings > Translations: corrections kept in App_Data/i18n and layered on the deployed wwwroot/assets/i18n files.
+builder.Services.AddTranslations(builder.Configuration, builder.Environment.ContentRootPath,
+    builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot"));
 
 // API keys typed in Settings > AI connections are encrypted with Data Protection. The key ring is kept outside the web
 // root (DataProtection:KeysFolder, default App_Data/keys) and, on Windows, encrypted with DPAPI for the machine.

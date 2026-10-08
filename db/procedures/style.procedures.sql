@@ -46,11 +46,11 @@ CREATE OR ALTER PROCEDURE style.usp_Style_List
     @Search           nvarchar(100) = NULL,
     @CustomerCode     nvarchar(32)  = NULL,
     @SeasonCode       nvarchar(200) = NULL,   -- one code, or several separated by commas
-    @BusinessUnitCode nvarchar(16)  = NULL,
+    @BusinessUnitCode nvarchar(200) = NULL,   -- one code, or several separated by commas
     @ProductTypeCode  nvarchar(400) = NULL,   -- one code, or several separated by commas
     @WeaveTypeCode    nvarchar(8)   = NULL,
     @Gender           nvarchar(16)  = NULL,
-    @Material         nvarchar(100) = NULL,   -- contained in a BOM line's material code or description
+    @Material         nvarchar(100) = NULL,   -- word(s) in a BOM line's material code or description; several words must all be on the same line
     @IsActive         bit           = NULL,   -- NULL = active and inactive
     @Skip             int           = 0,
     @Take             int           = 50
@@ -63,7 +63,12 @@ BEGIN
     /* "Contains" search, case-insensitive: upper-cased and compared in binary (several times faster than the
        database collation for a %...% match, which has to read every style). */
     DECLARE @like nvarchar(110) = UPPER(N'%' + REPLACE(REPLACE(REPLACE(@Search, N'[', N'[[]'), N'%', N'[%]'), N'_', N'[_]') + N'%');
-    DECLARE @materialLike nvarchar(110) = UPPER(N'%' + REPLACE(REPLACE(REPLACE(@Material, N'[', N'[[]'), N'%', N'[%]'), N'_', N'[_]') + N'%');
+    DECLARE @materialWords TABLE (Pattern nvarchar(110) NOT NULL PRIMARY KEY);
+    INSERT @materialWords
+    SELECT DISTINCT UPPER(N'%' + REPLACE(REPLACE(REPLACE(TRIM(value), N'[', N'[[]'), N'%', N'[%]'), N'_', N'[_]') + N'%')
+    FROM STRING_SPLIT(@Material, N' ') WHERE TRIM(value) <> N'';
+    DECLARE @businessUnits TABLE (Code nvarchar(16) NOT NULL PRIMARY KEY);
+    INSERT @businessUnits SELECT DISTINCT LEFT(TRIM(value), 16) FROM STRING_SPLIT(@BusinessUnitCode, N',') WHERE TRIM(value) <> N'';
     DECLARE @seasons TABLE (Code nvarchar(16) NOT NULL PRIMARY KEY);
     INSERT @seasons SELECT DISTINCT LEFT(TRIM(value), 16) FROM STRING_SPLIT(@SeasonCode, N',') WHERE TRIM(value) <> N'';
     DECLARE @productTypes TABLE (Code nvarchar(40) NOT NULL PRIMARY KEY);
@@ -79,7 +84,7 @@ BEGIN
     JOIN ref.SeasonTerm t ON t.Term = se.Term
     WHERE (@customerId IS NULL OR s.CustomerId = @customerId)
       AND (@SeasonCode IS NULL OR s.SeasonCode IN (SELECT Code FROM @seasons))
-      AND (@BusinessUnitCode IS NULL OR s.BusinessUnitCode = @BusinessUnitCode)
+      AND (@BusinessUnitCode IS NULL OR s.BusinessUnitCode IN (SELECT Code FROM @businessUnits))
       AND (@ProductTypeCode IS NULL OR s.ProductTypeCode IN (SELECT Code FROM @productTypes))
       AND (@WeaveTypeCode IS NULL OR s.WeaveTypeCode = @WeaveTypeCode)
       AND (@Gender IS NULL OR s.Gender = @Gender)
@@ -87,8 +92,9 @@ BEGIN
       AND (@Material IS NULL OR EXISTS (
                SELECT 1 FROM style.BomLine b JOIN mat.Material m ON m.MaterialId = b.MaterialId
                WHERE b.StyleId = s.StyleId
-                 AND (UPPER(b.MaterialDescription) COLLATE Latin1_General_100_BIN2 LIKE @materialLike
-                      OR UPPER(m.MaterialCode) COLLATE Latin1_General_100_BIN2 LIKE @materialLike)))
+                 AND NOT EXISTS (SELECT 1 FROM @materialWords w
+                                 WHERE UPPER(b.MaterialDescription) COLLATE Latin1_General_100_BIN2 NOT LIKE w.Pattern
+                                   AND UPPER(m.MaterialCode) COLLATE Latin1_General_100_BIN2 NOT LIKE w.Pattern)))
       AND (@Search IS NULL OR s.StyleId IN (
                SELECT x.StyleId FROM style.Style x
                WHERE UPPER(x.StyleNo) COLLATE Latin1_General_100_BIN2 LIKE @like OR UPPER(x.ModelName) COLLATE Latin1_General_100_BIN2 LIKE @like

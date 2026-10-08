@@ -25,7 +25,7 @@ Sensitivity is LT's view of the data: **Low** (reference lists and generic text)
 
 | | |
 |---|---|
-| Job / calls | Text, 1 per search |
+| Job / calls | Text, 1 per search **only when the phrase list does not understand every word** ([Smart search](../components/ai-studio.md#smart-search-aisearch)); requests made of phrase-list words send nothing |
 | Sent | The request as typed; today's date; the library's code lists: customers (code and name), season codes, business units, product types, weave types (code and name) |
 | Not sent | Any style data. The AI only fills filters; the results come from the database |
 | Sensitivity | Low (the typed request may contain whatever the user writes) |

@@ -187,7 +187,8 @@
 */
 :root.glass {
   --glass-panel: color-mix(in oklab, var(--card) 58%, transparent);
-  --glass-overlay: color-mix(in oklab, var(--popover) 82%, transparent);
+  --glass-overlay: color-mix(in oklab, var(--popover) 92%, transparent);
+  --glass-dialog: color-mix(in oklab, var(--card) 96%, transparent);
   --glass-bar: color-mix(in oklab, var(--background) 55%, transparent);
   --glass-edge: oklch(1 0 0 / 0.55);
   --glass-line: oklch(1 0 0 / 0.5);
@@ -195,7 +196,8 @@
 }
 :root.glass.dark {
   --glass-panel: color-mix(in oklab, var(--card) 45%, transparent);
-  --glass-overlay: color-mix(in oklab, var(--popover) 78%, transparent);
+  --glass-overlay: color-mix(in oklab, var(--popover) 90%, transparent);
+  --glass-dialog: color-mix(in oklab, var(--card) 95%, transparent);
   --glass-bar: color-mix(in oklab, var(--background) 50%, transparent);
   --glass-edge: oklch(1 0 0 / 0.1);
   --glass-line: oklch(1 0 0 / 0.09);
@@ -228,6 +230,24 @@
   backdrop-filter: blur(24px) saturate(160%);
 }
 
+/*
+  Dialogs (the panel marked aria-modal, or the panel right inside it): almost solid. The dimmed backdrop behind a
+  dialog has its own blur, so a see-through panel would show the page sharp, not frosted.
+*/
+:root.glass
+  :is(
+    [aria-modal='true']:is([data-slot='card'], .bg-card),
+    [aria-modal='true'] > :is([data-slot='card'], .bg-card)
+  ) {
+  background-color: var(--glass-dialog);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-edge),
+    0 0 0 1px var(--glass-line),
+    0 24px 64px -16px oklch(0 0 0 / 0.45);
+}
+
 /* App chrome. */
 :root.glass app-topbar > header,
 :root.glass app-sidebar > aside,
@@ -243,6 +263,7 @@
   :root.glass {
     --glass-panel: var(--card);
     --glass-overlay: var(--popover);
+    --glass-dialog: var(--card);
     --glass-bar: var(--background);
   }
 }
@@ -250,6 +271,7 @@
   :root.glass {
     --glass-panel: var(--card);
     --glass-overlay: var(--popover);
+    --glass-dialog: var(--card);
     --glass-bar: var(--background);
   }
   .glass-glow {

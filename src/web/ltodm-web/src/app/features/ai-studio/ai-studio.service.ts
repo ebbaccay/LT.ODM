@@ -123,8 +123,19 @@ export interface StyleSearchFilters {
 
 export interface StyleSearchResult {
   filters: StyleSearchFilters;
-  explanation: string;
+  /** The AI's reading; null when the phrase list understood the request. */
+  explanation: string | null;
   results: Paged<StyleListItem>;
+  /** rules: the phrase list understood it (no AI call). ai: the AI read it. */
+  source: 'rules' | 'ai';
+  /** Words the phrase list did not understand, ignored because AI was not used. */
+  unmatched: string[];
+}
+
+/** Words understood without AI, by criterion, and example requests that find styles today. */
+export interface StyleSearchPhrases {
+  examples: string[];
+  groups: { criterion: string; words: string[] }[];
 }
 
 // ----- Change summary -----
@@ -287,8 +298,18 @@ export class AiStudioService {
     return (this.status$ ??= this.http.get<AiStatus>(`${this.api}/status`).pipe(shareReplay({ bufferSize: 1, refCount: false })));
   }
 
+  /** Phrase list, then AI for requests it does not fully understand (AI rate limit applies). */
   search(query: string): Observable<StyleSearchResult> {
     return this.http.post<StyleSearchResult>(`${this.api}/style-search`, { query });
+  }
+
+  /** Phrase list only: never calls AI. */
+  searchByRules(query: string): Observable<StyleSearchResult> {
+    return this.http.post<StyleSearchResult>(`${this.api}/style-search/rules`, { query });
+  }
+
+  phrases(): Observable<StyleSearchPhrases> {
+    return this.http.get<StyleSearchPhrases>(`${this.api}/style-search/phrases`);
   }
 
   compare(styleId: number, fromStyleId: number | null): Observable<StyleCompare> {

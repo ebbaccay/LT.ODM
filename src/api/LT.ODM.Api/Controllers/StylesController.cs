@@ -27,7 +27,7 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
     /// <param name="status">active, inactive, or empty for both.</param>
     public Task<PagedResult<StyleListItemDto>> List(string? search, string? customer, string? season, string? businessUnit, string? productType,
         string? weaveType, string? gender, string? material, string? status, int skip = 0, int take = 50, CancellationToken ct = default)
-        => styles.ListAsync(new StyleListQuery(Clean(search, 100), Clean(customer, 32), Clean(season, 200), Clean(businessUnit, 16),
+        => styles.ListAsync(new StyleListQuery(Clean(search, 100), Clean(customer, 32), Clean(season, 200), Clean(businessUnit, 200),
             Clean(productType, 400), Clean(weaveType, 8), Clean(gender, 16), Math.Max(0, skip), Math.Clamp(take, 1, 200), Clean(material, 100),
             status?.Trim().ToLowerInvariant() switch { "active" => true, "inactive" => false, _ => null }), ct);
 
