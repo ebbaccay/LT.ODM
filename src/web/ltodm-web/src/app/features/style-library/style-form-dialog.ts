@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, effect, inject, input, output, sign
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
@@ -15,7 +16,7 @@ type Form = Omit<SaveStyleRequest, 'rowVer' | 'garmentLeadTimeDays'> & { garment
 
 const EMPTY: Form = {
   customerCode: '', seasonCode: '', styleNo: '', description: null, modelCode: null, modelName: null, weaveTypeCode: null,
-  productTypeCode: null, gender: null, garmentLeadTimeDays: '', businessUnitCode: null, sketchUrl: null, imageUrl: null,
+  productTypeCode: null, gender: null, garmentLeadTimeDays: '', businessUnitCode: null, sketchUrl: null, imageUrl: null, isActive: true,
 };
 
 /**
@@ -25,7 +26,7 @@ const EMPTY: Form = {
 @Component({
   selector: 'app-style-form-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Modal, ImageField, HlmButtonImports, HlmInputImports, HlmLabelImports, HlmNativeSelectImports, HlmSpinnerImports, HlmTextareaImports, TranslocoPipe],
+  imports: [Modal, ImageField, HlmButtonImports, HlmCheckboxImports, HlmInputImports, HlmLabelImports, HlmNativeSelectImports, HlmSpinnerImports, HlmTextareaImports, TranslocoPipe],
   template: `
     <app-modal [open]="open()" [heading]="style() ? ('styles.form.editTitle' | transloco: { styleNo: style()!.styleNo }) : ('styles.form.newTitle' | transloco)" size="lg" (closed)="closed.emit()">
       @let f = form();
@@ -119,9 +120,16 @@ const EMPTY: Form = {
         </div>
 
         <div class="grid grid-cols-2 gap-4">
-          <app-image-field [label]="'styles.form.sketch' | transloco" [url]="f.sketchUrl" [editable]="true" (changed)="set('sketchUrl', $event)" />
-          <app-image-field [label]="'styles.form.photo' | transloco" [url]="f.imageUrl" [editable]="true" (changed)="set('imageUrl', $event)" />
+          <app-image-field [label]="'styles.form.sketch' | transloco" [url]="f.sketchUrl" [editable]="true" [downloadName]="(f.styleNo || 'style') + '_sketch'" (changed)="set('sketchUrl', $event)" />
+          <app-image-field [label]="'styles.form.photo' | transloco" [url]="f.imageUrl" [editable]="true" [downloadName]="(f.styleNo || 'style') + '_photo'" (changed)="set('imageUrl', $event)" />
         </div>
+        <label class="flex w-fit cursor-pointer items-start gap-3">
+          <hlm-checkbox class="mt-0.5" [checked]="f.isActive" (checkedChange)="set('isActive', $event)" />
+          <span class="flex flex-col">
+            <span class="text-sm font-medium">{{ 'styles.form.active' | transloco }}</span>
+            <span class="text-muted-foreground text-xs">{{ 'styles.form.activeHint' | transloco }}</span>
+          </span>
+        </label>
         <button type="submit" class="hidden"></button>
       </form>
       <ng-container footer>
@@ -162,7 +170,7 @@ export class StyleFormDialog {
               customerCode: s.customerCode, seasonCode: s.seasonCode, styleNo: s.styleNo, description: s.description, modelCode: s.modelCode,
               modelName: s.modelName, weaveTypeCode: s.weaveTypeCode, productTypeCode: s.productTypeCode, gender: s.gender,
               garmentLeadTimeDays: s.garmentLeadTimeDays?.toString() ?? '', businessUnitCode: s.businessUnitCode, sketchUrl: s.sketchUrl,
-              imageUrl: s.imageUrl,
+              imageUrl: s.imageUrl, isActive: s.isActive,
             }
           : { ...EMPTY },
       );
@@ -193,6 +201,7 @@ export class StyleFormDialog {
       businessUnitCode: blank(f.businessUnitCode),
       sketchUrl: f.sketchUrl,
       imageUrl: f.imageUrl,
+      isActive: f.isActive,
     };
     const missing: Record<string, string> = {};
     if (!request.customerCode) missing['customerCode'] = this.transloco.translate('styles.form.customerRequired');

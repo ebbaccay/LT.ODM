@@ -124,9 +124,8 @@ public sealed class StyleImportsController(IStyleWorkbookReader reader, IStyleIm
     [EnableRateLimiting(RateLimitPolicies.Ai)]
     public async Task<IActionResult> SuggestCodes(int batchId, [FromServices] IAiJsonClient ai, [FromServices] ImportCodeAdvisor advisor, CancellationToken ct)
     {
-        if (!(await ai.GetInfoAsync(ct)).IsConfigured)
-            return Problem(statusCode: StatusCodes.Status503ServiceUnavailable,
-                title: "AI suggestions are not set up on this server. Ask your administrator to set the Text job in Settings > AI connections.");
+        if (await ai.GetInfoAsync(ct) is { IsConfigured: false } info)
+            return Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: AiUnavailable.Message("AI suggestions", info));
         try
         {
             return Ok(await advisor.SuggestAsync(await imports.GetNewCodesAsync(batchId, ct), ct));

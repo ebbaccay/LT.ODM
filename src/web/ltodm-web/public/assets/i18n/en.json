@@ -1731,7 +1731,8 @@
     "aiLab": "AI Lab",
     "materials": "Materials",
     "material": "Material",
-    "aiConnections": "AI connections"
+    "aiConnections": "AI connections",
+    "styleCompare": "Compare styles"
   },
   "layout": {
     "appSubtitle": "Style Library",
@@ -1951,6 +1952,9 @@
       "allLines": "All lines",
       "addBomLine": "Add BOM line",
       "noLinesForColorway": "No BOM lines for this colorway.",
+      "noLinesForSearch": "No BOM lines match your search.",
+      "bomSearchLabel": "Search BOM lines",
+      "bomSearchPlaceholder": "Search part, material, supplier, colour…",
       "noLines": "No BOM lines yet.",
       "addLineTo": "Add line to {{ section }}",
       "add": "Add",
@@ -2006,7 +2010,13 @@
       "aiCompare": "What changed",
       "aiBomCheck": "Check BOM",
       "aiRender": "AI render",
-      "openMaterial": "Open the material: where it is used, usual consumption, suppliers"
+      "openMaterial": "Open the material: where it is used, usual consumption, suppliers",
+      "compareSelected": "Compare selected ({{count}}/2)",
+      "compareParent": "Changes from {{styleNo}}",
+      "compareParentOther": "Changes from the earlier style",
+      "compareOrigin": "All changes since {{styleNo}}",
+      "selectToCompare": "Select {{styleNo}} to compare",
+      "designPrompt": "Design prompt"
     },
     "form": {
       "newTitle": "New style",
@@ -2031,7 +2041,9 @@
       "seasonInvalid": "Enter the season as year-term, e.g. {{ example }}.",
       "styleNoRequired": "Enter the style number.",
       "saved": "Style saved.",
-      "created": "Style created."
+      "created": "Style created.",
+      "active": "Active",
+      "activeHint": "Inactive styles stay in the library and keep their history, but are marked as no longer in use."
     },
     "colorway": {
       "addTitle": "Add colorway",
@@ -2110,7 +2122,12 @@
       "replace": "Replace {{ label }}",
       "remove": "Remove {{ label }}",
       "wrongType": "Choose a JPEG, PNG, GIF or WebP image.",
-      "unreadable": "This image could not be read. Try another file."
+      "unreadable": "This image could not be read. Try another file.",
+      "dropHint": "or drop an image here",
+      "dropHere": "Drop to upload",
+      "download": "Download {{ label }}",
+      "downloadShort": "Download",
+      "downloadFailed": "The image could not be downloaded."
     },
     "errors": {
       "checkFields": "Check the highlighted fields.",
@@ -2122,7 +2139,48 @@
     "chipProductTypes": "Product types",
     "chipWeave": "Weave",
     "chipMaterial": "Material",
-    "removeFilter": "Remove filter {{ filter }}"
+    "removeFilter": "Remove filter {{ filter }}",
+    "compare": {
+      "title": "Compare styles",
+      "subtitle": "What changed between two styles, worked out from their data. No AI is needed; an AI summary is offered when an AI service is set up.",
+      "backTo": "Back to {{styleNo}}",
+      "backToStyle": "Back to the style",
+      "family": "Compare with a style in this family",
+      "chooseFamily": "Choose a style…",
+      "reusedFrom": "reused from",
+      "swap": "Swap the two styles"
+    },
+    "status": "Status",
+    "allStatuses": "All statuses",
+    "activeStyles": "Active styles",
+    "inactiveStyles": "Inactive styles",
+    "inactive": "Inactive",
+    "prompt": {
+      "title": "Design prompt · {{ styleNo }}",
+      "intro": "Built from this style's details, BOM and colorways, without brand names. Paste it into StyTrix, Style3D or another design tool. LT ODM does not send anything.",
+      "mode": "Use for",
+      "modeText": "Text to design",
+      "modeImage": "Image to design",
+      "noReference": "Add a sketch or photo to this style to use image to design.",
+      "colorway": "Colorway",
+      "allColorways": "All colorways",
+      "attachSketch": "Attach this sketch in the design tool together with the prompt.",
+      "attachPhoto": "Attach this photo in the design tool together with the prompt.",
+      "downloadSketch": "Download sketch",
+      "downloadPhoto": "Download photo",
+      "prompt": "Prompt",
+      "reset": "Reset to generated text",
+      "length": "{{ count }} characters",
+      "builtFrom": "Built from",
+      "factGarment": "Garment",
+      "factFabrics": "Fabrics",
+      "factColours": "Colours",
+      "factDetails": "Visible details",
+      "downloadText": "Download .txt",
+      "copy": "Copy prompt",
+      "copied": "Prompt copied.",
+      "copyFailed": "Could not copy. Select the text and copy it yourself."
+    }
   },
   "ai": {
     "failed": "The AI request did not work.",
@@ -2133,7 +2191,12 @@
       "imageCloud": "Images are drawn by {{ provider }} ({{ model }}), a cloud service.",
       "cloudHint": "What you send from this page leaves the LT network. Do not use it for data the customer has not cleared.",
       "inHouse": "Runs on the in-house AI server ({{ model }}). Data stays on the LT network.",
-      "imageInHouse": "Images are drawn on the in-house AI server ({{ model }}). Data stays on the LT network."
+      "imageInHouse": "Images are drawn on the in-house AI server ({{ model }}). Data stays on the LT network.",
+      "blocked": {
+        "aiOff": "AI features are turned off by an administrator. Nothing is sent to any AI service.",
+        "jobOff": "This AI job is turned off by an administrator. Nothing is sent to any AI service.",
+        "cloudBlocked": "This feature is set to a cloud service ({{ provider }}), but cloud AI is not allowed on this server, so nothing is sent outside LT."
+      }
     },
     "picker": {
       "label": "Find a style",
@@ -2709,7 +2772,37 @@
     "notesPlaceholder": "e.g. GPU server in the Phnom Penh data room; contact IT",
     "active": "Active (jobs can use it)",
     "test": "Test connection",
-    "connectionSaved": "Connection {{ name }} saved."
+    "connectionSaved": "Connection {{ name }} saved.",
+    "offOption": "Off (no AI for this job)",
+    "jobOffHint": "Turned off: this job makes no AI calls, not even to the app default.",
+    "blocked": {
+      "aiOff": "Not running: all AI is turned off",
+      "jobOff": "Not running: this job is turned off",
+      "cloudBlocked": "Blocked: its service is in the cloud and cloud AI is not allowed"
+    },
+    "switches": {
+      "title": "Switches",
+      "hint": "Apply to every AI feature, whatever the jobs below or the server's configuration file say. Changes apply to the next AI call.",
+      "ai": "AI features",
+      "aiOn": "On: AI features can run with the services set below.",
+      "aiOff": "Off: no AI call is made anywhere in the app. Features that need AI say so; everything else works.",
+      "cloud": "Allow cloud AI services",
+      "cloudOn": "On: jobs may use services outside the LT network (Gemini, or connections not marked in-house). Data sent to them leaves LT.",
+      "cloudOff": "Off: only in-house services are used. Jobs set to a cloud service are blocked, so no data leaves LT.",
+      "saved": "Switches saved. They apply to the next AI call.",
+      "confirm": {
+        "allowCloud": {
+          "title": "Allow cloud AI services?",
+          "message": "Jobs set to a cloud service (such as Gemini) will start sending data outside LT: style and BOM details, concept briefs, and for Cost Optimization and Market Trends also prices and costs. See the AI documentation for exactly what each feature sends.",
+          "ok": "Allow cloud AI"
+        },
+        "aiOff": {
+          "title": "Turn all AI features off?",
+          "message": "No AI call will be made anywhere in the app until AI is turned on again. Screens that need AI will say it is turned off.",
+          "ok": "Turn AI off"
+        }
+      }
+    }
   },
   "csMatch": {
     "title": "Proven styles in the library",

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.Ai;
+using LT.ODM.Application.ConceptStudio;
 using LT.ODM.Application.StyleLibrary;
 using static LT.ODM.Application.Ai.AiJson;
 
@@ -23,9 +24,10 @@ public sealed class StyleAiAssistant(
         var purposes = new List<AiPurposeStatusDto>();
         foreach (var p in AiPurposes.All)
         {
-            var c = await connections.ResolveAsync(p, ct);
-            var info = AiConnectionInfo.Of(c);
-            purposes.Add(new AiPurposeStatusDto(p, AiPurposes.InUse.Contains(p), info.IsConfigured, c?.Name, c?.Model, info.LeavesNetwork, c?.Source));
+            var r = await connections.ExplainAsync(p, ct);
+            var info = AiConnectionInfo.Of(r);
+            purposes.Add(new AiPurposeStatusDto(p, AiPurposes.InUse.Contains(p), info.IsConfigured, r.Connection?.Name, r.Connection?.Model, info.LeavesNetwork,
+                r.Connection?.Source, r.Blocked));
         }
         return new AiStatusDto(await text.GetInfoAsync(ct), await images.GetInfoAsync(ct), purposes);
     }
@@ -294,7 +296,15 @@ public sealed class StyleAiAssistant(
 
         var reference = useSketch ? await ReadSketchAsync(d.Style.SketchUrl!, ct) : null;
         var image = await images.GenerateImageAsync("a style render", prompt, reference, ct);
-        var name = await store.SaveAsync(image.Content, image.Kind, ct);
+        string name;
+        try
+        {
+            name = await store.SaveAsync(image.Content, image.Kind, ct);   // stored smaller, like uploads
+        }
+        catch (UnreadableImageException ex)
+        {
+            throw new AiServiceException("The AI service did not return a usable image. Try again.", ex);
+        }
         return await repo.AddRenderAsync(styleId, request.ColorwayId, LocalImagePrefix + name, prompt, info.Provider, info.Model,
             reference is not null, createdBy, ct);
     }

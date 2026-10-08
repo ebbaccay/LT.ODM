@@ -1,0 +1,176 @@
+import { ChangeDetectionStrategy, Component, computed, input, linkedSignal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { TranslocoPipe } from '@jsverse/transloco';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { lucideArrowRight, lucideImage } from '@ng-icons/lucide';
+import { HlmCardImports } from '@spartan-ng/helm/card';
+import { AuthImgDirective } from '@tms/shared/ui/auth-img';
+import { Tone, toneBadge } from '@tms/shared/ui/tones';
+import { BomLineChange, StyleCompare } from '../ai-studio/ai-studio.service';
+
+type LineFilter = 'all' | BomLineChange['change'];
+
+const CHANGE_TONE: Record<string, Tone> = { Added: 'green', Removed: 'red', Changed: 'amber', Swapped: 'violet', Recoded: 'primary' };
+
+/**
+ * What changed between two styles: the two styles side by side, then header, colorway and BOM line differences.
+ * Worked out by rules on the server (no AI). Used by the Style Library compare page and AI Studio's Change summary;
+ * content projected into it lands under the two styles (e.g. a picker for another style).
+ */
+@Component({
+  selector: 'app-style-diff',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterLink, NgIcon, AuthImgDirective, HlmCardImports, TranslocoPipe],
+  providers: [provideIcons({ lucideArrowRight, lucideImage })],
+  host: { class: 'flex flex-col gap-5' },
+  template: `
+    @let d = diff();
+    <!-- The two styles -->
+    <section hlmCard class="gap-4 p-5">
+      <div class="grid items-center gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        @for (s of [{ ref: d.from, label: 'ai.compare.from' }, { ref: d.to, label: 'ai.compare.to' }]; track s.label; let first = $first) {
+          @if (!first) {
+            <div class="text-muted-foreground flex flex-col items-center text-xs">
+              <ng-icon name="lucideArrowRight" class="rotate-90 text-xl md:rotate-0" />
+              @if (d.relation) {
+                <span>{{ (d.relation === 'Variant' ? 'ai.compare.variant' : 'ai.compare.carryOver') | transloco }}</span>
+              }
+            </div>
+          }
+          <a [routerLink]="['/styles', s.ref.styleId]" class="hover:bg-accent/40 flex min-w-0 items-center gap-3 rounded-md border p-3">
+            <span class="bg-muted flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border">
+              @if (s.ref.imageUrl || s.ref.sketchUrl) {
+                <img [appAuthSrc]="(s.ref.imageUrl || s.ref.sketchUrl)!" alt="" class="size-full object-cover" />
+              } @else {
+                <ng-icon name="lucideImage" class="text-muted-foreground" />
+              }
+            </span>
+            <span class="min-w-0">
+              <span class="text-muted-foreground block text-xs">{{ s.label | transloco }}</span>
+              <span class="block truncate font-mono text-sm font-medium">{{ s.ref.styleNo }}</span>
+              <span class="text-muted-foreground block truncate text-xs">
+                {{ s.ref.seasonCode }} · {{ 'ai.compare.counts' | transloco: { colorways: s.ref.colorways, lines: s.ref.bomLines } }}
+              </span>
+            </span>
+          </a>
+        }
+      </div>
+      <ng-content />
+    </section>
+
+    <ng-content select="[diffSummary]" />
+
+    <!-- Header and colorways -->
+    <div class="grid gap-5 lg:grid-cols-2">
+      <section hlmCard class="gap-3 p-5">
+        <h2 class="font-semibold">{{ 'ai.compare.headerTitle' | transloco }}</h2>
+        @if (d.header.length) {
+          <dl class="flex flex-col gap-2 text-sm">
+            @for (f of d.header; track f.field) {
+              <div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-2">
+                <dt class="text-muted-foreground">{{ fieldLabel(f.field) | transloco }}</dt>
+                <dd class="min-w-0 break-words"><span class="text-muted-foreground line-through">{{ f.before || '—' }}</span> → {{ f.after || '—' }}</dd>
+              </div>
+            }
+          </dl>
+        } @else {
+          <p class="text-muted-foreground text-sm">{{ 'ai.compare.noHeaderChanges' | transloco }}</p>
+        }
+      </section>
+      <section hlmCard class="gap-3 p-5">
+        <h2 class="font-semibold">{{ 'ai.compare.colorwaysTitle' | transloco }}</h2>
+        @if (d.colorways.length) {
+          <ul class="flex flex-col gap-2 text-sm">
+            @for (c of d.colorways; track c.change + c.colorwayCode) {
+              <li class="flex flex-wrap items-center gap-2">
+                <span class="rounded px-1.5 py-0.5 text-xs" [class]="changeTone(c.change)">{{ 'ai.compare.change.' + c.change | transloco }}</span>
+                <span class="font-mono">{{ c.colorwayCode }}</span>
+                <span class="text-muted-foreground">{{ c.colorwayName }}</span>
+                @if (c.fromCode) {
+                  <span class="text-muted-foreground text-xs">{{ 'ai.compare.wasCode' | transloco: { code: c.fromCode } }}</span>
+                }
+                @for (f of c.fields; track f.field) {
+                  <span class="text-muted-foreground text-xs">{{ fieldLabel(f.field) | transloco }}: {{ f.before || '—' }} → {{ f.after || '—' }}</span>
+                }
+              </li>
+            }
+          </ul>
+        }
+        <p class="text-muted-foreground text-xs">{{ 'ai.compare.unchangedColorways' | transloco: { count: d.unchangedColorways } }}</p>
+      </section>
+    </div>
+
+    <!-- BOM -->
+    <section hlmCard class="gap-0 py-0">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+        <h2 class="font-semibold">{{ 'ai.compare.bomTitle' | transloco }}</h2>
+        <div class="bg-muted flex flex-wrap rounded-lg p-1" role="tablist">
+          @for (f of filters; track f) {
+            <button
+              type="button"
+              role="tab"
+              class="rounded-md px-3 py-1.5 text-xs font-medium"
+              [class]="lineFilter() === f ? 'bg-background shadow-sm' : 'text-muted-foreground'"
+              [attr.aria-selected]="lineFilter() === f"
+              (click)="lineFilter.set(f)"
+            >
+              {{ (f === 'all' ? 'ai.compare.allChanges' : 'ai.compare.change.' + f) | transloco }} ({{ lineCounts()[f] }})
+            </button>
+          }
+        </div>
+      </div>
+      @if (lines().length) {
+        <ul class="divide-y" role="list">
+          @for (l of lines(); track $index) {
+            <li class="flex flex-col gap-1 px-5 py-3 text-sm">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded px-1.5 py-0.5 text-xs" [class]="changeTone(l.change)">{{ 'ai.compare.change.' + l.change | transloco }}</span>
+                <span class="text-muted-foreground text-xs">{{ l.contentClassName || l.contentClassCode || '—' }}@if (l.partNo !== null) { · {{ 'ai.compare.part' | transloco: { part: l.partNo } }} }</span>
+                <span class="font-mono">{{ l.materialCode }}</span>
+                @if (l.fromMaterialCode) {
+                  <span class="text-muted-foreground text-xs">{{ 'ai.compare.replaces' | transloco: { code: l.fromMaterialCode } }}</span>
+                }
+              </div>
+              <p class="text-muted-foreground truncate text-xs" [title]="l.materialDescription ?? ''">{{ l.materialDescription }}</p>
+              @if (l.fields.length) {
+                <ul class="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                  @for (f of l.fields; track f.field) {
+                    <li><span class="text-muted-foreground">{{ fieldLabel(f.field) | transloco }}:</span> {{ f.before || '—' }} → <strong>{{ f.after || '—' }}</strong></li>
+                  }
+                </ul>
+              }
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="text-muted-foreground px-5 py-8 text-center text-sm">{{ 'ai.compare.noBomChanges' | transloco }}</p>
+      }
+      <p class="text-muted-foreground border-t px-5 py-3 text-xs">{{ 'ai.compare.unchangedLines' | transloco: { count: d.unchangedLines } }}</p>
+    </section>
+  `,
+})
+export class StyleDiff {
+  readonly diff = input.required<StyleCompare>();
+
+  readonly changeTone = (change: string) => toneBadge(CHANGE_TONE[change] ?? 'neutral');
+  /** Field name -> label key; unknown fields show as they are. */
+  readonly fieldLabel = (field: string) => `ai.compare.field.${field}`;
+
+  readonly filters: LineFilter[] = ['all', 'Swapped', 'Changed', 'Added', 'Removed'];
+  /** Back to all changes whenever a new pair of styles comes in. */
+  readonly lineFilter = linkedSignal<StyleCompare, LineFilter>({ source: this.diff, computation: () => 'all' });
+
+  readonly lineCounts = computed(() => {
+    const counts: Record<string, number> = { all: 0, Swapped: 0, Changed: 0, Added: 0, Removed: 0 };
+    for (const l of this.diff().bomLines) {
+      counts['all']++;
+      counts[l.change]++;
+    }
+    return counts;
+  });
+
+  readonly lines = computed(() => {
+    const f = this.lineFilter();
+    return this.diff().bomLines.filter((l) => f === 'all' || l.change === f);
+  });
+}

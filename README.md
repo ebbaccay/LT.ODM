@@ -1,9 +1,26 @@
 # LT ODM Style Library
 
 Garment style library (styles, BOMs, workmanship and SMV, costing) with AI features.
-This repository is the project skeleton only; no business features are built yet.
+It replaces TMS: the TMS modules are ported, and the Style Library, Materials and AI Studio are built on new tables.
 
 **Stack:** ASP.NET Core 10 Web API (gateway) - Angular 22 PWA - MS SQL Server 2025 via stored procedures (Dapper). Hosted on premises on IIS.
+
+**Documentation:** [docs/](docs/README.md) - server installation, IIS deployment and configuration, one page per component, and the AI documentation (including exactly what each AI feature sends to outside AI services). This README is for developers.
+
+## Keeping the docs current
+
+`docs/` is what IT installs from and what management reads to know which data leaves LT. **A change to behaviour or specs updates the matching docs page in the same change:**
+
+| You changed | Update |
+|---|---|
+| What an AI feature sends, its calls, or a new AI feature | `docs/ai/data-sent.md`, `docs/ai/overview.md`, the component page |
+| A setting (appsettings / environment variable) | `docs/installation/04-configuration.md` (and `03-iis-deployment.md` for server values) |
+| A SQL script, or the deploy order | `docs/installation/02-database.md` |
+| Where files are stored | `docs/installation/08-file-storage.md` |
+| A screen, role or menu item | `docs/components/<area>.md`, roles table in `docs/README.md` |
+| Hosting, build or release steps | `docs/installation/03-iis-deployment.md`, `06-operations.md`, `07-troubleshooting.md` |
+
+Then run `python tools/check-docs.py`: it fails on any broken link or heading anchor in `docs/` and this README.
 
 ## Prerequisites
 
@@ -279,7 +296,7 @@ Checks: `dotnet build`, `dotnet test`, `ng build`.
 - Errors are ProblemDetails; exception details are only shown in Development.
 - All responses send `Cache-Control: no-store`.
 - Rate limiting: default 100 requests per minute per client IP.
-- CORS policy `AngularDev` (http://localhost:4200) is only enabled in Development. In production, serve Angular and the API from the same origin (the default `apiBaseUrl` is empty).
+- CORS policy `AngularDev` (http://localhost:4200) is only enabled in Development. In production the API serves the Angular build from `wwwroot` (one IIS site, same origin; `apiBaseUrl` is empty): hashed bundles are cached for a year, `index.html` and service-worker files are `no-cache`, and app routes fall back to `index.html` (unknown `/api` and `/hubs` addresses stay 404). Build a release with `tools/build-release.ps1 -Output <folder>`; see [docs/installation/03-iis-deployment.md](docs/installation/03-iis-deployment.md).
 
 ## Front end: UI and theme
 

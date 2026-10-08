@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import { Injectable, computed, inject } from '@angular/core';
 import { environment } from '@env/environment';
 import { translate } from '@jsverse/transloco';
-import { Observable, map, shareReplay } from 'rxjs';
+import { Observable, firstValueFrom, map, shareReplay } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 
 // Style Library: styles, colorways, BOM lines and style history (/api/v1/styles).
@@ -48,6 +48,7 @@ export interface StyleListItem {
   bomLineCount: number;
   hasHistory: boolean;
   lastChangedUtc: string;
+  isActive: boolean;
 }
 
 export interface StyleListFilter {
@@ -58,6 +59,8 @@ export interface StyleListFilter {
   productType?: string;
   weaveType?: string;
   gender?: string;
+  /** 'active', 'inactive', or empty for both. */
+  status?: string;
   skip?: number;
   take?: number;
 }
@@ -83,6 +86,7 @@ export interface StyleHeader {
   businessUnitName: string | null;
   sketchUrl: string | null;
   imageUrl: string | null;
+  isActive: boolean;
   sourceCreatedUtc: string | null;
   importBatchId: number | null;
   createdBy: string;
@@ -182,6 +186,7 @@ export interface SaveStyleRequest {
   businessUnitCode: string | null;
   sketchUrl: string | null;
   imageUrl: string | null;
+  isActive: boolean;
 }
 
 export interface SaveColorwayRequest {
@@ -209,6 +214,28 @@ export interface SaveBomLineRequest {
   uomCode: string | null;
   imageUrl: string | null;
   colorways: BomLineColorway[];
+}
+
+export type DesignPromptMode = 'text' | 'image';
+
+/** Prompt for outside design tools (GET /api/v1/styles/:id/design-prompt). Built from the style's data; no AI call. */
+export interface DesignPrompt {
+  /** The mode used: image falls back to text when the style has no sketch or photo. */
+  mode: DesignPromptMode;
+  colorwayId: number | null;
+  /** The image to attach in image mode. */
+  referenceKind: 'sketch' | 'photo' | null;
+  referenceUrl: string | null;
+  /** The style has a sketch or photo (image mode is possible). */
+  hasReference: boolean;
+  facts: {
+    garment: string | null;
+    gender: string | null;
+    fabrics: string[];
+    colours: string[];
+    details: string[];
+  };
+  prompt: string;
 }
 
 /** Landing page summary (GET /api/v1/styles/dashboard). */
@@ -397,6 +424,26 @@ export class StyleLibraryService {
     return this.http.delete(`${this.api}/${styleId}/history`);
   }
 
+  designPrompt(styleId: number, mode: DesignPromptMode, colorwayId: number | null): Observable<DesignPrompt> {
+    let params = new HttpParams().set('mode', mode);
+    if (colorwayId !== null) params = params.set('colorwayId', colorwayId);
+    return this.http.get<DesignPrompt>(`${this.api}/${styleId}/design-prompt`, { params });
+  }
+
+  /**
+   * Saves an image to the user's computer as `<baseName>.<ext>`. Images served by the API need the sign-in token, so
+   * they are fetched first; any other address (e.g. https:// from an import) is opened in a new tab instead.
+   */
+  async downloadImage(url: string, baseName: string): Promise<void> {
+    if (!url.startsWith('/api/')) {
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+    const blob = await firstValueFrom(this.http.get(`${environment.apiBaseUrl}${url}`, { responseType: 'blob' }));
+    const ext = { 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }[blob.type] ?? 'jpg';
+    saveBlob(blob, `${safeFileName(baseName)}.${ext}`);
+  }
+
   /** Uploads an image (already compressed) and returns its URL to save with the style, colorway or BOM line. */
   uploadImage(blob: Blob, fileName: string): Observable<string> {
     const form = new FormData();
@@ -422,6 +469,23 @@ export function styleError(err: unknown): { message: string; fields: Record<stri
     if (body?.title && err.status < 500) return { message: body.title, fields: {} };
   }
   return { message: translate('styles.errors.saveFailed'), fields: {} };
+}
+
+/** Starts a browser download of the blob. */
+export function saveBlob(blob: Blob, fileName: string): void {
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 1000);
+}
+
+/** File-name-safe text: keeps letters, digits, '-', '_' and '.'. */
+export function safeFileName(text: string): string {
+  return text.replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '') || 'image';
 }
 
 /** Plain number for inputs; null when blank or not a number. */

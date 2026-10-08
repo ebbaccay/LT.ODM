@@ -22,7 +22,7 @@ public sealed class MarketTrendsController(ITrendAnalysisAi ai) : ControllerBase
         if (errors.Count > 0) return ValidationProblem(new ValidationProblemDetails(errors));
         if (!await ai.IsConfiguredAsync(ct))
             return Problem(statusCode: StatusCodes.Status503ServiceUnavailable,
-                title: "AI trend analysis is not set up on this server. Ask your administrator to set the Text job in Settings > AI connections.");
+                title: AiUnavailable.Generic("AI trend analysis"));
         try
         {
             return await ai.AnalyzeAsync(request, ct);

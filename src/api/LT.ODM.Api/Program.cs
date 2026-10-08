@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
+using LT.ODM.Api;
 using LT.ODM.Api.Auth;
 using LT.ODM.Api.Controllers;
 using LT.ODM.Api.Health;
@@ -187,18 +188,31 @@ else
     app.UseHsts();
 }
 app.UseStatusCodePages();
+app.UseHttpsRedirection();
+
+// The web app (Angular build in wwwroot) is served by the API, so app and API share one address (one IIS site).
+// Before the no-store header below: hashed bundles are cached for a year; index.html, the service worker files and
+// the translations are re-checked on every load so a new release reaches users straight away.
+app.UseDefaultFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = WebAppFiles.ContentTypes,
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = WebAppFiles.CacheControl(ctx.File.Name),
+});
 
 app.Use(async (context, next) =>
 {
     context.Response.OnStarting(() =>
     {
-        context.Response.Headers.CacheControl = "no-store";
+        // The app page (index.html, served by the fallback below) sets its own no-cache.
+        if (string.IsNullOrEmpty(context.Response.Headers.CacheControl)) context.Response.Headers.CacheControl = "no-store";
         return Task.CompletedTask;
     });
     await next();
 });
 
-app.UseHttpsRedirection();
+// Explicit, so static files above are served before any endpoint (incl. the app-route fallback) is matched.
+app.UseRouting();
 
 if (app.Environment.IsDevelopment())
 {
@@ -228,6 +242,17 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 
 app.MapHub<NotificationsHub>("/hubs/notifications");
 app.MapHub<TmsProcedureHub>("/hubs/sp");
+
+// Unknown API and hub addresses stay 404 (never the app page); any other address without a file extension is an
+// app route (/styles/12, /settings/import) and gets index.html, so reloads and shared links work.
+app.MapFallback("api/{**rest}", () => Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Not found."));
+app.MapFallback("hubs/{**rest}", () => Results.NotFound());
+// A file that is not in the build (an old bundle name after a release): 404 without asking for sign-in.
+app.MapFallback("{*path:file}", () => Results.NotFound()).AllowAnonymous();
+app.MapFallbackToFile("index.html", new StaticFileOptions
+{
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache",
+}).AllowAnonymous();
 
 await app.RunAsync();
 return 0;

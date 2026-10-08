@@ -191,6 +191,7 @@ CREATE TABLE style.Style
     BusinessUnitCode    nvarchar(16)       NULL,
     SketchUrl           nvarchar(500)      NULL,
     ImageUrl            nvarchar(500)      NULL,
+    IsActive            bit                NOT NULL CONSTRAINT DF_style_Style_IsActive DEFAULT (1),   -- 0 = kept for history, not in use
     SourceCreatedUtc    datetime2(3)       NULL,   -- Create_dt from the source system
     ImportBatchId       int                NULL,   -- last import that wrote this style
     CreatedBy           nvarchar(64)       NOT NULL,
@@ -210,14 +211,25 @@ CREATE TABLE style.Style
     CONSTRAINT CK_style_Style_LeadTime CHECK (GarmentLeadTimeDays BETWEEN 0 AND 730)
 );
 GO
+/* Added 2026-10-07: active / inactive tag (existing styles become active). */
+IF COL_LENGTH(N'style.Style', N'IsActive') IS NULL
+    ALTER TABLE style.Style ADD IsActive bit NOT NULL CONSTRAINT DF_style_Style_IsActive DEFAULT (1);
+GO
 IF INDEXPROPERTY(OBJECT_ID(N'style.Style'), N'IX_style_Style_Season', 'IndexId') IS NULL
     CREATE INDEX IX_style_Style_Season ON style.Style (SeasonCode, CustomerId) INCLUDE (StyleNo, ModelName);
 IF INDEXPROPERTY(OBJECT_ID(N'style.Style'), N'IX_style_Style_StyleNo', 'IndexId') IS NULL
     CREATE INDEX IX_style_Style_StyleNo ON style.Style (StyleNo);
-/* Styles list (style.usp_Style_List): every filter column, so finding a page never reads the wide rows. */
+/* Styles list (style.usp_Style_List): every filter column, so finding a page never reads the wide rows.
+   Rebuilt in place when an older copy lacks IsActive. */
 IF INDEXPROPERTY(OBJECT_ID(N'style.Style'), N'IX_style_Style_List', 'IndexId') IS NULL
     CREATE INDEX IX_style_Style_List ON style.Style (SeasonCode, StyleNo)
-        INCLUDE (CustomerId, BusinessUnitCode, ProductTypeCode, WeaveTypeCode, Gender, ModelCode, ModelName);
+        INCLUDE (CustomerId, BusinessUnitCode, ProductTypeCode, WeaveTypeCode, Gender, ModelCode, ModelName, IsActive);
+ELSE IF NOT EXISTS (SELECT 1 FROM sys.index_columns ic JOIN sys.indexes i ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+                    WHERE i.object_id = OBJECT_ID(N'style.Style') AND i.name = N'IX_style_Style_List'
+                      AND ic.column_id = COLUMNPROPERTY(i.object_id, N'IsActive', 'ColumnId'))
+    CREATE INDEX IX_style_Style_List ON style.Style (SeasonCode, StyleNo)
+        INCLUDE (CustomerId, BusinessUnitCode, ProductTypeCode, WeaveTypeCode, Gender, ModelCode, ModelName, IsActive)
+        WITH (DROP_EXISTING = ON);
 IF INDEXPROPERTY(OBJECT_ID(N'style.Style'), N'IX_style_Style_Family', 'IndexId') IS NULL
     CREATE INDEX IX_style_Style_Family ON style.Style (CustomerId, BaseStyleNo, ModelCode) INCLUDE (SeasonCode, StyleNo);
 GO

@@ -18,8 +18,9 @@ import { StyleFormDialog } from './style-form-dialog';
 import { GENDERS, StyleLibraryService, StyleListFilter, StyleListItem, StyleLookups, styleError } from './style-library.service';
 
 const PAGE = 50;
+// status: '' = active styles (the default), 'inactive', or 'all'.
 // weaveType and material have no select here; AI Studio's smart search sets them (and several seasons / product types).
-const FILTER_KEYS = ['search', 'customer', 'season', 'businessUnit', 'productType', 'gender', 'weaveType', 'material'] as const;
+const FILTER_KEYS = ['search', 'customer', 'season', 'businessUnit', 'productType', 'gender', 'status', 'weaveType', 'material'] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 
 /**
@@ -47,13 +48,14 @@ export class StylesList implements OnInit {
   readonly genders = GENDERS;
   readonly lookups = signal<StyleLookups | null>(null);
   readonly filter = signal<Record<FilterKey, string>>({
-    search: '', customer: '', season: '', businessUnit: '', productType: '', gender: '', weaveType: '', material: '',
+    search: '', customer: '', season: '', businessUnit: '', productType: '', gender: '', status: '', weaveType: '', material: '',
   });
   readonly styles = signal<StyleListItem[]>([]);
   readonly total = signal(0);
   readonly loading = signal(false);
   readonly createOpen = signal(false);
-  readonly brokenImages = signal<ReadonlySet<number>>(new Set());
+  /** Image URLs that failed to load (the row falls back to the sketch, then the placeholder). */
+  readonly brokenImages = signal<ReadonlySet<string>>(new Set());
 
   readonly activeFilters = computed(() => FILTER_KEYS.filter((k) => k !== 'search' && this.filter()[k]).length);
 
@@ -96,7 +98,8 @@ export class StylesList implements OnInit {
 
   load(more = false): void {
     const f = this.filter();
-    const query: StyleListFilter = { ...f, skip: more ? this.styles().length : 0, take: PAGE };
+    const status = f.status === 'all' ? undefined : (f.status || 'active');
+    const query: StyleListFilter = { ...f, status, skip: more ? this.styles().length : 0, take: PAGE };
     this.loading.set(true);
     this.svc.list(query).subscribe({
       next: (page) => {
@@ -116,8 +119,14 @@ export class StylesList implements OnInit {
     void this.router.navigate(['/styles', styleId]);
   }
 
-  markBroken(styleId: number): void {
-    this.brokenImages.update((s) => new Set(s).add(styleId));
+  markBroken(url: string): void {
+    this.brokenImages.update((s) => new Set(s).add(url));
+  }
+
+  /** Row thumbnail: the style photo first, else the sketch; skips an image that failed to load. */
+  thumbFor(s: StyleListItem): string | null {
+    const broken = this.brokenImages();
+    return [s.imageUrl, s.sketchUrl].find((u): u is string => !!u && !broken.has(u)) ?? null;
   }
 
   filterValue = (key: string) => this.filter()[key as FilterKey] ?? '';

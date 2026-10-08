@@ -37,6 +37,8 @@ const CONSOLIDATE_ONE_OFFS = 3;
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [DecimalPipe, PercentPipe, RouterLink, HlmBadgeImports, HlmCardImports, HlmNativeSelectImports, HlmSkeletonImports, TranslocoPipe],
   templateUrl: './material-insights.html',
+  // Spacing between the filters, the view's hint, its totals and its results.
+  host: { class: 'flex flex-col gap-4' },
 })
 export class MaterialInsights implements OnInit {
   private readonly svc = inject(MaterialsService);

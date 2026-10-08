@@ -43,23 +43,69 @@ public static class AiConnectionKinds
 public sealed record AiConnection(
     string Name, string Kind, string Endpoint, string? ApiKey, string Model, bool InHouse, int TimeoutSeconds, string Source);
 
+/// <summary>Why a job is blocked by the central switches (Settings > AI connections).</summary>
+public static class AiBlocks
+{
+    /// <summary>The master switch is off: no AI call at all.</summary>
+    public const string AiOff = "aiOff";
+    /// <summary>This job is turned off.</summary>
+    public const string JobOff = "jobOff";
+    /// <summary>The job's service is outside the LT network and cloud AI is not allowed.</summary>
+    public const string CloudBlocked = "cloudBlocked";
+}
+
+/// <summary>The message users see when an AI feature cannot run (HTTP 503).</summary>
+public static class AiUnavailable
+{
+    public static string Message(string feature, AiProviderInfo info) => info.Blocked switch
+    {
+        AiBlocks.AiOff => "AI features are turned off on this server. An administrator can turn them on in Settings > AI connections.",
+        AiBlocks.JobOff => $"{feature} is turned off on this server. An administrator can turn it on in Settings > AI connections.",
+        AiBlocks.CloudBlocked => $"{feature} would use a cloud AI service ({info.Provider}), and cloud AI is not allowed on this server, so no data was sent. "
+            + "An administrator can allow cloud AI or point the job at the in-house server in Settings > AI connections.",
+        _ => $"{feature} is not set up on this server. Ask your administrator to set it in Settings > AI connections.",
+    };
+
+    /// <summary>For features that only know whether AI can run.</summary>
+    public static string Generic(string feature)
+        => $"{feature} is not available: AI is not set up, turned off, or set to a cloud service that is not allowed on this server (Settings > AI connections).";
+}
+
+/// <summary>A job's service and, if the central switches forbid using it, why (Connection is then still shown, not used).</summary>
+public sealed record AiResolution(AiConnection? Connection, string? Blocked);
+
+/// <summary>The central switches. AllowCloud = false blocks every service outside the LT network.</summary>
+public sealed record AiPolicy(bool AiEnabled, bool AllowCloud, string? UpdatedBy, DateTime? UpdatedUtc)
+{
+    /// <summary>Before ai.Policy exists (older database): everything allowed, as before.</summary>
+    public static readonly AiPolicy Open = new(true, true, null, null);
+}
+
 /// <summary>What the AI pages show about a connection (no endpoint or key).</summary>
 public static class AiConnectionInfo
 {
-    public static AiProviderInfo Of(AiConnection? c)
+    public static AiProviderInfo Of(AiConnection? c) => Of(new AiResolution(c, null));
+
+    public static AiProviderInfo Of(AiResolution r)
     {
-        if (c is null) return new AiProviderInfo("—", "—", false, false);
+        var c = r.Connection;
+        if (c is null) return new AiProviderInfo("—", "—", false, false, Blocked: r.Blocked);
         var gemini = c.Kind == AiConnectionKinds.Gemini;
         var configured = !string.IsNullOrWhiteSpace(c.Endpoint) && !string.IsNullOrWhiteSpace(c.Model) && c.Kind != AiConnectionKinds.Custom
                          && (!gemini || !string.IsNullOrWhiteSpace(c.ApiKey));
-        return new AiProviderInfo(c.Name, c.Model, configured, LeavesNetwork: gemini || !c.InHouse, SupportsReferenceImage: gemini, c.Source);
+        return new AiProviderInfo(c.Name, c.Model, configured && r.Blocked is null, LeavesNetwork: gemini || !c.InHouse, SupportsReferenceImage: gemini,
+            c.Source, r.Blocked);
     }
 }
 
 /// <summary>Finds the connection for a job: Settings > AI connections first, then appsettings. Null = not set up.</summary>
 public interface IAiConnectionResolver
 {
+    /// <summary>The service to call, or null when none is set up or the central switches block it.</summary>
     Task<AiConnection?> ResolveAsync(string purpose, CancellationToken ct = default);
+
+    /// <summary>The job's service (even when blocked, for display) and whether the switches block it.</summary>
+    Task<AiResolution> ExplainAsync(string purpose, CancellationToken ct = default);
 
     /// <summary>Drops the cached settings (after a save) so the next call reads them again.</summary>
     void Invalidate();
@@ -82,13 +128,15 @@ public sealed record AiConnectionDto(
     string? Notes, bool IsActive, IReadOnlyList<string> UsedBy, string UpdatedBy, DateTime UpdatedUtc, byte[] RowVer);
 
 /// <summary>A job with its connection and model (null = not set in the app).</summary>
-public sealed record AiPurposeDto(string Purpose, bool InUse, int? ConnectionId, string? ConnectionName, string? Model, string? UpdatedBy, DateTime? UpdatedUtc);
+public sealed record AiPurposeDto(
+    string Purpose, bool InUse, int? ConnectionId, string? ConnectionName, string? Model, string? UpdatedBy, DateTime? UpdatedUtc, bool Disabled,
+    string? Blocked);
 
 /// <summary>What the job uses when it is not set in the app (from appsettings), or null when there is no default.</summary>
 public sealed record AiFallbackDto(string Purpose, string Provider, string Model, bool IsConfigured, bool LeavesNetwork);
 
 public sealed record AiSettingsDto(
-    IReadOnlyList<AiConnectionDto> Connections, IReadOnlyList<AiPurposeDto> Purposes, IReadOnlyList<AiFallbackDto> Fallbacks, IReadOnlyList<string> Kinds);
+    IReadOnlyList<AiConnectionDto> Connections, IReadOnlyList<AiPurposeDto> Purposes, IReadOnlyList<AiFallbackDto> Fallbacks, IReadOnlyList<string> Kinds, AiPolicy Policy);
 
 /// <summary>
 /// RowVer null = new connection. ApiKey: null or blank keeps the saved key; a value replaces it; ClearApiKey removes it.
@@ -97,8 +145,10 @@ public sealed record SaveAiConnectionRequest(
     byte[]? RowVer, string Name, string Kind, string Endpoint, string? ApiKey, bool ClearApiKey, bool InHouse, int TimeoutSeconds, string? Notes,
     bool IsActive);
 
-/// <summary>ConnectionId null = use the app default (appsettings) or nothing.</summary>
-public sealed record SaveAiPurposeRequest(int? ConnectionId, string? Model);
+/// <summary>ConnectionId null = use the app default (appsettings) or nothing; Off = the job is turned off.</summary>
+public sealed record SaveAiPurposeRequest(int? ConnectionId, string? Model, bool Off = false);
+
+public sealed record SaveAiPolicyRequest(bool AiEnabled, bool AllowCloud);
 
 /// <summary>Tests a saved connection (ConnectionId) or a draft from the form; a blank ApiKey uses the saved one.</summary>
 public sealed record TestAiConnectionRequest(int? ConnectionId, string Kind, string Endpoint, string? ApiKey, int TimeoutSeconds);
@@ -107,18 +157,22 @@ public sealed record TestAiConnectionRequest(int? ConnectionId, string Kind, str
 public sealed record AiTestResultDto(bool Ok, string Message, IReadOnlyList<string> Models);
 
 /// <summary>For AI pages (readers): which service each job uses, without endpoints or keys.</summary>
-public sealed record AiPurposeStatusDto(string Purpose, bool InUse, bool IsConfigured, string? Provider, string? Model, bool LeavesNetwork, string? Source);
+public sealed record AiPurposeStatusDto(
+    string Purpose, bool InUse, bool IsConfigured, string? Provider, string? Model, bool LeavesNetwork, string? Source, string? Blocked = null);
 
 /// <summary>Stored connection row (API key still encrypted).</summary>
 public sealed record AiConnectionRow(
     int ConnectionId, string Name, string Kind, string Endpoint, string? ApiKeyProtected, string? ApiKeyHint, bool InHouse, int TimeoutSeconds,
     string? Notes, bool IsActive, string UpdatedBy, DateTime UpdatedUtc, byte[] RowVer);
 
-public sealed record AiPurposeRow(string Purpose, int? ConnectionId, string? Model, string? UpdatedBy, DateTime? UpdatedUtc);
+public sealed record AiPurposeRow(string Purpose, int? ConnectionId, string? Model, string? UpdatedBy, DateTime? UpdatedUtc, bool Disabled = false);
+
+/// <summary>Everything stored in Settings > AI connections.</summary>
+public sealed record AiSettingsData(IReadOnlyList<AiConnectionRow> Connections, IReadOnlyList<AiPurposeRow> Purposes, AiPolicy Policy);
 
 public interface IAiSettingsRepository
 {
-    Task<(IReadOnlyList<AiConnectionRow> Connections, IReadOnlyList<AiPurposeRow> Purposes)> GetAsync(CancellationToken ct = default);
+    Task<AiSettingsData> GetAsync(CancellationToken ct = default);
 
     /// <summary>KeyAction: keep, set (ApiKeyProtected + hint) or clear. Returns the id. 404 / 409 as AiSettingsException.</summary>
     Task<int> SaveConnectionAsync(
@@ -126,7 +180,8 @@ public interface IAiSettingsRepository
         CancellationToken ct = default);
 
     Task DeleteConnectionAsync(int connectionId, byte[] rowVer, CancellationToken ct = default);
-    Task SavePurposeAsync(string purpose, int? connectionId, string? model, string changedBy, CancellationToken ct = default);
+    Task SavePurposeAsync(string purpose, int? connectionId, string? model, bool disabled, string changedBy, CancellationToken ct = default);
+    Task SavePolicyAsync(bool aiEnabled, bool allowCloud, string changedBy, CancellationToken ct = default);
 }
 
 /// <summary>A rule the database refused (in use, changed by someone else, not found). StatusCode is 400, 404 or 409.</summary>
@@ -164,7 +219,7 @@ public static partial class AiSettingsValidation
     {
         var e = new Dictionary<string, string[]>();
         if (!AiPurposes.All.Contains(purpose)) e["purpose"] = ["Unknown job."];
-        if (r.ConnectionId is not null && string.IsNullOrWhiteSpace(r.Model)) e["model"] = ["Enter the model name the service uses."];
+        if (!r.Off && r.ConnectionId is not null && string.IsNullOrWhiteSpace(r.Model)) e["model"] = ["Enter the model name the service uses."];
         if ((r.Model?.Trim().Length ?? 0) > 200) e["model"] = ["At most 200 characters."];
         return e;
     }

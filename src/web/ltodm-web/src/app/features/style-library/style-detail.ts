@@ -7,12 +7,15 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowLeft,
   lucideCopy,
+  lucideDownload,
+  lucideFileText,
   lucideGitBranch,
   lucideGitCompareArrows,
   lucideImage,
   lucideLink,
   lucidePencil,
   lucidePlus,
+  lucideSearch,
   lucideShieldAlert,
   lucideTrash2,
   lucideUnlink,
@@ -22,6 +25,8 @@ import { toast } from '@spartan-ng/brain/sonner';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
+import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
+import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { ConfirmDialogService } from '@tms/shared/confirm-dialog/confirm-dialog.service';
@@ -31,6 +36,7 @@ import { toneBadge } from '@tms/shared/ui/tones';
 import { BomLineDialog } from './bom-line-dialog';
 import { ColorwayDialog } from './colorway-dialog';
 import { CopyStyleDialog } from './copy-style-dialog';
+import { DesignPromptDialog } from './design-prompt-dialog';
 import { HistoryDialog } from './history-dialog';
 import { StyleFormDialog } from './style-form-dialog';
 import { BomLine, Colorway, FamilyMember, GENDERS, StyleDetail as Detail, StyleLibraryService, StyleLookups, styleError } from './style-library.service';
@@ -54,11 +60,11 @@ interface BomSection {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe, DecimalPipe, RouterLink, NgIcon, AuthImgDirective, Modal, StyleFormDialog, ColorwayDialog, BomLineDialog, CopyStyleDialog,
-    HistoryDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmNativeSelectImports, HlmSkeletonImports, TranslocoPipe,
+    HistoryDialog, DesignPromptDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, TranslocoPipe,
   ],
   providers: [
     provideIcons({
-      lucideArrowLeft, lucideCopy, lucideGitBranch, lucideGitCompareArrows, lucideImage, lucideLink, lucidePencil, lucidePlus, lucideShieldAlert,
+      lucideArrowLeft, lucideCopy, lucideDownload, lucideFileText, lucideGitBranch, lucideGitCompareArrows, lucideImage, lucideLink, lucidePencil, lucidePlus, lucideSearch, lucideShieldAlert,
       lucideTrash2, lucideUnlink, lucideWandSparkles,
     }),
   ],
@@ -83,12 +89,17 @@ export class StyleDetail implements OnInit {
   readonly tab = signal<Tab>('bom');
   /** BOM view: one colorway's material colours, or all lines. */
   readonly bomColorway = signal<number | null>(null);
-  readonly preview = signal<{ url: string; title: string } | null>(null);
+  /** BOM search text: matches part, material, type, supplier and material colour. */
+  readonly bomSearch = signal('');
+  /** Image shown large; fileName (without extension) is used when it is downloaded. */
+  readonly preview = signal<{ url: string; title: string; fileName?: string } | null>(null);
+  readonly downloading = signal(false);
 
   // Dialogs
   readonly editOpen = signal(false);
   readonly copyOpen = signal(false);
   readonly historyOpen = signal(false);
+  readonly promptOpen = signal(false);
   readonly colorwayOpen = signal(false);
   readonly editingColorway = signal<Colorway | null>(null);
   readonly lineOpen = signal(false);
@@ -99,10 +110,13 @@ export class StyleDetail implements OnInit {
   readonly colorways = computed(() => this.detail()?.colorways ?? []);
   readonly colorwayById = computed(() => new Map(this.colorways().map((c) => [c.colorwayId, c])));
 
-  /** BOM lines by content class (sections in the class order, unclassified last), filtered to the chosen colorway. */
+  /** BOM lines by content class (sections in the class order, unclassified last), filtered to the chosen colorway and search text. */
   readonly bomSections = computed<BomSection[]>(() => {
     const cw = this.bomColorway();
-    const lines = (this.detail()?.bomLines ?? []).filter((l) => cw === null || l.colorways.some((c) => c.colorwayId === cw));
+    const terms = this.bomSearch().trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const lines = (this.detail()?.bomLines ?? []).filter(
+      (l) => (cw === null || l.colorways.some((c) => c.colorwayId === cw)) && (!terms.length || terms.every((t) => this.bomLineText(l).includes(t))),
+    );
     const order = (this.lookups()?.contentClasses ?? []).map((c) => c.code);
     const sections = new Map<string, BomSection>();
     for (const l of lines) {
@@ -115,19 +129,39 @@ export class StyleDetail implements OnInit {
   });
   readonly bomLineCount = computed(() => this.detail()?.bomLines.length ?? 0);
 
-  /** Family by season with "reused from" resolved to style numbers. */
+  /** Family by season with "reused from" and the chain's first style (origin) resolved to style numbers. */
   readonly family = computed(() => {
     const members = this.detail()?.family ?? [];
     const byId = new Map(members.map((m) => [m.styleId, m]));
-    return members.map((m) => ({ ...m, source: m.sourceStyleId ? (byId.get(m.sourceStyleId) ?? null) : null }));
+    const originOf = (m: FamilyMember) => {
+      const seen = new Set<number>();
+      let at = m;
+      while (at.sourceStyleId && byId.has(at.sourceStyleId) && !seen.has(at.styleId)) {
+        seen.add(at.styleId);
+        at = byId.get(at.sourceStyleId)!;
+      }
+      return at;
+    };
+    return members.map((m) => {
+      const source = m.sourceStyleId ? (byId.get(m.sourceStyleId) ?? null) : null;
+      const origin = originOf(m);
+      // Only worth its own button when it is further back than the style it was reused from.
+      return { ...m, source, origin: source && origin.styleId !== source.styleId && origin.styleId !== m.styleId ? origin : null };
+    });
   });
+  /** History rows ticked for "Compare selected" (at most two; ticking a third drops the earliest tick). */
+  readonly compareIds = signal<number[]>([]);
   readonly currentLink = computed(() => this.detail()?.family.find((m) => m.isCurrent) ?? null);
 
   ngOnInit(): void {
+    const tab = this.route.snapshot.queryParamMap.get('tab');
+    if (tab === 'colorways' || tab === 'bom' || tab === 'history') this.tab.set(tab);
     this.svc.lookups().subscribe({ next: (l) => this.lookups.set(l), error: () => undefined });
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((p) => {
       this.styleId.set(Number(p.get('id')));
       this.bomColorway.set(null);
+      this.bomSearch.set('');
+      this.compareIds.set([]);
       this.load(true);
     });
   }
@@ -151,6 +185,15 @@ export class StyleDetail implements OnInit {
 
   /** Translation key for a known gender code, else the code itself (shown as is). */
   genderLabel = (code: string | null) => (GENDERS.some((g) => g.code === code) ? `styles.gender.${code}` : (code ?? '—'));
+  /** Lower-cased text a BOM line is searched by. */
+  private bomLineText(l: BomLine): string {
+    const colours = l.colorways.flatMap((c) => [c.materialColorCode, c.materialColorDescription, this.colorwayById().get(c.colorwayId)?.colorwayCode]);
+    return [
+      l.partNo, l.materialCode, l.materialDescription, l.materialTypeCode, l.materialTypeName, l.contentClassName, l.nominatedSupplierCode,
+      l.nominatedSupplierName, l.supplierCode, l.supplierName, ...colours,
+    ].filter((v) => v !== null && v !== undefined).join(' ').toLowerCase();
+  }
+
   colourFor = (line: BomLine, colorwayId: number) => line.colorways.find((c) => c.colorwayId === colorwayId) ?? null;
   lineColorwayCodes = (line: BomLine) => line.colorways.map((c) => this.colorwayById().get(c.colorwayId)?.colorwayCode ?? '?').join(', ');
 
@@ -162,6 +205,19 @@ export class StyleDetail implements OnInit {
   }
 
   // ── Style ──────────────────────────────────────────────────
+
+  async downloadPreview(): Promise<void> {
+    const p = this.preview();
+    if (!p) return;
+    this.downloading.set(true);
+    try {
+      await this.svc.downloadImage(p.url, p.fileName ?? p.title);
+    } catch {
+      toast.error(this.t('styles.image.downloadFailed'));
+    } finally {
+      this.downloading.set(false);
+    }
+  }
 
   onStyleSaved(): void {
     this.editOpen.set(false);
@@ -302,6 +358,20 @@ export class StyleDetail implements OnInit {
   }
 
   /** Translation keys (linkManual takes { user }). */
+  toggleCompare(styleId: number, on: boolean): void {
+    const ids = this.compareIds().filter((id) => id !== styleId);
+    this.compareIds.set(on ? [...ids, styleId].slice(-2) : ids);
+  }
+
+  /** Opens the compare page for the two ticked styles: the later one (in family order, oldest first) against the earlier. */
+  compareSelected(): void {
+    const ids = this.compareIds();
+    if (ids.length !== 2) return;
+    const order = this.family().map((m) => m.styleId);
+    const [from, to] = [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    void this.router.navigate(['/styles', to, 'compare'], { queryParams: { from } });
+  }
+
   linkSourceLabel = (m: FamilyMember) =>
     m.linkSource === 'Manual'
       ? m.linkedBy

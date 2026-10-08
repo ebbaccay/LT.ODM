@@ -17,7 +17,12 @@ import { AiProviderInfo, AiStudioService } from './ai-studio.service';
   providers: [provideIcons({ lucideCloud, lucideServer, lucideTriangleAlert })],
   template: `
     @for (p of providers(); track p.kind) {
-      @if (!p.info.isConfigured) {
+      @if (p.info.blocked) {
+        <p class="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-800 dark:text-red-300">
+          <ng-icon name="lucideTriangleAlert" class="mt-0.5 shrink-0" />
+          <span>{{ 'ai.provider.blocked.' + p.info.blocked | transloco: { provider: p.info.provider } }}</span>
+        </p>
+      } @else if (!p.info.isConfigured) {
         <p class="text-muted-foreground flex items-start gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
           <ng-icon name="lucideTriangleAlert" class="mt-0.5 shrink-0 text-amber-500" />
           <span>{{ (p.kind === 'image' ? 'ai.provider.imageNotSetUp' : 'ai.provider.notSetUp') | transloco }}</span>

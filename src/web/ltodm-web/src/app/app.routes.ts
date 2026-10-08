@@ -27,6 +27,12 @@ export const routes: Routes = [
             loadComponent: () => import('./features/style-library/style-detail').then((m) => m.StyleDetail),
             title: 'titles.style',
           },
+          // What changed from an earlier style (rules only, no AI needed).
+          {
+            path: ':id/compare',
+            loadComponent: () => import('./features/style-library/style-compare').then((m) => m.StyleComparePage),
+            title: 'titles.styleCompare',
+          },
         ],
       },
       // AI Studio on the Style Library (same readers; the API lets only Admin and Merchandiser make renders).

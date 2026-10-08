@@ -8,6 +8,9 @@ import { Paged, StyleListItem } from '../style-library/style-library.service';
 // Reading: Admin, Merchandiser, Costing, Viewer. Making renders: Admin, Merchandiser (the API checks both).
 
 /** Where AI requests go. leavesNetwork: the provider is a cloud service, so the data sent leaves LT. */
+/** aiOff: all AI turned off. jobOff: this job turned off. cloudBlocked: the job's service is outside LT and cloud AI is not allowed. */
+export type AiBlock = 'aiOff' | 'jobOff' | 'cloudBlocked';
+
 export interface AiProviderInfo {
   provider: string;
   model: string;
@@ -16,6 +19,8 @@ export interface AiProviderInfo {
   supportsReferenceImage: boolean;
   /** 'settings' = Settings > AI connections; 'appsettings' = the server's configuration file. */
   source: string | null;
+  /** Why the job cannot run although a service is set: the central switches (Settings > AI connections). */
+  blocked?: AiBlock | null;
 }
 
 /** AI jobs: text and image are used today; the others are prepared for AI Lab capabilities. */
@@ -30,6 +35,8 @@ export interface AiPurposeStatus {
   model: string | null;
   leavesNetwork: boolean;
   source: string | null;
+  /** Why the job cannot run although a service is set: the central switches (Settings > AI connections). */
+  blocked?: AiBlock | null;
 }
 
 export interface AiStatus {
@@ -62,10 +69,23 @@ export interface AiConnectionItem {
 
 export interface AiSettings {
   connections: AiConnectionItem[];
-  purposes: { purpose: AiPurpose; inUse: boolean; connectionId: number | null; connectionName: string | null; model: string | null; updatedBy: string | null; updatedUtc: string | null }[];
+  purposes: {
+    purpose: AiPurpose;
+    inUse: boolean;
+    connectionId: number | null;
+    connectionName: string | null;
+    model: string | null;
+    updatedBy: string | null;
+    updatedUtc: string | null;
+    /** The job is turned off (no app default either). */
+    disabled: boolean;
+    blocked: AiBlock | null;
+  }[];
   /** What text / image use when not set here (appsettings). */
   fallbacks: { purpose: AiPurpose; provider: string; model: string; isConfigured: boolean; leavesNetwork: boolean }[];
   kinds: AiConnectionKind[];
+  /** The central switches. allowCloud false = nothing is sent to services outside LT. */
+  policy: { aiEnabled: boolean; allowCloud: boolean; updatedBy: string | null; updatedUtc: string | null };
 }
 
 /** apiKey: blank keeps the saved key; clearApiKey removes it. */
@@ -331,8 +351,14 @@ export class AiStudioService {
     return this.http.delete(`${this.admin}/connections/${c.connectionId}?rowVer=${encodeURIComponent(c.rowVer)}`);
   }
 
-  savePurpose(purpose: AiPurpose, connectionId: number | null, model: string | null): Observable<unknown> {
-    return this.http.put(`${this.admin}/purposes/${purpose}`, { connectionId, model });
+  /** off: turn the job off (no app default either). */
+  savePurpose(purpose: AiPurpose, connectionId: number | null, model: string | null, off = false): Observable<unknown> {
+    return this.http.put(`${this.admin}/purposes/${purpose}`, { connectionId, model, off });
+  }
+
+  /** The central switches. */
+  savePolicy(aiEnabled: boolean, allowCloud: boolean): Observable<unknown> {
+    return this.http.put(`${this.admin}/policy`, { aiEnabled, allowCloud });
   }
 
   /** Tests a saved connection or the form's draft (a blank key uses the saved one). */

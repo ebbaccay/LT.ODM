@@ -4,7 +4,8 @@
     usp_Settings_Get       connections (with the encrypted key, for the API only) and jobs
     usp_Connection_Save    create / update (RowVer); KeyAction keep | set | clear
     usp_Connection_Delete  refused while a job uses the connection
-    usp_Purpose_Save       a job's connection and model (NULL connection = app default)
+    usp_Purpose_Save       a job's connection and model (NULL connection = app default), or turns the job off
+    usp_Policy_Save        the central switches: AI on/off, cloud services allowed or not
 
     Rule errors are THROWn as 50400 / 50404 / 50409 with a message for the user. Requires tables\ai.tables.sql. Idempotent.
 
@@ -21,8 +22,11 @@ BEGIN
     FROM ai.Connections
     ORDER BY Name;
 
-    SELECT Purpose, ConnectionId, Model, UpdatedBy, UpdatedUtc
+    SELECT Purpose, ConnectionId, Model, UpdatedBy, UpdatedUtc, Disabled
     FROM ai.Purposes;
+
+    SELECT AiEnabled, AllowCloud, UpdatedBy, UpdatedUtc
+    FROM ai.Policy WHERE PolicyId = 1;
 END
 GO
 
@@ -96,19 +100,41 @@ CREATE OR ALTER PROCEDURE ai.usp_Purpose_Save
     @Purpose      varchar(20),
     @ConnectionId int           = NULL,
     @Model        nvarchar(200) = NULL,
+    @Disabled     bit           = 0,
     @ChangedBy    nvarchar(64)
 AS
 BEGIN
     SET NOCOUNT ON;
     IF NOT EXISTS (SELECT 1 FROM ai.Purposes WHERE Purpose = @Purpose)
         THROW 50404, N'Unknown job.', 1;
+    IF @Disabled = 1
+    BEGIN
+        UPDATE ai.Purposes SET ConnectionId = NULL, Model = NULL, Disabled = 1, UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
+        WHERE Purpose = @Purpose;
+        RETURN;
+    END
     IF @ConnectionId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ai.Connections WHERE ConnectionId = @ConnectionId AND IsActive = 1)
         THROW 50400, N'Choose an active connection.', 1;
     IF @ConnectionId IS NOT NULL AND NULLIF(TRIM(@Model), N'') IS NULL
         THROW 50400, N'Enter the model name the service uses.', 1;
 
     UPDATE ai.Purposes
-    SET ConnectionId = @ConnectionId, Model = IIF(@ConnectionId IS NULL, NULL, TRIM(@Model)), UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
+    SET ConnectionId = @ConnectionId, Model = IIF(@ConnectionId IS NULL, NULL, TRIM(@Model)), Disabled = 0,
+        UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
     WHERE Purpose = @Purpose;
+END
+GO
+
+CREATE OR ALTER PROCEDURE ai.usp_Policy_Save
+    @AiEnabled  bit,
+    @AllowCloud bit,
+    @ChangedBy  nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE ai.Policy SET AiEnabled = @AiEnabled, AllowCloud = @AllowCloud, UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
+    WHERE PolicyId = 1;
+    IF @@ROWCOUNT = 0
+        INSERT ai.Policy (PolicyId, AiEnabled, AllowCloud, UpdatedBy, UpdatedUtc) VALUES (1, @AiEnabled, @AllowCloud, @ChangedBy, SYSUTCDATETIME());
 END
 GO

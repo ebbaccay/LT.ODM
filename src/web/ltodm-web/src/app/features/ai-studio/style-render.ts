@@ -185,6 +185,7 @@ export class StyleRenderPage implements OnInit {
             rowVer: s.rowVer, customerCode: s.customerCode, seasonCode: s.seasonCode, styleNo: s.styleNo, description: s.description,
             modelCode: s.modelCode, modelName: s.modelName, weaveTypeCode: s.weaveTypeCode, productTypeCode: s.productTypeCode, gender: s.gender,
             garmentLeadTimeDays: s.garmentLeadTimeDays, businessUnitCode: s.businessUnitCode, sketchUrl: s.sketchUrl, imageUrl: r.imageUrl,
+            isActive: s.isActive,
           })
           .subscribe({
             next: () => {

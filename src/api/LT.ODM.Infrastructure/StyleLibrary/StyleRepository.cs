@@ -32,12 +32,12 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory) : IS
         var rows = (await conn.QueryAsync<ListRow>(Proc("style.usp_Style_List", new
         {
             q.Search, CustomerCode = q.Customer, SeasonCode = q.Season, BusinessUnitCode = q.BusinessUnit, ProductTypeCode = q.ProductType,
-            WeaveTypeCode = q.WeaveType, q.Gender, q.Material, q.Skip, q.Take,
+            WeaveTypeCode = q.WeaveType, q.Gender, q.Material, q.IsActive, q.Skip, q.Take,
         }, ct))).ToList();
         return new PagedResult<StyleListItemDto>(rows.Select(r => new StyleListItemDto(
             r.StyleId, r.StyleNo, r.BaseStyleNo, r.Description, r.ModelCode, r.ModelName, r.CustomerCode, r.CustomerName, r.SeasonCode,
             r.BusinessUnitCode, r.BusinessUnitName, r.ProductTypeCode, r.ProductTypeName, r.WeaveTypeCode, r.Gender, r.ImageUrl, r.SketchUrl,
-            r.ColorwayCount, r.BomLineCount, r.HasHistory, Utc(r.LastChangedUtc))).ToList(), rows.FirstOrDefault()?.TotalCount ?? 0);
+            r.ColorwayCount, r.BomLineCount, r.HasHistory, Utc(r.LastChangedUtc), r.IsActive)).ToList(), rows.FirstOrDefault()?.TotalCount ?? 0);
     }
 
     public async Task<StyleDetailDto?> GetAsync(int styleId, CancellationToken ct = default)
@@ -55,7 +55,7 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory) : IS
             new StyleHeaderDto(h.StyleId, h.CustomerCode, h.CustomerName, h.SeasonCode, h.StyleNo, h.BaseStyleNo, h.Description, h.ModelCode, h.ModelName,
                 h.WeaveTypeCode, h.WeaveTypeName, h.ProductTypeCode, h.ProductTypeName, h.Gender, h.GarmentLeadTimeDays, h.BusinessUnitCode,
                 h.BusinessUnitName, h.SketchUrl, h.ImageUrl, Utc(h.SourceCreatedUtc), h.ImportBatchId, h.CreatedBy, Utc(h.CreatedUtc), h.UpdatedBy,
-                Utc(h.UpdatedUtc), h.RowVer),
+                Utc(h.UpdatedUtc), h.RowVer, h.IsActive),
             colorways.Select(c => new ColorwayDto(c.ColorwayId, c.SortOrder, c.ColorwayCode, c.ColorwayName, c.Status, c.ImageUrl, c.CreatedBy,
                 Utc(c.CreatedUtc), c.UpdatedBy, Utc(c.UpdatedUtc), c.RowVer)).ToList(),
             lines.Select(l => new BomLineDto(l.BomLineId, l.LineSeq, l.PartNo, l.MaterialCode, l.MaterialDescription, l.MaterialTypeCode, l.MaterialTypeName,
@@ -96,7 +96,8 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory) : IS
             ModelName = StyleValidation.Clean(r.ModelName), WeaveTypeCode = StyleValidation.Clean(r.WeaveTypeCode)?.ToUpperInvariant(),
             ProductTypeCode = StyleValidation.Clean(r.ProductTypeCode), Gender = StyleValidation.Clean(r.Gender)?.ToUpperInvariant(),
             r.GarmentLeadTimeDays, BusinessUnitCode = StyleValidation.Clean(r.BusinessUnitCode),
-            SketchUrl = StyleValidation.Clean(r.SketchUrl), ImageUrl = StyleValidation.Clean(r.ImageUrl), ChangedBy = changedBy,
+            SketchUrl = StyleValidation.Clean(r.SketchUrl), ImageUrl = StyleValidation.Clean(r.ImageUrl), IsActive = r.IsActive ?? true,
+            ChangedBy = changedBy,
         }, ct);
 
     public Task DeleteStyleAsync(int styleId, byte[] rowVer, string changedBy, CancellationToken ct = default)
@@ -232,6 +233,7 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory) : IS
         public int BomLineCount { get; init; }
         public bool HasHistory { get; init; }
         public DateTime LastChangedUtc { get; init; }
+        public bool IsActive { get; init; }
         public int TotalCount { get; init; }
     }
 
@@ -256,6 +258,7 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory) : IS
         public string? BusinessUnitName { get; init; }
         public string? SketchUrl { get; init; }
         public string? ImageUrl { get; init; }
+        public bool IsActive { get; init; }
         public DateTime? SourceCreatedUtc { get; init; }
         public int? ImportBatchId { get; init; }
         public string CreatedBy { get; init; } = "";

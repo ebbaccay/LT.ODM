@@ -10,6 +10,45 @@
   @if (loading()) {
     <div hlmSkeleton class="h-72 w-full"></div>
   } @else if (settings(); as s) {
+    <!-- Central switches -->
+    <section hlmCard class="gap-0 py-0">
+      <div class="border-b px-5 py-3">
+        <h2 class="font-semibold">{{ 'aiSettings.switches.title' | transloco }}</h2>
+        <p class="text-muted-foreground text-xs">{{ 'aiSettings.switches.hint' | transloco }}</p>
+      </div>
+      <div class="grid gap-4 px-5 py-4 md:grid-cols-2">
+        @for (sw of [
+          { key: 'aiEnabled', on: s.policy.aiEnabled, label: 'aiSettings.switches.ai', onText: 'aiSettings.switches.aiOn', offText: 'aiSettings.switches.aiOff' },
+          { key: 'allowCloud', on: s.policy.allowCloud, label: 'aiSettings.switches.cloud', onText: 'aiSettings.switches.cloudOn', offText: 'aiSettings.switches.cloudOff' }
+        ]; track sw.key) {
+          <label class="flex cursor-pointer items-start gap-3 rounded-md border p-3" [class.opacity-60]="sw.key === 'allowCloud' && !s.policy.aiEnabled">
+            <input
+              type="checkbox"
+              role="switch"
+              class="peer sr-only"
+              [checked]="sw.on"
+              [disabled]="savingPolicy()"
+              (change)="setPolicy(sw.key === 'aiEnabled' ? { aiEnabled: $any($event.target).checked } : { allowCloud: $any($event.target).checked })"
+            />
+            <span
+              class="relative mt-0.5 inline-flex h-6 w-11 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring"
+              [class]="sw.on ? (sw.key === 'allowCloud' ? 'bg-amber-500' : 'bg-primary') : 'bg-muted-foreground/30'"
+              aria-hidden="true"
+            >
+              <span class="bg-background absolute top-0.5 size-5 rounded-full shadow transition-all" [class]="sw.on ? 'left-[1.375rem]' : 'left-0.5'"></span>
+            </span>
+            <span class="min-w-0 text-sm">
+              <span class="font-medium">{{ sw.label | transloco }}</span>
+              <span class="text-muted-foreground block text-xs">{{ (sw.on ? sw.onText : sw.offText) | transloco }}</span>
+            </span>
+          </label>
+        }
+      </div>
+      @if (s.policy.updatedBy) {
+        <p class="text-muted-foreground border-t px-5 py-2 text-[11px]">{{ 'aiSettings.changedBy' | transloco: { user: s.policy.updatedBy, date: (s.policy.updatedUtc | date: 'medium') } }}</p>
+      }
+    </section>
+
     <!-- Jobs -->
     <section hlmCard class="gap-0 py-0">
       <div class="border-b px-5 py-3">
@@ -30,7 +69,14 @@
                 </span>
               </p>
               <p class="text-muted-foreground text-xs">{{ 'aiSettings.purpose.' + p.purpose + '.what' | transloco }}</p>
-              @if (chosen) {
+              @if (p.blocked && !dirty(p.purpose)) {
+                <p class="mt-1 flex items-center gap-1 text-xs text-red-700 dark:text-red-400">
+                  <ng-icon name="lucideTriangleAlert" />{{ 'aiSettings.blocked.' + p.blocked | transloco }}
+                </p>
+              }
+              @if (d.connectionId === off) {
+                <p class="text-muted-foreground mt-1 text-xs">{{ 'aiSettings.jobOffHint' | transloco }}</p>
+              } @else if (chosen) {
                 <p class="mt-1 flex items-center gap-1 text-xs" [class]="leavesNetwork(chosen) ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'">
                   <ng-icon [name]="leavesNetwork(chosen) ? 'lucideCloud' : 'lucideServer'" />{{ (leavesNetwork(chosen) ? 'aiSettings.cloud' : 'aiSettings.inHouse') | transloco }}
                 </p>
@@ -44,7 +90,10 @@
             <div class="flex flex-col gap-1">
               <label class="text-muted-foreground text-xs" [for]="'job-conn-' + p.purpose">{{ 'aiSettings.connection' | transloco }}</label>
               <hlm-native-select [selectId]="'job-conn-' + p.purpose" selectClass="h-11 w-full lg:h-9" [value]="d.connectionId" (valueChange)="setDraft(p.purpose, { connectionId: $event ?? '' })">
-                <option hlmNativeSelectOption value="">{{ (fb ? 'aiSettings.appDefault' : 'aiSettings.notSet') | transloco }}</option>
+                <option hlmNativeSelectOption value="" [selected]="d.connectionId === ''">{{ (fb ? 'aiSettings.appDefault' : 'aiSettings.notSet') | transloco }}</option>
+                @if (fb) {
+                  <option hlmNativeSelectOption [value]="off" [selected]="d.connectionId === off">{{ 'aiSettings.offOption' | transloco }}</option>
+                }
                 @for (c of activeConnections(); track c.connectionId) {
                   <option hlmNativeSelectOption [value]="'' + c.connectionId" [selected]="'' + c.connectionId === d.connectionId">{{ c.name }}</option>
                 }
@@ -58,7 +107,7 @@
                   class="h-11 w-full lg:h-9"
                   [id]="'job-model-' + p.purpose"
                   [attr.list]="'job-models-' + p.purpose"
-                  [disabled]="!d.connectionId"
+                  [disabled]="!isConnection(d.connectionId)"
                   [placeholder]="'aiSettings.modelPlaceholder' | transloco"
                   [value]="d.model"
                   (input)="setDraft(p.purpose, { model: $any($event.target).value })"

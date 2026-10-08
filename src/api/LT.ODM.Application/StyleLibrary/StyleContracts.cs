@@ -35,23 +35,24 @@ public sealed record StyleLookupsDto(
 
 /// <summary>
 /// Season and ProductType may hold several codes separated by commas (AI Studio search: "jackets" covers JACKET, JACKETS, JACKETMDW).
-/// Material matches BOM material codes and descriptions.
+/// Material matches BOM material codes and descriptions. IsActive null lists active and inactive styles.
 /// </summary>
 public sealed record StyleListQuery(
     string? Search, string? Customer, string? Season, string? BusinessUnit, string? ProductType, string? WeaveType, string? Gender,
-    int Skip, int Take, string? Material = null);
+    int Skip, int Take, string? Material = null, bool? IsActive = null);
 
 public sealed record StyleListItemDto(
     int StyleId, string StyleNo, string BaseStyleNo, string? Description, string? ModelCode, string? ModelName,
     string CustomerCode, string CustomerName, string SeasonCode, string? BusinessUnitCode, string? BusinessUnitName,
     string? ProductTypeCode, string? ProductTypeName, string? WeaveTypeCode, string? Gender, string? ImageUrl, string? SketchUrl,
-    int ColorwayCount, int BomLineCount, bool HasHistory, DateTime LastChangedUtc);
+    int ColorwayCount, int BomLineCount, bool HasHistory, DateTime LastChangedUtc, bool IsActive = true);
 
 public sealed record StyleHeaderDto(
     int StyleId, string CustomerCode, string CustomerName, string SeasonCode, string StyleNo, string BaseStyleNo, string? Description,
     string? ModelCode, string? ModelName, string? WeaveTypeCode, string? WeaveTypeName, string? ProductTypeCode, string? ProductTypeName,
     string? Gender, short? GarmentLeadTimeDays, string? BusinessUnitCode, string? BusinessUnitName, string? SketchUrl, string? ImageUrl,
-    DateTime? SourceCreatedUtc, int? ImportBatchId, string CreatedBy, DateTime CreatedUtc, string? UpdatedBy, DateTime? UpdatedUtc, byte[] RowVer);
+    DateTime? SourceCreatedUtc, int? ImportBatchId, string CreatedBy, DateTime CreatedUtc, string? UpdatedBy, DateTime? UpdatedUtc, byte[] RowVer,
+    bool IsActive = true);
 
 public sealed record ColorwayDto(
     int ColorwayId, short SortOrder, string ColorwayCode, string? ColorwayName, string Status, string? ImageUrl,
@@ -103,11 +104,11 @@ public sealed record DashboardRecentStyleDto(
 
 public sealed record DashboardImportDto(int BatchId, string FileName, string? FinishedBy, DateTime? FinishedUtc);
 
-/// <summary>New style when RowVer is null; otherwise the RowVer read with the style.</summary>
+/// <summary>New style when RowVer is null; otherwise the RowVer read with the style. IsActive null keeps the style active.</summary>
 public sealed record SaveStyleRequest(
     byte[]? RowVer, string CustomerCode, string SeasonCode, string StyleNo, string? Description, string? ModelCode, string? ModelName,
     string? WeaveTypeCode, string? ProductTypeCode, string? Gender, short? GarmentLeadTimeDays, string? BusinessUnitCode,
-    string? SketchUrl, string? ImageUrl);
+    string? SketchUrl, string? ImageUrl, bool? IsActive = null);
 
 public sealed record CopyStyleRequest(string SeasonCode, string StyleNo);
 

@@ -35,6 +35,8 @@ const PAUSE_MS = 7000;
   ],
   providers: [provideIcons({ lucideCheck, lucideSparkles, lucideSquare, lucideTriangleAlert, lucideX })],
   templateUrl: './material-reader.html',
+  // Spacing between the AI banner, the hint, the reading card, the review bar and the list.
+  host: { class: 'flex flex-col gap-4' },
 })
 export class MaterialReader implements OnInit {
   private readonly svc = inject(MaterialsService);

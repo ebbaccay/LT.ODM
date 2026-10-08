@@ -104,6 +104,13 @@ public sealed record RenderBriefDto(
 
 public sealed record RenderPromptRequest(int? ColorwayId);
 
+/// <summary>
+/// A prompt for outside design tools (<see cref="DesignPrompt"/>). Mode is the one used (image falls back to text when
+/// the style has no sketch or photo); ReferenceKind / ReferenceUrl name the image to attach in image mode.
+/// </summary>
+public sealed record DesignPromptDto(
+    string Mode, int? ColorwayId, string? ReferenceKind, string? ReferenceUrl, bool HasReference, RenderFactsDto Facts, string Prompt);
+
 public sealed record RenderPromptDto(string Prompt);
 
 public sealed record RenderRequest(int? ColorwayId, string? Prompt, bool UseSketch);

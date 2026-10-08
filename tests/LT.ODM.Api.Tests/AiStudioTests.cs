@@ -31,8 +31,9 @@ public sealed class FakeAiJsonClient : IAiJsonClient
 
 public sealed class FakeAiImageClient : IAiImageClient
 {
-    /// <summary>The 8-byte PNG signature plus padding: enough for the image check.</summary>
-    public static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0];
+    /// <summary>A real 1x1 PNG: renders are decoded and made smaller before they are stored.</summary>
+    public static readonly byte[] Png = Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
 
     public bool IsConfigured { get; set; } = true;
     public List<(string Prompt, ReferenceImage? Reference)> Calls { get; } = [];
@@ -364,6 +365,64 @@ public sealed class AiStudioTests(ApiFactory factory) : IClassFixture<ApiFactory
         Assert.StartsWith("Photorealistic e-commerce product photo of a men's jacket. Main fabric: 70% cotton", prompt);
         Assert.Contains("attached flat sketch", prompt);
         Assert.DoesNotContain("adidas", prompt, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Design_prompt_describes_the_style_and_uses_the_sketch_in_image_mode()
+    {
+        var black = new BomLineColorwayDto(1, "A0", "CORE BLACK");
+        var d = Detail(1, "S1", [Colorway(1, "KG1", "CORE BLACK"), Colorway(2, "KG2", "WHITE/NAVY"), Colorway(3, "KG3", "RED", "DROPPED")],
+            Line(1, "FAB", 10, "F1", null, 1.7m, desc: "100%Recycle Polyester,Single jersey,FD 60D/60F FDY+FD 30D/36F DTY", colours: black),
+            Line(2, "ACC", 200, "Z1", 1, 1, type: "ZIP", colours: new BomLineColorwayDto(1, "W", "WHITE")),
+            Line(3, "LNP", 800, "L1", 1, 0, type: "LBL", desc: "ADIDAS CARE LABEL"));
+        d = d with { Style = d.Style with { Description = "MALE; 100%POLYESTER(100%RECYCLED); Solid; 101.0 G/SQM; JACKET", ModelName = "ADI365 RUN JKT" } };
+
+        var all = DesignPrompt.Build(d, "text", null);
+        Assert.Equal("text", all.Mode);
+        Assert.StartsWith("Design a men's jacket. Main fabric: 100% recycled polyester, single jersey, about 101 g/m². ", all.Prompt);
+        Assert.Contains("Colourways: core black; white/navy.", all.Prompt);   // dropped colorways are left out
+        Assert.Contains("Visible details: zipper. ", all.Prompt);
+        Assert.Contains("Made with recycled fibres.", all.Prompt);
+        Assert.Contains("technical flats", all.Prompt);
+        Assert.DoesNotContain("adidas", all.Prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ADI365", all.Prompt);   // model names can carry brand codes
+
+        var one = DesignPrompt.Build(d, "text", 1);
+        Assert.Contains("Colours: core black. ", one.Prompt);
+        Assert.Contains("zipper (white)", one.Prompt);
+
+        Assert.Equal("text", DesignPrompt.Build(d, "image", 1).Mode);   // nothing to attach yet
+        var withSketch = d with { Style = d.Style with { SketchUrl = "/api/v1/styles/images/0123456789abcdef0123456789abcdef.jpg" } };
+        var image = DesignPrompt.Build(withSketch, "image", 1);
+        Assert.Equal(("image", "sketch"), (image.Mode, image.ReferenceKind));
+        Assert.StartsWith("Use the attached flat sketch as the base design.", image.Prompt);
+        Assert.Contains("Turn it into a photorealistic men's jacket.", image.Prompt);
+    }
+
+    [Theory]
+    [InlineData("MALE; 100%POLYESTER; Solid; 101.0 G/SQM; T-SHIRT", "101")]
+    [InlineData("fleece 280gsm", "280")]
+    [InlineData("no weight here", null)]
+    public void Design_prompt_reads_the_fabric_weight_from_the_description(string description, string? expected)
+        => Assert.Equal(expected, DesignPrompt.Weight(description));
+
+    [Theory]
+    [InlineData("100% recycle pa, plain weave", "100% recycled polyamide, plain weave")]
+    [InlineData("100% rec. pes, plain", "100% recycled polyester, plain")]
+    [InlineData("88%recycled poly 12% ea, interlock", "88% recycled polyester 12% elastane, interlock")]
+    [InlineData("70% cotton 30% recycled polyester, solid fleece", "70% cotton 30% recycled polyester, solid fleece")]
+    public void Prompts_spell_out_fibre_shorthand(string fabric, string expected)
+        => Assert.Equal(expected, RenderPrompt.Readable(fabric));
+
+    [Fact]
+    public void Render_prompt_uses_plain_fabric_words()
+    {
+        var d = Detail(1, "S1", [Colorway(1, "KG1", "BLACK")],
+            Line(1, "FAB", 10, "F1", null, 1.2m, desc: "100%Recycle Polyester,Single jersey,FD 60D/60F FDY+FD 30D/36F DTY"),
+            Line(2, "FAB", 20, "F2", null, 0.3m, desc: "100% REC. PA,Plain weave"));
+        var prompt = RenderPrompt.Build(RenderPrompt.Facts(d, 1), withSketch: false);
+        Assert.Contains("Main fabric: 100% recycled polyester, single jersey.", prompt);
+        Assert.Contains("Also uses 100% recycled polyamide, plain weave.", prompt);
     }
 
     // ----- Providers -----

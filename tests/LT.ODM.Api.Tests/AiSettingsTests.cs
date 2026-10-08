@@ -19,6 +19,7 @@ public static class TestAiText
     private sealed class FixedResolver(AiConnection connection) : IAiConnectionResolver
     {
         public Task<AiConnection?> ResolveAsync(string purpose, CancellationToken ct = default) => Task.FromResult<AiConnection?>(connection);
+        public Task<AiResolution> ExplainAsync(string purpose, CancellationToken ct = default) => Task.FromResult(new AiResolution(connection, null));
         public void Invalidate() { }
     }
 }
@@ -27,6 +28,7 @@ public static class TestAiText
 public sealed class FakeAiConnectionResolver : IAiConnectionResolver
 {
     public Task<AiConnection?> ResolveAsync(string purpose, CancellationToken ct = default) => Task.FromResult<AiConnection?>(null);
+    public Task<AiResolution> ExplainAsync(string purpose, CancellationToken ct = default) => Task.FromResult(new AiResolution(null, null));
     public void Invalidate() { }
 }
 
@@ -37,12 +39,19 @@ public sealed class FakeAiSettingsRepository : IAiSettingsRepository
     private readonly List<AiConnectionRow> _connections = [];
     private readonly Dictionary<string, AiPurposeRow> _purposes = AiPurposes.All.ToDictionary(p => p, p => new AiPurposeRow(p, null, null, null, null));
     private long _version;
+    private AiPolicy _policy = new(true, true, null, null);
 
     private byte[] NextVersion() => BitConverter.GetBytes(Interlocked.Increment(ref _version));
 
-    public Task<(IReadOnlyList<AiConnectionRow> Connections, IReadOnlyList<AiPurposeRow> Purposes)> GetAsync(CancellationToken ct = default)
+    public Task<AiSettingsData> GetAsync(CancellationToken ct = default)
     {
-        lock (_lock) return Task.FromResult<(IReadOnlyList<AiConnectionRow>, IReadOnlyList<AiPurposeRow>)>((_connections.ToList(), _purposes.Values.ToList()));
+        lock (_lock) return Task.FromResult(new AiSettingsData(_connections.ToList(), _purposes.Values.ToList(), _policy));
+    }
+
+    public Task SavePolicyAsync(bool aiEnabled, bool allowCloud, string changedBy, CancellationToken ct = default)
+    {
+        lock (_lock) _policy = new AiPolicy(aiEnabled, allowCloud, changedBy, DateTime.UtcNow);
+        return Task.CompletedTask;
     }
 
     public Task<int> SaveConnectionAsync(int? connectionId, SaveAiConnectionRequest r, string keyAction, string? apiKeyProtected, string? apiKeyHint,
@@ -84,10 +93,15 @@ public sealed class FakeAiSettingsRepository : IAiSettingsRepository
         return Task.CompletedTask;
     }
 
-    public Task SavePurposeAsync(string purpose, int? connectionId, string? model, string changedBy, CancellationToken ct = default)
+    public Task SavePurposeAsync(string purpose, int? connectionId, string? model, bool disabled, string changedBy, CancellationToken ct = default)
     {
         lock (_lock)
         {
+            if (disabled)
+            {
+                _purposes[purpose] = new AiPurposeRow(purpose, null, null, changedBy, DateTime.UtcNow, Disabled: true);
+                return Task.CompletedTask;
+            }
             if (connectionId is { } id && !_connections.Any(c => c.ConnectionId == id && c.IsActive)) throw new AiSettingsException(400, "Choose an active connection.");
             _purposes[purpose] = new AiPurposeRow(purpose, connectionId, connectionId is null ? null : model, changedBy, DateTime.UtcNow);
         }
@@ -164,6 +178,46 @@ public sealed class AiSettingsTests(ApiFactory factory) : IClassFixture<ApiFacto
         await admin.PutAsJsonAsync("/api/v1/admin/ai/purposes/vision", new { connectionId = (int?)null, model = (string?)null });
         Assert.Null(await resolver.ResolveAsync(AiPurposes.Vision));   // AI Lab jobs have no appsettings default
         Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"/api/v1/admin/ai/connections/{id}?rowVer={Uri.EscapeDataString(Convert.ToBase64String(rowVer))}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Central_switches_block_cloud_services_and_turn_jobs_or_all_ai_off()
+    {
+        var admin = await SignInAsync("Admin");
+        var resolver = factory.Services.GetRequiredService<IAiConnectionResolver>();
+        var cloud = (await (await admin.PostAsJsonAsync("/api/v1/admin/ai/connections",
+            new { name = "Cloud box", kind = "Gemini", endpoint = "https://generativelanguage.googleapis.com/v1beta", apiKey = "g-key-1234",
+                  clearApiKey = false, inHouse = false, timeoutSeconds = 60, isActive = true })).Content.ReadFromJsonAsync<IdBody>())!.ConnectionId;
+        var local = (await (await admin.PostAsJsonAsync("/api/v1/admin/ai/connections", Connection("LT box"))).Content.ReadFromJsonAsync<IdBody>())!.ConnectionId;
+        await admin.PutAsJsonAsync("/api/v1/admin/ai/purposes/embedding", new { connectionId = cloud, model = "text-embedding" });
+        await admin.PutAsJsonAsync("/api/v1/admin/ai/purposes/document", new { connectionId = local, model = "qwen2.5-vl" });
+        try
+        {
+            // Cloud not allowed: the cloud job is blocked (nothing would be sent), the in-house one still runs.
+            Assert.Equal(HttpStatusCode.NoContent, (await admin.PutAsJsonAsync("/api/v1/admin/ai/policy", new { aiEnabled = true, allowCloud = false })).StatusCode);
+            Assert.Null(await resolver.ResolveAsync(AiPurposes.Embedding));
+            Assert.Equal(AiBlocks.CloudBlocked, (await resolver.ExplainAsync(AiPurposes.Embedding)).Blocked);
+            Assert.Equal("LT box", (await resolver.ResolveAsync(AiPurposes.Document))!.Name);
+            Assert.Contains("cloud AI is not allowed", AiUnavailable.Message("Search", AiConnectionInfo.Of(await resolver.ExplainAsync(AiPurposes.Embedding))));
+
+            // A job turned off has no service at all, not even the app default.
+            await admin.PutAsJsonAsync("/api/v1/admin/ai/purposes/document", new { connectionId = (int?)null, model = (string?)null, off = true });
+            Assert.Equal(AiBlocks.JobOff, (await resolver.ExplainAsync(AiPurposes.Document)).Blocked);
+            var settings = await admin.GetFromJsonAsync<AiSettingsDto>("/api/v1/admin/ai");
+            Assert.True(settings!.Purposes.Single(p => p.Purpose == "document").Disabled);
+            Assert.False(settings.Policy.AllowCloud);
+
+            // Master switch off: everything is blocked.
+            await admin.PutAsJsonAsync("/api/v1/admin/ai/policy", new { aiEnabled = false, allowCloud = true });
+            Assert.Equal(AiBlocks.AiOff, (await resolver.ExplainAsync(AiPurposes.Embedding)).Blocked);
+            Assert.Equal(HttpStatusCode.Forbidden, (await (await SignInAsync("Merchandiser")).PutAsJsonAsync("/api/v1/admin/ai/policy", new { aiEnabled = true, allowCloud = true })).StatusCode);
+        }
+        finally
+        {
+            await admin.PutAsJsonAsync("/api/v1/admin/ai/policy", new { aiEnabled = true, allowCloud = true });
+            await admin.PutAsJsonAsync("/api/v1/admin/ai/purposes/embedding", new { connectionId = (int?)null, model = (string?)null });
+            await admin.PutAsJsonAsync("/api/v1/admin/ai/purposes/document", new { connectionId = (int?)null, model = (string?)null });
+        }
     }
 
     private sealed record IdBody(int ConnectionId);

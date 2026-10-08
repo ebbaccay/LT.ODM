@@ -126,9 +126,9 @@ public sealed class AiStudioController(StyleAiAssistant assistant, IAiJsonClient
     {
         if ((request.Prompt?.Length ?? 0) > RenderRules.MaxPrompt)
             return Task.FromResult<IActionResult>(Invalid("prompt", $"Keep the description to {RenderRules.MaxPrompt} characters."));
-        return Run(async () => (await images.GetInfoAsync(ct)).IsConfigured
+        return Run(async () => await images.GetInfoAsync(ct) is { IsConfigured: true }
             ? Ok(await assistant.RenderAsync(styleId, request, CurrentUserName, ct))
-            : NotSetUp("Image generation", "Settings > AI connections, job Image"));
+            : NotSetUp("Image generation", await images.GetInfoAsync(ct)));
     }
 
     [HttpDelete("style-render/{styleId:int}/renders/{renderId:int}")]
@@ -151,12 +151,11 @@ public sealed class AiStudioController(StyleAiAssistant assistant, IAiJsonClient
     private IActionResult Invalid(string field, string message)
         => ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { [field] = [message] }));
 
-    private ObjectResult NotSetUp(string feature, string setting)
-        => Problem(statusCode: StatusCodes.Status503ServiceUnavailable,
-            title: $"{feature} is not set up on this server. Ask your administrator to set it in {setting}.");
+    private ObjectResult NotSetUp(string feature, AiProviderInfo info)
+        => Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: AiUnavailable.Message(feature, info));
 
     private async Task<IActionResult> WithText(Func<Task<IActionResult>> action)
-        => (await text.GetInfoAsync()).IsConfigured ? await Run(action) : NotSetUp("AI text", "Settings > AI connections, job Text");
+        => await text.GetInfoAsync() is { IsConfigured: true } ? await Run(action) : NotSetUp("This AI feature", await text.GetInfoAsync());
 
     /// <summary>Rule errors -> 400 / 404 / 409 with the reason; AI failures -> 502 with a readable message.</summary>
     private async Task<IActionResult> Run(Func<Task<IActionResult>> action)

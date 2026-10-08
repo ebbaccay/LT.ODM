@@ -1731,7 +1731,8 @@
     "aiLab": "AI 实验室",
     "materials": "物料",
     "material": "物料",
-    "aiConnections": "AI 连接"
+    "aiConnections": "AI 连接",
+    "styleCompare": "比较款式"
   },
   "layout": {
     "appSubtitle": "款式库",
@@ -1951,6 +1952,9 @@
       "allLines": "全部物料行",
       "addBomLine": "添加物料行",
       "noLinesForColorway": "此配色没有物料行。",
+      "noLinesForSearch": "没有符合搜索条件的物料行。",
+      "bomSearchLabel": "搜索物料行",
+      "bomSearchPlaceholder": "搜索部位、物料、供应商、颜色…",
       "noLines": "还没有物料行。",
       "addLineTo": "向 {{ section }} 添加物料行",
       "add": "添加",
@@ -2006,7 +2010,13 @@
       "aiCompare": "变更内容",
       "aiBomCheck": "检查物料清单",
       "aiRender": "AI 效果图",
-      "openMaterial": "打开物料：使用位置、常规用量、供应商"
+      "openMaterial": "打开物料：使用位置、常规用量、供应商",
+      "compareSelected": "比较所选（{{count}}/2）",
+      "compareParent": "相对 {{styleNo}} 的变更",
+      "compareParentOther": "相对上一款式的变更",
+      "compareOrigin": "自 {{styleNo}} 以来的全部变更",
+      "selectToCompare": "选择 {{styleNo}} 进行比较",
+      "designPrompt": "设计提示词"
     },
     "form": {
       "newTitle": "新建款式",
@@ -2031,7 +2041,9 @@
       "seasonInvalid": "请按“年份-季节”格式输入季节，例如 {{ example }}。",
       "styleNoRequired": "请输入款号。",
       "saved": "款式已保存。",
-      "created": "款式已创建。"
+      "created": "款式已创建。",
+      "active": "启用",
+      "activeHint": "停用的款式仍保留在款式库中并保留其历史，但标记为不再使用。"
     },
     "colorway": {
       "addTitle": "添加配色",
@@ -2110,7 +2122,12 @@
       "replace": "替换{{ label }}",
       "remove": "移除{{ label }}",
       "wrongType": "请选择 JPEG、PNG、GIF 或 WebP 图片。",
-      "unreadable": "无法读取此图片。请换一个文件。"
+      "unreadable": "无法读取此图片。请换一个文件。",
+      "dropHint": "或将图片拖放到此处",
+      "dropHere": "松开即可上传",
+      "download": "下载{{ label }}",
+      "downloadShort": "下载",
+      "downloadFailed": "无法下载该图片。"
     },
     "errors": {
       "checkFields": "请检查标出的字段。",
@@ -2122,7 +2139,48 @@
     "chipProductTypes": "产品类型",
     "chipWeave": "织法",
     "chipMaterial": "物料",
-    "removeFilter": "移除筛选条件 {{ filter }}"
+    "removeFilter": "移除筛选条件 {{ filter }}",
+    "compare": {
+      "title": "比较款式",
+      "subtitle": "根据两个款式的数据得出的差异，无需 AI；如已设置 AI 服务，可生成 AI 摘要。",
+      "backTo": "返回 {{styleNo}}",
+      "backToStyle": "返回款式",
+      "family": "与同系列款式比较",
+      "chooseFamily": "选择款式…",
+      "reusedFrom": "沿用自",
+      "swap": "交换两个款式"
+    },
+    "status": "状态",
+    "allStatuses": "全部状态",
+    "activeStyles": "启用的款式",
+    "inactiveStyles": "停用的款式",
+    "inactive": "停用",
+    "prompt": {
+      "title": "设计提示词 · {{ styleNo }}",
+      "intro": "根据此款式的信息、BOM 和配色生成，不含品牌名称。可粘贴到 StyTrix、Style3D 或其他设计工具中使用。LT ODM 不会发送任何数据。",
+      "mode": "用途",
+      "modeText": "文字生成设计",
+      "modeImage": "图片生成设计",
+      "noReference": "请先为此款式添加线稿或照片，才能使用图片生成设计。",
+      "colorway": "配色",
+      "allColorways": "全部配色",
+      "attachSketch": "请在设计工具中将此线稿与提示词一起附上。",
+      "attachPhoto": "请在设计工具中将此照片与提示词一起附上。",
+      "downloadSketch": "下载线稿",
+      "downloadPhoto": "下载照片",
+      "prompt": "提示词",
+      "reset": "恢复为生成的文本",
+      "length": "{{ count }} 个字符",
+      "builtFrom": "生成依据",
+      "factGarment": "服装",
+      "factFabrics": "面料",
+      "factColours": "颜色",
+      "factDetails": "可见细节",
+      "downloadText": "下载 .txt",
+      "copy": "复制提示词",
+      "copied": "提示词已复制。",
+      "copyFailed": "无法复制。请手动选中文本并复制。"
+    }
   },
   "ai": {
     "failed": "AI 请求未成功。",
@@ -2133,7 +2191,12 @@
       "imageCloud": "图像由云服务 {{ provider }}（{{ model }}）生成。",
       "cloudHint": "从此页面发送的内容会离开 LT 网络。请勿用于客户未批准外传的数据。",
       "inHouse": "由内部 AI 服务器（{{ model }}）处理。数据保留在 LT 网络内。",
-      "imageInHouse": "图像由内部 AI 服务器（{{ model }}）生成。数据保留在 LT 网络内。"
+      "imageInHouse": "图像由内部 AI 服务器（{{ model }}）生成。数据保留在 LT 网络内。",
+      "blocked": {
+        "aiOff": "管理员已关闭 AI 功能。不会向任何 AI 服务发送数据。",
+        "jobOff": "管理员已关闭此 AI 任务。不会向任何 AI 服务发送数据。",
+        "cloudBlocked": "此功能设置为云服务（{{ provider }}），但此服务器不允许使用云 AI，因此不会向 LT 以外发送任何数据。"
+      }
     },
     "picker": {
       "label": "查找款式",
@@ -2709,7 +2772,37 @@
     "notesPlaceholder": "例如 金边机房的 GPU 服务器；联系 IT",
     "active": "启用（任务可以使用）",
     "test": "测试连接",
-    "connectionSaved": "连接 {{ name }} 已保存。"
+    "connectionSaved": "连接 {{ name }} 已保存。",
+    "offOption": "关闭（此任务不使用 AI）",
+    "jobOffHint": "已关闭：此任务不进行任何 AI 调用，也不使用应用默认设置。",
+    "blocked": {
+      "aiOff": "未运行：所有 AI 已关闭",
+      "jobOff": "未运行：此任务已关闭",
+      "cloudBlocked": "已阻止：其服务在云端，且不允许使用云 AI"
+    },
+    "switches": {
+      "title": "开关",
+      "hint": "适用于所有 AI 功能，不受下方任务或服务器配置文件影响。更改对下一次 AI 调用生效。",
+      "ai": "AI 功能",
+      "aiOn": "开：AI 功能可使用下方设置的服务运行。",
+      "aiOff": "关：应用中不会进行任何 AI 调用。需要 AI 的功能会提示；其他功能正常使用。",
+      "cloud": "允许云 AI 服务",
+      "cloudOn": "开：任务可以使用 LT 网络以外的服务（Gemini，或未标记为内部的连接）。发送给它们的数据会离开 LT。",
+      "cloudOff": "关：只使用内部服务。设置为云服务的任务会被阻止，因此没有数据离开 LT。",
+      "saved": "开关已保存，对下一次 AI 调用生效。",
+      "confirm": {
+        "allowCloud": {
+          "title": "允许云 AI 服务？",
+          "message": "设置为云服务（如 Gemini）的任务将开始向 LT 以外发送数据：款式和物料清单信息、概念简报，成本优化和市场趋势还会发送价格和成本。各功能发送的具体内容请参阅 AI 文档。",
+          "ok": "允许云 AI"
+        },
+        "aiOff": {
+          "title": "关闭所有 AI 功能？",
+          "message": "在重新开启之前，应用中不会进行任何 AI 调用。需要 AI 的页面会提示 AI 已关闭。",
+          "ok": "关闭 AI"
+        }
+      }
+    }
   },
   "csMatch": {
     "title": "款式库中的成熟款式",

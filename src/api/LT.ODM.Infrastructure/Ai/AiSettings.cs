@@ -14,8 +14,9 @@ namespace LT.ODM.Infrastructure.Ai;
 
 /// <summary>
 /// Finds the service for an AI job: Settings > AI connections (ai.* tables) first, then appsettings for the jobs the app
-/// has a default for (text, image). The stored settings are cached for a minute and dropped on every save.
-/// If the ai tables are not deployed yet, the app silently uses appsettings.
+/// has a default for (text, image). Then the central switches: AI off, the job off, or (cloud not allowed) a service
+/// outside the LT network all block the call, whatever the job or appsettings say. The stored settings are cached for a
+/// minute and dropped on every save. If the ai tables are not deployed yet, the app uses appsettings with no switches.
 /// </summary>
 public sealed class AiConnectionResolver(
     IServiceScopeFactory scopes, IAiSecretProtector protector, IOptions<AiOptions> ai, IOptions<GeminiOptions> gemini,
@@ -25,14 +26,21 @@ public sealed class AiConnectionResolver(
     private readonly SemaphoreSlim _gate = new(1, 1);
     private Snapshot? _snapshot;
 
-    private sealed record Snapshot(IReadOnlyDictionary<string, AiConnection> ByPurpose, DateTime LoadedUtc);
+    private sealed record Snapshot(IReadOnlyDictionary<string, AiConnection> ByPurpose, IReadOnlySet<string> Disabled, AiPolicy Policy, DateTime LoadedUtc);
 
     public void Invalidate() => _snapshot = null;
 
     public async Task<AiConnection?> ResolveAsync(string purpose, CancellationToken ct = default)
+        => await ExplainAsync(purpose, ct) is { Blocked: null } r ? r.Connection : null;
+
+    public async Task<AiResolution> ExplainAsync(string purpose, CancellationToken ct = default)
     {
-        var snapshot = await LoadAsync(ct);
-        return snapshot.ByPurpose.TryGetValue(purpose, out var c) ? c : Fallback(purpose);
+        var s = await LoadAsync(ct);
+        if (s.Disabled.Contains(purpose)) return new AiResolution(null, AiBlocks.JobOff);
+        var c = s.ByPurpose.TryGetValue(purpose, out var set) ? set : Fallback(purpose);
+        if (!s.Policy.AiEnabled) return new AiResolution(c, AiBlocks.AiOff);
+        if (c is not null && !s.Policy.AllowCloud && (c.Kind == AiConnectionKinds.Gemini || !c.InHouse)) return new AiResolution(c, AiBlocks.CloudBlocked);
+        return new AiResolution(c, null);
     }
 
     /// <summary>The appsettings default for a job, or null when the app has none (AI Lab jobs).</summary>
@@ -64,13 +72,21 @@ public sealed class AiConnectionResolver(
         {
             if (_snapshot is { } again && DateTime.UtcNow - again.LoadedUtc < CacheFor) return again;
             var byPurpose = new Dictionary<string, AiConnection>(StringComparer.OrdinalIgnoreCase);
+            var disabled = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var policy = AiPolicy.Open;
             try
             {
                 using var scope = scopes.CreateScope();
-                var (connections, purposes) = await scope.ServiceProvider.GetRequiredService<IAiSettingsRepository>().GetAsync(ct);
-                var byId = connections.Where(c => c.IsActive).ToDictionary(c => c.ConnectionId);
-                foreach (var p in purposes)
+                var data = await scope.ServiceProvider.GetRequiredService<IAiSettingsRepository>().GetAsync(ct);
+                policy = data.Policy;
+                var byId = data.Connections.Where(c => c.IsActive).ToDictionary(c => c.ConnectionId);
+                foreach (var p in data.Purposes)
                 {
+                    if (p.Disabled)
+                    {
+                        disabled.Add(p.Purpose);
+                        continue;
+                    }
                     if (p.ConnectionId is not { } id || !byId.TryGetValue(id, out var c) || string.IsNullOrWhiteSpace(p.Model)) continue;
                     var key = c.ApiKeyProtected is null ? null : protector.Unprotect(c.ApiKeyProtected);
                     if (c.ApiKeyProtected is not null && key is null)
@@ -82,7 +98,7 @@ public sealed class AiConnectionResolver(
             {
                 logger.LogWarning(ex, "AI connections could not be read (are db/tables/ai.tables.sql and db/procedures/ai.procedures.sql deployed?); using appsettings.");
             }
-            return _snapshot = new Snapshot(byPurpose, DateTime.UtcNow);
+            return _snapshot = new Snapshot(byPurpose, disabled, policy, DateTime.UtcNow);
         }
         finally
         {
@@ -145,14 +161,16 @@ public sealed class AiConnectionTester(HttpClient http, ILogger<AiConnectionTest
 /// <summary>ai.usp_* procedures (db/procedures/ai.procedures.sql).</summary>
 public sealed class AiSettingsRepository(IDbConnectionFactory connectionFactory) : IAiSettingsRepository
 {
-    public async Task<(IReadOnlyList<AiConnectionRow> Connections, IReadOnlyList<AiPurposeRow> Purposes)> GetAsync(CancellationToken ct = default)
+    public async Task<AiSettingsData> GetAsync(CancellationToken ct = default)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
         using var grid = await conn.QueryMultipleAsync(Proc("ai.usp_Settings_Get", null, ct));
         var connections = (await grid.ReadAsync<AiConnectionRow>()).Select(c => c with { UpdatedUtc = DateTime.SpecifyKind(c.UpdatedUtc, DateTimeKind.Utc) }).ToList();
         var purposes = (await grid.ReadAsync<AiPurposeRow>())
             .Select(p => p with { UpdatedUtc = p.UpdatedUtc is { } u ? DateTime.SpecifyKind(u, DateTimeKind.Utc) : null }).ToList();
-        return (connections, purposes);
+        var policy = (await grid.ReadAsync<AiPolicy>()).FirstOrDefault();
+        return new AiSettingsData(connections, purposes,
+            policy is null ? AiPolicy.Open : policy with { UpdatedUtc = policy.UpdatedUtc is { } pu ? DateTime.SpecifyKind(pu, DateTimeKind.Utc) : null });
     }
 
     public async Task<int> SaveConnectionAsync(int? connectionId, SaveAiConnectionRequest r, string keyAction, string? apiKeyProtected, string? apiKeyHint,
@@ -174,14 +192,20 @@ public sealed class AiSettingsRepository(IDbConnectionFactory connectionFactory)
         await RuleErrors(() => conn.ExecuteAsync(Proc("ai.usp_Connection_Delete", new { ConnectionId = connectionId, RowVer = rowVer }, ct)));
     }
 
-    public async Task SavePurposeAsync(string purpose, int? connectionId, string? model, string changedBy, CancellationToken ct = default)
+    public async Task SavePurposeAsync(string purpose, int? connectionId, string? model, bool disabled, string changedBy, CancellationToken ct = default)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
         await RuleErrors(() => conn.ExecuteAsync(Proc("ai.usp_Purpose_Save", new
         {
-            Purpose = purpose, ConnectionId = connectionId, Model = connectionId is null || string.IsNullOrWhiteSpace(model) ? null : model.Trim(),
-            ChangedBy = changedBy,
+            Purpose = purpose, ConnectionId = disabled ? null : connectionId,
+            Model = disabled || connectionId is null || string.IsNullOrWhiteSpace(model) ? null : model.Trim(), Disabled = disabled, ChangedBy = changedBy,
         }, ct)));
+    }
+
+    public async Task SavePolicyAsync(bool aiEnabled, bool allowCloud, string changedBy, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        await conn.ExecuteAsync(Proc("ai.usp_Policy_Save", new { AiEnabled = aiEnabled, AllowCloud = allowCloud, ChangedBy = changedBy }, ct));
     }
 
     /// <summary>THROW 50400 / 50404 / 50409 -> AiSettingsException with that HTTP status.</summary>

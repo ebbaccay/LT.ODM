@@ -21,7 +21,7 @@
             class="bg-muted flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border"
             [disabled]="!img.url"
             [attr.aria-label]="img.url ? img.open : img.none"
-            (click)="preview.set({ url: img.url!, title: img.title + ' · ' + s.styleNo })"
+            (click)="preview.set({ url: img.url!, title: img.title + ' · ' + s.styleNo, fileName: s.styleNo + '_' + img.kind })"
           >
             @if (img.url) {
               <img [appAuthSrc]="img.url" [alt]="img.title" class="size-full object-contain" />
@@ -40,6 +40,9 @@
             <div class="mt-2 flex flex-wrap gap-1.5">
               <span hlmBadge variant="secondary">{{ s.customerName }}</span>
               <span hlmBadge variant="secondary">{{ s.seasonCode }}</span>
+              @if (!s.isActive) {
+                <span class="rounded-full px-2 py-0.5 text-xs font-medium" [class]="toneBadge('neutral')">{{ 'styles.inactive' | transloco }}</span>
+              }
               @if (currentLink()?.relation) {
                 <span hlmBadge variant="outline"><ng-icon name="lucideGitBranch" />{{ (currentLink()!.relation === 'Variant' ? 'styles.detail.variant' : 'styles.detail.carryOver') | transloco }}</span>
               }
@@ -84,6 +87,7 @@
           }
           <a hlmBtn variant="outline" class="h-9 text-xs" routerLink="/ai/bom-check" [queryParams]="{ styleId: s.styleId }"><ng-icon name="lucideShieldAlert" />{{ 'styles.detail.aiBomCheck' | transloco }}</a>
           <a hlmBtn variant="outline" class="h-9 text-xs" routerLink="/ai/render" [queryParams]="{ styleId: s.styleId }"><ng-icon name="lucideWandSparkles" />{{ 'styles.detail.aiRender' | transloco }}</a>
+          <button hlmBtn variant="outline" type="button" class="h-9 text-xs" (click)="promptOpen.set(true)"><ng-icon name="lucideFileText" />{{ 'styles.detail.designPrompt' | transloco }}</button>
         </div>
       </div>
     </section>
@@ -129,7 +133,7 @@
                     class="bg-muted flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md border"
                     [disabled]="!c.imageUrl"
                     [attr.aria-label]="(c.imageUrl ? 'styles.detail.openImageOf' : 'styles.detail.noImage') | transloco: { code: c.colorwayCode }"
-                    (click)="preview.set({ url: c.imageUrl!, title: c.colorwayCode })"
+                    (click)="preview.set({ url: c.imageUrl!, title: c.colorwayCode, fileName: s.styleNo + '_' + c.colorwayCode })"
                   >
                     @if (c.imageUrl) {
                       <img [appAuthSrc]="c.imageUrl" alt="" class="size-full object-cover" />
@@ -176,6 +180,18 @@
                   <option hlmNativeSelectOption [value]="c.colorwayId.toString()">{{ c.colorwayCode }}{{ c.colorwayName ? ' · ' + c.colorwayName : '' }}</option>
                 }
               </hlm-native-select>
+              <div class="relative w-full sm:w-64">
+                <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+                <input
+                  hlmInput
+                  type="search"
+                  class="h-11 w-full pl-9 lg:h-8"
+                  [attr.aria-label]="'styles.detail.bomSearchLabel' | transloco"
+                  [placeholder]="'styles.detail.bomSearchPlaceholder' | transloco"
+                  [value]="bomSearch()"
+                  (input)="bomSearch.set($any($event.target).value)"
+                />
+              </div>
             </div>
             @if (canEdit()) {
               <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="openLine(null)"><ng-icon name="lucidePlus" />{{ 'styles.detail.addBomLine' | transloco }}</button>
@@ -183,7 +199,7 @@
           </div>
 
           @if (!bomSections().length) {
-            <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ (bomColorway() ? 'styles.detail.noLinesForColorway' : 'styles.detail.noLines') | transloco }}</p>
+            <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ (bomSearch().trim() ? 'styles.detail.noLinesForSearch' : bomColorway() ? 'styles.detail.noLinesForColorway' : 'styles.detail.noLines') | transloco }}</p>
           } @else {
             <!-- Column names (wide screens; on narrow ones each line labels its own values) -->
             <div
@@ -238,7 +254,7 @@
                     </div>
                     <div class="row-span-2 row-start-1 flex items-start gap-1 lg:row-span-1 lg:row-start-auto lg:items-center">
                       @if (l.imageUrl) {
-                        <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [attr.aria-label]="'styles.detail.openImageOf' | transloco: { code: l.materialCode }" (click)="preview.set({ url: l.imageUrl, title: l.materialCode })"><ng-icon name="lucideImage" /></button>
+                        <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [attr.aria-label]="'styles.detail.openImageOf' | transloco: { code: l.materialCode }" (click)="preview.set({ url: l.imageUrl, title: l.materialCode, fileName: s.styleNo + '_' + l.materialCode })"><ng-icon name="lucideImage" /></button>
                       }
                       @if (canEdit()) {
                         <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [attr.aria-label]="'styles.detail.editItem' | transloco: { code: l.materialCode }" (click)="openLine(l)"><ng-icon name="lucidePencil" /></button>
@@ -261,11 +277,18 @@
               <h2 class="font-semibold">{{ 'styles.detail.historyTitle' | transloco }}</h2>
               <p class="text-muted-foreground text-xs">{{ 'styles.detail.historyHint' | transloco: { styleNo: s.styleNo } }}</p>
             </div>
-            @if (canEdit()) {
-              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="historyOpen.set(true)">
-                <ng-icon name="lucideLink" />{{ (currentLink()?.sourceStyleId ? 'styles.detail.changeReusedFrom' : 'styles.detail.setReusedFrom') | transloco }}
-              </button>
-            }
+            <div class="flex flex-wrap items-center gap-2">
+              @if (family().length >= 2) {
+                <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [disabled]="compareIds().length !== 2" (click)="compareSelected()">
+                  <ng-icon name="lucideGitCompareArrows" />{{ 'styles.detail.compareSelected' | transloco: { count: compareIds().length } }}
+                </button>
+              }
+              @if (canEdit()) {
+                <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="historyOpen.set(true)">
+                  <ng-icon name="lucideLink" />{{ (currentLink()?.sourceStyleId ? 'styles.detail.changeReusedFrom' : 'styles.detail.setReusedFrom') | transloco }}
+                </button>
+              }
+            </div>
           </div>
           @if (family().length <= 1 && !currentLink()?.sourceStyleId) {
             <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ 'styles.detail.noFamily' | transloco }}</p>
@@ -301,9 +324,36 @@
                     } @else {
                       <p class="text-muted-foreground text-xs">{{ 'styles.detail.firstInFamily' | transloco }}</p>
                     }
+                    @if (m.sourceStyleId) {
+                      <!-- What changed: from the style it was reused from, and (further back) from the family's first style -->
+                      <div class="mt-1 flex flex-wrap gap-x-1">
+                        <a hlmBtn variant="ghost" size="sm" class="text-primary h-11 px-2 text-xs lg:h-7" [routerLink]="['/styles', m.styleId, 'compare']" [queryParams]="{ from: m.sourceStyleId }">
+                          <ng-icon name="lucideGitCompareArrows" />{{ (m.source ? 'styles.detail.compareParent' : 'styles.detail.compareParentOther') | transloco: { styleNo: m.source?.styleNo } }}
+                        </a>
+                        @if (m.origin; as o) {
+                          <a hlmBtn variant="ghost" size="sm" class="text-primary h-11 px-2 text-xs lg:h-7" [routerLink]="['/styles', m.styleId, 'compare']" [queryParams]="{ from: o.styleId }">
+                            <ng-icon name="lucideGitCompareArrows" />{{ 'styles.detail.compareOrigin' | transloco: { styleNo: o.styleNo } }}
+                          </a>
+                        }
+                      </div>
+                    }
                   </div>
-                  @if (canEdit() && m.sourceStyleId) {
-                    <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [attr.aria-label]="'styles.detail.removeLinkOf' | transloco: { styleNo: m.styleNo }" (click)="removeLink(m)"><ng-icon name="lucideUnlink" /></button>
+                  @if (family().length >= 2) {
+                    <label class="flex size-11 shrink-0 cursor-pointer items-center justify-center lg:size-8">
+                      <hlm-checkbox
+                        [checked]="compareIds().includes(m.styleId)"
+                        [aria-label]="'styles.detail.selectToCompare' | transloco: { styleNo: m.styleNo }"
+                        (checkedChange)="toggleCompare(m.styleId, $event)"
+                      />
+                    </label>
+                  }
+                  @if (canEdit()) {
+                    @if (m.sourceStyleId) {
+                      <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [attr.aria-label]="'styles.detail.removeLinkOf' | transloco: { styleNo: m.styleNo }" (click)="removeLink(m)"><ng-icon name="lucideUnlink" /></button>
+                    } @else {
+                      <!-- Keeps the tick boxes in one column when a row has no link to remove -->
+                      <span class="size-11 shrink-0 lg:size-8" aria-hidden="true"></span>
+                    }
                   }
                 </li>
               }
@@ -336,6 +386,11 @@
     <img [appAuthSrc]="p.url" [alt]="p.title" class="mx-auto max-h-[70dvh] rounded-md object-contain" />
   }
   <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="downloading()" (click)="downloadPreview()"><ng-icon name="lucideDownload" />{{ 'styles.image.downloadShort' | transloco }}</button>
     <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="preview.set(null)">{{ 'styles.detail.close' | transloco }}</button>
   </ng-container>
 </app-modal>
+
+@if (style(); as s) {
+  <app-design-prompt-dialog [open]="promptOpen()" [style]="s" [colorways]="colorways()" (closed)="promptOpen.set(false)" />
+}

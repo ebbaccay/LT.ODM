@@ -24,10 +24,12 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
     public Task<StyleLookupsDto> Lookups(CancellationToken ct) => styles.GetLookupsAsync(ct);
 
     [HttpGet]
+    /// <param name="status">active, inactive, or empty for both.</param>
     public Task<PagedResult<StyleListItemDto>> List(string? search, string? customer, string? season, string? businessUnit, string? productType,
-        string? weaveType, string? gender, string? material, int skip = 0, int take = 50, CancellationToken ct = default)
+        string? weaveType, string? gender, string? material, string? status, int skip = 0, int take = 50, CancellationToken ct = default)
         => styles.ListAsync(new StyleListQuery(Clean(search, 100), Clean(customer, 32), Clean(season, 200), Clean(businessUnit, 16),
-            Clean(productType, 400), Clean(weaveType, 8), Clean(gender, 16), Math.Max(0, skip), Math.Clamp(take, 1, 200), Clean(material, 100)), ct);
+            Clean(productType, 400), Clean(weaveType, 8), Clean(gender, 16), Math.Max(0, skip), Math.Clamp(take, 1, 200), Clean(material, 100),
+            status?.Trim().ToLowerInvariant() switch { "active" => true, "inactive" => false, _ => null }), ct);
 
     /// <summary>Landing page summary of the library (totals, seasons, top customers / materials / suppliers, recent changes).</summary>
     [HttpGet("dashboard")]
@@ -36,6 +38,16 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
     [HttpGet("{styleId:int}")]
     public async Task<IActionResult> Get(int styleId, CancellationToken ct)
         => await styles.GetAsync(styleId, ct) is { } style ? Ok(style) : NotFound();
+
+    /// <summary>
+    /// A prompt to paste into an outside design tool (StyTrix, Style3D AI, ...), built from the style, BOM and colorway data.
+    /// No AI call; nothing is sent anywhere. mode = text (text-to-design) or image (image-to-design with the sketch or photo).
+    /// </summary>
+    [HttpGet("{styleId:int}/design-prompt")]
+    public async Task<IActionResult> DesignPrompt(int styleId, string? mode, int? colorwayId, CancellationToken ct)
+        => await styles.GetAsync(styleId, ct) is { } style
+            ? Ok(Application.StyleAi.DesignPrompt.Build(style, mode, colorwayId))
+            : NotFound();
 
     // ----- Styles -----
 

@@ -26,7 +26,7 @@ public sealed class AiSettingsController(
     [HttpGet]
     public async Task<AiSettingsDto> Get(CancellationToken ct)
     {
-        var (connections, purposes) = await settings.GetAsync(ct);
+        var (connections, purposes, policy) = await settings.GetAsync(ct);
         var names = connections.ToDictionary(c => c.ConnectionId, c => c.Name);
         var fallbacks = new List<AiFallbackDto>();
         if (resolver is AiConnectionResolver r)
@@ -34,16 +34,19 @@ public sealed class AiSettingsController(
                 if (r.Fallback(p) is { } f && AiConnectionInfo.Of(f) is var info)
                     fallbacks.Add(new AiFallbackDto(p, f.Name, f.Model, info.IsConfigured, info.LeavesNetwork));
 
+        var blocked = new Dictionary<string, string?>();
+        foreach (var p in AiPurposes.All) blocked[p] = (await resolver.ExplainAsync(p, ct)).Blocked;
+
         return new AiSettingsDto(
             connections.Select(c => new AiConnectionDto(c.ConnectionId, c.Name, c.Kind, c.Endpoint, c.ApiKeyProtected is not null, c.ApiKeyHint, c.InHouse,
                 c.TimeoutSeconds, c.Notes, c.IsActive, purposes.Where(p => p.ConnectionId == c.ConnectionId).Select(p => p.Purpose).ToList(), c.UpdatedBy,
                 c.UpdatedUtc, c.RowVer)).ToList(),
             AiPurposes.All.Select(p => purposes.FirstOrDefault(x => x.Purpose == p) is { } x
                 ? new AiPurposeDto(p, AiPurposes.InUse.Contains(p), x.ConnectionId, x.ConnectionId is { } id ? names.GetValueOrDefault(id) : null, x.Model,
-                    x.UpdatedBy, x.UpdatedUtc)
-                : new AiPurposeDto(p, AiPurposes.InUse.Contains(p), null, null, null, null, null)).ToList(),
+                    x.UpdatedBy, x.UpdatedUtc, x.Disabled, blocked[p])
+                : new AiPurposeDto(p, AiPurposes.InUse.Contains(p), null, null, null, null, null, false, blocked[p])).ToList(),
             fallbacks,
-            AiConnectionKinds.All);
+            AiConnectionKinds.All, policy);
     }
 
     [HttpPost("connections")]
@@ -77,10 +80,22 @@ public sealed class AiSettingsController(
         if (errors.Count > 0) return Task.FromResult<IActionResult>(ValidationProblem(new ValidationProblemDetails(errors)));
         return Run(async () =>
         {
-            await settings.SavePurposeAsync(purpose, request.ConnectionId, request.Model, CurrentUserName, ct);
+            await settings.SavePurposeAsync(purpose, request.ConnectionId, request.Model, request.Off, CurrentUserName, ct);
             return NoContent();
         });
     }
+
+    /// <summary>
+    /// The central switches: AI on/off for the whole app, and whether services outside the LT network may be used.
+    /// Applies to the next AI call (every server process within a minute).
+    /// </summary>
+    [HttpPut("policy")]
+    public Task<IActionResult> SavePolicy(SaveAiPolicyRequest request, CancellationToken ct)
+        => Run(async () =>
+        {
+            await settings.SavePolicyAsync(request.AiEnabled, request.AllowCloud, CurrentUserName, ct);
+            return NoContent();
+        });
 
     /// <summary>
     /// One harmless call (the model list) to a saved connection or the form's draft. A blank API key uses the saved one.
@@ -95,7 +110,7 @@ public sealed class AiSettingsController(
         var key = string.IsNullOrWhiteSpace(request.ApiKey) ? null : request.ApiKey.Trim();
         if (key is null && request.ConnectionId is { } id)
         {
-            var (connections, _) = await settings.GetAsync(ct);
+            var connections = (await settings.GetAsync(ct)).Connections;
             if (connections.FirstOrDefault(c => c.ConnectionId == id)?.ApiKeyProtected is { } stored) key = protector.Unprotect(stored);
         }
         return Ok(await tester.TestAsync(request.Kind, request.Endpoint.Trim().TrimEnd('/'), key, request.TimeoutSeconds, ct));

@@ -194,4 +194,34 @@ public sealed class StylesTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal(HttpStatusCode.OK, copy.StatusCode);
         Assert.Contains("\"styleId\":43", await copy.Content.ReadAsStringAsync());
     }
+
+    [Fact]
+    public async Task Styles_can_be_marked_inactive_and_filtered_by_status()
+    {
+        var (admin, _) = await SignInAsync("Admin");
+        await admin.GetAsync("/api/v1/styles?status=inactive");
+        Assert.False(factory.Styles.LastListQuery!.IsActive);
+        await admin.GetAsync("/api/v1/styles?status=active");
+        Assert.True(factory.Styles.LastListQuery!.IsActive);
+        await admin.GetAsync("/api/v1/styles");
+        Assert.Null(factory.Styles.LastListQuery!.IsActive);
+
+        var body = new { rowVer = RowVer, customerCode = "ADI", seasonCode = "2027-SS", styleNo = "S1", isActive = false };
+        Assert.Equal(HttpStatusCode.OK, (await admin.PutAsJsonAsync("/api/v1/styles/5", body)).StatusCode);
+        Assert.False(((SaveStyleRequest)factory.Styles.Writes.Last().Request!).IsActive);
+    }
+
+    [Fact]
+    public async Task Design_prompt_is_readable_by_viewers_and_unknown_styles_are_404()
+    {
+        var (viewer, _) = await SignInAsync("Viewer");
+        var prompt = await viewer.GetFromJsonAsync<Application.StyleAi.DesignPromptDto>("/api/v1/styles/5/design-prompt?mode=image");
+        Assert.Equal("text", prompt!.Mode);   // the style has no sketch or photo
+        Assert.False(prompt.HasReference);
+        Assert.StartsWith("Design a garment", prompt.Prompt);
+        Assert.Equal(HttpStatusCode.NotFound, (await viewer.GetAsync("/api/v1/styles/404/design-prompt")).StatusCode);
+
+        var (factoryUser, _) = await SignInAsync("Factory");
+        Assert.Equal(HttpStatusCode.Forbidden, (await factoryUser.GetAsync("/api/v1/styles/5/design-prompt")).StatusCode);
+    }
 }

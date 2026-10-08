@@ -6,10 +6,12 @@ namespace LT.ODM.Application.Ai;
 /// <summary>
 /// Where AI requests go. LeavesNetwork is true for cloud services (Gemini): whatever goes in the prompt leaves LT.
 /// An in-house server keeps the data on the company network. Source: "settings" (Settings > AI connections) or
-/// "appsettings" (the server's configuration file).
+/// "appsettings" (the server's configuration file). Blocked: why the job cannot be used even though a service is set
+/// (AiBlocks.AiOff, JobOff or CloudBlocked; IsConfigured is then false).
 /// </summary>
 public sealed record AiProviderInfo(
-    string Provider, string Model, bool IsConfigured, bool LeavesNetwork, bool SupportsReferenceImage = false, string? Source = null);
+    string Provider, string Model, bool IsConfigured, bool LeavesNetwork, bool SupportsReferenceImage = false, string? Source = null,
+    string? Blocked = null);
 
 /// <summary>A text model that must answer with JSON matching a schema. The service is chosen per call (Settings > AI connections).</summary>
 public interface IAiJsonClient

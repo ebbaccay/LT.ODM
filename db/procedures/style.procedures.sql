@@ -51,6 +51,7 @@ CREATE OR ALTER PROCEDURE style.usp_Style_List
     @WeaveTypeCode    nvarchar(8)   = NULL,
     @Gender           nvarchar(16)  = NULL,
     @Material         nvarchar(100) = NULL,   -- contained in a BOM line's material code or description
+    @IsActive         bit           = NULL,   -- NULL = active and inactive
     @Skip             int           = 0,
     @Take             int           = 50
 AS
@@ -82,6 +83,7 @@ BEGIN
       AND (@ProductTypeCode IS NULL OR s.ProductTypeCode IN (SELECT Code FROM @productTypes))
       AND (@WeaveTypeCode IS NULL OR s.WeaveTypeCode = @WeaveTypeCode)
       AND (@Gender IS NULL OR s.Gender = @Gender)
+      AND (@IsActive IS NULL OR s.IsActive = @IsActive)
       AND (@Material IS NULL OR EXISTS (
                SELECT 1 FROM style.BomLine b JOIN mat.Material m ON m.MaterialId = b.MaterialId
                WHERE b.StyleId = s.StyleId
@@ -100,7 +102,7 @@ BEGIN
     SELECT s.StyleId, s.StyleNo, s.BaseStyleNo, s.Description, s.ModelCode, s.ModelName,
            CustomerCode = c.PartnerCode, CustomerName = c.Name, s.SeasonCode,
            s.BusinessUnitCode, BusinessUnitName = bu.Name, s.ProductTypeCode, ProductTypeName = pt.Name,
-           s.WeaveTypeCode, s.Gender, s.ImageUrl, s.SketchUrl,
+           s.WeaveTypeCode, s.Gender, s.ImageUrl, s.SketchUrl, s.IsActive,
            ColorwayCount = (SELECT COUNT(*) FROM style.Colorway k WHERE k.StyleId = s.StyleId),
            BomLineCount  = (SELECT COUNT(*) FROM style.BomLine b WHERE b.StyleId = s.StyleId),
            HasHistory    = CAST(IIF(EXISTS (SELECT 1 FROM style.StyleHistory h WHERE h.StyleId = s.StyleId OR h.SourceStyleId = s.StyleId), 1, 0) AS bit),
@@ -129,7 +131,7 @@ BEGIN
 
     SELECT s.StyleId, CustomerCode = c.PartnerCode, CustomerName = c.Name, s.SeasonCode, s.StyleNo, s.BaseStyleNo, s.Description,
            s.ModelCode, s.ModelName, s.WeaveTypeCode, WeaveTypeName = w.Name, s.ProductTypeCode, ProductTypeName = pt.Name,
-           s.Gender, s.GarmentLeadTimeDays, s.BusinessUnitCode, BusinessUnitName = bu.Name, s.SketchUrl, s.ImageUrl,
+           s.Gender, s.GarmentLeadTimeDays, s.BusinessUnitCode, BusinessUnitName = bu.Name, s.SketchUrl, s.ImageUrl, s.IsActive,
            s.SourceCreatedUtc, s.ImportBatchId, s.CreatedBy, s.CreatedUtc, s.UpdatedBy, s.UpdatedUtc, s.RowVer
     FROM style.Style s
     JOIN partner.Partner c ON c.PartnerId = s.CustomerId
@@ -372,6 +374,7 @@ CREATE OR ALTER PROCEDURE style.usp_Style_Save
     @BusinessUnitCode    nvarchar(16)  = NULL,
     @SketchUrl           nvarchar(500) = NULL,
     @ImageUrl            nvarchar(500) = NULL,
+    @IsActive            bit           = 1,
     @ChangedBy           nvarchar(64)
 AS
 BEGIN
@@ -404,9 +407,9 @@ BEGIN
     IF @StyleId IS NULL
     BEGIN
         INSERT style.Style (CustomerId, SeasonCode, StyleNo, Description, ModelCode, ModelName, WeaveTypeCode, ProductTypeCode, Gender,
-                            GarmentLeadTimeDays, BusinessUnitCode, SketchUrl, ImageUrl, CreatedBy)
+                            GarmentLeadTimeDays, BusinessUnitCode, SketchUrl, ImageUrl, IsActive, CreatedBy)
         VALUES (@customerId, @SeasonCode, @StyleNo, @Description, @ModelCode, @ModelName, @WeaveTypeCode, @ProductTypeCode, @Gender,
-                @GarmentLeadTimeDays, @BusinessUnitCode, @SketchUrl, @ImageUrl, @ChangedBy);
+                @GarmentLeadTimeDays, @BusinessUnitCode, @SketchUrl, @ImageUrl, ISNULL(@IsActive, 1), @ChangedBy);
         SET @StyleId = CAST(SCOPE_IDENTITY() AS int);
     END
     ELSE
@@ -414,7 +417,7 @@ BEGIN
             CustomerId = @customerId, SeasonCode = @SeasonCode, StyleNo = @StyleNo, Description = @Description,
             ModelCode = @ModelCode, ModelName = @ModelName, WeaveTypeCode = @WeaveTypeCode, ProductTypeCode = @ProductTypeCode,
             Gender = @Gender, GarmentLeadTimeDays = @GarmentLeadTimeDays, BusinessUnitCode = @BusinessUnitCode,
-            SketchUrl = @SketchUrl, ImageUrl = @ImageUrl, UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
+            SketchUrl = @SketchUrl, ImageUrl = @ImageUrl, IsActive = ISNULL(@IsActive, 1), UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
         WHERE StyleId = @StyleId;
 
     -- A number like 'S2808MR0000A' is a version of 'S2808MR0000' (and the reverse when the root is added later).

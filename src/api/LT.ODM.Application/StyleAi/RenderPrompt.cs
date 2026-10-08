@@ -91,14 +91,36 @@ public static partial class RenderPrompt
         return SpacesRegex().Replace(text.Replace("\"", "").Replace("''", ""), " ").Replace(" ,", ",").Replace(" .", ".").Trim();
     }
 
-    /// <summary>"70% COTTON 30% RECYCLED POLYESTER,SOLID FLEECE,32s/1 cotton + ..." -> "70% cotton 30% recycled polyester, solid fleece".</summary>
+    /// <summary>
+    /// "70% COTTON 30% RECYCLED POLYESTER,SOLID FLEECE,32s/1 cotton + ..." -> "70% cotton 30% recycled polyester, solid fleece";
+    /// "100%Recycle PA,Plain weave" -> "100% recycled polyamide, plain weave".
+    /// </summary>
     internal static string ShortFabric(string text)
     {
         var parts = text.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(p => !YarnRegex().IsMatch(p))
             .Take(2);
-        return Strip(Lower(string.Join(", ", parts)));
+        return Strip(Readable(Lower(string.Join(", ", parts))));
     }
+
+    /// <summary>
+    /// Factory shorthand to words image models and design tools understand: "100%recycle pa" -> "100% recycled polyamide",
+    /// "rec. pes" -> "recycled polyester", "ea" -> "elastane".
+    /// </summary>
+    public static string Readable(string fabric)
+    {
+        var text = PercentRegex().Replace(fabric, "% ");
+        text = RecycledRegex().Replace(text, "recycled ");
+        foreach (var (abbr, word) in Fibres)
+            text = Regex.Replace(text, $@"\b{abbr}\b", word, RegexOptions.IgnoreCase);
+        return SpacesRegex().Replace(text, " ").Trim();
+    }
+
+    private static readonly (string Abbr, string Word)[] Fibres =
+    [
+        ("pa", "polyamide"), ("pes", "polyester"), ("pet", "polyester"), ("poly", "polyester"), ("ea", "elastane"), ("el", "elastane"),
+        ("co", "cotton"), ("cot", "cotton"), ("vi", "viscose"), ("wo", "wool"),
+    ];
 
     private static string? Gender(string? g) => g?.ToUpperInvariant() switch
     {
@@ -118,6 +140,13 @@ public static partial class RenderPrompt
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex SpacesRegex();
+
+    [GeneratedRegex(@"%\s*")]
+    private static partial Regex PercentRegex();
+
+    /// <summary>"recycle ", "rec. ", "rec " (but not "recycled").</summary>
+    [GeneratedRegex(@"\b(?:recycle(?!d)|rec(?![a-z])\.?)\s*", RegexOptions.IgnoreCase)]
+    private static partial Regex RecycledRegex();
 
     /// <summary>Yarn specs ("32s/1 cotton", "75D/36F", "TEX#24") mean nothing to an image model.</summary>
     [GeneratedRegex(@"\d+\s*[sSdD]\s*/\s*\d+|\bTEX#|\d+F\b", RegexOptions.IgnoreCase)]

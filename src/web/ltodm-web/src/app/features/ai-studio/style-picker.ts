@@ -14,21 +14,24 @@ import { StyleLibraryService, StyleListItem } from '../style-library/style-libra
   imports: [NgIcon, HlmInputImports, TranslocoPipe],
   providers: [provideIcons({ lucideSearch })],
   template: `
-    <div class="relative">
-      <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
-      <input
-        hlmInput
-        type="search"
-        class="h-11 w-full pl-9 lg:h-9"
-        [id]="inputId()"
-        [attr.aria-label]="label() | transloco"
-        [placeholder]="'ai.picker.placeholder' | transloco"
-        [value]="text()"
-        (input)="onInput($event)"
-        (keydown.enter)="pickFirst($event)"
-        (keydown.escape)="results.set([])"
-        autocomplete="off"
-      />
+    <div>
+      <!-- Icon centred on the input only (the results list below is in the flow and would pull it down) -->
+      <div class="relative">
+        <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+        <input
+          hlmInput
+          type="search"
+          class="h-11 w-full pl-9 lg:h-9"
+          [id]="inputId()"
+          [attr.aria-label]="label() | transloco"
+          [placeholder]="'ai.picker.placeholder' | transloco"
+          [value]="text()"
+          (input)="onInput($event)"
+          (keydown.enter)="pickFirst($event)"
+          (keydown.escape)="results.set([])"
+          autocomplete="off"
+        />
+      </div>
       @if (results().length) {
         <!-- In the page flow, not absolute: cards clip overflow, which hid an absolute dropdown. -->
         <ul class="bg-popover mt-1 max-h-72 w-full overflow-auto rounded-md border p-1 shadow-sm" role="listbox">

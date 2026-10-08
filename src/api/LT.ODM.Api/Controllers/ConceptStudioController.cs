@@ -22,7 +22,7 @@ public sealed class ConceptStudioController(IConceptDraftAi ai, IConceptImageSto
         if (errors.Count > 0) return ValidationProblem(new ValidationProblemDetails(errors));
         if (!await ai.IsConfiguredAsync(ct))
             return Problem(statusCode: StatusCodes.Status503ServiceUnavailable,
-                title: "AI drafting is not set up on this server. Ask your administrator to set the Text job in Settings > AI connections.");
+                title: AiUnavailable.Generic("AI drafting"));
         try
         {
             return await ai.DraftAsync(request, ct);

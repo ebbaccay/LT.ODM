@@ -5,7 +5,12 @@
                     the API (ASP.NET Data Protection, key ring in App_Data/keys) before it is stored; ApiKeyHint keeps the
                     last 4 characters so admins can tell which key is saved. The key is never sent to the browser.
     ai.Purposes    : one row per job (text, image, embedding, vision, document, prediction) with its connection and model.
-                    No connection = the app's default from appsettings (text, image) or not set up (AI Lab jobs).
+                    No connection = the app's default from appsettings (text, image) or not set up (AI Lab jobs);
+                    Disabled = the job is turned off (no default either).
+    ai.Policy      : one row, the central switches. AiEnabled = 0 turns every AI call off. AllowCloud = 0 blocks every
+                    service outside the LT network (Gemini, or a connection not marked in-house), whatever the jobs or
+                    appsettings say. A new database starts with AllowCloud = 0; a database that already used a cloud
+                    connection when this table was added keeps it on.
     Idempotent.
 
       sqlcmd -S YOUR_SERVER -d YOUR_DATABASE -E -b -I -i tables\ai.tables.sql
@@ -61,9 +66,37 @@ CREATE TABLE ai.Purposes
 );
 GO
 
+-- Databases created before jobs could be turned off.
+IF COL_LENGTH(N'ai.Purposes', N'Disabled') IS NULL
+    ALTER TABLE ai.Purposes ADD Disabled bit NOT NULL CONSTRAINT DF_ai_Purposes_Disabled DEFAULT (0);
+GO
+
 INSERT ai.Purposes (Purpose)
 SELECT v.Purpose FROM (VALUES ('text'), ('image'), ('embedding'), ('vision'), ('document'), ('prediction')) v (Purpose)
 WHERE NOT EXISTS (SELECT 1 FROM ai.Purposes p WHERE p.Purpose = v.Purpose);
+GO
+
+IF OBJECT_ID(N'ai.Policy', N'U') IS NULL
+BEGIN
+    CREATE TABLE ai.Policy
+    (
+        PolicyId    tinyint        NOT NULL CONSTRAINT DF_ai_Policy_Id DEFAULT (1),
+        AiEnabled   bit            NOT NULL,
+        AllowCloud  bit            NOT NULL,
+        UpdatedBy   nvarchar(64)   NULL,
+        UpdatedUtc  datetime2(3)   NULL,
+
+        CONSTRAINT PK_ai_Policy PRIMARY KEY CLUSTERED (PolicyId),
+        CONSTRAINT CK_ai_Policy_OneRow CHECK (PolicyId = 1)
+    );
+
+    -- Safe by default: no cloud AI until an Admin allows it. Keep today's behaviour where a job already uses a cloud connection.
+    INSERT ai.Policy (PolicyId, AiEnabled, AllowCloud, UpdatedBy, UpdatedUtc)
+    SELECT 1, 1,
+           IIF(EXISTS (SELECT 1 FROM ai.Purposes p JOIN ai.Connections c ON c.ConnectionId = p.ConnectionId
+                       WHERE c.Kind = 'Gemini' OR c.InHouse = 0), 1, 0),
+           N'setup', SYSUTCDATETIME();
+END
 GO
 
 PRINT 'AI connection tables ready.';

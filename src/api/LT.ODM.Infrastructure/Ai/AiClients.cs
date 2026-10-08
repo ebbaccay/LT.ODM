@@ -224,7 +224,7 @@ public static partial class OpenAiApi
 /// <summary>Text answers from the service set for the "text" job (Settings > AI connections, else appsettings).</summary>
 public sealed class RoutedAiJsonClient(HttpClient http, IAiConnectionResolver resolver, ILogger<RoutedAiJsonClient> logger) : IAiJsonClient
 {
-    public async Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default) => AiHttp.Info(await resolver.ResolveAsync(AiPurposes.Text, ct));
+    public async Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default) => AiConnectionInfo.Of(await resolver.ExplainAsync(AiPurposes.Text, ct));
 
     public async Task<string> GenerateJsonAsync(string purpose, string systemInstruction, string userText, JsonObject schema, double temperature, CancellationToken ct = default)
     {
@@ -240,7 +240,7 @@ public sealed class RoutedAiJsonClient(HttpClient http, IAiConnectionResolver re
 public sealed class RoutedAiImageClient(HttpClient http, IAiConnectionResolver resolver, IOptions<OpenAiCompatibleOptions> openAi, ILogger<RoutedAiImageClient> logger)
     : IAiImageClient
 {
-    public async Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default) => AiHttp.Info(await resolver.ResolveAsync(AiPurposes.Image, ct));
+    public async Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default) => AiConnectionInfo.Of(await resolver.ExplainAsync(AiPurposes.Image, ct));
 
     public async Task<GeneratedImage> GenerateImageAsync(string purpose, string prompt, ReferenceImage? reference, CancellationToken ct = default)
     {

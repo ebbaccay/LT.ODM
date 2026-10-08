@@ -20,10 +20,17 @@ public interface IConceptDraftAi
     Task<ConceptDraftDto> DraftAsync(ConceptDraftRequest request, CancellationToken ct = default);
 }
 
+/// <summary>The image could not be decoded (damaged, or not really an image).</summary>
+public sealed class UnreadableImageException() : Exception("This image could not be read. Try another file.");
+
 /// <summary>Uploaded images, stored outside the web root and served to signed-in users only.</summary>
 public interface IImageStore
 {
-    /// <summary>Saves a validated image and returns its file name (32 hex characters + extension).</summary>
+    /// <summary>
+    /// Saves a validated image, made smaller first (scaled to the store's size limit, re-encoded, metadata removed),
+    /// and returns its file name (32 hex characters + extension; the extension may differ from the input's).
+    /// </summary>
+    /// <exception cref="UnreadableImageException">The content cannot be decoded.</exception>
     Task<string> SaveAsync(byte[] content, ImageKind kind, CancellationToken ct = default);
 
     /// <summary>Opens a stored image, or null when the name is invalid or the file does not exist.</summary>

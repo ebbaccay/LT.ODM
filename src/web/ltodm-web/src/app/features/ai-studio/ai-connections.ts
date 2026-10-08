@@ -34,6 +34,9 @@ interface PurposeDraft {
 }
 
 /** Address each kind usually has (shown as the placeholder; Gemini's is filled in). */
+/** Select value for "Off" (the job is turned off). */
+const OFF = 'off';
+
 const ENDPOINTS: Record<AiConnectionKind, string> = {
   Gemini: 'https://generativelanguage.googleapis.com/v1beta',
   OpenAiCompatible: 'http://ai-server.lt.local:8000/v1',
@@ -98,7 +101,7 @@ export class AiConnections implements OnInit {
           Object.fromEntries(
             s.purposes.map((p) => [
               p.purpose,
-              unsaved.includes(p.purpose) ? current[p.purpose] : { connectionId: p.connectionId ? String(p.connectionId) : '', model: p.model ?? '' },
+              unsaved.includes(p.purpose) ? current[p.purpose] : { connectionId: this.savedChoice(p), model: p.model ?? '' },
             ]),
           ),
         );
@@ -120,22 +123,28 @@ export class AiConnections implements OnInit {
     this.drafts.update((d) => ({ ...d, [purpose]: { ...d[purpose], ...patch } }));
   }
 
+  /** The select's value for a saved job: 'off', a connection id, or '' (app default / not set). */
+  private savedChoice = (p: { connectionId: number | null; disabled: boolean }) => (p.disabled ? OFF : p.connectionId ? String(p.connectionId) : '');
+
   dirty(purpose: AiPurpose): boolean {
     const p = this.settings()?.purposes.find((x) => x.purpose === purpose);
     const d = this.drafts()[purpose];
     if (!p || !d) return false;
-    return d.connectionId !== (p.connectionId ? String(p.connectionId) : '') || (d.connectionId !== '' && d.model.trim() !== (p.model ?? ''));
+    return d.connectionId !== this.savedChoice(p) || (this.isConnection(d.connectionId) && d.model.trim() !== (p.model ?? ''));
   }
+
+  isConnection = (choice: string) => choice !== '' && choice !== OFF;
 
   savePurpose(purpose: AiPurpose): void {
     const d = this.drafts()[purpose];
     if (!d) return;
-    if (d.connectionId && !d.model.trim()) {
+    if (this.isConnection(d.connectionId) && !d.model.trim()) {
       toast.error(this.t('aiSettings.modelRequired'));
       return;
     }
     this.savingPurpose.set(purpose);
-    this.svc.savePurpose(purpose, d.connectionId ? Number(d.connectionId) : null, d.connectionId ? d.model.trim() : null).subscribe({
+    const conn = this.isConnection(d.connectionId);
+    this.svc.savePurpose(purpose, conn ? Number(d.connectionId) : null, conn ? d.model.trim() : null, d.connectionId === OFF).subscribe({
       next: () => {
         this.savingPurpose.set(null);
         this.svc.refreshStatus();
@@ -159,6 +168,46 @@ export class AiConnections implements OnInit {
         (r.ok ? toast.success : toast.error)(r.message);
       },
       error: (e) => toast.error(problemMessage(e)),
+    });
+  }
+
+  // ── Central switches ───────────────────────────────────────
+
+  readonly savingPolicy = signal(false);
+  readonly off = OFF;
+
+  /** Turning cloud AI on or all AI off is asked for first; the other direction (safer) is not. */
+  async setPolicy(change: { aiEnabled?: boolean; allowCloud?: boolean }): Promise<void> {
+    const current = this.settings()?.policy;
+    if (!current || this.savingPolicy()) return;
+    const next = { aiEnabled: change.aiEnabled ?? current.aiEnabled, allowCloud: change.allowCloud ?? current.allowCloud };
+    const ask = change.allowCloud === true ? 'allowCloud' : change.aiEnabled === false ? 'aiOff' : null;
+    if (ask) {
+      const ok = await this.confirmDlg.confirm({
+        title: this.t('aiSettings.switches.confirm.' + ask + '.title'),
+        message: this.t('aiSettings.switches.confirm.' + ask + '.message'),
+        confirmLabel: this.t('aiSettings.switches.confirm.' + ask + '.ok'),
+        cancelLabel: this.t('actions.cancel'),
+        variant: ask === 'allowCloud' ? 'danger' : 'warning',
+      });
+      if (!ok) {
+        this.load();
+        return;
+      }
+    }
+    this.savingPolicy.set(true);
+    this.svc.savePolicy(next.aiEnabled, next.allowCloud).subscribe({
+      next: () => {
+        this.savingPolicy.set(false);
+        this.svc.refreshStatus();
+        toast.success(this.t('aiSettings.switches.saved'));
+        this.load();
+      },
+      error: (e) => {
+        this.savingPolicy.set(false);
+        toast.error(problemMessage(e));
+        this.load();
+      },
     });
   }
 

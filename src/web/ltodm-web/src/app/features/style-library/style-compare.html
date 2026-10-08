@@ -1,0 +1,57 @@
+<section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
+  <a [routerLink]="['/styles', styleId()]" [queryParams]="{ tab: 'history' }" class="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm">
+    <ng-icon name="lucideArrowLeft" />{{ (styleNo() ? 'styles.compare.backTo' : 'styles.compare.backToStyle') | transloco: { styleNo: styleNo() } }}
+  </a>
+  <header>
+    <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight"><ng-icon name="lucideGitCompareArrows" />{{ 'styles.compare.title' | transloco }}</h1>
+    <p class="text-muted-foreground mt-1 text-sm">{{ 'styles.compare.subtitle' | transloco }}</p>
+  </header>
+
+  <!-- Another style to compare with: the family first, then any style -->
+  <ng-template #pickers>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+      @if (others().length) {
+        <div class="flex-1">
+          <label for="compare-family" class="text-muted-foreground mb-1 block text-xs">{{ 'styles.compare.family' | transloco }}</label>
+          <hlm-native-select
+            selectId="compare-family"
+            selectClass="h-11 w-full lg:h-9"
+            [value]="diff()?.from?.styleId?.toString() ?? ''"
+            (valueChange)="compareWith($event ? +$event : null)"
+          >
+            <option hlmNativeSelectOption value="" disabled>{{ 'styles.compare.chooseFamily' | transloco }}</option>
+            @for (m of others(); track m.styleId) {
+              <option hlmNativeSelectOption [value]="m.styleId.toString()">
+                {{ m.styleNo }} · {{ m.seasonCode }}{{ isParent(m) ? ' · ' + ('styles.compare.reusedFrom' | transloco) : '' }}
+              </option>
+            }
+          </hlm-native-select>
+        </div>
+      }
+      <div class="flex-1">
+        <label class="text-muted-foreground mb-1 block text-xs" for="compare-other">{{ 'ai.compare.compareOther' | transloco }}</label>
+        <app-style-picker inputId="compare-other" label="ai.compare.compareOther" (picked)="pickOther($event)" />
+      </div>
+    </div>
+  </ng-template>
+
+  @if (loading()) {
+    <div hlmSkeleton class="h-40 w-full"></div>
+    <div hlmSkeleton class="h-72 w-full"></div>
+  } @else if (problem()) {
+    <section hlmCard class="gap-3 p-5">
+      <p class="text-sm">{{ problem() }}</p>
+      <ng-container [ngTemplateOutlet]="pickers" />
+    </section>
+  } @else if (diff(); as d) {
+    <app-style-diff [diff]="d">
+      <div class="flex flex-col gap-3 border-t pt-4">
+        <ng-container [ngTemplateOutlet]="pickers" />
+        <button hlmBtn variant="ghost" type="button" class="h-11 w-fit lg:h-9" (click)="swap()">
+          <ng-icon name="lucideArrowLeftRight" />{{ 'styles.compare.swap' | transloco }}
+        </button>
+      </div>
+      <app-compare-summary-card diffSummary [diff]="d" />
+    </app-style-diff>
+  }
+</section>

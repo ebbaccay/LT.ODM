@@ -56,6 +56,11 @@
           <option hlmNativeSelectOption [value]="g.code">{{ 'styles.gender.' + g.code | transloco }}</option>
         }
       </hlm-native-select>
+      <hlm-native-select selectId="filter-status" selectClass="h-11 w-full lg:h-9 lg:w-36" [attr.aria-label]="'styles.status' | transloco" [value]="f.status" (valueChange)="setFilter('status', $event ?? '')">
+        <option hlmNativeSelectOption value="">{{ 'styles.activeStyles' | transloco }}</option>
+        <option hlmNativeSelectOption value="inactive">{{ 'styles.inactiveStyles' | transloco }}</option>
+        <option hlmNativeSelectOption value="all">{{ 'styles.allStatuses' | transloco }}</option>
+      </hlm-native-select>
       @if (activeFilters() || f.search) {
         <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" (click)="clearFilters()"><ng-icon name="lucideX" />{{ 'styles.clear' | transloco }}</button>
       }
@@ -111,16 +116,19 @@
               class="hover:bg-accent/40 grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-0.5 px-5 py-3 transition-colors lg:grid-cols-[3.5rem_minmax(0,1.5fr)_minmax(0,8rem)_minmax(0,1fr)_minmax(0,4.5rem)_minmax(0,4.5rem)_minmax(0,7rem)]"
             >
               <span class="bg-muted row-span-2 flex size-14 items-center justify-center overflow-hidden rounded-md border lg:row-span-1">
-                @let thumb = s.imageUrl || s.sketchUrl;
-                @if (thumb && !brokenImages().has(s.styleId)) {
-                  <img [appAuthSrc]="thumb" alt="" class="size-full object-cover" loading="lazy" (loadError)="markBroken(s.styleId)" />
+                @let thumb = thumbFor(s);
+                @if (thumb) {
+                  <img [appAuthSrc]="thumb" alt="" class="size-full object-cover" loading="lazy" (loadError)="markBroken(thumb)" />
                 } @else {
                   <ng-icon name="lucideImage" class="text-muted-foreground" />
                 }
               </span>
               <span class="min-w-0">
                 <span class="flex items-center gap-2">
-                  <span class="truncate font-mono text-sm font-medium">{{ s.styleNo }}</span>
+                  <span class="truncate font-mono text-sm font-medium" [class.text-muted-foreground]="!s.isActive">{{ s.styleNo }}</span>
+                  @if (!s.isActive) {
+                    <span class="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium">{{ 'styles.inactive' | transloco }}</span>
+                  }
                   @if (s.hasHistory) {
                     <ng-icon name="lucideGitBranch" class="text-muted-foreground shrink-0" [title]="'styles.hasHistory' | transloco" />
                   }

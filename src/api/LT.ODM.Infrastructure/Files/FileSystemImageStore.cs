@@ -14,8 +14,11 @@ public sealed class FileStorageOptions
     public string Root { get; set; } = "";
 }
 
-/// <summary>Images on disk in one folder under Files:Root, named by a random id so names cannot be guessed or chosen.</summary>
-public abstract partial class FileSystemImageStore(IOptions<FileStorageOptions> options, string folderName) : IImageStore
+/// <summary>
+/// Images on disk in one folder under Files:Root, named by a random id so names cannot be guessed or chosen.
+/// Each image is made smaller before it is written (<see cref="ImageOptimizer"/>): longest side at most MaxDimension.
+/// </summary>
+public abstract partial class FileSystemImageStore(IOptions<FileStorageOptions> options, string folderName, int maxDimension) : IImageStore
 {
     private readonly string _folder = Path.GetFullPath(Path.Combine(options.Value.Root, folderName));
 
@@ -24,9 +27,10 @@ public abstract partial class FileSystemImageStore(IOptions<FileStorageOptions> 
 
     public async Task<string> SaveAsync(byte[] content, ImageKind kind, CancellationToken ct = default)
     {
+        var (optimized, storedKind) = ImageOptimizer.Optimize(content, kind, maxDimension);
         Directory.CreateDirectory(_folder);
-        var name = Guid.NewGuid().ToString("N") + ConceptStudioRules.Extension(kind);
-        await File.WriteAllBytesAsync(Path.Combine(_folder, name), content, ct);
+        var name = Guid.NewGuid().ToString("N") + ConceptStudioRules.Extension(storedKind);
+        await File.WriteAllBytesAsync(Path.Combine(_folder, name), optimized, ct);
         return name;
     }
 
@@ -39,14 +43,19 @@ public abstract partial class FileSystemImageStore(IOptions<FileStorageOptions> 
     }
 }
 
-/// <summary>Concept Studio inspiration images (Files:Root/concept-inspiration).</summary>
+// Size limits match what each screen already resizes to in the browser; the server applies them to anything that skips it.
+
+/// <summary>Concept Studio inspiration images (Files:Root/concept-inspiration), at most 1200 px.</summary>
 public sealed class FileSystemConceptImageStore(IOptions<FileStorageOptions> options)
-    : FileSystemImageStore(options, "concept-inspiration"), IConceptImageStore;
+    : FileSystemImageStore(options, "concept-inspiration", 1200), IConceptImageStore;
 
-/// <summary>SBU product photos (Files:Root/sbu-products).</summary>
+/// <summary>SBU product photos (Files:Root/sbu-products), at most 800 px.</summary>
 public sealed class FileSystemProductImageStore(IOptions<FileStorageOptions> options)
-    : FileSystemImageStore(options, "sbu-products"), IProductImageStore;
+    : FileSystemImageStore(options, "sbu-products", 800), IProductImageStore;
 
-/// <summary>Style Library sketches and photos of styles, colorways and BOM lines (Files:Root/style-library).</summary>
+/// <summary>
+/// Style Library sketches and photos of styles, colorways and BOM lines, and AI renders (Files:Root/style-library),
+/// at most 1600 px: enough for the style page, proposals and printing, and for sketch details to stay readable.
+/// </summary>
 public sealed class FileSystemStyleImageStore(IOptions<FileStorageOptions> options)
-    : FileSystemImageStore(options, "style-library"), IStyleImageStore;
+    : FileSystemImageStore(options, "style-library", 1600), IStyleImageStore;
