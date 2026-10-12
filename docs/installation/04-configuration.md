@@ -25,14 +25,22 @@ $appcmd = "$env:windir\system32\inetsrv\appcmd.exe"
 # change an existing one: replace /+ with /"[name='LTODM'].environmentVariables.[name='Jwt__SigningKey'].value:NEW"
 ```
 
+**Values with `$` or `` ` ``** (passwords, keys): PowerShell expands them inside double quotes, so IIS silently stores a different value (e.g. a SQL password `Abc$123x!` becomes `Abc!` and the API fails with *Login failed*). Use single quotes, writing each `'` inside as `''`:
+
+```powershell
+& $appcmd set config -section:system.applicationHost/applicationPools '/[name=''LTODM''].environmentVariables.[name=''ConnectionStrings__StyleLibrary''].value:Server=SQL01;Database=LTODM;User ID=ltodm_app_login;Password=Abc$123x!;Encrypt=True' /commit:apphost
+```
+
+Check what was stored with `& $appcmd list apppool LTODM /config`. Generating passwords from letters and digits only avoids the problem altogether.
+
 Recycle the app pool after changing variables. `applicationHost.config` is readable by administrators only; keep it that way.
 
 ## Required
 
 | Setting | Example | Notes |
 |---|---|---|
-| `ConnectionStrings:StyleLibrary` | `Server=SQL01;Database=LTODM;Integrated Security=True;Encrypt=True` | Windows authentication as the app-pool account. `TrustServerCertificate=True` is for development only |
-| `Jwt:SigningKey` | 64+ random characters | Signs sign-in tokens. Generate: `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))`. Different per environment. Changing it signs everyone out |
+| `ConnectionStrings:StyleLibrary` | `Server=SQL01;Database=LTODM;User ID=ltodm_app_login;Password=...;Encrypt=True` | **Secret** (contains the password). SQL login from [Database §3](02-database.md#3-permissions-for-the-application), on IIS and Linux alike. `TrustServerCertificate=True` only while SQL Server has no trusted certificate (development) |
+| `Jwt:SigningKey` | 64+ random characters | Signs sign-in tokens. Generate: `$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)` (works in Windows PowerShell 5.1 and PowerShell 7). Different per environment. Changing it signs everyone out |
 | `Auth:PublicBaseUrl` | `https://ltodm.lt.local` | The address in invitation and password-reset emails |
 
 ## Email (invitations, password resets)
@@ -46,7 +54,7 @@ Recycle the app pool after changing variables. `applicationHost.config` is reada
 | `Email:FromName` | LT ODM Style Library | |
 | `Email:UserName`, `Email:Password` | (empty) | Only if the relay needs a login (secret) |
 
-Without SMTP, new users cannot receive their set-password link; an Admin can send a new link once SMTP works.
+Without SMTP, new users cannot receive their set-password link; an Admin can send a new link once SMTP works, or meanwhile choose **Set a temporary password** when adding the user (or **Edit access > Set temporary password** for an existing one).
 
 ## Files
 
@@ -93,6 +101,21 @@ The AI service for each job is normally chosen **in the app** (Settings > AI con
 
 See [AI overview](../ai/overview.md).
 
+### Image search look-alike model (built into the API)
+
+Search by photo, by words and "more like this" use an image model that runs **inside the API** (ONNX Runtime on the CPU; no AI server, nothing sent anywhere). Its files are not in the release: copy them to the server once ([File storage](08-file-storage.md#image-search-model-files)).
+
+| Setting | Default | Notes |
+|---|---|---|
+| `ImageSearch:ImageModel:Folder` | `App_Data/models/marqo-fashionSigLIP` | Relative paths start at the API folder. On servers set it **outside the site**, e.g. `D:\LTODM\models\marqo-fashionSigLIP`, so a release does not remove it. Empty = look-alike search off (photos then go to the Vision job) |
+| `ImageSearch:ImageModel:File` | `onnx/vision_model_int8.onnx` | The model's vision part inside Folder |
+| `ImageSearch:ImageModel:TextFile` | `onnx/text_model_int8.onnx` | The model's text part (search by words without the AI server). Empty, or the file missing = words go to the descriptions |
+| `ImageSearch:ImageModel:TokenizerFile` | `tokenizer.json` | The text part's tokenizer (Hugging Face format, SentencePiece Unigram) |
+| `ImageSearch:ImageModel:Name` | (folder/file name, `marqo-fashionSigLIP/vision_model_int8`) | Stored with every vector. Changing it, Folder's name or File makes every picture be indexed again (under a second each) |
+| `ImageSearch:ImageModel:Size`, `Mean`, `Std` | 224, 0.5, 0.5 | Input size and pixel normalisation of the model. Change only with another model |
+
+The model must return 768 numbers per picture (`style.ImageVector.Vector` is `vector(768)`). The **AI features** switch in Settings > AI connections turns it off too.
+
 ## Other
 
 | Setting | Notes |
@@ -100,4 +123,6 @@ See [AI overview](../ai/overview.md).
 | `AgGrid:LicenseKey` | AG Grid Enterprise licence (secret-ish: it reaches the browser, but keep it out of the repository). Without it grids show a watermark |
 | `TmsProcedures` (in `tms-procedures.json`, shipped with the API) | Which TMS procedures each ported module may call, and how parameters are filled from the signed-in user. Part of the release; do not edit on servers |
 | `Logging:LogLevel:*` | `Information` by default; `Microsoft.AspNetCore` at `Warning` |
+| `ForwardedHeaders:KnownProxies` | Linux behind nginx only, when nginx runs on **another** server: its IP address(es), e.g. `ForwardedHeaders__KnownProxies__0=10.0.0.5`. nginx on the same server (loopback) is trusted without it. See [Linux and nginx](09-linux-nginx.md) |
+| `Database:ConnectionName` | Which `ConnectionStrings` entry the API uses (default `StyleLibrary`). Developer PCs only: the `https-devserver` launch profile sets it to `StyleLibraryDevServer`. Leave unset on servers |
 | `ASPNETCORE_ENVIRONMENT` | Leave unset on servers (= `Production`). `Development` shows error details and the OpenAPI pages: never on a server |

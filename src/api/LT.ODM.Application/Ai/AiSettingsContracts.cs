@@ -12,9 +12,9 @@ public static class AiPurposes
     public const string Text = "text";
     /// <summary>AI Studio style renders.</summary>
     public const string Image = "image";
-    /// <summary>AI Lab: look-alike search (image / text embeddings).</summary>
+    /// <summary>AI Studio image search: the vector of each picture's description (and of the words searched for).</summary>
     public const string Embedding = "embedding";
-    /// <summary>AI Lab: colour reader, photo understanding.</summary>
+    /// <summary>AI Studio image search: reads garment pictures into a description. Later: colour reader.</summary>
     public const string Vision = "vision";
     /// <summary>AI Lab: tech pack reader (PDF pages).</summary>
     public const string Document = "document";
@@ -24,7 +24,7 @@ public static class AiPurposes
     public static readonly string[] All = [Text, Image, Embedding, Vision, Document, Prediction];
 
     /// <summary>Jobs the app calls today; the others are prepared for AI Lab capabilities.</summary>
-    public static readonly string[] InUse = [Text, Image];
+    public static readonly string[] InUse = [Text, Image, Embedding, Vision];
 }
 
 public static class AiConnectionKinds
@@ -109,6 +109,9 @@ public interface IAiConnectionResolver
 
     /// <summary>Drops the cached settings (after a save) so the next call reads them again.</summary>
     void Invalidate();
+
+    /// <summary>The <b>AI features</b> switch (ai.Policy.AiEnabled). Also covers AI that runs inside the API (image search's look-alike model).</summary>
+    Task<bool> AiEnabledAsync(CancellationToken ct = default) => Task.FromResult(true);
 }
 
 /// <summary>Encrypts API keys before they are stored (ASP.NET Data Protection in the API).</summary>

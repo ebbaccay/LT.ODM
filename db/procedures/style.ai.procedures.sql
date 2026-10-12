@@ -3,6 +3,8 @@
 
     usp_BomCheck_Run      rule-based BOM check (the AI only explains its findings)
     usp_AiRender_List / _Add / _Delete   AI renders of a style (style.AiRender)
+    fn_ImageSlots, usp_ImageIndex_Status / _ToIndex / _Save, usp_ImageSearch   image search (style.ImageIndex)
+    usp_ImageVector_Status / _ToIndex / _Save, usp_ImageVectorSearch   look-alike vectors (style.ImageVector)
 
     Smart search uses style.usp_Style_List; the change summary reads both styles with style.usp_Style_Get.
     Requires style.tables.sql and style.procedures.sql. Idempotent.
@@ -290,5 +292,368 @@ BEGIN
     LEFT JOIN ref.ProductType pt ON pt.ProductTypeCode = s.ProductTypeCode
     WHERE x.Score > 0
     ORDER BY x.Score DESC, se.SeasonYear DESC, t.SortOrder DESC, s.StyleNo;
+END
+GO
+
+/* ---------- Image search ---------- */
+
+/*
+    Every picture image search can read: a style's photo and sketch, colorway pictures, AI renders. Only pictures stored
+    by LT ODM (/api/v1/styles/images/...): outside addresses from imports are not fetched.
+*/
+CREATE OR ALTER FUNCTION style.fn_ImageSlots()
+RETURNS TABLE
+AS
+RETURN
+    SELECT s.StyleId, Source = CAST('Photo' AS varchar(10)), ItemId = 0, ImageUrl = s.ImageUrl
+    FROM style.Style s WHERE s.ImageUrl LIKE N'/api/v1/styles/images/%'
+    UNION ALL
+    SELECT s.StyleId, 'Sketch', 0, s.SketchUrl
+    FROM style.Style s WHERE s.SketchUrl LIKE N'/api/v1/styles/images/%'
+    UNION ALL
+    SELECT c.StyleId, 'Colorway', c.ColorwayId, c.ImageUrl
+    FROM style.Colorway c WHERE c.ImageUrl LIKE N'/api/v1/styles/images/%'
+    UNION ALL
+    SELECT r.StyleId, 'Render', r.RenderId, r.ImageUrl
+    FROM style.AiRender r WHERE r.ImageUrl LIKE N'/api/v1/styles/images/%';
+GO
+
+/*
+    How far the index is for the current models: per source, the pictures, those indexed (searchable), those that could
+    not be read (Failed) and those still to do (new, changed, or indexed with other models).
+*/
+CREATE OR ALTER PROCEDURE style.usp_ImageIndex_Status
+    @VisionModel    nvarchar(200),
+    @EmbeddingModel nvarchar(200)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- Rows the first version stored for missing files (see the _ToIndex procedure) are removed here too, so the page
+    -- counts them as to do and the Index button is offered.
+    DELETE FROM style.ImageIndex WHERE Error = N'The picture file is missing or is not a picture.';
+    SELECT p.Source,
+           Pictures = COUNT(*),
+           Indexed  = SUM(IIF(i.ImageIndexId IS NOT NULL AND i.Embedding IS NOT NULL, 1, 0)),
+           Failed   = SUM(IIF(i.ImageIndexId IS NOT NULL AND i.Embedding IS NULL, 1, 0)),
+           ToIndex  = SUM(IIF(i.ImageIndexId IS NULL, 1, 0))
+    FROM style.fn_ImageSlots() p
+    LEFT JOIN style.ImageIndex i
+           ON i.StyleId = p.StyleId AND i.Source = p.Source AND i.ItemId = p.ItemId AND i.ImageUrl = p.ImageUrl
+          AND i.VisionModel = @VisionModel AND i.EmbeddingModel = @EmbeddingModel
+    GROUP BY p.Source;
+END
+GO
+
+/*
+    The next pictures to index. First tidies up: removes rows of pictures that are gone, and copies the reading of a
+    picture already indexed with the same models (a style copied to another season shares its files), so no AI call is
+    spent on it. KnownText is set when only the embedding model changed: the picture's text is re-embedded, not re-read.
+*/
+CREATE OR ALTER PROCEDURE style.usp_ImageIndex_ToIndex
+    @VisionModel    nvarchar(200),
+    @EmbeddingModel nvarchar(200),
+    @Take           int = 8,
+    @IndexedBy      nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    -- Pictures whose file was missing were stored as failed by the first version (2026-10-09); a missing file is not a
+    -- failure (it may be copied later), so those rows are removed and the pictures are tried again.
+    DELETE i FROM style.ImageIndex i WHERE i.Error = N'The picture file is missing or is not a picture.';
+
+    DELETE i
+    FROM style.ImageIndex i
+    WHERE NOT EXISTS (SELECT 1 FROM style.fn_ImageSlots() p WHERE p.StyleId = i.StyleId AND p.Source = i.Source AND p.ItemId = i.ItemId);
+
+    WITH todo AS
+    (
+        SELECT p.StyleId, p.Source, p.ItemId, p.ImageUrl
+        FROM style.fn_ImageSlots() p
+        WHERE NOT EXISTS (SELECT 1 FROM style.ImageIndex i
+                          WHERE i.StyleId = p.StyleId AND i.Source = p.Source AND i.ItemId = p.ItemId AND i.ImageUrl = p.ImageUrl
+                            AND i.VisionModel = @VisionModel AND i.EmbeddingModel = @EmbeddingModel)
+    ),
+    known AS
+    (
+        SELECT t.StyleId, t.Source, t.ItemId, t.ImageUrl, k.Garment, k.Colours, k.Details, k.Description, k.SearchText, k.Embedding, k.Provider
+        FROM todo t
+        CROSS APPLY (SELECT TOP 1 i.Garment, i.Colours, i.Details, i.Description, i.SearchText, i.Embedding, i.Provider
+                     FROM style.ImageIndex i
+                     WHERE i.ImageUrl = t.ImageUrl AND i.VisionModel = @VisionModel AND i.EmbeddingModel = @EmbeddingModel AND i.Embedding IS NOT NULL
+                     ORDER BY i.ImageIndexId) k
+    )
+    MERGE style.ImageIndex AS d
+    USING known AS s ON d.StyleId = s.StyleId AND d.Source = s.Source AND d.ItemId = s.ItemId
+    WHEN MATCHED THEN UPDATE SET
+        ImageUrl = s.ImageUrl, Garment = s.Garment, Colours = s.Colours, Details = s.Details, Description = s.Description,
+        SearchText = s.SearchText, Embedding = s.Embedding, Error = NULL, VisionModel = @VisionModel, EmbeddingModel = @EmbeddingModel,
+        Provider = s.Provider, IndexedBy = @IndexedBy, IndexedUtc = SYSUTCDATETIME()
+    WHEN NOT MATCHED THEN INSERT (StyleId, Source, ItemId, ImageUrl, Garment, Colours, Details, Description, SearchText, Embedding,
+                                  VisionModel, EmbeddingModel, Provider, IndexedBy)
+        VALUES (s.StyleId, s.Source, s.ItemId, s.ImageUrl, s.Garment, s.Colours, s.Details, s.Description, s.SearchText, s.Embedding,
+                @VisionModel, @EmbeddingModel, s.Provider, @IndexedBy);
+
+    SELECT TOP (@Take)
+           p.StyleId, p.Source, p.ItemId, p.ImageUrl,
+           KnownText = IIF(i.ImageUrl = p.ImageUrl AND i.VisionModel = @VisionModel AND i.Error IS NULL, i.SearchText, NULL),
+           i.Garment, i.Colours, i.Details, i.Description,
+           Remaining = COUNT(*) OVER ()
+    FROM style.fn_ImageSlots() p
+    LEFT JOIN style.ImageIndex i ON i.StyleId = p.StyleId AND i.Source = p.Source AND i.ItemId = p.ItemId
+    WHERE i.ImageIndexId IS NULL OR i.ImageUrl <> p.ImageUrl OR i.VisionModel <> @VisionModel OR i.EmbeddingModel <> @EmbeddingModel
+    ORDER BY CASE p.Source WHEN 'Photo' THEN 1 WHEN 'Colorway' THEN 2 WHEN 'Sketch' THEN 3 ELSE 4 END, p.StyleId DESC, p.ItemId;
+END
+GO
+
+/*
+    Stores readings (json array: StyleId, Source, ItemId, ImageUrl, Garment, Colours, Details, Description, SearchText,
+    Embedding as a json array of 1024 numbers, Error). Pictures changed or removed since they were read are skipped.
+    Returns the number of rows stored.
+*/
+CREATE OR ALTER PROCEDURE style.usp_ImageIndex_Save
+    @Items          nvarchar(max),
+    @VisionModel    nvarchar(200),
+    @EmbeddingModel nvarchar(200),
+    @Provider       nvarchar(100),
+    @IndexedBy      nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @rows TABLE (StyleId int, Source varchar(10), ItemId int, ImageUrl nvarchar(500), Garment nvarchar(100), Colours nvarchar(300),
+                         Details nvarchar(600), Description nvarchar(1000), SearchText nvarchar(2000), Embedding vector(1024) NULL, Error nvarchar(300));
+    INSERT @rows
+    SELECT j.StyleId, j.Source, j.ItemId, j.ImageUrl, LEFT(j.Garment, 100), LEFT(j.Colours, 300), LEFT(j.Details, 600), LEFT(j.Description, 1000),
+           LEFT(j.SearchText, 2000), IIF(j.Embedding IS NULL, NULL, CAST(j.Embedding AS vector(1024))), LEFT(j.Error, 300)
+    FROM OPENJSON(@Items) WITH (
+        StyleId int, Source varchar(10), ItemId int, ImageUrl nvarchar(500), Garment nvarchar(200), Colours nvarchar(400), Details nvarchar(800),
+        Description nvarchar(1200), SearchText nvarchar(2400), Embedding nvarchar(max) AS JSON, Error nvarchar(400)) j
+    WHERE EXISTS (SELECT 1 FROM style.fn_ImageSlots() p
+                  WHERE p.StyleId = j.StyleId AND p.Source = j.Source AND p.ItemId = j.ItemId AND p.ImageUrl = j.ImageUrl);
+
+    MERGE style.ImageIndex AS d
+    USING @rows AS s ON d.StyleId = s.StyleId AND d.Source = s.Source AND d.ItemId = s.ItemId
+    WHEN MATCHED THEN UPDATE SET
+        ImageUrl = s.ImageUrl, Garment = s.Garment, Colours = s.Colours, Details = s.Details, Description = s.Description,
+        SearchText = s.SearchText, Embedding = s.Embedding, Error = s.Error, VisionModel = @VisionModel, EmbeddingModel = @EmbeddingModel,
+        Provider = @Provider, IndexedBy = @IndexedBy, IndexedUtc = SYSUTCDATETIME()
+    WHEN NOT MATCHED THEN INSERT (StyleId, Source, ItemId, ImageUrl, Garment, Colours, Details, Description, SearchText, Embedding, Error,
+                                  VisionModel, EmbeddingModel, Provider, IndexedBy)
+        VALUES (s.StyleId, s.Source, s.ItemId, s.ImageUrl, s.Garment, s.Colours, s.Details, s.Description, s.SearchText, s.Embedding, s.Error,
+                @VisionModel, @EmbeddingModel, @Provider, @IndexedBy);
+
+    SELECT COUNT(*) FROM @rows;
+END
+GO
+
+/*
+    Styles whose pictures are closest to a vector (cosine distance), best picture per style. The vector is @Embedding
+    (json array of 1024 numbers, from a photo or words) or, for "more like this", the indexed picture of @FromStyleId
+    (photo first, then colorway, sketch, render; that style is left out of the results). Only current rows indexed with
+    @EmbeddingModel count: vectors of different models cannot be compared. Similarity = 1 - cosine distance.
+*/
+CREATE OR ALTER PROCEDURE style.usp_ImageSearch
+    @EmbeddingModel nvarchar(200),
+    @Embedding      nvarchar(max) = NULL,
+    @FromStyleId    int           = NULL,
+    @CustomerCode   nvarchar(32)  = NULL,
+    @Take           int           = 24
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @customerId int = (SELECT PartnerId FROM partner.Partner WHERE PartnerType = 'Customer' AND PartnerCode = @CustomerCode);
+    DECLARE @q vector(1024);
+    IF @Embedding IS NOT NULL
+        SET @q = CAST(@Embedding AS vector(1024));
+    ELSE
+        SELECT TOP 1 @q = i.Embedding
+        FROM style.ImageIndex i
+        JOIN style.fn_ImageSlots() p ON p.StyleId = i.StyleId AND p.Source = i.Source AND p.ItemId = i.ItemId AND p.ImageUrl = i.ImageUrl
+        WHERE i.StyleId = @FromStyleId AND i.EmbeddingModel = @EmbeddingModel AND i.Embedding IS NOT NULL
+        ORDER BY CASE i.Source WHEN 'Photo' THEN 1 WHEN 'Colorway' THEN 2 WHEN 'Sketch' THEN 3 ELSE 4 END, i.ItemId;
+
+    WITH scored AS
+    (
+        SELECT i.StyleId, i.Source, i.ItemId, i.ImageUrl, i.Garment, i.Colours, i.Details, i.Description, i.ImageIndexId,
+               Distance = VECTOR_DISTANCE('cosine', i.Embedding, @q)
+        FROM style.ImageIndex i
+        JOIN style.fn_ImageSlots() p ON p.StyleId = i.StyleId AND p.Source = i.Source AND p.ItemId = i.ItemId AND p.ImageUrl = i.ImageUrl
+        WHERE @q IS NOT NULL AND i.EmbeddingModel = @EmbeddingModel AND i.Embedding IS NOT NULL
+          AND (@FromStyleId IS NULL OR i.StyleId <> @FromStyleId)
+    ),
+    best AS
+    (
+        SELECT *, Rn = ROW_NUMBER() OVER (PARTITION BY StyleId ORDER BY Distance, ImageIndexId) FROM scored
+    )
+    SELECT TOP (@Take)
+           s.StyleId, s.StyleNo, s.SeasonCode, CustomerCode = c.PartnerCode, s.ModelName, ProductTypeName = pt.Name, s.IsActive,
+           x.Source, ColorwayCode = k.ColorwayCode, x.ImageUrl, x.Garment, x.Colours, x.Details, x.Description,
+           Similarity = CAST(1 - x.Distance AS decimal(9, 4))
+    FROM best x
+    JOIN style.Style s ON s.StyleId = x.StyleId
+    JOIN partner.Partner c ON c.PartnerId = s.CustomerId
+    LEFT JOIN ref.ProductType pt ON pt.ProductTypeCode = s.ProductTypeCode
+    LEFT JOIN style.Colorway k ON x.Source = 'Colorway' AND k.ColorwayId = x.ItemId
+    WHERE x.Rn = 1 AND (@customerId IS NULL OR s.CustomerId = @customerId)
+    ORDER BY x.Distance, s.StyleNo;
+END
+GO
+
+/* ---------- Image search: look-alike vectors (image model built into the API) ---------- */
+
+/* Per source: pictures, those with a current vector, those that could not be read, those still to do. */
+CREATE OR ALTER PROCEDURE style.usp_ImageVector_Status
+    @Model nvarchar(200)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- Rows the first version stored for missing files (see the _ToIndex procedure) are removed here too, so the page
+    -- counts them as to do and the Index button is offered.
+    DELETE FROM style.ImageVector WHERE Error = N'The picture file is missing or is not a picture.';
+    SELECT p.Source,
+           Pictures = COUNT(*),
+           Indexed  = SUM(IIF(v.ImageVectorId IS NOT NULL AND v.Vector IS NOT NULL, 1, 0)),
+           Failed   = SUM(IIF(v.ImageVectorId IS NOT NULL AND v.Vector IS NULL, 1, 0)),
+           ToIndex  = SUM(IIF(v.ImageVectorId IS NULL, 1, 0))
+    FROM style.fn_ImageSlots() p
+    LEFT JOIN style.ImageVector v
+           ON v.StyleId = p.StyleId AND v.Source = p.Source AND v.ItemId = p.ItemId AND v.ImageUrl = p.ImageUrl AND v.Model = @Model
+    GROUP BY p.Source;
+END
+GO
+
+/*
+    The next pictures without a current vector. First removes rows of pictures that are gone and copies the vector of a
+    picture file already done with the same model (styles copied to another season share files).
+*/
+CREATE OR ALTER PROCEDURE style.usp_ImageVector_ToIndex
+    @Model     nvarchar(200),
+    @Take      int = 200,
+    @IndexedBy nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    -- Pictures whose file was missing were stored as failed by the first version (2026-10-09); a missing file is not a
+    -- failure (it may be copied later), so those rows are removed and the pictures are tried again.
+    DELETE v FROM style.ImageVector v WHERE v.Error = N'The picture file is missing or is not a picture.';
+
+    DELETE v
+    FROM style.ImageVector v
+    WHERE NOT EXISTS (SELECT 1 FROM style.fn_ImageSlots() p WHERE p.StyleId = v.StyleId AND p.Source = v.Source AND p.ItemId = v.ItemId);
+
+    WITH todo AS
+    (
+        SELECT p.StyleId, p.Source, p.ItemId, p.ImageUrl
+        FROM style.fn_ImageSlots() p
+        WHERE NOT EXISTS (SELECT 1 FROM style.ImageVector v
+                          WHERE v.StyleId = p.StyleId AND v.Source = p.Source AND v.ItemId = p.ItemId AND v.ImageUrl = p.ImageUrl AND v.Model = @Model)
+    ),
+    known AS
+    (
+        SELECT t.StyleId, t.Source, t.ItemId, t.ImageUrl, k.Vector
+        FROM todo t
+        CROSS APPLY (SELECT TOP 1 v.Vector FROM style.ImageVector v
+                     WHERE v.ImageUrl = t.ImageUrl AND v.Model = @Model AND v.Vector IS NOT NULL
+                     ORDER BY v.ImageVectorId) k
+    )
+    MERGE style.ImageVector AS d
+    USING known AS s ON d.StyleId = s.StyleId AND d.Source = s.Source AND d.ItemId = s.ItemId
+    WHEN MATCHED THEN UPDATE SET ImageUrl = s.ImageUrl, Model = @Model, Vector = s.Vector, Error = NULL, IndexedBy = @IndexedBy, IndexedUtc = SYSUTCDATETIME()
+    WHEN NOT MATCHED THEN INSERT (StyleId, Source, ItemId, ImageUrl, Model, Vector, IndexedBy)
+        VALUES (s.StyleId, s.Source, s.ItemId, s.ImageUrl, @Model, s.Vector, @IndexedBy);
+
+    SELECT TOP (@Take) p.StyleId, p.Source, p.ItemId, p.ImageUrl, Remaining = COUNT(*) OVER ()
+    FROM style.fn_ImageSlots() p
+    LEFT JOIN style.ImageVector v ON v.StyleId = p.StyleId AND v.Source = p.Source AND v.ItemId = p.ItemId
+    WHERE v.ImageVectorId IS NULL OR v.ImageUrl <> p.ImageUrl OR v.Model <> @Model
+    ORDER BY CASE p.Source WHEN 'Photo' THEN 1 WHEN 'Colorway' THEN 2 WHEN 'Sketch' THEN 3 ELSE 4 END, p.StyleId DESC, p.ItemId;
+END
+GO
+
+/*
+    Stores vectors (json array: StyleId, Source, ItemId, ImageUrl, Vector as a json array of 768 numbers, Error).
+    Pictures changed or removed since they were read are skipped. Returns the number of rows stored.
+*/
+CREATE OR ALTER PROCEDURE style.usp_ImageVector_Save
+    @Items     nvarchar(max),
+    @Model     nvarchar(200),
+    @IndexedBy nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @rows TABLE (StyleId int, Source varchar(10), ItemId int, ImageUrl nvarchar(500), Vector vector(768) NULL, Error nvarchar(300));
+    INSERT @rows
+    SELECT j.StyleId, j.Source, j.ItemId, j.ImageUrl, IIF(j.Vector IS NULL, NULL, CAST(j.Vector AS vector(768))), LEFT(j.Error, 300)
+    FROM OPENJSON(@Items) WITH (StyleId int, Source varchar(10), ItemId int, ImageUrl nvarchar(500), Vector nvarchar(max) AS JSON, Error nvarchar(400)) j
+    WHERE EXISTS (SELECT 1 FROM style.fn_ImageSlots() p
+                  WHERE p.StyleId = j.StyleId AND p.Source = j.Source AND p.ItemId = j.ItemId AND p.ImageUrl = j.ImageUrl);
+
+    MERGE style.ImageVector AS d
+    USING @rows AS s ON d.StyleId = s.StyleId AND d.Source = s.Source AND d.ItemId = s.ItemId
+    WHEN MATCHED THEN UPDATE SET ImageUrl = s.ImageUrl, Model = @Model, Vector = s.Vector, Error = s.Error, IndexedBy = @IndexedBy, IndexedUtc = SYSUTCDATETIME()
+    WHEN NOT MATCHED THEN INSERT (StyleId, Source, ItemId, ImageUrl, Model, Vector, Error, IndexedBy)
+        VALUES (s.StyleId, s.Source, s.ItemId, s.ImageUrl, @Model, s.Vector, s.Error, @IndexedBy);
+
+    SELECT COUNT(*) FROM @rows;
+END
+GO
+
+/*
+    Styles whose pictures look closest to a look-alike vector (cosine), best picture per style. The vector is @Vector
+    (json array of 768 numbers, from an uploaded photo) or the picture of @FromStyleId (photo first, then colorway,
+    sketch, render; that style is left out). Only current rows of @Model count. The garment description from
+    style.ImageIndex is added when the picture has one (any model), for display.
+*/
+CREATE OR ALTER PROCEDURE style.usp_ImageVectorSearch
+    @Model        nvarchar(200),
+    @Vector       nvarchar(max) = NULL,
+    @FromStyleId  int           = NULL,
+    @CustomerCode nvarchar(32)  = NULL,
+    @Take         int           = 24
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @customerId int = (SELECT PartnerId FROM partner.Partner WHERE PartnerType = 'Customer' AND PartnerCode = @CustomerCode);
+    DECLARE @q vector(768);
+    IF @Vector IS NOT NULL
+        SET @q = CAST(@Vector AS vector(768));
+    ELSE
+        SELECT TOP 1 @q = v.Vector
+        FROM style.ImageVector v
+        JOIN style.fn_ImageSlots() p ON p.StyleId = v.StyleId AND p.Source = v.Source AND p.ItemId = v.ItemId AND p.ImageUrl = v.ImageUrl
+        WHERE v.StyleId = @FromStyleId AND v.Model = @Model AND v.Vector IS NOT NULL
+        ORDER BY CASE v.Source WHEN 'Photo' THEN 1 WHEN 'Colorway' THEN 2 WHEN 'Sketch' THEN 3 ELSE 4 END, v.ItemId;
+
+    WITH scored AS
+    (
+        SELECT v.StyleId, v.Source, v.ItemId, v.ImageUrl, v.ImageVectorId, Distance = VECTOR_DISTANCE('cosine', v.Vector, @q)
+        FROM style.ImageVector v
+        JOIN style.fn_ImageSlots() p ON p.StyleId = v.StyleId AND p.Source = v.Source AND p.ItemId = v.ItemId AND p.ImageUrl = v.ImageUrl
+        WHERE @q IS NOT NULL AND v.Model = @Model AND v.Vector IS NOT NULL
+          AND (@FromStyleId IS NULL OR v.StyleId <> @FromStyleId)
+    ),
+    best AS
+    (
+        SELECT *, Rn = ROW_NUMBER() OVER (PARTITION BY StyleId ORDER BY Distance, ImageVectorId) FROM scored
+    )
+    SELECT TOP (@Take)
+           s.StyleId, s.StyleNo, s.SeasonCode, CustomerCode = c.PartnerCode, s.ModelName, ProductTypeName = pt.Name, s.IsActive,
+           x.Source, ColorwayCode = k.ColorwayCode, x.ImageUrl, d.Garment, d.Colours, d.Details, d.Description,
+           Similarity = CAST(1 - x.Distance AS decimal(9, 4))
+    FROM best x
+    JOIN style.Style s ON s.StyleId = x.StyleId
+    JOIN partner.Partner c ON c.PartnerId = s.CustomerId
+    LEFT JOIN ref.ProductType pt ON pt.ProductTypeCode = s.ProductTypeCode
+    LEFT JOIN style.Colorway k ON x.Source = 'Colorway' AND k.ColorwayId = x.ItemId
+    LEFT JOIN style.ImageIndex d ON d.StyleId = x.StyleId AND d.Source = x.Source AND d.ItemId = x.ItemId AND d.ImageUrl = x.ImageUrl AND d.Error IS NULL
+    WHERE x.Rn = 1 AND (@customerId IS NULL OR s.CustomerId = @customerId)
+    ORDER BY x.Distance, s.StyleNo;
 END
 GO

@@ -108,10 +108,27 @@ export function handleAdmin(req, url, body, json, userRoles) {
     if (users.some((u) => u.userName.toLowerCase() === body.userName.toLowerCase()))
       return json(400, { title: 'A user with this user name already exists.' }), true;
     users.push({ userId: users.length + 1, userName: body.userName, displayName: body.displayName, email: body.email, isActive: true, userGroup: body.userGroup, location: body.location, lastLoginUtc: null, lockoutEndUtc: null, roles: body.roles });
-    console.log('invite', JSON.stringify(body));
+    console.log('invite', JSON.stringify({ ...body, temporaryPassword: body.temporaryPassword ? '(set)' : null }));
     return json(200, { userId: users.length }), true;
   }
   if (p.endsWith('/password-link') && m === 'POST') return json(204), true;
+  if (/\/users\/\d+\/password$/.test(p) && m === 'PUT') {
+    if (Number(p.split('/')[5]) === 1) return json(400, { title: 'One or more validation errors occurred.', errors: { password: ['Use Change password to change your own password.'] } }), true;
+    if ((body.password ?? '').length < 12) return json(400, { title: 'One or more validation errors occurred.', errors: { password: ['Use at least 12 characters.'] } }), true;
+    return json(204), true;
+  }
+  if (p.endsWith('/active') && m === 'PUT') {
+    const uid = Number(p.split('/')[5]);
+    if (uid === 1 && !body.isActive) return json(400, { title: 'One or more validation errors occurred.', errors: { isActive: ['You cannot deactivate your own account. Ask another administrator.'] } }), true;
+    users.find((x) => x.userId === uid).isActive = body.isActive;
+    return json(204), true;
+  }
+  if (/\/users\/\d+$/.test(p) && m === 'DELETE') {
+    const uid = Number(p.split('/').pop());
+    if (uid === 1) return json(400, { title: 'One or more validation errors occurred.', errors: { userId: ['You cannot remove your own account. Ask another administrator.'] } }), true;
+    users.splice(users.findIndex((x) => x.userId === uid), 1);
+    return json(204), true;
+  }
   if (p.endsWith('/users')) return json(200, users), true;
   if (p.endsWith('/access') && m === 'PUT') {
     const uid = Number(p.split('/')[5]);

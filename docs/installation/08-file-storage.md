@@ -46,6 +46,18 @@ Typical stored sizes: a 1600 x 1067 photo or AI render **250-400 KB** (a phone p
 - **Images given as `https://` addresses** in an imported workbook (Sketch / Image columns): only the address is stored; the app does not download them.
 - **Translation corrections** (Settings > Translations): one JSON file, `overrides.json`, plus its `history\` folder, in `Translations:OverridesFolder` (default `<API folder>\App_Data\i18n`; on servers e.g. `D:\LTODM\i18n`, outside the site). Back it up with the uploads. Uploaded translation workbooks are read in memory and not kept.
 - **API keys** of AI connections: in the database, encrypted (see `DataProtection:KeysFolder` in [Configuration](04-configuration.md)).
+- **Photos uploaded to Image search**: read in memory to find look-alikes, then dropped. Never written to disk or the database.
+
+## Image search model files
+
+The look-alike model for image search ships **separately** from the release (about 210 MB). Install it once per web server:
+
+1. On a machine with internet access, download from [huggingface.co/Marqo/marqo-fashionSigLIP](https://huggingface.co/Marqo/marqo-fashionSigLIP/tree/main) (licence Apache 2.0, commercial use allowed): `onnx/vision_model_int8.onnx` (pictures, 94 MB), `onnx/text_model_int8.onnx` (words, 111 MB), `tokenizer.json`, `preprocessor_config.json` and `open_clip_config.json`. Keep the `onnx` subfolder. Without the text model and tokenizer, search by words uses the in-house AI server instead.
+2. Copy the folder to the server, outside the site, e.g. `D:\LTODM\models\marqo-fashionSigLIP\onnx\vision_model_int8.onnx` (Linux: `/var/lib/ltodm/models/...`).
+3. Set `ImageSearch:ImageModel:Folder` to that folder ([Configuration](04-configuration.md#image-search-look-alike-model-built-into-the-api)). The app pool identity (Linux: the service user) needs **read** access only.
+4. Restart the site. AI Studio > Image search shows *Look-alike* as ready; an editor clicks **Index pictures** once.
+
+The server never downloads the model itself and needs no internet access for it. Without the files, image search still works through the in-house AI server (slower), and the page says the model is not installed. Back the folder up with the release files (it can always be downloaded again).
 
 ## Deleting
 

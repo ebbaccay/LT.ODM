@@ -186,6 +186,61 @@ public static partial class OpenAiApi
         return AiImages.Decode(data);
     }
 
+    /// <summary>
+    /// One picture plus text to a vision model (Ollama, vLLM, LM Studio: OpenAI image_url content with a data: URL), answer
+    /// constrained to the schema like <see cref="GenerateJsonAsync"/>.
+    /// </summary>
+    public static async Task<string> DescribeJsonAsync(HttpClient http, AiConnection c, ILogger logger, string purpose, string system, string user,
+        ReferenceImage image, JsonObject schema, CancellationToken ct)
+    {
+        var dataUrl = $"data:{image.ContentType};base64,{Convert.ToBase64String(image.Content)}";
+        var body = new JsonObject
+        {
+            ["model"] = c.Model,
+            ["temperature"] = 0.1,
+            ["messages"] = new JsonArray(
+                new JsonObject { ["role"] = "system", ["content"] = system },
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["content"] = new JsonArray(
+                        new JsonObject { ["type"] = "text", ["text"] = user },
+                        new JsonObject { ["type"] = "image_url", ["image_url"] = new JsonObject { ["url"] = dataUrl } }),
+                }),
+            ["response_format"] = new JsonObject
+            {
+                ["type"] = "json_schema",
+                ["json_schema"] = new JsonObject { ["name"] = "answer", ["schema"] = ToStandardSchema(schema), ["strict"] = false },
+            },
+        };
+        using var message = new HttpRequestMessage(HttpMethod.Post, AiHttp.Url(c.Endpoint, "chat/completions")) { Content = JsonContent.Create(body) };
+        Auth(message, c);
+
+        var json = await AiHttp.SendAsync(http, message, c.TimeoutSeconds, logger, c.Name, purpose, ct);
+        var text = json?["choices"] is JsonArray { Count: > 0 } choices && choices[0]?["message"]?["content"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+        return CleanJson(text) ?? throw new AiServiceException("The AI service returned an empty answer. Try again.");
+    }
+
+    /// <summary>POST /embeddings with one text; returns the first vector.</summary>
+    public static async Task<float[]> EmbedAsync(HttpClient http, AiConnection c, ILogger logger, string purpose, string text, CancellationToken ct)
+    {
+        var body = new JsonObject { ["model"] = c.Model, ["input"] = text };
+        using var message = new HttpRequestMessage(HttpMethod.Post, AiHttp.Url(c.Endpoint, "embeddings")) { Content = JsonContent.Create(body) };
+        Auth(message, c);
+
+        var json = await AiHttp.SendAsync(http, message, c.TimeoutSeconds, logger, c.Name, purpose, ct);
+        if (json?["data"] is not JsonArray { Count: > 0 } data || data[0]?["embedding"] is not JsonArray numbers || numbers.Count == 0)
+            throw new AiServiceException("The embedding model returned no vector. Check that the Embedding job uses an embedding model.");
+        try
+        {
+            return numbers.Select(n => n!.GetValue<float>()).ToArray();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or FormatException or NullReferenceException)
+        {
+            throw new AiServiceException("The embedding model returned a vector that could not be read.", ex);
+        }
+    }
+
     /// <summary>Standard JSON Schema spells types in lower case ("object"); schemas written for Gemini use upper case.</summary>
     public static JsonObject ToStandardSchema(JsonObject schema)
     {
@@ -249,6 +304,59 @@ public sealed class RoutedAiImageClient(HttpClient http, IAiConnectionResolver r
         return c!.Kind == AiConnectionKinds.Gemini
             ? await GeminiApi.GenerateImageAsync(http, c, logger, purpose, prompt, reference, ct)
             : await OpenAiApi.GenerateImageAsync(http, c, openAi.Value.ImageSize, logger, purpose, prompt, ct);
+    }
+}
+
+/// <summary>
+/// Picture reading from the service set for the "vision" job. In-house (OpenAI-compatible) servers only: image search must
+/// not send library pictures to a cloud service, and no Gemini path is built for it.
+/// </summary>
+public sealed class RoutedAiVisionClient(HttpClient http, IAiConnectionResolver resolver, ILogger<RoutedAiVisionClient> logger) : IAiVisionClient
+{
+    /// <summary>Longest side sent to the model: enough to see garment details, and far fewer image tokens on a CPU server.</summary>
+    public const int MaxDimension = 768;
+
+    public async Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default) => AiConnectionInfo.Of(await resolver.ExplainAsync(AiPurposes.Vision, ct));
+
+    public async Task<string> DescribeJsonAsync(string purpose, string systemInstruction, string userText, ReferenceImage image, JsonObject schema,
+        CancellationToken ct = default)
+    {
+        var c = await AiRouting.InHouseAsync(resolver, AiPurposes.Vision, "Picture reading", ct);
+        var kind = ConceptStudioRules.DetectImage(image.Content) ?? throw new AiServiceException("The picture could not be read.");
+        byte[] small;
+        ImageKind smallKind;
+        try
+        {
+            (small, smallKind) = Files.ImageOptimizer.Optimize(image.Content, kind, MaxDimension);
+        }
+        catch (UnreadableImageException ex)
+        {
+            throw new AiServiceException("The picture could not be read.", ex);
+        }
+        var sent = new ReferenceImage(small, ConceptStudioRules.ContentType(ConceptStudioRules.Extension(smallKind)));
+        return await OpenAiApi.DescribeJsonAsync(http, c, logger, purpose, systemInstruction, userText, sent, schema, ct);
+    }
+}
+
+/// <summary>Vectors from the service set for the "embedding" job (in-house OpenAI-compatible servers only).</summary>
+public sealed class RoutedAiEmbeddingClient(HttpClient http, IAiConnectionResolver resolver, ILogger<RoutedAiEmbeddingClient> logger) : IAiEmbeddingClient
+{
+    public async Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default) => AiConnectionInfo.Of(await resolver.ExplainAsync(AiPurposes.Embedding, ct));
+
+    public async Task<float[]> EmbedAsync(string purpose, string text, CancellationToken ct = default)
+        => await OpenAiApi.EmbedAsync(http, await AiRouting.InHouseAsync(resolver, AiPurposes.Embedding, "Embeddings", ct), logger, purpose, text, ct);
+}
+
+internal static class AiRouting
+{
+    /// <summary>The job's connection when it can run on an OpenAI-compatible server; otherwise a readable AiServiceException.</summary>
+    public static async Task<AiConnection> InHouseAsync(IAiConnectionResolver resolver, string purpose, string feature, CancellationToken ct)
+    {
+        var c = await resolver.ResolveAsync(purpose, ct);
+        if (!AiHttp.Info(c).IsConfigured) throw new AiServiceException($"{feature} is not set up on this server.");
+        if (c!.Kind != AiConnectionKinds.OpenAiCompatible)
+            throw new AiServiceException($"{feature} runs only on an OpenAI-compatible server (in-house Ollama, vLLM or LM Studio). Change the job in Settings > AI connections.");
+        return c;
     }
 }
 

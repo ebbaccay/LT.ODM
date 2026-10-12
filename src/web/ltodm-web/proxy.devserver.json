@@ -1,0 +1,18 @@
+{
+  "/api": {
+    "target": "https://172.16.26.173",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/health": {
+    "target": "https://172.16.26.173",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/hubs": {
+    "target": "https://172.16.26.173",
+    "secure": false,
+    "changeOrigin": true,
+    "ws": true
+  }
+}

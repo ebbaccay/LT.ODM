@@ -37,6 +37,10 @@ dotnet publish (Join-Path $root 'src/api/LT.ODM.Api') -c Release -o $api --nolog
 Check 'dotnet publish'
 # Developer settings never go to a server.
 Remove-Item (Join-Path $api 'appsettings.Development.json') -ErrorAction SilentlyContinue
+# ONNX Runtime (image search's built-in model) ships native files for every platform; servers are Windows or Linux x64.
+Get-ChildItem (Join-Path $api 'runtimes') -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -notin 'win-x64', 'linux-x64' -and (Test-Path (Join-Path $_.FullName 'native\*onnxruntime*')) } |
+    Remove-Item -Recurse -Force
 
 Step 'Build web app'
 $web = Join-Path $root 'src/web/ltodm-web'

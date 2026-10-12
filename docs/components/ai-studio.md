@@ -27,6 +27,46 @@ Fillers (for, with, that, styles, ...) are skipped. Words that change the meanin
 - The example pills are requests the phrase list understands that find styles in today's library (`GET /api/v1/ai/style-search/phrases`). **Words understood without AI** lists the whole phrase list; click a word to add it.
 - Results are real styles from the database (first 50; **Open in Styles** shows the full list with the same filters). With AI, "Read as" shows how the AI understood the request; only codes on the library's lists are kept.
 - Endpoints: `POST /api/v1/ai/style-search/rules` (phrase list only, never AI, no AI rate limit; the screen calls it first) and `POST /api/v1/ai/style-search` (phrase list, then AI; AI rate limit).
+- **Styles that look like this** (panel under the results): the same request is searched by picture with [Image search](#image-search-aiimage-search)'s built-in model (`POST /api/v1/ai/image-search/words`, about 30 ms, nothing sent anywhere), limited to the customer the phrase list read from the request. It finds styles whose *pictures* match, even when their data does not use your words. Up to 6 are shown; **Open in Image search** (`/ai/image-search?q=...`) shows them all. The panel appears only when the model and its text part are installed, at least one picture is indexed, and the best match is close; it never asks the AI server. Each search counts once more towards the per-user AI limit.
+
+## Image search (`/ai/image-search`)
+
+Find library styles that look like a photo, a description, or another style. **Everything runs inside LT**: library pictures never go to a cloud service.
+
+**How it works.** Every picture (style photo, sketch, colorway picture, AI render) gets two vectors, kept in two indexes:
+
+| Index | Made by | Used for | Speed (CPU server) |
+|---|---|---|---|
+| **Look-alike** (`style.ImageVector`, `vector(768)`) | The image model **built into the API** (Marqo-FashionSigLIP, trained on fashion product photos): pixels straight to 768 numbers; its text part puts typed words in the same space. No AI server, nothing sent | Search by photo, by words, More like this | About 0.1-0.3 s per picture; words about 30 ms |
+| **Descriptions** (`style.ImageIndex`, `vector(1024)`) | The **Vision** job writes a garment description (garment type, main colours, visible details such as hood, zips, panels, stripes and logo *placement*; brand names and logo text are never written down; fabric look; two sentences), and the **Embedding** job turns it into 1024 numbers. Both must point at an OpenAI-compatible in-house server (Ollama, vLLM, LM Studio); a Gemini connection is refused | Searches with **Use the AI server** ticked (or when the built-in model is not installed) | 1-2 minutes per picture |
+
+SQL Server returns the styles whose pictures are closest (cosine similarity, best picture per style, up to 24). The look-alike model must be installed on the web server ([File storage](../installation/08-file-storage.md#image-search-model-files)); without it (or without its text part, for words), searches fall back to the descriptions.
+
+**Use the AI server** (tickbox under the search). Off by default: searches run on the built-in model. Ticked, the photo or words are matched against the written descriptions instead (the vision model reads the photo; the Embedding job embeds the words), which can catch details the look misses but is much slower on a CPU server. The tickbox is only enabled when both ways can run; otherwise its hint says which one is used.
+
+**Picture index** (top card). One line per index with its progress, what it is for, and why it cannot run (model not installed, jobs not set, AI switched off). **Index N pictures** (Admin, Merchandiser) does the look-alike vectors first (all pictures in seconds), then the descriptions, in rounds of about 45 seconds, until all are done or **Stop** is pressed; leaving the page also stops it. Work already done is kept if something fails half-way.
+
+- New, replaced and removed pictures are picked up the next time someone indexes. A style copied to another season shares its picture files, so it is indexed without another model call.
+- Changing the **vision model** means every description is written again. Changing only the **embedding model** re-uses the stored descriptions (embedding only, much faster). Changing the look-alike model's file or name re-does the look-alike vectors (seconds). Vectors of different models are never compared.
+- A picture whose **file is missing** on the server (e.g. styles copied from another server before their picture files) is not a failure: it stays to do, is tried again at every index, and the page says how many files are missing. Copy the files into `<Files:Root>\style-library` and index again.
+- A file that is not a picture, or that the model cannot describe, counts as *could not be read* and is not retried until the picture or a model changes.
+- Only pictures stored by LT ODM are indexed (outside `https://` addresses from imports are not fetched).
+
+**Searching** (everyone who can read the Style Library):
+
+| Search | Uses | Notes |
+|---|---|---|
+| **By photo** | Look-alike model (about a second); without it, Vision 1 + Embedding 1 | Drop or choose a JPEG, PNG, GIF or WebP up to 10 MB (e.g. a competitor sample or a buyer's reference). Read inside LT and **not stored**. When the descriptions are used, the page shows how the photo was read (garment, colours, details) |
+| **By words** | Look-alike model's text part (about 30 ms); with the tickbox or without it, Embedding 1 | e.g. "navy hooded track jacket with white side stripes" (3 to 300 characters). English works best (the model's vocabulary is English). Matched by look, results are in order but show **no percentage**: word-to-picture scores are low even for right matches. When even the best is far, the page says **no close match** (threshold `ImageSearchRules.WeakWordMatch`, 0.03, set on 8 pictures; to revisit as the library grows) |
+| **More like this** | Stored vectors only | On any result, or open `/ai/image-search?styleId=<id>`. Look-alike vector of the style (photo first, then colorway, sketch, render), else its description vector |
+
+A line above the results says how they were matched: by how the pictures look, or by their descriptions.
+
+The **customer** filter limits results to one brand. Results of other brands are for know-how (construction, materials, costs): pitch a brand only its own designs or new LT designs, never another brand's style (the page repeats this).
+
+Each result shows the matched picture with its source, the similarity, style number, customer, season and model, and the garment description; the picture and number open the style. Similarity is relative: compare results with each other rather than reading the percentage as a probability.
+
+**Speed** (measured on a laptop CPU, i7-1270P). Look-alike: about 0.1 s per picture, all 8 library pictures indexed in about a second, search by photo about 0.1 s (the first call after a restart also loads the model, about a second). Descriptions with `qwen2.5vl:7b` on Ollama: about 3-5 minutes per picture; search by words about a second. Set the AI connection's timeout to 300 seconds or more for a CPU server ([in-house server](../ai/in-house-server.md)).
 
 ## Change summary (`/ai/compare?styleId=...`)
 

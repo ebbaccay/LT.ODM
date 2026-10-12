@@ -188,6 +188,29 @@
     </form>
   }
   <ng-container footer>
+    @if (editing && !isSelf()) {
+      <div class="mr-auto flex flex-wrap gap-2">
+        @if (editing.isActive) {
+          <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="saving()" (click)="openTempPassword(editing)">
+            <ng-icon name="lucideKeyRound" />
+            {{ 'settings.userRoles.setTempPassword' | transloco }}
+          </button>
+          <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="saving()" (click)="setActive(editing, false)">
+            <ng-icon name="lucideUserX" />
+            {{ 'settings.userRoles.deactivate' | transloco }}
+          </button>
+        } @else {
+          <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="saving()" (click)="setActive(editing, true)">
+            <ng-icon name="lucideUserCheck" />
+            {{ 'settings.userRoles.activate' | transloco }}
+          </button>
+        }
+        <button hlmBtn variant="ghost" type="button" class="text-destructive hover:text-destructive h-11 lg:h-9" [disabled]="saving()" (click)="remove(editing)">
+          <ng-icon name="lucideTrash2" />
+          {{ 'settings.userRoles.remove' | transloco }}
+        </button>
+      </div>
+    }
     <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="closeDialog()">{{ 'actions.cancel' | transloco }}</button>
     <button hlmBtn type="submit" form="access-form" class="h-11 lg:h-9" [disabled]="saving()">
       {{ (saving() ? 'common.saving' : 'actions.save') | transloco }}
@@ -200,10 +223,6 @@
   @let nu = newUser();
   @let err = newUserErrors();
   <form id="create-user-form" class="flex flex-col gap-5" (submit)="$event.preventDefault(); create()">
-    <p class="bg-primary/8 text-foreground flex gap-2 rounded-md px-3 py-2 text-sm">
-      <ng-icon name="lucideMail" class="text-primary mt-0.5 shrink-0" />
-      {{ 'settings.userRoles.inviteHint' | transloco }}
-    </p>
 
     <div class="grid gap-4 sm:grid-cols-2">
       <div class="flex flex-col gap-1.5">
@@ -264,6 +283,35 @@
       </div>
     </div>
 
+    <fieldset class="flex flex-col gap-2">
+      <legend class="mb-1 text-sm font-medium">{{ 'settings.userRoles.passwordMode' | transloco }}</legend>
+      <div class="flex flex-wrap gap-x-5">
+        <label class="flex min-h-11 items-center gap-2 text-sm lg:min-h-9">
+          <input type="radio" name="password-mode" class="accent-primary size-4" [checked]="nu.passwordMode === 'link'" (change)="setPasswordMode('link')" />
+          {{ 'settings.userRoles.passwordModeLink' | transloco }}
+        </label>
+        <label class="flex min-h-11 items-center gap-2 text-sm lg:min-h-9">
+          <input type="radio" name="password-mode" class="accent-primary size-4" [checked]="nu.passwordMode === 'temporary'" (change)="setPasswordMode('temporary')" />
+          {{ 'settings.userRoles.passwordModeTemporary' | transloco }}
+        </label>
+      </div>
+      @if (nu.passwordMode === 'link') {
+        <p class="bg-primary/8 text-foreground flex gap-2 rounded-md px-3 py-2 text-sm">
+          <ng-icon name="lucideMail" class="text-primary mt-0.5 shrink-0" />
+          {{ 'settings.userRoles.inviteHint' | transloco }}
+        </p>
+      } @else {
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="new-password">{{ 'settings.userRoles.tempPassword' | transloco }}</label>
+          <app-password-input inputId="new-password" autocomplete="new-password" describedBy="new-password-rules" [formControl]="newPassword" />
+          <app-password-strength listId="new-password-rules" [password]="newPasswordValue()" [policy]="passwordPolicy()" [personalInfo]="newUserPersonalInfo()" />
+          <p class="text-xs" [class]="createTouched() && err.password ? 'text-destructive' : 'text-muted-foreground'">
+            {{ 'settings.userRoles.tempPasswordHint' | transloco }}
+          </p>
+        </div>
+      }
+    </fieldset>
+
     <fieldset class="flex flex-col gap-1">
       <legend class="mb-1 text-sm font-medium">{{ 'settings.userRoles.roles' | transloco }}</legend>
       <div class="grid gap-1 sm:grid-cols-2">
@@ -306,7 +354,32 @@
     <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="createOpen.set(false)">{{ 'actions.cancel' | transloco }}</button>
     <button hlmBtn type="submit" form="create-user-form" class="h-11 lg:h-9" [disabled]="saving()">
       <ng-icon name="lucideUserPlus" />
-      {{ (saving() ? 'common.saving' : 'settings.userRoles.createAndSend') | transloco }}
+      {{ (saving() ? 'common.saving' : nu.passwordMode === 'temporary' ? 'settings.userRoles.createUser' : 'settings.userRoles.createAndSend') | transloco }}
+    </button>
+  </ng-container>
+</app-modal>
+
+<!-- Temporary password (existing user) -->
+@let tempUser = tempPasswordUser();
+<app-modal [open]="!!tempUser" [heading]="('settings.userRoles.setTempPassword' | transloco) + ' — ' + (tempUser?.displayName ?? '')" (closed)="tempPasswordUser.set(null)">
+  @if (tempUser) {
+    <form id="temp-password-form" class="flex flex-col gap-3" (submit)="$event.preventDefault(); saveTempPassword()">
+      <p class="text-muted-foreground text-sm">{{ 'settings.userRoles.setTempPasswordHint' | transloco }}</p>
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="temp-password">{{ 'settings.userRoles.tempPassword' | transloco }}</label>
+        <app-password-input inputId="temp-password" autocomplete="new-password" describedBy="temp-password-rules" [formControl]="tempPassword" autofocus />
+        <app-password-strength listId="temp-password-rules" [password]="tempPasswordValue()" [policy]="passwordPolicy()" [personalInfo]="tempPersonalInfo()" />
+        @if (tempTouched() && !tempPasswordValid()) {
+          <p class="text-destructive text-xs">{{ 'settings.userRoles.tempPasswordInvalid' | transloco }}</p>
+        }
+      </div>
+    </form>
+  }
+  <ng-container footer>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="tempPasswordUser.set(null)">{{ 'actions.cancel' | transloco }}</button>
+    <button hlmBtn type="submit" form="temp-password-form" class="h-11 lg:h-9" [disabled]="saving()">
+      <ng-icon name="lucideKeyRound" />
+      {{ (saving() ? 'common.saving' : 'settings.userRoles.setTempPassword') | transloco }}
     </button>
   </ng-container>
 </app-modal>

@@ -181,9 +181,13 @@
 }
 
 /*
-  Glass theme (theme panel > Glass effect; LayoutService puts .glass on <html>). Panels turn translucent and blur
-  the colour glow behind the page (app.layout). Outside any layer so it wins over the components' own bg-card /
-  ring / shadow utilities. Data grids stay solid so figures stay easy to read.
+  Glass theme (theme panel > Glass effect; LayoutService puts .glass on <html>). Panels turn translucent over the
+  colour glow behind the page (.glass-glow, app.layout). Outside any layer so it wins over the components' own
+  bg-card / ring / shadow utilities. Data grids stay solid so figures stay easy to read.
+
+  Performance: backdrop-filter (blur) is redone for every blurred element on every scroll frame, so it is used only
+  where something sharp can pass behind (top bar, sidebar drawer, menus, popovers), never on cards: a card only has
+  the glow behind it, which is already soft, so blurring it again looks the same and makes long lists lag.
 */
 :root.glass {
   --glass-panel: color-mix(in oklab, var(--card) 58%, transparent);
@@ -204,11 +208,9 @@
   --glass-shadow: 0 16px 40px -18px oklch(0 0 0 / 0.7);
 }
 
-/* Cards: the card component and plain bg-card boxes. */
+/* Cards: the card component and plain bg-card boxes (translucent, no blur: see above). */
 :root.glass :is([data-slot='card'], .bg-card) {
   background-color: var(--glass-panel);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  backdrop-filter: blur(20px) saturate(160%);
 }
 :root.glass [data-slot='card'] {
   box-shadow:
@@ -216,12 +218,6 @@
     0 0 0 1px var(--glass-line),
     var(--glass-shadow);
 }
-/* A card inside a card: tint only (blurring twice costs a lot and shows nothing more). */
-:root.glass :is([data-slot='card'], .bg-card) :is([data-slot='card'], .bg-card) {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
 /* Menus, popovers, slide-out panels: more opaque, so what is under them never competes with their text. */
 :root.glass
   :is([data-slot='popover-content'], [data-slot='dropdown-menu'], [data-slot='sheet-content']) {
@@ -240,8 +236,6 @@
     [aria-modal='true'] > :is([data-slot='card'], .bg-card)
   ) {
   background-color: var(--glass-dialog);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
   box-shadow:
     inset 0 1px 0 0 var(--glass-edge),
     0 0 0 1px var(--glass-line),
@@ -256,6 +250,57 @@
   background-color: var(--glass-bar);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   backdrop-filter: blur(20px) saturate(160%);
+}
+
+/*
+  The glow: soft circles of the accent and its companion colours, painted as gradients (no blur filter, so the
+  browser draws it once and only moves it while scrolling).
+*/
+.glass-glow {
+  background-image:
+    radial-gradient(
+      36rem 36rem at 15% -5%,
+      color-mix(in oklab, var(--dash-1) 22%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      40rem 40rem at 105% 35%,
+      color-mix(in oklab, var(--dash-2) 18%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      32rem 32rem at -5% 100%,
+      color-mix(in oklab, var(--dash-4) 14%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      30rem 30rem at 60% 110%,
+      color-mix(in oklab, var(--dash-3) 14%, transparent),
+      transparent 70%
+    );
+}
+:root.dark .glass-glow {
+  background-image:
+    radial-gradient(
+      36rem 36rem at 15% -5%,
+      color-mix(in oklab, var(--dash-1) 30%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      40rem 40rem at 105% 35%,
+      color-mix(in oklab, var(--dash-2) 22%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      32rem 32rem at -5% 100%,
+      color-mix(in oklab, var(--dash-4) 22%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      30rem 30rem at 60% 110%,
+      color-mix(in oklab, var(--dash-3) 12%, transparent),
+      transparent 70%
+    );
 }
 
 /* No blur available, transparency turned off in the OS, or high contrast: solid panels and no glow. */

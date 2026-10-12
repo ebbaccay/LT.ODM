@@ -91,7 +91,8 @@
     "aiBomCheck": "BOM check",
     "aiRender": "Style render",
     "aiLab": "AI Lab",
-    "materials": "Materials"
+    "materials": "Materials",
+    "aiImageSearch": "Image search"
   },
   "settings": {
     "nav": {
@@ -195,7 +196,28 @@
       "sendLinkTitle": "Send password link",
       "sendLinkMessage": "Email {{ name }} ({{ email }}) a link to set a new password? Earlier links stop working. Their current password keeps working until they use the link.",
       "linkSent": "Password link sent to {{ email }}",
-      "displayNameHint": "Enter the user’s name (at most 128 characters)."
+      "displayNameHint": "Enter the user’s name (at most 128 characters).",
+      "deactivate": "Deactivate",
+      "activate": "Reactivate",
+      "remove": "Remove user",
+      "deactivateTitle": "Deactivate user",
+      "deactivateMessage": "Deactivate {{ name }}? They are signed out within 15 minutes and cannot sign in until reactivated. Their roles and history are kept.",
+      "deactivated": "{{ name }} deactivated",
+      "activated": "{{ name }} reactivated",
+      "removeTitle": "Remove user",
+      "removeMessage": "Remove {{ name }} ({{ userName }}) for good? Their roles and password are deleted; their sign-in history stays. To keep the account on record, deactivate it instead. This cannot be undone.",
+      "removed": "{{ name }} removed",
+      "passwordMode": "Password",
+      "passwordModeLink": "Email a link to set it",
+      "passwordModeTemporary": "Set a temporary password",
+      "tempPassword": "Temporary password",
+      "tempPasswordHint": "No email is sent. Give the password to the user in person or by phone; they must change it the first time they sign in.",
+      "tempPasswordInvalid": "The password does not meet all the rules above.",
+      "createUser": "Create user",
+      "setTempPassword": "Set temporary password",
+      "setTempPasswordHint": "Use this when the user cannot receive email. Their current password and open links stop working, they are signed out, and they must choose a new password at their next sign-in.",
+      "tempPasswordSet": "Temporary password set for {{ name }}",
+      "tempPasswordGiveHint": "Give it to them in person or by phone, not by email or chat. They must change it at first sign-in."
     },
     "import": {
       "title": "Import",
@@ -1793,7 +1815,8 @@
     "material": "Material",
     "aiConnections": "AI connections",
     "styleCompare": "Compare styles",
-    "translations": "Translations"
+    "translations": "Translations",
+    "aiImageSearch": "Image search"
   },
   "layout": {
     "appSubtitle": "Style Library",
@@ -2261,8 +2284,12 @@
       },
       "job": {
         "text": "Text (prompt)",
-        "image": "Picture"
-      }
+        "image": "Picture",
+        "vision": "Picture reading",
+        "embedding": "Search vectors"
+      },
+      "jobNotSetUp": "{{ job }} is not set up on this server (Settings > AI connections).",
+      "jobInHouse": "{{ job }} runs on the in-house AI server ({{ model }}). Data stays on the LT network."
     },
     "picker": {
       "label": "Find a style",
@@ -2310,6 +2337,11 @@
         "customer": "Customer",
         "material": "Material (on the BOM)",
         "styleNo": "Style number"
+      },
+      "looks": {
+        "title": "Styles that look like this",
+        "open": "Open in Image search",
+        "hint": "Found by their pictures (built-in image model, inside LT), so styles whose data does not use your words can show up here. Only styles with a photo, sketch or colorway picture are included."
       }
     },
     "compare": {
@@ -2603,8 +2635,79 @@
       "liveFeature": {
         "importFix": "Settings > Import (New codes tab of a staged import)",
         "conceptMatch": "Concept Studio (Proven styles in the library)",
-        "materialParse": "Materials > Description reader"
+        "materialParse": "Materials > Description reader",
+        "lookAlike": "AI Studio > Image search"
       }
+    },
+    "imageSearch": {
+      "title": "Image search",
+      "subtitle": "Find library styles that look like a photo, a description, or another style. Everything runs inside LT.",
+      "index": {
+        "title": "Picture index",
+        "summary": "{{ indexed }} of {{ pictures }} pictures",
+        "failed": "{{ count }} could not be read",
+        "run": "Index {{ count }} pictures",
+        "stop": "Stop",
+        "progress": "{{ done }} done, {{ remaining }} to go…",
+        "working": "Reading pictures…",
+        "done": "{{ count }} pictures indexed.",
+        "noPictures": "No style has a photo, sketch or colorway picture yet. Add pictures on the style pages, then index them here.",
+        "hint": "One click does both: look-alike first (under a second per picture), then descriptions (1 to 2 minutes per picture on a server without a GPU). New and changed pictures are picked up the next time you index.",
+        "aiOff": "AI features are switched off (Settings > AI connections).",
+        "lookAlike": {
+          "title": "Look-alike",
+          "what": "Search by photo and More like this. Built-in image model, runs inside LT ODM.",
+          "notInstalled": "The image model is not installed on this server (see the installation guide).",
+          "whatWords": "Search by photo, by words and More like this. Built-in image model, runs inside LT ODM."
+        },
+        "descriptions": {
+          "title": "Descriptions",
+          "what": "Search with the AI server ticked. The in-house AI server describes each picture.",
+          "notSetUp": "Needs the Vision and Embedding jobs (Settings > AI connections)."
+        },
+        "missing": "{{ count }} pictures have no file on this server (for example, the style was imported before its pictures were copied). Copy the files into the upload folder's style-library folder, then index again."
+      },
+      "source": {
+        "Photo": "Photo",
+        "Sketch": "Sketch",
+        "Colorway": "Colorway",
+        "Render": "Render"
+      },
+      "mode": {
+        "photo": "By photo",
+        "words": "By words"
+      },
+      "photo": {
+        "drop": "Drop a photo here or click to choose one",
+        "change": "Click or drop to use another photo",
+        "notStored": "JPEG, PNG or WebP up to 10 MB. Read inside LT and not stored.",
+        "run": "Find look-alikes",
+        "invalid": "Choose a JPEG, PNG, GIF or WebP picture of 10 MB or less."
+      },
+      "words": {
+        "label": "Describe the garment",
+        "placeholder": "e.g. navy hooded track jacket with white side stripes",
+        "run": "Search"
+      },
+      "guardrail": "Styles of other brands are shown for know-how (construction, materials, costs). Pitch a brand only its own designs or new LT designs, never another brand's style.",
+      "readAs": "The photo was read as",
+      "similarTo": "Styles that look like {{ styleNo }}:",
+      "moreLikeThis": "More like this",
+      "noMatches": "No indexed picture matches yet. Index the library's pictures first, or try other words.",
+      "noSimilar": "This style has no indexed picture yet, or no other style is indexed.",
+      "method": {
+        "lookAlike": "Matched by how the pictures look (built-in image model).",
+        "description": "Matched by picture descriptions (in-house AI server)."
+      },
+      "useAiServer": {
+        "label": "Use the AI server",
+        "faster": "Off: the built-in image model matches by look in about a second. Tick to match written picture descriptions on the in-house AI server instead (slower).",
+        "slower": "On: the in-house AI server's picture descriptions are searched. A photo takes minutes on a server without a GPU.",
+        "onlyAiServer": "The built-in image model is not installed for this search, so the in-house AI server is used.",
+        "onlyBuiltIn": "Only the built-in image model is available (the AI server jobs are not set up).",
+        "neither": "Neither the built-in image model nor the AI server jobs are available. Ask your administrator."
+      },
+      "weak": "No close match: these are the nearest pictures, but none looks much like the description. Try other words or a photo."
     }
   },
   "materials": {
@@ -2789,11 +2892,11 @@
       },
       "embedding": {
         "title": "Embedding",
-        "what": "AI Lab: look-alike search (compares pictures and descriptions)."
+        "what": "AI Studio: image search (turns picture descriptions and search words into vectors; needs a 1024-number model)."
       },
       "vision": {
         "title": "Vision",
-        "what": "AI Lab: colour reader (reads colorway photos)."
+        "what": "AI Studio: image search (reads garment pictures). Later: colour reader."
       },
       "document": {
         "title": "Document",

@@ -60,14 +60,21 @@ run tms\concept-studio.team-visibility.sql     # concept team visibility rules
 
 ## 3. Permissions for the application
 
-The app-pool account needs to run procedures and to bulk-insert into the three import staging tables. Nothing else.
+The API signs in with a **SQL login** (SQL authentication), so the same setup works for a web server on Windows (IIS) or Linux (nginx); Windows authentication from Linux would need Kerberos. The SQL Server instance must allow **SQL Server and Windows Authentication mode** (SSMS: server Properties > Security; restart the service after changing it).
+
+The login needs to run procedures and to bulk-insert into the three import staging tables. Nothing else. Use a different password per environment and keep it only in the web server's settings ([Configuration](04-configuration.md)).
 
 ```sql
+USE master;
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'ltodm_app_login')
+    CREATE LOGIN ltodm_app_login WITH PASSWORD = N'<long random password>', CHECK_POLICY = ON, CHECK_EXPIRATION = OFF;
+GO
 USE LTODM;
-CREATE LOGIN [LT\svc-ltodm] FROM WINDOWS;
-CREATE USER [LT\svc-ltodm] FOR LOGIN [LT\svc-ltodm];
-
-CREATE ROLE ltodm_app;
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'ltodm_app_login')
+    CREATE USER ltodm_app_login FOR LOGIN ltodm_app_login;
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'ltodm_app' AND type = 'R')
+    CREATE ROLE ltodm_app;
+GO
 GRANT EXECUTE ON SCHEMA::dbo     TO ltodm_app;   -- TMS procedures, health ping
 GRANT EXECUTE ON SCHEMA::auth    TO ltodm_app;
 GRANT EXECUTE ON SCHEMA::nav     TO ltodm_app;
@@ -81,8 +88,12 @@ GRANT INSERT ON staging.StyleRow   TO ltodm_app;
 GRANT INSERT ON staging.ArticleRow TO ltodm_app;
 GRANT INSERT ON staging.BomRow     TO ltodm_app;
 
-ALTER ROLE ltodm_app ADD MEMBER [LT\svc-ltodm];
+ALTER ROLE ltodm_app ADD MEMBER ltodm_app_login;
 ```
+
+`CHECK_EXPIRATION = OFF`: an expiring password would stop the site without warning; rotate it on your own schedule instead (change the login's password, then the connection string, then restart the app). The script can be run again safely.
+
+Connection string: `Server=SQL01;Database=LTODM;User ID=ltodm_app_login;Password=...;Encrypt=True`.
 
 Procedures and tables share an owner (`dbo`), so ownership chaining covers the reads and writes inside them. Test a full import and a commit with this role on a test server before go-live; if a TMS procedure uses dynamic SQL it may need extra grants on the tables it touches.
 

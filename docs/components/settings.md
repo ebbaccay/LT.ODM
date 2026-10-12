@@ -12,7 +12,7 @@ Add roles, edit display names and descriptions. A role's name cannot change once
 
 ## User roles (`/settings/user-roles`)
 
-Add users (they set their own password from an emailed link), set roles, user group and location, send a new password link. See [Authentication and users](authentication-and-users.md).
+Add users (they set their own password from an emailed link, or sign in with a temporary password the Admin sets and must change it), set roles, user group and location, send a new password link, set a temporary password, deactivate, reactivate or remove a user. See [Authentication and users](authentication-and-users.md).
 
 ## Reference lists (`/settings/reference-lists`)
 
@@ -53,6 +53,6 @@ Which AI service each job uses. See [AI overview](../ai/overview.md) for how it 
   - **Allow cloud AI services**: off = only in-house connections are used; jobs set to Gemini or to a connection not on the LT network are blocked and send nothing. Off on new installs.
   - Turning cloud on or AI off asks for confirmation. Who changed them last, and when, is shown.
 - **Connections**: add a service (Gemini, OpenAI-compatible in-house server, or custom HTTP), its address, API key (write-only: only the last 4 characters are shown afterwards; leave blank when editing to keep it), timeout, notes, whether it runs on the LT network, active or not. **Test connection** lists the service's models.
-- **Jobs**: for each job (Text, Image in use; Embedding, Vision, Document, Prediction prepared for AI Lab) choose a connection and model (the chip button loads the model list), then **Save** that row. "App default" uses the server's configuration file. **Off** (shown when there is an app default) turns the job off entirely. A job stopped by a switch shows a red line saying why.
+- **Jobs**: for each job (Text, Image, Embedding and Vision in use; Document, Prediction prepared for AI Lab; Embedding and Vision accept only OpenAI-compatible connections and the embedding model must return 1024 numbers) choose a connection and model (the chip button loads the model list), then **Save** that row. "App default" uses the server's configuration file. **Off** (shown when there is an app default) turns the job off entirely. A job stopped by a switch shows a red line saying why.
 - Changes apply to the next AI call (within a minute on other server processes); no restart.
 - A connection used by a job cannot be deleted or turned off.

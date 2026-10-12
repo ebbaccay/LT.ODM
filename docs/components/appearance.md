@@ -17,9 +17,9 @@ Charts and highlights (for example on the [Dashboard](dashboard.md)) use four co
 
 ## Glass effect
 
-When on, cards, the sidebar, the top bar, menus and popovers are translucent and blurred over a soft, still glow of the companion colours behind the page.
+When on, cards, the sidebar, the top bar, menus and popovers are translucent over a soft, still glow of the companion colours behind the page. The top bar, sidebar, menus and popovers also blur what passes behind them; cards do not (only the soft glow is behind them, and blurring every card made long lists such as Image search lag when scrolling).
 
 - **Dialogs stay almost solid** so their contents are always readable.
 - **Data grids stay solid** so figures stay easy to read.
 - Panels are solid and the glow is hidden when the browser cannot blur, when the user has turned transparency effects off in the operating system, in high-contrast mode, and when printing.
-- On slow machines, switching it off makes scrolling lighter.
+- If scrolling still feels heavy on an old machine, switch it off.

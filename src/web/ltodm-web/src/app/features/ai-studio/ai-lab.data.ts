@@ -110,12 +110,13 @@ export const LAB_CAPABILITIES: LabCapability[] = [
   },
   {
     id: 'lookAlike',
+    live: { route: '/ai/image-search', roles: ['admin', 'merchandiser', 'costing', 'viewer'], where: 'ai.lab.liveFeature.lookAlike' },
     purpose: 'embedding',
     icon: 'lucideImages',
     status: 'needsData',
     needs: 3,
     readiness: ['photos'],
-    runsOn: 'Vision embedding model (e.g. SigLIP / CLIP) + SQL Server 2025 VECTOR search',
+    runsOn: 'Vision model (e.g. Qwen2.5-VL) + text embedding model on Ollama + SQL Server 2025 VECTOR search',
     sample: {
       kind: 'matches',
       input: 'Uploaded photo: competitor hooded track top, colour-blocked sleeves',

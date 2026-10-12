@@ -394,6 +394,79 @@ IF INDEXPROPERTY(OBJECT_ID(N'style.AiRender'), N'IX_style_AiRender_Style', 'Inde
     CREATE INDEX IX_style_AiRender_Style ON style.AiRender (StyleId, RenderId DESC);
 GO
 
+/*
+    Image search (AI Studio > Image search): one row per picture - a style's photo or sketch, a colorway picture, an AI
+    render. ItemId = the colorway or render id (0 for the style's own photo and sketch). The Vision job reads the picture
+    into Garment / Colours / Details / Description; SearchText is the text built from them and Embedding is the Embedding
+    job's vector of that text (1024 numbers: SQL Server 2025 vector type). A row is current while ImageUrl and both model
+    names match the picture and the jobs. A picture that could not be read keeps Error and no Embedding, and is not tried
+    again until the picture or a model changes. No foreign key on ItemId: colorways and renders already cascade from the
+    style, and rows of removed pictures are cleared by style.usp_ImageIndex_ToIndex.
+*/
+IF OBJECT_ID(N'style.ImageIndex', N'U') IS NULL
+CREATE TABLE style.ImageIndex
+(
+    ImageIndexId   int IDENTITY(1, 1) NOT NULL,
+    StyleId        int                NOT NULL,
+    Source         varchar(10)        NOT NULL,
+    ItemId         int                NOT NULL CONSTRAINT DF_style_ImageIndex_ItemId DEFAULT (0),
+    ImageUrl       nvarchar(500)      NOT NULL,
+    Garment        nvarchar(100)      NULL,
+    Colours        nvarchar(300)      NULL,
+    Details        nvarchar(600)      NULL,
+    Description    nvarchar(1000)     NULL,
+    SearchText     nvarchar(2000)     NULL,
+    Embedding      vector(1024)       NULL,
+    Error          nvarchar(300)      NULL,
+    VisionModel    nvarchar(200)      NOT NULL,
+    EmbeddingModel nvarchar(200)      NOT NULL,
+    Provider       nvarchar(100)      NOT NULL,
+    IndexedBy      nvarchar(64)       NOT NULL,
+    IndexedUtc     datetime2(3)       NOT NULL CONSTRAINT DF_style_ImageIndex_IndexedUtc DEFAULT (SYSUTCDATETIME()),
+
+    CONSTRAINT PK_style_ImageIndex PRIMARY KEY CLUSTERED (ImageIndexId),
+    CONSTRAINT UQ_style_ImageIndex_Slot UNIQUE (StyleId, Source, ItemId),
+    CONSTRAINT CK_style_ImageIndex_Source CHECK (Source IN ('Photo', 'Sketch', 'Colorway', 'Render')),
+    CONSTRAINT FK_style_ImageIndex_Style FOREIGN KEY (StyleId) REFERENCES style.Style (StyleId) ON DELETE CASCADE
+);
+GO
+IF INDEXPROPERTY(OBJECT_ID(N'style.ImageIndex'), N'IX_style_ImageIndex_Model', 'IndexId') IS NULL
+    CREATE INDEX IX_style_ImageIndex_Model ON style.ImageIndex (EmbeddingModel) INCLUDE (StyleId, Source, ItemId, ImageUrl);
+GO
+IF INDEXPROPERTY(OBJECT_ID(N'style.ImageIndex'), N'IX_style_ImageIndex_ImageUrl', 'IndexId') IS NULL
+    CREATE INDEX IX_style_ImageIndex_ImageUrl ON style.ImageIndex (ImageUrl);
+GO
+
+/*
+    Image search look-alike vectors: one row per picture (same pictures as style.ImageIndex), made by the image model
+    built into the API (ImageSearch:ImageModel, e.g. Marqo-FashionSigLIP, 768 numbers) straight from the pixels: no
+    description, no AI server. Used for search by photo and "more like this". A row is current while ImageUrl and Model
+    match; a picture that could not be decoded keeps Error and no Vector.
+*/
+IF OBJECT_ID(N'style.ImageVector', N'U') IS NULL
+CREATE TABLE style.ImageVector
+(
+    ImageVectorId  int IDENTITY(1, 1) NOT NULL,
+    StyleId        int                NOT NULL,
+    Source         varchar(10)        NOT NULL,
+    ItemId         int                NOT NULL CONSTRAINT DF_style_ImageVector_ItemId DEFAULT (0),
+    ImageUrl       nvarchar(500)      NOT NULL,
+    Model          nvarchar(200)      NOT NULL,
+    Vector         vector(768)        NULL,
+    Error          nvarchar(300)      NULL,
+    IndexedBy      nvarchar(64)       NOT NULL,
+    IndexedUtc     datetime2(3)       NOT NULL CONSTRAINT DF_style_ImageVector_IndexedUtc DEFAULT (SYSUTCDATETIME()),
+
+    CONSTRAINT PK_style_ImageVector PRIMARY KEY CLUSTERED (ImageVectorId),
+    CONSTRAINT UQ_style_ImageVector_Slot UNIQUE (StyleId, Source, ItemId),
+    CONSTRAINT CK_style_ImageVector_Source CHECK (Source IN ('Photo', 'Sketch', 'Colorway', 'Render')),
+    CONSTRAINT FK_style_ImageVector_Style FOREIGN KEY (StyleId) REFERENCES style.Style (StyleId) ON DELETE CASCADE
+);
+GO
+IF INDEXPROPERTY(OBJECT_ID(N'style.ImageVector'), N'IX_style_ImageVector_ImageUrl', 'IndexId') IS NULL
+    CREATE INDEX IX_style_ImageVector_ImageUrl ON style.ImageVector (ImageUrl);
+GO
+
 /* ================================ staging ================================ */
 
 /*

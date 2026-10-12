@@ -31,9 +31,21 @@ public interface IAccessRepository
     Task<IReadOnlyList<UserAccessDto>> GetUsersAsync(CancellationToken ct = default);
     Task SetUserAccessAsync(int userId, SetUserAccessRequest request, string changedBy, CancellationToken ct = default);
 
-    /// <summary>Creates the user with an unusable password and a one-time "set your password" token (auth.usp_User_Invite).</summary>
-    Task<int> InviteUserAsync(CreateUserRequest request, string unusablePasswordHash, byte[] tokenHash, DateTime expiresUtc, string createdBy, CancellationToken ct = default);
+    /// <summary>
+    /// Creates the user (auth.usp_User_Invite): with <paramref name="tokenHash"/>, an unusable password and a one-time
+    /// "set your password" token; without it, <paramref name="passwordHash"/> is a temporary password to change at first sign-in.
+    /// </summary>
+    Task<int> InviteUserAsync(CreateUserRequest request, string passwordHash, byte[]? tokenHash, DateTime? expiresUtc, string createdBy, CancellationToken ct = default);
 
     /// <summary>Replaces the user's open reset links with a new one and returns who to email (auth.usp_User_CreatePasswordLink).</summary>
     Task<ResetUserRecord> CreatePasswordLinkAsync(int userId, byte[] tokenHash, DateTime expiresUtc, string requestedBy, CancellationToken ct = default);
+
+    /// <summary>Sets a temporary password the user must change at first sign-in (auth.usp_User_SetTemporaryPassword).</summary>
+    Task SetTemporaryPasswordAsync(int userId, string passwordHash, int historyToKeep, string changedBy, CancellationToken ct = default);
+
+    /// <summary>Deactivates (revokes sessions and links) or reactivates a user (auth.usp_User_SetActive).</summary>
+    Task SetUserActiveAsync(int userId, bool isActive, string changedBy, CancellationToken ct = default);
+
+    /// <summary>Removes a user and their roles, tokens and password history (auth.usp_User_Delete).</summary>
+    Task DeleteUserAsync(int userId, string changedBy, CancellationToken ct = default);
 }

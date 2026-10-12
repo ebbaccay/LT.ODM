@@ -81,13 +81,13 @@ public sealed class FakeAccessRepository : IAccessRepository
         return Task.CompletedTask;
     }
 
-    public List<(CreateUserRequest Request, string PasswordHash, byte[] TokenHash, DateTime ExpiresUtc, string CreatedBy)> Invites { get; } = [];
+    public List<(CreateUserRequest Request, string PasswordHash, byte[]? TokenHash, DateTime? ExpiresUtc, string CreatedBy)> Invites { get; } = [];
     public List<(int UserId, byte[] TokenHash, string RequestedBy)> PasswordLinks { get; } = [];
 
-    public Task<int> InviteUserAsync(CreateUserRequest request, string unusablePasswordHash, byte[] tokenHash, DateTime expiresUtc, string createdBy, CancellationToken ct = default)
+    public Task<int> InviteUserAsync(CreateUserRequest request, string passwordHash, byte[]? tokenHash, DateTime? expiresUtc, string createdBy, CancellationToken ct = default)
     {
         if (request.UserName == "taken") throw new AdminRuleException("A user with this user name already exists.");
-        Invites.Add((request, unusablePasswordHash, tokenHash, expiresUtc, createdBy));
+        Invites.Add((request, passwordHash, tokenHash, expiresUtc, createdBy));
         return Task.FromResult(500 + Invites.Count);
     }
 
@@ -96,6 +96,31 @@ public sealed class FakeAccessRepository : IAccessRepository
         if (userId == 404) throw new AdminRuleException("User not found or inactive.");
         PasswordLinks.Add((userId, tokenHash, requestedBy));
         return Task.FromResult(new ResetUserRecord { UserId = userId, UserName = "mchan", Email = "mei.chan@company.test", DisplayName = "Mei Chan" });
+    }
+
+    public List<(int UserId, string PasswordHash, string ChangedBy)> TemporaryPasswords { get; } = [];
+
+    public Task SetTemporaryPasswordAsync(int userId, string passwordHash, int historyToKeep, string changedBy, CancellationToken ct = default)
+    {
+        TemporaryPasswords.Add((userId, passwordHash, changedBy));
+        return Task.CompletedTask;
+    }
+
+    public List<(int UserId, bool IsActive, string ChangedBy)> ActiveChanges { get; } = [];
+    public List<(int UserId, string ChangedBy)> Deletes { get; } = [];
+
+    public Task SetUserActiveAsync(int userId, bool isActive, string changedBy, CancellationToken ct = default)
+    {
+        if (userId == 404) throw new AdminRuleException("User not found. Reload the page.");
+        ActiveChanges.Add((userId, isActive, changedBy));
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteUserAsync(int userId, string changedBy, CancellationToken ct = default)
+    {
+        if (userId == 404) throw new AdminRuleException("User not found. Reload the page.");
+        Deletes.Add((userId, changedBy));
+        return Task.CompletedTask;
     }
 }
 
@@ -250,8 +275,8 @@ public sealed class AdminTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal("fty.dg02", invite.Request.UserName);
         Assert.Equal("DG02", invite.Request.Location);
         Assert.Equal(me.UserName, invite.CreatedBy);
-        Assert.Equal(32, invite.TokenHash.Length);
-        Assert.InRange(invite.ExpiresUtc, DateTime.UtcNow.AddHours(71), DateTime.UtcNow.AddHours(73));
+        Assert.Equal(32, invite.TokenHash!.Length);
+        Assert.InRange(invite.ExpiresUtc!.Value, DateTime.UtcNow.AddHours(71), DateTime.UtcNow.AddHours(73));
 
         // The emailed link carries the token whose SHA-256 hash was stored, and is marked as a welcome link.
         var mail = factory.Emails.Sent.Last(m => m.To == "dg02@factory.test");
@@ -275,6 +300,79 @@ public sealed class AdminTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         var missing = await admin.PostAsync("/api/v1/admin/users/404/password-link", null);
         Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+    }
+
+    [Fact]
+    public async Task Admins_can_create_a_user_with_a_temporary_password_instead_of_a_link()
+    {
+        var (admin, me) = await SignInAsync("Admin");
+        var emailsBefore = factory.Emails.Sent.Count;
+
+        var weak = await admin.PostAsJsonAsync("/api/v1/admin/users", new
+        {
+            userName = "temp.weak", email = "temp.weak@company.test", displayName = "Temp Weak", roles = new[] { "Viewer" }, temporaryPassword = "short",
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, weak.StatusCode);
+        Assert.Contains("temporaryPassword", await weak.Content.ReadAsStringAsync());
+
+        var response = await admin.PostAsJsonAsync("/api/v1/admin/users", new
+        {
+            userName = "temp.user", email = "temp.user@company.test", displayName = "Temp User", roles = new[] { "Viewer" }, temporaryPassword = Password,
+        });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var invite = factory.Access.Invites.Last();
+        Assert.Equal("temp.user", invite.Request.UserName);
+        Assert.Null(invite.Request.TemporaryPassword);
+        Assert.Null(invite.TokenHash);
+        Assert.True(factory.Services.GetRequiredService<IPasswordHasher>().Verify(invite.PasswordHash, Password));
+        Assert.Equal(emailsBefore, factory.Emails.Sent.Count);
+        Assert.Equal(me.UserName, invite.CreatedBy);
+    }
+
+    [Fact]
+    public async Task Admins_can_set_a_temporary_password_for_another_user_but_not_themselves()
+    {
+        var (_, other) = await SignInAsync("Viewer");
+        var (admin, me) = await SignInAsync("Admin");
+
+        var weak = await admin.PutAsJsonAsync($"/api/v1/admin/users/{other.UserId}/password", new { password = "password" });
+        Assert.Equal(HttpStatusCode.BadRequest, weak.StatusCode);
+        Assert.DoesNotContain(factory.Access.TemporaryPasswords, t => t.UserId == other.UserId);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PutAsJsonAsync($"/api/v1/admin/users/{other.UserId}/password", new { password = Password })).StatusCode);
+        var set = factory.Access.TemporaryPasswords.Last();
+        Assert.Equal((other.UserId, me.UserName), (set.UserId, set.ChangedBy));
+        Assert.True(factory.Services.GetRequiredService<IPasswordHasher>().Verify(set.PasswordHash, Password));
+
+        var self = await admin.PutAsJsonAsync($"/api/v1/admin/users/{me.UserId}/password", new { password = Password });
+        Assert.Equal(HttpStatusCode.BadRequest, self.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync("/api/v1/admin/users/99999/password", new { password = Password })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Admins_can_deactivate_reactivate_and_remove_other_users_but_not_themselves()
+    {
+        var (admin, me) = await SignInAsync("Admin");
+
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PutAsJsonAsync("/api/v1/admin/users/2/active", new { isActive = false })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PutAsJsonAsync("/api/v1/admin/users/2/active", new { isActive = true })).StatusCode);
+        Assert.Equal([(2, false, me.UserName), (2, true, me.UserName)], factory.Access.ActiveChanges.Where(c => c.UserId == 2).TakeLast(2));
+
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync("/api/v1/admin/users/3")).StatusCode);
+        Assert.Contains((3, me.UserName), factory.Access.Deletes);
+
+        var deactivateSelf = await admin.PutAsJsonAsync($"/api/v1/admin/users/{me.UserId}/active", new { isActive = false });
+        Assert.Equal(HttpStatusCode.BadRequest, deactivateSelf.StatusCode);
+        Assert.Contains("your own account", await deactivateSelf.Content.ReadAsStringAsync());
+        var removeSelf = await admin.DeleteAsync($"/api/v1/admin/users/{me.UserId}");
+        Assert.Equal(HttpStatusCode.BadRequest, removeSelf.StatusCode);
+        Assert.DoesNotContain(factory.Access.Deletes, d => d.UserId == me.UserId);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.DeleteAsync("/api/v1/admin/users/404")).StatusCode);
+
+        var (viewer, _) = await SignInAsync("Viewer");
+        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.DeleteAsync("/api/v1/admin/users/2")).StatusCode);
     }
 
     [Fact]

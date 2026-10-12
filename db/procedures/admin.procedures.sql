@@ -269,8 +269,11 @@ END
 GO
 
 /*
-    Creates a user from Settings > User roles and stores a one-time "set your password" token (the API emails the link).
-    @PasswordHash is a hash of a random secret nobody knows, so the account cannot be used until the link is.
+    Creates a user from Settings > User roles, in one of two ways:
+      - with @TokenHash: stores a one-time "set your password" token (the API emails the link). @PasswordHash is a hash
+        of a random secret nobody knows, so the account cannot be used until the link is.
+      - without @TokenHash: @PasswordHash is a temporary password the administrator chose and passes on to the user;
+        they must change it at first sign-in (MustChangePassword), and it is kept in the history so it cannot be reused.
     Unknown role names are refused (50043) rather than silently dropped.
 */
 CREATE OR ALTER PROCEDURE auth.usp_User_Invite
@@ -281,8 +284,8 @@ CREATE OR ALTER PROCEDURE auth.usp_User_Invite
     @RoleNames      nvarchar(1000),
     @UserGroup      nvarchar(16)    = NULL,
     @Location       nvarchar(32)    = NULL,
-    @TokenHash      binary(32),
-    @ExpiresUtc     datetime2(3),
+    @TokenHash      binary(32)      = NULL,
+    @ExpiresUtc     datetime2(3)    = NULL,
     @CreatedBy      nvarchar(64)
 AS
 BEGIN
@@ -302,19 +305,25 @@ BEGIN
 
     BEGIN TRANSACTION;
 
+    DECLARE @temporary bit = IIF(@TokenHash IS NULL, 1, 0);
+
     INSERT auth.Users (UserName, Email, DisplayName, PasswordHash, MustChangePassword, UserGroup, Location)
-    VALUES (@UserName, @Email, @DisplayName, @PasswordHash, 0, NULLIF(TRIM(@UserGroup), N''), NULLIF(TRIM(@Location), N''));
+    VALUES (@UserName, @Email, @DisplayName, @PasswordHash, @temporary, NULLIF(TRIM(@UserGroup), N''), NULLIF(TRIM(@Location), N''));
 
     DECLARE @userId int = CAST(SCOPE_IDENTITY() AS int);
 
     INSERT auth.UserRoles (UserId, RoleId)
     SELECT @userId, r.RoleId FROM auth.Roles r JOIN @roles x ON x.Name = r.Name;
 
-    INSERT auth.PasswordResetTokens (UserId, TokenHash, ExpiresUtc, RequestedIp)
-    VALUES (@userId, @TokenHash, @ExpiresUtc, NULL);
+    IF @temporary = 1
+        INSERT auth.PasswordHistory (UserId, PasswordHash) VALUES (@userId, @PasswordHash);
+    ELSE
+        INSERT auth.PasswordResetTokens (UserId, TokenHash, ExpiresUtc, RequestedIp)
+        VALUES (@userId, @TokenHash, @ExpiresUtc, NULL);
 
     DECLARE @details nvarchar(max) =
-        (SELECT roles = @RoleNames, userGroup = @UserGroup, location = @Location, createdBy = @CreatedBy
+        (SELECT roles = @RoleNames, userGroup = @UserGroup, location = @Location, createdBy = @CreatedBy,
+                temporaryPassword = CAST(@temporary AS bit)
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
     EXEC auth.usp_Audit_Insert @userId, @UserName, 'UserCreated', NULL, NULL, @details;
 
@@ -354,5 +363,132 @@ BEGIN
     COMMIT TRANSACTION;
 
     SELECT UserId = @UserId, UserName = @userName, Email = @email, DisplayName = @displayName;
+END
+GO
+
+/*
+    An administrator gives a user a temporary password (no email needed, e.g. before SMTP is set up). The user must
+    change it at first sign-in. Like a reset: new security stamp, lockout cleared, sessions and open password links
+    revoked. The temporary password goes into the history (so it cannot be kept as the new one).
+    THROW 50040 when the user does not exist or is inactive.
+*/
+CREATE OR ALTER PROCEDURE auth.usp_User_SetTemporaryPassword
+    @UserId         int,
+    @PasswordHash   nvarchar(256),
+    @HistoryToKeep  int,
+    @ChangedBy      nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @now datetime2(3) = SYSUTCDATETIME();
+    DECLARE @userName nvarchar(64) = (SELECT UserName FROM auth.Users WHERE UserId = @UserId AND IsActive = 1);
+    IF @userName IS NULL THROW 50040, 'User not found or inactive.', 1;
+
+    BEGIN TRANSACTION;
+
+    UPDATE auth.Users
+    SET PasswordHash = @PasswordHash, SecurityStamp = NEWID(), PasswordChangedUtc = @now, MustChangePassword = 1,
+        FailedLoginCount = 0, LockoutEndUtc = NULL
+    WHERE UserId = @UserId;
+
+    INSERT auth.PasswordHistory (UserId, PasswordHash) VALUES (@UserId, @PasswordHash);
+    DELETE h
+    FROM auth.PasswordHistory h
+    WHERE h.UserId = @UserId
+      AND h.PasswordHistoryId NOT IN (
+            SELECT TOP (@HistoryToKeep) PasswordHistoryId FROM auth.PasswordHistory
+            WHERE UserId = @UserId ORDER BY CreatedUtc DESC, PasswordHistoryId DESC);
+
+    UPDATE auth.RefreshTokens SET RevokedUtc = @now WHERE UserId = @UserId AND RevokedUtc IS NULL;
+    UPDATE auth.PasswordResetTokens SET UsedUtc = @now WHERE UserId = @UserId AND UsedUtc IS NULL;
+
+    DECLARE @details nvarchar(max) = (SELECT changedBy = @ChangedBy FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    EXEC auth.usp_Audit_Insert @UserId, @userName, 'PasswordSetByAdmin', NULL, NULL, @details;
+
+    COMMIT TRANSACTION;
+END
+GO
+
+/*
+    Deactivates or reactivates a user. Deactivating signs them out: refresh tokens and open password links are revoked
+    and the security stamp changes, so the session ends within 15 minutes (when the access token expires).
+    Reactivating restores the previous password; send a password link if they never set one.
+    THROW 50040 user not found; 50044 the last active Admin cannot be deactivated.
+*/
+CREATE OR ALTER PROCEDURE auth.usp_User_SetActive
+    @UserId     int,
+    @IsActive   bit,
+    @ChangedBy  nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @userName nvarchar(64) = (SELECT UserName FROM auth.Users WHERE UserId = @UserId);
+    IF @userName IS NULL THROW 50040, 'User not found. Reload the page.', 1;
+
+    BEGIN TRANSACTION;
+
+    IF @IsActive = 0 AND EXISTS (SELECT 1 FROM auth.UserRoles ur JOIN auth.Roles r ON r.RoleId = ur.RoleId WHERE ur.UserId = @UserId AND r.Name = N'Admin')
+       AND NOT EXISTS (SELECT 1 FROM auth.Users u WITH (UPDLOCK, HOLDLOCK)
+                       JOIN auth.UserRoles ur ON ur.UserId = u.UserId JOIN auth.Roles r ON r.RoleId = ur.RoleId
+                       WHERE r.Name = N'Admin' AND u.IsActive = 1 AND u.UserId <> @UserId)
+        THROW 50044, 'This is the last active administrator. Give another user the Admin role first.', 1;
+
+    UPDATE auth.Users
+    SET IsActive = @IsActive,
+        SecurityStamp = IIF(@IsActive = 0, NEWID(), SecurityStamp)
+    WHERE UserId = @UserId;
+
+    IF @IsActive = 0
+    BEGIN
+        UPDATE auth.RefreshTokens SET RevokedUtc = SYSUTCDATETIME() WHERE UserId = @UserId AND RevokedUtc IS NULL;
+        UPDATE auth.PasswordResetTokens SET UsedUtc = SYSUTCDATETIME() WHERE UserId = @UserId AND UsedUtc IS NULL;
+    END
+
+    DECLARE @details nvarchar(max) = (SELECT changedBy = @ChangedBy FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    DECLARE @event varchar(32) = IIF(@IsActive = 1, 'UserActivated', 'UserDeactivated');
+    EXEC auth.usp_Audit_Insert @UserId, @userName, @event, NULL, NULL, @details;
+
+    COMMIT TRANSACTION;
+END
+GO
+
+/*
+    Removes a user for good (a mistaken or test account). Roles, password history, refresh tokens and password links go
+    with it (cascade); their sign-in audit rows stay, without the user id. For people who have used the system,
+    deactivating keeps their name on the record and is usually the better choice.
+    THROW 50040 user not found; 50044 the last active Admin cannot be removed.
+*/
+CREATE OR ALTER PROCEDURE auth.usp_User_Delete
+    @UserId     int,
+    @ChangedBy  nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @userName nvarchar(64), @email nvarchar(256), @displayName nvarchar(128);
+    SELECT @userName = UserName, @email = Email, @displayName = DisplayName FROM auth.Users WHERE UserId = @UserId;
+    IF @userName IS NULL THROW 50040, 'User not found. Reload the page.', 1;
+
+    BEGIN TRANSACTION;
+
+    IF EXISTS (SELECT 1 FROM auth.Users u JOIN auth.UserRoles ur ON ur.UserId = u.UserId JOIN auth.Roles r ON r.RoleId = ur.RoleId
+               WHERE u.UserId = @UserId AND u.IsActive = 1 AND r.Name = N'Admin')
+       AND NOT EXISTS (SELECT 1 FROM auth.Users u WITH (UPDLOCK, HOLDLOCK)
+                       JOIN auth.UserRoles ur ON ur.UserId = u.UserId JOIN auth.Roles r ON r.RoleId = ur.RoleId
+                       WHERE r.Name = N'Admin' AND u.IsActive = 1 AND u.UserId <> @UserId)
+        THROW 50044, 'This is the last active administrator. Give another user the Admin role first.', 1;
+
+    DELETE auth.Users WHERE UserId = @UserId;
+
+    DECLARE @details nvarchar(max) =
+        (SELECT userId = @UserId, email = @email, displayName = @displayName, deletedBy = @ChangedBy FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    EXEC auth.usp_Audit_Insert NULL, @userName, 'UserDeleted', NULL, NULL, @details;
+
+    COMMIT TRANSACTION;
 END
 GO

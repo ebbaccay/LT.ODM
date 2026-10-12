@@ -1,6 +1,6 @@
 # Data sent to AI services
 
-Every AI feature in LT ODM goes through one of two **jobs**: **Text** or **Image**. Settings > AI connections decides which service each job uses ([AI overview](overview.md)).
+Every AI feature in LT ODM goes through a **job**: **Text**, **Image**, or (image search, in-house only) **Vision** and **Embedding**. Settings > AI connections decides which service each job uses ([AI overview](overview.md)).
 
 - While a job uses **Gemini**, everything listed below for that job is sent over HTTPS to Google (`generativelanguage.googleapis.com`), **outside the LT network**.
 - While a job uses the **in-house AI server**, the same data goes only to that server and stays inside LT.
@@ -12,7 +12,7 @@ Every AI feature in LT ODM goes through one of two **jobs**: **Text** or **Image
 
 - Users' names, user names, emails, roles and passwords; sign-in tokens.
 - Who is using the feature. Google sees only the web server's address and LT's API key.
-- Images, unless listed below (only the style sketch for renders).
+- Images, unless listed below: the style sketch for renders, and library pictures and search photos for image search, which go **only to an in-house server** (the Vision job refuses Gemini).
 - Anything the feature does not need: each feature sends a fixed set of fields, built on the server. The browser cannot add fields.
 
 The API key goes in an HTTP header (`x-goog-api-key` for Gemini, `Authorization: Bearer` for in-house servers), never in the address. Prompts and answers are **not written to the logs**; failures are logged with the provider name and HTTP status only.
@@ -28,7 +28,21 @@ Sensitivity is LT's view of the data: **Low** (reference lists and generic text)
 | Job / calls | Text, 1 per search **only when the phrase list does not understand every word** ([Smart search](../components/ai-studio.md#smart-search-aisearch)); requests made of phrase-list words send nothing |
 | Sent | The request as typed; today's date; the library's code lists: customers (code and name), season codes, business units, product types, weave types (code and name) |
 | Not sent | Any style data. The AI only fills filters; the results come from the database |
+| Styles that look like this | The request is also searched by picture with the image model built into the API ([Image search](#ai-studio--image-search)): **nothing is sent anywhere** for it |
 | Sensitivity | Low (the typed request may contain whatever the user writes) |
+
+### AI Studio > Image search
+
+| | |
+|---|---|
+| Look-alike (built-in model) | **Nothing is sent anywhere.** The image model runs inside the API on the web server: look-alike vectors for indexing, search by photo, search by words and more like this are computed there |
+| Job / calls (descriptions) | **Index**: Vision 1 + Embedding 1 per picture read (Embedding only when just the embedding model changed; none for a picture file already indexed). **By photo**: none while the built-in model is installed, unless *Use the AI server* is ticked; then Vision 1 + Embedding 1. **By words**: none while the model's text part is installed, unless *Use the AI server* is ticked; then Embedding 1. **More like this**: none |
+| Where | **In-house server only.** Vision and Embedding accept only OpenAI-compatible connections; a Gemini connection is refused before anything is sent. With *Allow cloud AI services* off, a connection not marked "runs on the LT network" is blocked too |
+| Sent (Vision) | One picture, made at most 768 px: a style photo, sketch, colorway picture or AI render (index), or the uploaded photo (search); a fixed instruction. No style number, customer or other field goes with it |
+| Sent (Embedding) | The text the vision model wrote about the picture (garment, colours, details, fabric look, description), or the words typed |
+| Stored | In LT's database: the description and its vector (`style.ImageIndex`), the look-alike vector (`style.ImageVector`). **Uploaded search photos are not stored** |
+| Not sent | Style numbers, customers, BOMs, suppliers, costs |
+| Sensitivity | Medium (pictures of customer designs), kept inside LT |
 
 ### AI Studio > Change summary and Styles > Compare styles ("Summarize with AI")
 

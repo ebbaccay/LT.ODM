@@ -42,6 +42,8 @@ export const routes: Routes = [
         children: [
           { path: '', pathMatch: 'full', redirectTo: 'search' },
           { path: 'search', loadComponent: () => import('./features/ai-studio/smart-search').then((m) => m.SmartSearch), title: 'titles.aiSearch' },
+          // In-house only: Vision + Embedding jobs; the API lets only Admin and Merchandiser build the index.
+          { path: 'image-search', loadComponent: () => import('./features/ai-studio/image-search').then((m) => m.ImageSearch), title: 'titles.aiImageSearch' },
           { path: 'compare', loadComponent: () => import('./features/ai-studio/change-summary').then((m) => m.ChangeSummary), title: 'titles.aiCompare' },
           { path: 'bom-check', loadComponent: () => import('./features/ai-studio/bom-check').then((m) => m.BomCheckPage), title: 'titles.aiBomCheck' },
           { path: 'render', loadComponent: () => import('./features/ai-studio/style-render').then((m) => m.StyleRenderPage), title: 'titles.aiRender' },

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
@@ -16,6 +17,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.IdentityModel.Tokens;
 
@@ -25,12 +27,15 @@ var builder = WebApplication.CreateBuilder(args);
 // Lowest priority, so appsettings, user secrets and environment variables can still override it.
 builder.Configuration.Sources.Insert(0, new JsonConfigurationSource { Path = "tms-procedures.json", Optional = false });
 
-var connectionString = builder.Configuration.GetConnectionString("StyleLibrary");
+// Database:ConnectionName picks another entry under ConnectionStrings (the launch profile "https-devserver" uses
+// StyleLibraryDevServer, kept in user secrets), so a developer PC can switch databases without editing secrets.
+var connectionName = builder.Configuration["Database:ConnectionName"] is { Length: > 0 } configuredName ? configuredName : "StyleLibrary";
+var connectionString = builder.Configuration.GetConnectionString(connectionName);
 if (string.IsNullOrWhiteSpace(connectionString))
 {
     throw new InvalidOperationException(
-        "Connection string 'ConnectionStrings:StyleLibrary' is not configured. " +
-        "In development run: dotnet user-secrets set \"ConnectionStrings:StyleLibrary\" \"...\" --project src/api/LT.ODM.Api. " +
+        $"Connection string 'ConnectionStrings:{connectionName}' is not configured. " +
+        $"In development run: dotnet user-secrets set \"ConnectionStrings:{connectionName}\" \"...\" --project src/api/LT.ODM.Api. " +
         "In production set the environment variable ConnectionStrings__StyleLibrary.");
 }
 
@@ -177,6 +182,15 @@ if (CreateUserCommand.IsRequested(args))
 {
     return await CreateUserCommand.RunAsync(app.Services, args);
 }
+
+// Behind nginx (Linux) the client's IP and https arrive in X-Forwarded-For / X-Forwarded-Proto. Without this, HTTPS
+// redirection loops, and the per-IP rate limits and the sign-in audit see only the proxy. Only trusted proxies are
+// believed: loopback by default (nginx on the same server), plus ForwardedHeaders:KnownProxies for a proxy elsewhere.
+// Under IIS no such headers arrive, so this changes nothing there.
+var forwardedOptions = new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto };
+foreach (var proxy in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+    forwardedOptions.KnownProxies.Add(IPAddress.Parse(proxy));
+app.UseForwardedHeaders(forwardedOptions);
 
 if (app.Environment.IsDevelopment())
 {

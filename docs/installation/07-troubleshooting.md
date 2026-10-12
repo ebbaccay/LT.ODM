@@ -11,7 +11,7 @@
 | Sign-in fails for everyone with "Too many attempts" | A load balancer or proxy was put in front: every user shares its IP, so the per-IP limit (10/min) is shared | Add forwarded-headers handling to the API (see [IIS deployment](03-iis-deployment.md#behind-a-load-balancer-or-reverse-proxy)) |
 | Import of a large workbook fails with 404.13 | IIS request limit (30 MB default) | Set `maxAllowedContentLength="57671680"` |
 | Images do not show, or upload fails with 500 | App-pool account lacks Modify on `Files:Root` | Grant Modify |
-| "New users never get the email" | `Email:*` not set or the relay refuses the server | Set SMTP settings; Admin can resend with **Send password link** |
+| "New users never get the email" | `Email:*` not set or the relay refuses the server | Set SMTP settings; Admin can resend with **Send password link**. Until SMTP works, give the user a temporary password (**Edit access > Set temporary password**) |
 | AI pages say "AI is not set up" | No connection for the job and no appsettings fallback | Settings > AI connections: add a connection and set the job |
 | AI pages say AI is "turned off" or that "cloud AI is not allowed" | A central switch, or the job is set to Off | Settings > AI connections > Switches (or the job's row). Allow cloud only if the data may leave LT; otherwise point the job at the in-house server |
 | AI says "The AI service could not answer" | Key refused, model name wrong, quota or rate limit at the provider, or (images) the key has no image access | **Test connection** in Settings > AI connections; check the model name; check the provider's quota |

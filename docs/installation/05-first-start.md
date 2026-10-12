@@ -6,7 +6,7 @@ Every other user is added in the app; the first Admin is created from the comman
 
 ```powershell
 cd D:\LTODM\api
-$env:ConnectionStrings__StyleLibrary = "Server=SQL01;Database=LTODM;Integrated Security=True;Encrypt=True"
+$env:ConnectionStrings__StyleLibrary = "Server=SQL01;Database=LTODM;User ID=ltodm_app_login;Password=...;Encrypt=True"
 $env:Jwt__SigningKey = "<the same key as the site>"
 $env:Auth__PublicBaseUrl = "https://ltodm.lt.local"
 
@@ -21,7 +21,7 @@ Close the session afterwards so the signing key does not stay in it.
 ## 2. Sign in and add users
 
 1. Open `https://ltodm.lt.local` and sign in as the Admin.
-2. **Settings > User roles > Add user**: name, user name, email, roles, user group, location. The user gets an email with a one-time link (valid 72 hours) to set their own password. Factory users need user group `FTY` and their factory code as location.
+2. **Settings > User roles > Add user**: name, user name, email, roles, user group, location. The user gets an email with a one-time link (valid 72 hours) to set their own password. Without SMTP, choose **Set a temporary password** instead and give it to the user; they must change it at first sign-in. Factory users need user group `FTY` and their factory code as location.
 3. Check the menu in **Settings > Menu**. The default menu is created by the database scripts; pages without roles are visible to every signed-in user.
 
 ## 3. Load the Style Library

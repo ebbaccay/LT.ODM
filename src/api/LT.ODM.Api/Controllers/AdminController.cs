@@ -44,14 +44,39 @@ public sealed class AdminController(IAccessRepository access, IMenuRepository me
     [HttpGet("users")]
     public async Task<IReadOnlyList<UserAccessDto>> GetUsers(CancellationToken ct) => await access.GetUsersAsync(ct);
 
-    /// <summary>Creates a user and emails them a one-time link to set their password (no password is chosen here).</summary>
+    /// <summary>
+    /// Creates a user and emails them a one-time link to set their password, or, with a temporary password, creates
+    /// them with that password (no email) to be changed at first sign-in.
+    /// </summary>
     [HttpPost("users")]
     public Task<IActionResult> CreateUser(CreateUserRequest request, CancellationToken ct)
-        => Run(AdminValidation.NewUser(request), async () =>
+    {
+        var errors = AdminValidation.NewUser(request);
+        if (!string.IsNullOrEmpty(request.TemporaryPassword)
+            && invites.CheckTemporaryPassword(request.TemporaryPassword, request.UserName, request.Email, request.DisplayName) is { Count: > 0 } policy)
+            errors["temporaryPassword"] = [.. policy];
+        return Run(errors, async () =>
         {
             var id = await invites.InviteAsync(request, CurrentUserName, ct);
             return Ok(new { userId = id });
         });
+    }
+
+    /// <summary>Gives another user a temporary password (no email). They must change it at first sign-in.</summary>
+    [HttpPut("users/{userId:int}/password")]
+    public Task<IActionResult> SetTemporaryPassword(int userId, SetTemporaryPasswordRequest request, CancellationToken ct)
+    {
+        Dictionary<string, string[]> errors = [];
+        if (userId == CurrentUserId)
+            errors["password"] = ["Use Change password to change your own password."];
+        return Run(errors, async () =>
+        {
+            var policy = await invites.SetTemporaryPasswordAsync(userId, request.Password ?? "", CurrentUserName, ct);
+            return policy.Count > 0
+                ? ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["password"] = [.. policy] }))
+                : NoContent();
+        });
+    }
 
     /// <summary>Emails the user a new one-time "set your password" link; older links stop working.</summary>
     [HttpPost("users/{userId:int}/password-link")]
@@ -73,6 +98,34 @@ public sealed class AdminController(IAccessRepository access, IMenuRepository me
         {
             var normalized = request with { UserGroup = Blank(request.UserGroup), Location = Blank(request.Location) };
             await access.SetUserAccessAsync(userId, normalized, CurrentUserName, ct);
+            return NoContent();
+        });
+    }
+
+    /// <summary>Deactivate (signs the user out within 15 minutes, blocks sign-in) or reactivate a user.</summary>
+    [HttpPut("users/{userId:int}/active")]
+    public Task<IActionResult> SetUserActive(int userId, SetUserActiveRequest request, CancellationToken ct)
+    {
+        Dictionary<string, string[]> errors = [];
+        if (!request.IsActive && userId == CurrentUserId)
+            errors["isActive"] = ["You cannot deactivate your own account. Ask another administrator."];
+        return Run(errors, async () =>
+        {
+            await access.SetUserActiveAsync(userId, request.IsActive, CurrentUserName, ct);
+            return NoContent();
+        });
+    }
+
+    /// <summary>Removes a user for good. Their sign-in history stays, without the link to the user.</summary>
+    [HttpDelete("users/{userId:int}")]
+    public Task<IActionResult> DeleteUser(int userId, CancellationToken ct)
+    {
+        Dictionary<string, string[]> errors = [];
+        if (userId == CurrentUserId)
+            errors["userId"] = ["You cannot remove your own account. Ask another administrator."];
+        return Run(errors, async () =>
+        {
+            await access.DeleteUserAsync(userId, CurrentUserName, ct);
             return NoContent();
         });
     }

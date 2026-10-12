@@ -30,6 +30,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public FakeStyleAiRepository StyleAi { get; } = new();
     public FakeMaterialRepository Materials { get; } = new();
     public FakeAiSettingsRepository AiSettings { get; } = new();
+    public FakeAiVisionClient Vision { get; } = new();
+    public FakeAiEmbeddingClient Embedding { get; } = new();
+    public FakeImageSearchRepository ImageSearch { get; } = new();
+    public FakeImageEmbeddingModel ImageModel { get; } = new();
     /// <summary>Uploaded images go to a temp folder that is deleted with the factory.</summary>
     public string FilesRoot { get; } = Path.Combine(Path.GetTempPath(), "ltodm-tests-" + Guid.NewGuid().ToString("N"));
     /// <summary>Stands in for wwwroot/assets/i18n; tests write the &lt;lang&gt;.json files they need.</summary>
@@ -82,6 +86,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<IMaterialRepository>(Materials);
             services.RemoveAll<IAiSettingsRepository>();
             services.AddSingleton<IAiSettingsRepository>(AiSettings);
+            services.RemoveAll<IAiVisionClient>();
+            services.AddSingleton<IAiVisionClient>(Vision);
+            services.RemoveAll<IAiEmbeddingClient>();
+            services.AddSingleton<IAiEmbeddingClient>(Embedding);
+            services.RemoveAll<IImageSearchRepository>();
+            services.AddSingleton<IImageSearchRepository>(ImageSearch);
+            services.RemoveAll<IImageEmbeddingModel>();
+            services.AddSingleton<IImageEmbeddingModel>(ImageModel);
         });
     }
 

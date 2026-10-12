@@ -35,6 +35,23 @@ public interface IAiImageClient
     Task<GeneratedImage> GenerateImageAsync(string purpose, string prompt, ReferenceImage? reference, CancellationToken ct = default);
 }
 
+/// <summary>A vision model that reads one picture and answers with JSON matching a schema (the "vision" job; in-house servers only).</summary>
+public interface IAiVisionClient
+{
+    Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default);
+
+    /// <summary>The picture is made smaller before it is sent (vision models read small pictures much faster).</summary>
+    Task<string> DescribeJsonAsync(string purpose, string systemInstruction, string userText, ReferenceImage image, JsonObject schema, CancellationToken ct = default);
+}
+
+/// <summary>An embedding model that turns text into a vector of numbers (the "embedding" job; in-house servers only).</summary>
+public interface IAiEmbeddingClient
+{
+    Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default);
+
+    Task<float[]> EmbedAsync(string purpose, string text, CancellationToken ct = default);
+}
+
 public sealed record ReferenceImage(byte[] Content, string ContentType);
 
 public sealed record GeneratedImage(byte[] Content, ImageKind Kind);

@@ -91,7 +91,8 @@
     "aiBomCheck": "物料清单检查",
     "aiRender": "款式效果图",
     "aiLab": "AI 实验室",
-    "materials": "物料"
+    "materials": "物料",
+    "aiImageSearch": "图片搜索"
   },
   "settings": {
     "nav": {
@@ -195,7 +196,28 @@
       "sendLinkTitle": "发送密码链接",
       "sendLinkMessage": "向 {{ name }}（{{ email }}）发送设置新密码的链接？之前的链接将失效。在使用链接之前，其当前密码仍然有效。",
       "linkSent": "密码链接已发送到 {{ email }}",
-      "displayNameHint": "请输入用户姓名（最多 128 个字符）。"
+      "displayNameHint": "请输入用户姓名（最多 128 个字符）。",
+      "deactivate": "停用",
+      "activate": "重新启用",
+      "remove": "删除用户",
+      "deactivateTitle": "停用用户",
+      "deactivateMessage": "停用 {{ name }}？该用户将在 15 分钟内被登出，重新启用之前无法登录。其角色和记录将保留。",
+      "deactivated": "已停用 {{ name }}",
+      "activated": "已重新启用 {{ name }}",
+      "removeTitle": "删除用户",
+      "removeMessage": "永久删除 {{ name }}（{{ userName }}）？其角色和密码将被删除，登录记录会保留。如需保留账户记录，请改为停用。此操作无法撤销。",
+      "removed": "已删除 {{ name }}",
+      "passwordMode": "密码",
+      "passwordModeLink": "发送邮件链接设置密码",
+      "passwordModeTemporary": "设置临时密码",
+      "tempPassword": "临时密码",
+      "tempPasswordHint": "不会发送邮件。请当面或通过电话把密码告知用户；用户首次登录时必须修改。",
+      "tempPasswordInvalid": "密码未满足上述所有规则。",
+      "createUser": "创建用户",
+      "setTempPassword": "设置临时密码",
+      "setTempPasswordHint": "用户无法接收邮件时使用。其当前密码和未使用的链接将失效，用户会被登出，下次登录时必须设置新密码。",
+      "tempPasswordSet": "已为 {{ name }} 设置临时密码",
+      "tempPasswordGiveHint": "请当面或通过电话告知，不要通过邮件或聊天发送。用户首次登录时必须修改。"
     },
     "import": {
       "title": "导入",
@@ -1793,7 +1815,8 @@
     "material": "物料",
     "aiConnections": "AI 连接",
     "styleCompare": "比较款式",
-    "translations": "翻译"
+    "translations": "翻译",
+    "aiImageSearch": "图片搜索"
   },
   "layout": {
     "appSubtitle": "款式库",
@@ -2261,8 +2284,12 @@
       },
       "job": {
         "text": "文本（提示词）",
-        "image": "图片"
-      }
+        "image": "图片",
+        "vision": "图片识别",
+        "embedding": "搜索向量"
+      },
+      "jobNotSetUp": "此服务器尚未设置{{ job }}（设置 > AI 连接）。",
+      "jobInHouse": "{{ job }}在内部 AI 服务器上运行（{{ model }}）。数据保留在 LT 网络内。"
     },
     "picker": {
       "label": "查找款式",
@@ -2310,6 +2337,11 @@
         "customer": "客户",
         "material": "物料（物料清单）",
         "styleNo": "款号"
+      },
+      "looks": {
+        "title": "外观相似的款式",
+        "open": "在图片搜索中打开",
+        "hint": "按图片查找（内置图像模型，在 LT 内部运行），因此数据中没有使用您所输入文字的款式也可能出现在这里。仅包含带有照片、草图或配色图片的款式。"
       }
     },
     "compare": {
@@ -2603,8 +2635,79 @@
       "liveFeature": {
         "importFix": "设置 > 导入（待提交导入的“新代码”标签页）",
         "conceptMatch": "Concept Studio（款式库中的成熟款式）",
-        "materialParse": "物料 > 描述解读"
+        "materialParse": "物料 > 描述解读",
+        "lookAlike": "AI 工作室 > 图片搜索"
       }
+    },
+    "imageSearch": {
+      "title": "图片搜索",
+      "subtitle": "查找与照片、描述或其他款式相似的库内款式。全部在 LT 内部运行。",
+      "index": {
+        "title": "图片索引",
+        "summary": "{{ pictures }} 张图片中已完成 {{ indexed }} 张",
+        "failed": "{{ count }} 张无法识别",
+        "run": "索引 {{ count }} 张图片",
+        "stop": "停止",
+        "progress": "已完成 {{ done }} 张，剩余 {{ remaining }} 张…",
+        "working": "正在识别图片…",
+        "done": "已索引 {{ count }} 张图片。",
+        "noPictures": "目前还没有款式带有照片、草图或配色图片。请先在款式页面添加图片，再在此处建立索引。",
+        "hint": "一次点击完成两项：先做外观相似（每张不到一秒），再做描述（在没有 GPU 的服务器上每张约 1 到 2 分钟）。下次建立索引时会处理新增和更改的图片。",
+        "aiOff": "AI 功能已关闭（设置 > AI 连接）。",
+        "lookAlike": {
+          "title": "外观相似",
+          "what": "按照片搜索和更多相似款式。内置图像模型，在 LT ODM 内部运行。",
+          "notInstalled": "此服务器未安装图像模型（请参阅安装指南）。",
+          "whatWords": "按照片、按文字搜索和更多相似款式。内置图像模型，在 LT ODM 内部运行。"
+        },
+        "descriptions": {
+          "title": "描述",
+          "what": "勾选 AI 服务器时使用。内部 AI 服务器为每张图片生成描述。",
+          "notSetUp": "需要视觉和嵌入任务（设置 > AI 连接）。"
+        },
+        "missing": "{{ count }} 张图片在此服务器上没有文件（例如款式导入时图片尚未复制）。请将文件复制到上传文件夹的 style-library 文件夹，然后再次建立索引。"
+      },
+      "source": {
+        "Photo": "照片",
+        "Sketch": "草图",
+        "Colorway": "配色",
+        "Render": "渲染图"
+      },
+      "mode": {
+        "photo": "按照片",
+        "words": "按文字"
+      },
+      "photo": {
+        "drop": "将照片拖到此处或点击选择",
+        "change": "点击或拖放以使用其他照片",
+        "notStored": "JPEG、PNG 或 WebP，最大 10 MB。在 LT 内部识别，不会保存。",
+        "run": "查找相似款式",
+        "invalid": "请选择 10 MB 以内的 JPEG、PNG、GIF 或 WebP 图片。"
+      },
+      "words": {
+        "label": "描述服装",
+        "placeholder": "例如：藏青色连帽运动夹克，侧边白色条纹",
+        "run": "搜索"
+      },
+      "guardrail": "其他品牌的款式仅作为工艺、材料和成本参考。向品牌提案时只能使用该品牌自己的设计或 LT 的新设计，绝不能使用其他品牌的款式。",
+      "readAs": "照片识别为",
+      "similarTo": "与 {{ styleNo }} 相似的款式：",
+      "moreLikeThis": "更多相似款式",
+      "noMatches": "暂无匹配的已索引图片。请先为库内图片建立索引，或尝试其他文字。",
+      "noSimilar": "此款式尚无已索引的图片，或没有其他已索引的款式。",
+      "method": {
+        "lookAlike": "按图片外观匹配（内置图像模型）。",
+        "description": "按图片描述匹配（内部 AI 服务器）。"
+      },
+      "useAiServer": {
+        "label": "使用 AI 服务器",
+        "faster": "未勾选：内置图像模型按外观匹配，约一秒。勾选后改为在内部 AI 服务器上匹配图片的文字描述（较慢）。",
+        "slower": "已勾选：搜索内部 AI 服务器生成的图片描述。在没有 GPU 的服务器上，一张照片需要几分钟。",
+        "onlyAiServer": "此搜索未安装内置图像模型，因此使用内部 AI 服务器。",
+        "onlyBuiltIn": "只有内置图像模型可用（AI 服务器任务未设置）。",
+        "neither": "内置图像模型和 AI 服务器任务都不可用。请联系管理员。"
+      },
+      "weak": "没有接近的匹配：这些是最接近的图片，但都与描述不太相似。请尝试其他文字或照片。"
     }
   },
   "materials": {
@@ -2789,11 +2892,11 @@
       },
       "embedding": {
         "title": "向量",
-        "what": "AI 实验室：相似款搜索（比较图片和描述）。"
+        "what": "AI 工作室：图片搜索（将图片描述和搜索文字转换为向量；需要 1024 维模型）。"
       },
       "vision": {
         "title": "视觉",
-        "what": "AI 实验室：颜色识别（读取配色照片）。"
+        "what": "AI 工作室：图片搜索（识别服装图片）。之后：颜色识别。"
       },
       "document": {
         "title": "文档",

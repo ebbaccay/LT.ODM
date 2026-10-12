@@ -70,8 +70,13 @@ public static class DependencyInjection
         // Each call asks the resolver which service to use: Settings > AI connections, else appsettings.
         services.AddSingleton<IAiConnectionResolver, AiConnectionResolver>();
         services.AddScoped<IAiSettingsRepository, AiSettingsRepository>();
-        services.AddHttpClient<IAiJsonClient, RoutedAiJsonClient>();
-        services.AddHttpClient<IAiImageClient, RoutedAiImageClient>();
+        // The connection's own timeout (AiHttp, Settings > AI connections) applies; HttpClient's 100 s default would cut
+        // longer ones short (CPU servers can need several minutes).
+        static void NoClientTimeout(HttpClient http) => http.Timeout = Timeout.InfiniteTimeSpan;
+        services.AddHttpClient<IAiJsonClient, RoutedAiJsonClient>(NoClientTimeout);
+        services.AddHttpClient<IAiImageClient, RoutedAiImageClient>(NoClientTimeout);
+        services.AddHttpClient<IAiVisionClient, RoutedAiVisionClient>(NoClientTimeout);
+        services.AddHttpClient<IAiEmbeddingClient, RoutedAiEmbeddingClient>(NoClientTimeout);
         services.AddHttpClient<AiConnectionTester>();
 
         services.AddScoped<IStyleAiRepository, StyleAiRepository>();
@@ -80,6 +85,11 @@ public static class DependencyInjection
         services.AddScoped<ConceptMatcher>();
         services.AddScoped<IMaterialSpecRepository, MaterialSpecRepository>();
         services.AddScoped<MaterialReader>();
+        // Image search's look-alike model runs inside the API (ONNX Runtime, CPU); loaded on first use, shared by all requests.
+        services.Configure<ImageModelOptions>(configuration.GetSection(ImageModelOptions.SectionName));
+        services.AddSingleton<IImageEmbeddingModel, OnnxImageEmbeddingModel>();
+        services.AddScoped<IImageSearchRepository, ImageSearchRepository>();
+        services.AddScoped<ImageSearchService>();
         return services;
     }
 

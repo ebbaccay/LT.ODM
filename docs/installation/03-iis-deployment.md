@@ -42,7 +42,7 @@ Rights for the app-pool account: **Read** on `api`, **Modify** on `uploads`, `ke
 ## 3. Application pool
 
 - Name `LTODM`, .NET CLR version **No Managed Code**, pipeline **Integrated**.
-- Identity: the domain service account (e.g. `LT\svc-ltodm`).
+- Identity: **ApplicationPoolIdentity** (the default, `IIS APPPOOL\LTODM`). It only needs folder rights; the database sign-in is the SQL login in the connection string.
 - Advanced settings: Start mode **AlwaysRunning**, Idle time-out **0**; on the site, Preload enabled. The first user of the day then does not wait for start-up.
 - **One worker process** (no web garden): the AI settings cache, the rate limiter and SignalR live in the process.
 
@@ -76,6 +76,7 @@ Edit `D:\LTODM\api\web.config` (keep the `<aspNetCore>` element that `dotnet pub
           <environmentVariable name="Files__Root" value="D:\LTODM\uploads" />
           <environmentVariable name="DataProtection__KeysFolder" value="D:\LTODM\keys" />
           <environmentVariable name="Translations__OverridesFolder" value="D:\LTODM\i18n" />
+          <environmentVariable name="ImageSearch__ImageModel__Folder" value="D:\LTODM\models\marqo-fashionSigLIP" />
           <environmentVariable name="Auth__PublicBaseUrl" value="https://ltodm.lt.local" />
         </environmentVariables>
       </aspNetCore>
@@ -96,6 +97,7 @@ Set at least these before starting the site (details in [Configuration](04-confi
 - `Email__Host`, `Email__Port`, `Email__FromAddress`
 - `AgGrid__LicenseKey`
 - `Files__Root`, `DataProtection__KeysFolder`, `Translations__OverridesFolder`
+- `ImageSearch__ImageModel__Folder` when the image search model is installed ([File storage](08-file-storage.md#image-search-model-files)); the app pool identity needs **read** access to that folder
 
 The API **refuses to start** without the connection string, `Jwt:SigningKey` and `Auth:PublicBaseUrl`. The reason is in the Windows Application event log (source *IIS AspNetCore Module V2*) or, with stdout logging on, in `D:\LTODM\logs`.
 
@@ -110,6 +112,19 @@ The API **refuses to start** without the connection string, `Jwt:SigningKey` and
 
 Then continue with [First start](05-first-start.md).
 
+## Development / test server
+
+The same steps apply to a development server, with these differences:
+
+- **HTTPS is still required.** The sign-in refresh cookie is `Secure`, so over plain http users are signed out at every reload. Without a company certificate, use a self-signed one (browsers warn until it is trusted):
+  ```powershell
+  New-SelfSignedCertificate -DnsName "LTODMSVR", "172.16.26.173" -CertStoreLocation Cert:\LocalMachine\My -NotAfter (Get-Date).AddYears(3)
+  ```
+  Then bind it on 443 to the site in IIS Manager.
+- **SQL Server on the same machine:** use the same SQL login as production ([Database §3](02-database.md#3-permissions-for-the-application)), with its own password. Connection string: `Server=localhost;Database=LTODM;User ID=ltodm_app_login;Password=...;Encrypt=True;TrustServerCertificate=True`.
+- Use its own `Jwt:SigningKey`, not the production one.
+- Developers can work against it from their PCs; see "Against the development server" in the repository README.
+
 ## Behind a load balancer or reverse proxy
 
-Not needed for a single server. If one is added later, the API must be told to trust the proxy's `X-Forwarded-For` header (a small code change: forwarded-headers middleware with the proxy's address). Without it every user appears to come from the proxy's IP: the per-IP sign-in limit (10 per minute) is then shared by everyone, and the sign-in audit records the proxy's address.
+Not needed for a single server. The API reads `X-Forwarded-For` / `X-Forwarded-Proto` only from trusted proxies: loopback, plus the addresses in `ForwardedHeaders:KnownProxies` ([Configuration](04-configuration.md)). If a proxy is added in front of IIS later, add its IP there and have it send those headers. Without it every user appears to come from the proxy's IP: the per-IP sign-in limit (10 per minute) is then shared by everyone, and the sign-in audit records the proxy's address.

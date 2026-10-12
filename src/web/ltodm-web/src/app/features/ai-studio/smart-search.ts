@@ -4,7 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideArrowRight, lucideBookText, lucideImage, lucideListChecks, lucideScanSearch, lucideSparkles } from '@ng-icons/lucide';
+import { lucideArrowRight, lucideBookText, lucideImage, lucideListChecks, lucideScanEye, lucideScanSearch, lucideSparkles } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -14,8 +14,8 @@ import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { AuthImgDirective } from '@tms/shared/ui/auth-img';
 import { problemMessage } from '../../core/auth/auth.service';
 import { AiProviderBanner } from './ai-provider-banner';
-import { catchError, of, switchMap } from 'rxjs';
-import { AiStudioService, StyleSearchResult } from './ai-studio.service';
+import { catchError, map, of, switchMap } from 'rxjs';
+import { AiStudioService, ImageSearchResult, StyleSearchResult } from './ai-studio.service';
 
 /** Shown only if the server's examples cannot be loaded. */
 const EXAMPLES = ['ai.search.example1', 'ai.search.example2', 'ai.search.example3', 'ai.search.example4'];
@@ -32,7 +32,7 @@ const EXAMPLES = ['ai.search.example1', 'ai.search.example2', 'ai.search.example
     DecimalPipe, RouterLink, NgIcon, AuthImgDirective, AiProviderBanner, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmInputImports,
     HlmSpinnerImports, TranslocoPipe,
   ],
-  providers: [provideIcons({ lucideArrowRight, lucideBookText, lucideImage, lucideListChecks, lucideScanSearch, lucideSparkles })],
+  providers: [provideIcons({ lucideArrowRight, lucideBookText, lucideImage, lucideListChecks, lucideScanEye, lucideScanSearch, lucideSparkles })],
   template: `
     <section class="flex flex-col gap-5">
       <header>
@@ -154,6 +154,35 @@ const EXAMPLES = ['ai.search.example1', 'ai.search.example2', 'ai.search.example
             }
           </section>
         }
+
+        <!-- Styles whose pictures match the request (built-in image model, ~30 ms, nothing sent). Hidden when no match is close. -->
+        @if (looks(); as l) {
+          @if (l.matches.length && !l.weak) {
+            <section hlmCard class="gap-3 p-5">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 class="flex items-center gap-2 font-medium"><ng-icon name="lucideScanEye" />{{ 'ai.search.looks.title' | transloco }}</h2>
+                <a hlmBtn variant="outline" class="h-11 lg:h-9" routerLink="/ai/image-search" [queryParams]="{ q: query().trim() }">
+                  {{ 'ai.search.looks.open' | transloco }}<ng-icon name="lucideArrowRight" />
+                </a>
+              </div>
+              <p class="text-muted-foreground text-xs">{{ 'ai.search.looks.hint' | transloco }}</p>
+              <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" role="list">
+                @for (m of l.matches.slice(0, 6); track m.styleId) {
+                  <li>
+                    <a [routerLink]="['/styles', m.styleId]" class="group flex flex-col gap-1">
+                      <span class="bg-muted block aspect-square overflow-hidden rounded-md border">
+                        <img [appAuthSrc]="m.imageUrl" alt="" class="size-full object-contain transition-transform group-hover:scale-105" loading="lazy" />
+                      </span>
+                      <span class="truncate font-mono text-xs font-medium">{{ m.styleNo }}</span>
+                      <span class="text-muted-foreground truncate text-xs">{{ m.customerCode }} · {{ m.seasonCode }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+              <p class="text-muted-foreground text-xs">{{ 'ai.imageSearch.guardrail' | transloco }}</p>
+            </section>
+          }
+        }
       }
     </section>
   `,
@@ -170,6 +199,15 @@ export class SmartSearch {
   readonly query = signal('');
   readonly busy = signal(false);
   readonly result = signal<StyleSearchResult | null>(null);
+
+  /** The built-in image model can search words and some pictures are indexed (AI Studio > Image search). */
+  private readonly looksReady = toSignal(
+    this.svc.imageSearchStatus().pipe(map((s) => s.lookAlike.supportsWords && s.lookAlike.indexed > 0), catchError(() => of(false))),
+    { initialValue: false },
+  );
+  /** Styles whose pictures match the request; null until found (or when the model is not there). */
+  readonly looks = signal<ImageSearchResult | null>(null);
+  private looksRequest = 0;
 
   readonly chips = computed(() => {
     const f = this.result()?.filters;
@@ -224,10 +262,16 @@ export class SmartSearch {
     const q = this.query().trim();
     if (q.length < 3 || this.busy()) return;
     this.busy.set(true);
+    this.looks.set(null);
     const aiCanRun = !!this.aiReady()?.text.isConfigured;
     this.svc
       .searchByRules(q)
-      .pipe(switchMap((r) => (r.unmatched.length && aiCanRun ? this.svc.search(q).pipe(catchError((e) => (this.aiFailed(e), of(r)))) : of(r))))
+      .pipe(
+        // Look-alikes start as soon as the phrase list has read the request (its customer keeps them to that brand),
+        // without waiting for the text model.
+        map((r) => (this.findLooks(q, r.filters.customer), r)),
+        switchMap((r) => (r.unmatched.length && aiCanRun ? this.svc.search(q).pipe(catchError((e) => (this.aiFailed(e), of(r)))) : of(r))),
+      )
       .subscribe({
       next: (r) => {
         this.result.set(r);
@@ -238,6 +282,19 @@ export class SmartSearch {
         toast.error(this.transloco.translate('ai.failed'), { description: problemMessage(e) });
       },
     });
+  }
+
+  /**
+   * Styles whose pictures match the request, by the built-in image model (Image search by words). Quiet on failure:
+   * the panel is extra. Only the newest request's answer is kept.
+   */
+  private findLooks(q: string, customer: string | null): void {
+    if (!this.looksReady()) return;
+    const request = ++this.looksRequest;
+    this.svc
+      .searchImagesByWords(q, customer, false)
+      .pipe(catchError(() => of(null)))
+      .subscribe((l) => request === this.looksRequest && this.looks.set(l?.method === 'lookAlike' ? l : null));
   }
 
   /** AI could not read it: the phrase list's result is shown instead. */

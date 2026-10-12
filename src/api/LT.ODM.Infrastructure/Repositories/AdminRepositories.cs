@@ -173,12 +173,12 @@ public sealed class AccessRepository(IDbConnectionFactory connectionFactory) : I
         }, ct)));
     }
 
-    public async Task<int> InviteUserAsync(CreateUserRequest r, string unusablePasswordHash, byte[] tokenHash, DateTime expiresUtc, string createdBy, CancellationToken ct = default)
+    public async Task<int> InviteUserAsync(CreateUserRequest r, string passwordHash, byte[]? tokenHash, DateTime? expiresUtc, string createdBy, CancellationToken ct = default)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
         return await MenuRepository.RuleErrors(() => conn.QuerySingleAsync<int>(MenuRepository.Proc("auth.usp_User_Invite", new
         {
-            r.UserName, r.Email, r.DisplayName, PasswordHash = unusablePasswordHash, RoleNames = string.Join(',', r.Roles),
+            r.UserName, r.Email, r.DisplayName, PasswordHash = passwordHash, RoleNames = string.Join(',', r.Roles),
             r.UserGroup, r.Location, TokenHash = tokenHash, ExpiresUtc = expiresUtc, CreatedBy = createdBy,
         }, ct)));
     }
@@ -190,6 +190,30 @@ public sealed class AccessRepository(IDbConnectionFactory connectionFactory) : I
         {
             UserId = userId, TokenHash = tokenHash, ExpiresUtc = expiresUtc, RequestedBy = requestedBy,
         }, ct)));
+    }
+
+    public async Task SetTemporaryPasswordAsync(int userId, string passwordHash, int historyToKeep, string changedBy, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        await MenuRepository.RuleErrors(() => conn.ExecuteAsync(MenuRepository.Proc("auth.usp_User_SetTemporaryPassword", new
+        {
+            UserId = userId, PasswordHash = passwordHash, HistoryToKeep = historyToKeep, ChangedBy = changedBy,
+        }, ct)));
+    }
+
+    public async Task SetUserActiveAsync(int userId, bool isActive, string changedBy, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        await MenuRepository.RuleErrors(() => conn.ExecuteAsync(MenuRepository.Proc("auth.usp_User_SetActive", new
+        {
+            UserId = userId, IsActive = isActive, ChangedBy = changedBy,
+        }, ct)));
+    }
+
+    public async Task DeleteUserAsync(int userId, string changedBy, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        await MenuRepository.RuleErrors(() => conn.ExecuteAsync(MenuRepository.Proc("auth.usp_User_Delete", new { UserId = userId, ChangedBy = changedBy }, ct)));
     }
 }
 

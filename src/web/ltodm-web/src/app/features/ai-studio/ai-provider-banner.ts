@@ -6,6 +6,8 @@ import { lucideCloud, lucideServer, lucideTriangleAlert } from '@ng-icons/lucide
 import { catchError, of } from 'rxjs';
 import { AiProviderInfo, AiStudioService } from './ai-studio.service';
 
+type Banner = { kind: 'text' | 'image' | 'vision' | 'embedding'; info: AiProviderInfo; labelled: boolean };
+
 /**
  * Says which AI service a page uses and whether the data sent leaves LT (cloud) or stays on the company network
  * (in-house server). Shown at the top of every AI Studio page, so nobody sends style data to a cloud service unaware.
@@ -30,12 +32,19 @@ import { AiProviderInfo, AiStudioService } from './ai-studio.service';
       } @else if (!p.info.isConfigured) {
         <p class="text-muted-foreground flex items-start gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
           <ng-icon name="lucideTriangleAlert" class="mt-0.5 shrink-0 text-amber-500" />
-          <span>{{ (p.kind === 'image' ? 'ai.provider.imageNotSetUp' : 'ai.provider.notSetUp') | transloco }}</span>
+          @if (p.kind === 'vision' || p.kind === 'embedding') {
+            <span>{{ 'ai.provider.jobNotSetUp' | transloco: { job: ('ai.provider.job.' + p.kind | transloco) } }}</span>
+          } @else {
+            <span>{{ (p.kind === 'image' ? 'ai.provider.imageNotSetUp' : 'ai.provider.notSetUp') | transloco }}</span>
+          }
         </p>
       } @else if (p.info.leavesNetwork) {
         <p class="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
           <ng-icon name="lucideCloud" class="mt-0.5 shrink-0" />
           <span>
+            @if (p.labelled) {
+              <strong>{{ 'ai.provider.job.' + p.kind | transloco }}:</strong>
+            }
             <strong>{{ (p.kind === 'image' ? 'ai.provider.imageCloud' : 'ai.provider.cloud') | transloco: { provider: p.info.provider, model: p.info.model } }}</strong>
             {{ 'ai.provider.cloudHint' | transloco }}
           </span>
@@ -43,7 +52,11 @@ import { AiProviderInfo, AiStudioService } from './ai-studio.service';
       } @else {
         <p class="flex items-start gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300">
           <ng-icon name="lucideServer" class="mt-0.5 shrink-0" />
-          <span>{{ (p.kind === 'image' ? 'ai.provider.imageInHouse' : 'ai.provider.inHouse') | transloco: { model: p.info.model } }}</span>
+          @if (p.kind === 'vision' || p.kind === 'embedding') {
+            <span>{{ 'ai.provider.jobInHouse' | transloco: { job: ('ai.provider.job.' + p.kind | transloco), model: p.info.model } }}</span>
+          } @else {
+            <span>{{ (p.kind === 'image' ? 'ai.provider.imageInHouse' : 'ai.provider.inHouse') | transloco: { model: p.info.model } }}</span>
+          }
         </p>
       }
     }
@@ -53,15 +66,31 @@ import { AiProviderInfo, AiStudioService } from './ai-studio.service';
 export class AiProviderBanner {
   private readonly svc = inject(AiStudioService);
 
-  /** Which providers the page uses. */
-  readonly uses = input<'text' | 'image' | 'both'>('text');
+  /** Which providers the page uses. imageSearch = the Vision and Embedding jobs. */
+  readonly uses = input<'text' | 'image' | 'both' | 'imageSearch'>('text');
 
   private readonly status = toSignal(this.svc.status().pipe(catchError(() => of(null))), { initialValue: null });
 
-  readonly providers = computed(() => {
+  readonly providers = computed((): Banner[] => {
     const s = this.status();
     if (!s) return [];
-    const list: { kind: 'text' | 'image'; info: AiProviderInfo; labelled: boolean }[] = [];
+    if (this.uses() === 'imageSearch') {
+      // Two jobs: each line names its job.
+      return (['vision', 'embedding'] as const).map((kind) => {
+        const p = s.purposes.find((x) => x.purpose === kind);
+        const info: AiProviderInfo = {
+          provider: p?.provider ?? '—',
+          model: p?.model ?? '—',
+          isConfigured: !!p?.isConfigured,
+          leavesNetwork: !!p?.leavesNetwork,
+          supportsReferenceImage: false,
+          source: p?.source ?? null,
+          blocked: p?.blocked ?? null,
+        };
+        return { kind, info, labelled: true };
+      });
+    }
+    const list: Banner[] = [];
     if (this.uses() !== 'image') list.push({ kind: 'text', info: s.text, labelled: false });
     if (this.uses() !== 'text') list.push({ kind: 'image', info: s.image, labelled: false });
     // A page using both jobs: when both are blocked for the same reason, one line says it; otherwise each blocked line names its job.

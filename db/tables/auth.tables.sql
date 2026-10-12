@@ -181,7 +181,7 @@ ALTER TABLE auth.LoginAudit DROP CONSTRAINT IF EXISTS CK_auth_LoginAudit_EventTy
 ALTER TABLE auth.LoginAudit ADD CONSTRAINT CK_auth_LoginAudit_EventType CHECK (EventType IN (
     'LoginSucceeded', 'LoginFailed', 'LockedOut', 'Logout',
     'RefreshTokenReuse', 'PasswordResetRequested', 'PasswordReset', 'PasswordChanged', 'UserCreated',
-    'AccessChanged', 'RoleChanged'));
+    'AccessChanged', 'RoleChanged', 'UserDeactivated', 'UserActivated', 'UserDeleted', 'PasswordSetByAdmin'));
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_auth_LoginAudit_Occurred' AND object_id = OBJECT_ID(N'auth.LoginAudit'))
     CREATE INDEX IX_auth_LoginAudit_Occurred ON auth.LoginAudit (OccurredUtc DESC) INCLUDE (UserId, EventType);

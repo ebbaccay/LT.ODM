@@ -49,6 +49,8 @@ export interface CreateUserRequest {
   roles: string[];
   userGroup: string | null;
   location: string | null;
+  /** Set = no email; the user signs in with it and must change it. Empty = email a "set your password" link. */
+  temporaryPassword?: string | null;
 }
 
 export interface MenuConfigItemDto {
@@ -155,6 +157,18 @@ export class SettingsAdminService {
   /** Emails a new one-time "set your password" link; older links stop working. */
   sendPasswordLink(userId: number): Observable<void> {
     return this.http.post<void>(`${this.base}/users/${userId}/password-link`, null);
+  }
+  /** Temporary password (no email); the user must change it at first sign-in. */
+  setTemporaryPassword(userId: number, password: string): Observable<void> {
+    return this.http.put<void>(`${this.base}/users/${userId}/password`, { password });
+  }
+  /** Deactivate (signs the user out within 15 minutes, blocks sign-in) or reactivate. */
+  setUserActive(userId: number, isActive: boolean): Observable<void> {
+    return this.http.put<void>(`${this.base}/users/${userId}/active`, { isActive });
+  }
+  /** Removes the user for good; their sign-in history stays. */
+  deleteUser(userId: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/users/${userId}`);
   }
 
   // ----- Menu -----

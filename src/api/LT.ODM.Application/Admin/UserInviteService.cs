@@ -7,17 +7,23 @@ using Microsoft.Extensions.Options;
 namespace LT.ODM.Application.Admin;
 
 /// <summary>
-/// Settings > User roles: creates users and sends "set your password" links. Administrators never choose or see a
-/// password; the user sets one from the emailed link (same reset page and password policy as "Forgot password").
+/// Settings > User roles: creates users and gives them a way in. Normally an emailed "set your password" link (same
+/// reset page and password policy as "Forgot password"). Where email is not available, an administrator can set a
+/// temporary password instead; it meets the password policy and the user must change it at first sign-in.
 /// </summary>
 public sealed class UserInviteService(
     IAccessRepository access,
+    IAuthRepository users,
     IPasswordHasher hasher,
     IEmailQueue emailQueue,
     IOptions<AuthOptions> options,
     TimeProvider time)
 {
     private readonly AuthOptions _options = options.Value;
+
+    /// <summary>Password policy errors for a temporary password (empty = fine).</summary>
+    public IReadOnlyList<string> CheckTemporaryPassword(string? password, params string?[] personalInfo)
+        => new PasswordPolicy(_options.Password).Validate(password, personalInfo);
 
     public async Task<int> InviteAsync(CreateUserRequest request, string createdBy, CancellationToken ct = default)
     {
@@ -29,6 +35,9 @@ public sealed class UserInviteService(
             UserGroup = Blank(request.UserGroup),
             Location = Blank(request.Location),
         };
+        if (!string.IsNullOrEmpty(request.TemporaryPassword))
+            return await access.InviteUserAsync(user with { TemporaryPassword = null }, hasher.Hash(request.TemporaryPassword), null, null, createdBy, ct);
+
         var token = AuthService.NewToken();
         // Hash of a random secret nobody knows: the account cannot sign in until the link is used.
         var unusable = hasher.Hash(Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
@@ -36,6 +45,17 @@ public sealed class UserInviteService(
 
         await emailQueue.QueueAsync(WelcomeEmail(user.DisplayName, user.UserName, user.Email, Link(token, welcome: true)), ct);
         return userId;
+    }
+
+    /// <summary>Sets a temporary password; returns policy errors (nothing changed) or an empty list.</summary>
+    public async Task<IReadOnlyList<string>> SetTemporaryPasswordAsync(int userId, string password, string changedBy, CancellationToken ct = default)
+    {
+        var user = await users.GetUserAsync(userId, null, ct);
+        if (user is not { IsActive: true }) throw new AdminRuleException("User not found or inactive.");
+        var errors = CheckTemporaryPassword(password, user.UserName, user.Email, user.DisplayName);
+        if (errors.Count == 0)
+            await access.SetTemporaryPasswordAsync(userId, hasher.Hash(password), _options.Password.HistoryCount, changedBy, ct);
+        return errors;
     }
 
     public async Task SendPasswordLinkAsync(int userId, string requestedBy, CancellationToken ct = default)

@@ -274,6 +274,95 @@ export interface StyleRender {
   createdUtc: string;
 }
 
+// ----- Image search -----
+
+export type ImageSource = 'Photo' | 'Sketch' | 'Colorway' | 'Render';
+
+export interface ImageIndexSourceCount {
+  source: ImageSource;
+  pictures: number;
+  indexed: number;
+  failed: number;
+  toIndex: number;
+}
+
+/**
+ * Look-alike vectors from the image model built into the API (search by photo, more like this). problem: why it cannot
+ * run ('aiOff' when AI features are switched off, otherwise a sentence), null when it can.
+ */
+export interface LookAlikeStatus {
+  isAvailable: boolean;
+  model: string;
+  problem: string | null;
+  sources: ImageIndexSourceCount[];
+  pictures: number;
+  indexed: number;
+  failed: number;
+  toIndex: number;
+  /** The model's text part is installed too: words are searched by look. */
+  supportsWords: boolean;
+}
+
+/** Descriptions (Vision + Embedding jobs; search by words) at the top level, look-alike vectors in lookAlike. */
+export interface ImageSearchStatus {
+  vision: AiProviderInfo;
+  embedding: AiProviderInfo;
+  dimensions: number;
+  sources: ImageIndexSourceCount[];
+  pictures: number;
+  indexed: number;
+  failed: number;
+  toIndex: number;
+  lookAlike: LookAlikeStatus;
+}
+
+/** step: what this round did. remaining covers both steps. missing: pictures whose file is not on the server (stay to do). */
+export interface IndexImagesResult {
+  indexed: number;
+  failed: number;
+  remaining: number;
+  step: 'lookAlike' | 'descriptions' | 'none';
+  missing: number;
+}
+
+/** How the vision model read an uploaded photo. */
+export interface ImageReading {
+  garment: string | null;
+  colours: string[];
+  details: string[];
+  fabricLook: string | null;
+  description: string | null;
+}
+
+export interface ImageMatch {
+  styleId: number;
+  styleNo: string;
+  seasonCode: string;
+  customerCode: string;
+  modelName: string | null;
+  productTypeName: string | null;
+  isActive: boolean;
+  source: ImageSource;
+  colorwayCode: string | null;
+  imageUrl: string;
+  garment: string | null;
+  colours: string | null;
+  details: string | null;
+  description: string | null;
+  /** 1 = same direction, 0 = unrelated. */
+  similarity: number;
+}
+
+export interface ImageSearchResult {
+  mode: 'photo' | 'words' | 'similar';
+  /** lookAlike: by the picture itself (built-in model); description: by the vision model's text. */
+  method: 'lookAlike' | 'description';
+  reading: ImageReading | null;
+  matches: ImageMatch[];
+  /** Words searched by look whose best match is far: say no close match was found. */
+  weak: boolean;
+}
+
 export interface RenderBrief {
   style: StyleRef;
   colorways: { colorwayId: number; colorwayCode: string; colorwayName: string | null; status: string }[];
@@ -347,6 +436,37 @@ export class AiStudioService {
 
   deleteRender(styleId: number, renderId: number): Observable<unknown> {
     return this.http.delete(`${this.api}/style-render/${styleId}/renders/${renderId}`);
+  }
+
+  // ----- Image search (in-house Vision + Embedding jobs) -----
+
+  imageSearchStatus(): Observable<ImageSearchStatus> {
+    return this.http.get<ImageSearchStatus>(`${this.api}/image-search/status`);
+  }
+
+  /** Indexes the next pictures (about 45 s of work per call; Admin, Merchandiser). */
+  indexImages(): Observable<IndexImagesResult> {
+    return this.http.post<IndexImagesResult>(`${this.api}/image-search/index`, {});
+  }
+
+  /** useAiServer: search the descriptions (in-house AI server) instead of the built-in model. */
+  searchImagesByWords(query: string, customer: string | null, useAiServer: boolean): Observable<ImageSearchResult> {
+    return this.http.post<ImageSearchResult>(`${this.api}/image-search/words`, { query, customer, useAiServer });
+  }
+
+  /** The photo is read inside LT and not stored. useAiServer: by the vision model's description instead of the built-in model. */
+  searchImagesByPhoto(file: Blob, customer: string | null, useAiServer: boolean): Observable<ImageSearchResult> {
+    const form = new FormData();
+    form.append('file', file, 'photo');
+    if (customer) form.append('customer', customer);
+    form.append('useAiServer', String(useAiServer));
+    return this.http.post<ImageSearchResult>(`${this.api}/image-search/photo`, form);
+  }
+
+  /** Styles that look like this one, from stored vectors (no AI call). */
+  similarImages(styleId: number, customer: string | null): Observable<ImageSearchResult> {
+    const params = customer ? new HttpParams().set('customer', customer) : undefined;
+    return this.http.get<ImageSearchResult>(`${this.api}/image-search/similar/${styleId}`, { params });
   }
 
   /** Drops the cached status (after the AI settings change). */

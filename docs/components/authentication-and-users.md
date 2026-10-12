@@ -14,7 +14,20 @@ At least 12 characters with upper case, lower case, a number and a symbol; no co
 
 ## New users
 
-An Admin adds users in **Settings > User roles > Add user**: name, user name, email, roles, user group, location. No password is set by the Admin: the user receives an email with a link (valid 72 hours) to choose their own. Until then the account cannot sign in. **Send password link** (envelope icon) sends a fresh link; older links stop working.
+An Admin adds users in **Settings > User roles > Add user**: name, user name, email, roles, user group, location, and how the user gets a password:
+
+- **Email a link to set it** (normal): the user receives an email with a link (valid 72 hours) to choose their own password. Until then the account cannot sign in. **Send password link** (envelope icon) sends a fresh link; older links stop working.
+- **Set a temporary password** (when email is not available, e.g. before SMTP is set up): the Admin types a password that meets the password rules. No email is sent. The Admin gives the password to the user in person or by phone. At first sign-in the user must choose their own password before they can use the app, and they cannot keep the temporary one.
+
+## Managing existing users
+
+In **Edit access** (another user's account; Admins cannot do these to their own):
+
+- **Set temporary password**: as above, for a user who cannot receive email or is locked out. Their current password and open links stop working, they are signed out, and they must choose a new password at next sign-in.
+- **Deactivate**: the user is signed out within 15 minutes (when their access token expires) and cannot sign in or use password links. Roles and history are kept. **Reactivate** restores the account with its previous password.
+- **Remove user**: deletes the account with its roles, password history and links. The sign-in audit rows stay (without the link to the user). Use it for mistaken or test accounts; for people who have used the system, deactivate instead.
+
+The last active Admin cannot be deactivated or removed.
 
 Factory users have user group `FTY` and their factory code as location. The system uses both to show them only their own factory's data.
 
@@ -34,5 +47,6 @@ Role, user group and location changes reach a signed-in user within 15 minutes (
 
 - Passwords are hashed (PBKDF2-HMAC-SHA512, 100,000 iterations, per-user salt). Refresh and reset tokens are stored only as SHA-256 hashes.
 - Access tokens last 15 minutes and live in the app's memory; the refresh token is an HttpOnly, Secure, SameSite=Strict cookie limited to `/api/v1/auth`. It rotates on every use; replaying an old one revokes that sign-in everywhere.
-- Every sign-in, failure, lockout, password change, access change and role change is written to `auth.LoginAudit` with the client IP.
+- Every sign-in, failure, lockout, password change, access change and role change is written to `auth.LoginAudit` with the client IP; so are temporary passwords set by an Admin (`PasswordSetByAdmin`), deactivation (`UserDeactivated` / `UserActivated`) and removal (`UserDeleted`, with the user name, email and who removed it).
+- Admins never see a user's own password. A temporary password set by an Admin is hashed like any other and must be changed at first sign-in.
 - Sign-in and password endpoints: at most 10 requests per minute per IP.

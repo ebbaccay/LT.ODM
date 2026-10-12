@@ -33,9 +33,19 @@ public sealed record UserAccessDto(
 /// <summary>UserGroup "FTY" = factory user (TMS); Location = factory / office code.</summary>
 public sealed record SetUserAccessRequest(IReadOnlyList<string> Roles, string? UserGroup, string? Location);
 
-/// <summary>New user from Settings > User roles. No password: the user sets it from the emailed link.</summary>
+/// <summary>Deactivate (signs the user out, blocks sign-in) or reactivate a user.</summary>
+public sealed record SetUserActiveRequest(bool IsActive);
+
+/// <summary>
+/// New user from Settings > User roles. Without <see cref="TemporaryPassword"/> the user sets a password from an emailed
+/// link; with it, no email is sent and the user must change the password at first sign-in.
+/// </summary>
 public sealed record CreateUserRequest(
-    string UserName, string Email, string DisplayName, IReadOnlyList<string> Roles, string? UserGroup, string? Location);
+    string UserName, string Email, string DisplayName, IReadOnlyList<string> Roles, string? UserGroup, string? Location,
+    string? TemporaryPassword = null);
+
+/// <summary>A temporary password an administrator gives a user; they must change it at first sign-in.</summary>
+public sealed record SetTemporaryPasswordRequest(string Password);
 
 /// <summary>A rule the database refused (duplicate route, Admin role, ...). Message is safe to show.</summary>
 public sealed class AdminRuleException(string message) : Exception(message);

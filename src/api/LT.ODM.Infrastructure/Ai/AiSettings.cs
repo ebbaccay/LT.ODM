@@ -30,6 +30,8 @@ public sealed class AiConnectionResolver(
 
     public void Invalidate() => _snapshot = null;
 
+    public async Task<bool> AiEnabledAsync(CancellationToken ct = default) => (await LoadAsync(ct)).Policy.AiEnabled;
+
     public async Task<AiConnection?> ResolveAsync(string purpose, CancellationToken ct = default)
         => await ExplainAsync(purpose, ct) is { Blocked: null } r ? r.Connection : null;
 

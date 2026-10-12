@@ -2,7 +2,7 @@
 
 LT ODM is LT's garment style library and offering platform. It replaces TMS: the TMS screens were ported one by one, and new features (Style Library, Materials, AI Studio) were built on new tables.
 
-**Stack:** ASP.NET Core 10 Web API, Angular 22 (installable web app), Microsoft SQL Server 2025, hosted on premises on IIS.
+**Stack:** ASP.NET Core 10 Web API, Angular 22 (installable web app), Microsoft SQL Server 2025, hosted on premises on IIS (Windows) or nginx (Ubuntu).
 
 ## For IT: install and run
 
@@ -11,6 +11,7 @@ LT ODM is LT's garment style library and offering platform. It replaces TMS: the
 | [Server requirements](installation/01-server-requirements.md) | Servers, software, accounts, certificates, network and firewall |
 | [Database](installation/02-database.md) | Creating the database, deploying the SQL scripts in order, permissions |
 | [IIS deployment](installation/03-iis-deployment.md) | Building a release (`tools/build-release.ps1`), the IIS site and app pool, web.config, HTTPS |
+| [Linux and nginx](installation/09-linux-nginx.md) | The same release on Ubuntu: systemd service, nginx with HTTPS and WebSockets, settings file, folders |
 | [Configuration](installation/04-configuration.md) | Every setting, where it goes, and which ones are secrets |
 | [First start](installation/05-first-start.md) | First administrator, menu, reference data, first import, AI connection |
 | [Backup, updates and monitoring](installation/06-operations.md) | What to back up, how to release a new version, health checks, logs |
@@ -47,7 +48,7 @@ The repository [README](../README.md) covers the code layout, local development 
 | Role | Typical user | Can use |
 |---|---|---|
 | `Admin` | IT / system owner | Everything, including Settings |
-| `Merchandiser` | Office merchandisers | Style Library (edit), AI Studio (incl. renders and reviews), Manage Offerings, SBU module |
+| `Merchandiser` | Office merchandisers | Style Library (edit), AI Studio (incl. renders, reviews and the image search index), Manage Offerings, SBU module |
 | `Costing` | Costing team | Style Library and AI Studio (read only) |
 | `Viewer` | Read-only office users | Style Library and AI Studio (read only), Product Matching, Customer Proposal, Market Trends |
 | `Factory` | Factory users (user group `FTY`) | Garment Quotation, Quotation Dashboard, SBU offers for their own factory |
