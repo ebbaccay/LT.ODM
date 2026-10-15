@@ -8,167 +8,149 @@ namespace LT.ODM.Infrastructure.StyleLibrary;
 
 /// <summary>
 /// Reads the Style Library workbook (.xlsx) sheet by sheet, row by row.
-/// Sheets are found by name (Style Header / Article / BOM Detail, a few spellings), otherwise by position 1-3.
-/// Headings are matched ignoring case, spaces, underscores and dashes ("Season_ID" = "Season ID"); extra columns are ignored.
+/// Inspect returns each sheet's headings with a few sample values (for Settings > Import, Map columns). Read stages
+/// the rows the mapping asks for: which workbook sheet feeds Style Header / Article / BOM Detail, and which heading
+/// feeds each staging column (StyleImportMapper.Auto finds them by name, as before mapping existed).
 /// Values become trimmed text (numbers without exponent notation), except Create_dt which stays a date.
 /// </summary>
 public sealed class StyleWorkbookReader : IStyleWorkbookReader
 {
+    /// <summary>Rows looked at for sample values, and samples kept per column.</summary>
+    private const int SampleRows = 50, SamplesPerColumn = 3;
+
+    /// <summary>
+    /// The upload is inspected, then read: the caller owns (and disposes) the stream. Made per use: the configuration
+    /// looks up code page 1252, which only exists once the static constructor has registered it.
+    /// </summary>
+    private static ExcelReaderConfiguration LeaveOpen => new() { LeaveOpen = true };
+
     // ExcelDataReader looks up code page 1252 when it starts, even for .xlsx; .NET only has it with this provider.
     static StyleWorkbookReader() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-    /// <summary>One staging column: its accepted headings (normalised), size, and whether it must be present.</summary>
-    internal sealed record Column(string Name, string[] Headings, int MaxLength, bool Required = false, bool IsDate = false);
-
-    internal sealed record Sheet(string Label, string[] Names, Column[] Columns);
-
-    // Column order = staging table column order after BatchId, RowNo (see db/tables/style.tables.sql).
-    internal static readonly Sheet StyleSheet = new("Style Header", ["styleheader", "style", "styles"],
-    [
-        new("Cust", ["cust", "customer", "customerid"], 32, Required: true),
-        new("SeasonId", ["seasonid", "season"], 16, Required: true),
-        new("StyleId", ["styleid", "style", "styleno"], 40, Required: true),
-        new("Description", ["description", "styledesc"], 400),
-        new("ModelId", ["modelid", "model"], 60),
-        new("ModelName", ["modelname"], 100),
-        new("WeaveTypeId", ["weavetypeid", "weavetype"], 8),
-        new("WeaveTypeDesc", ["weavetypedesc"], 50),
-        new("ProdTypeId", ["prodtypeid", "producttypeid", "producttype"], 40),
-        new("ProdTypeDesc", ["prodtypedesc", "producttypedesc"], 100),
-        new("Gender", ["gender"], 16),
-        new("LeadTime", ["garmentleadtime", "leadtime"], 16),
-        new("BuTeam", ["buteam", "businessunit", "bu"], 16),
-        new("BuDesc", ["budesc", "businessunitdesc"], 100),
-        new("CreateDt", ["createdt", "createdate", "created"], 0, IsDate: true),
-        new("SketchUrl", ["sketch", "sketchurl"], 500),
-        new("ImageUrl", ["image", "imageurl", "photo"], 500),
-    ]);
-
-    internal static readonly Sheet ArticleSheet = new("Article", ["article", "articles", "colorway", "colorways"],
-    [
-        new("Cust", ["cust", "customer", "customerid"], 32, Required: true),
-        new("SeasonId", ["seasonid", "season"], 16, Required: true),
-        new("StyleId", ["styleid", "style", "styleno"], 40, Required: true),
-        new("SeqNo", ["seqno", "seq", "sortorder"], 8),
-        new("ArticleId", ["articleid", "article", "colorwaycode", "colorway"], 20, Required: true),
-        new("Description", ["description", "articledesc", "colorwayname"], 150),
-        new("Status", ["status"], 16),
-        new("ImageUrl", ["image", "imageurl", "photo"], 500),
-    ]);
-
-    internal static readonly Sheet BomSheet = new("BOM Detail", ["bomdetail", "bom", "bomdetails"],
-    [
-        new("Cust", ["cust", "customer", "customerid"], 32, Required: true),
-        new("SeasonId", ["seasonid", "season"], 16, Required: true),
-        new("StyleId", ["styleid", "style", "styleno"], 40, Required: true),
-        new("PartNo", ["partno", "part"], 16),
-        new("AdMatId", ["admatid", "materialid", "materialcode", "matid"], 64, Required: true),
-        new("MaterialDesc", ["materialdesc", "materialdescription"], 4000),
-        new("MatTypeId", ["mattypeid", "materialtypeid", "mattype"], 16),
-        new("MatTypeDesc", ["mattypedesc", "materialtypedesc"], 100),
-        new("ContentClass", ["contentclass"], 8),
-        new("AdSupplierId", ["adsupplierid", "nominatedsupplierid"], 32),
-        new("AdSupplierName", ["adsuppliername", "nominatedsuppliername"], 100),
-        new("LcoConsump", ["lcoconsump", "lcoconsumption"], 32),
-        new("AdConsump", ["adconsump", "adconsumption", "brandconsumption"], 32),
-        new("Uom", ["uom"], 8),
-        new("SapSupplierId", ["sapsupplierid", "supplierid"], 32),
-        new("SapSupplierName", ["sapsuppliername", "suppliername"], 150),
-        new("ArticleSeq", ["articleseq"], 16),
-        new("ArticleId", ["articleid", "article", "colorwaycode", "colorway"], 20, Required: true),
-        new("ArticleDesc", ["articledesc", "colorwayname"], 150),
-        new("MatColorId", ["matcolorid", "materialcolorid", "materialcolorcode"], 80),
-        new("MatColorDesc", ["matcolordesc", "materialcolordesc", "materialcolordescription"], 150),
-        new("ImageUrl", ["image", "imageurl", "photo"], 500),
-    ]);
-
-    private static readonly Sheet[] Sheets = [StyleSheet, ArticleSheet, BomSheet];
-
-    public StyleWorkbookReadResult Read(Stream xlsx)
+    public IReadOnlyList<WorkbookSheetDto> Inspect(Stream xlsx)
     {
-        var problems = new List<string>();
-        var rows = new List<StagedRow>[] { [], [], [] };
-        var found = new bool[3];
-
-        using var reader = ExcelReaderFactory.CreateOpenXmlReader(xlsx);
-        var position = 0;
+        var sheets = new List<WorkbookSheetDto>();
+        using var reader = ExcelReaderFactory.CreateOpenXmlReader(xlsx, LeaveOpen);
         do
         {
-            var index = SheetIndex(reader.Name, position, found);
-            position++;
-            if (index < 0) continue;
-            found[index] = true;
-            ReadSheet(reader, Sheets[index], rows[index], problems);
+            var name = reader.Name ?? $"Sheet{sheets.Count + 1}";
+            if (!reader.Read())
+            {
+                sheets.Add(new WorkbookSheetDto(name, []));
+                continue;
+            }
+            var headings = Headings(reader);
+            var samples = headings.Select(_ => new List<string>()).ToArray();
+            for (var r = 0; r < SampleRows && reader.Read(); r++)
+                for (var c = 0; c < headings.Count && c < reader.FieldCount; c++)
+                    if (headings[c] is not null && samples[c].Count < SamplesPerColumn && AsText(reader.GetValue(c)) is { } text && !samples[c].Contains(text))
+                        samples[c].Add(text.Length > 80 ? text[..80] + "…" : text);
+            var columns = new List<WorkbookColumnDto>();
+            for (var c = 0; c < headings.Count; c++)
+                if (headings[c] is { } h && columns.All(x => !string.Equals(x.Heading, h, StringComparison.OrdinalIgnoreCase)))
+                    columns.Add(new WorkbookColumnDto(h, samples[c]));
+            sheets.Add(new WorkbookSheetDto(name, columns));
+        } while (reader.NextResult());
+        return sheets;
+    }
+
+    public StyleWorkbookReadResult Read(Stream xlsx, ImportColumnMapping mapping)
+    {
+        var problems = new List<string>();
+        var targets = StyleImportLayout.Sheets;
+        var rows = targets.Select(_ => new List<StagedRow>()).ToArray();
+        var found = new bool[targets.Length];
+
+        using var reader = ExcelReaderFactory.CreateOpenXmlReader(xlsx, LeaveOpen);
+        do
+        {
+            // The import sheets this workbook sheet feeds (usually one).
+            var feeds = Enumerable.Range(0, targets.Length)
+                .Where(i => !found[i] && mapping.Sheets.GetValueOrDefault(targets[i].Key)?.Source is { } source
+                            && string.Equals(source.Trim(), reader.Name?.Trim(), StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (feeds.Count == 0) continue;
+            feeds.ForEach(i => found[i] = true);
+            ReadSheet(reader, feeds.Select(i => (targets[i], mapping.Sheets[targets[i].Key], rows[i])).ToList(), problems);
             if (problems.Count >= StyleImportRules.MaxReadProblems) break;
         } while (reader.NextResult());
 
-        for (var i = 0; i < Sheets.Length; i++)
-            if (!found[i]) problems.Add($"The workbook has no \"{Sheets[i].Label}\" sheet.");
+        for (var i = 0; i < targets.Length; i++)
+            if (!found[i] && problems.Count < StyleImportRules.MaxReadProblems)
+                problems.Add(mapping.Sheets.GetValueOrDefault(targets[i].Key)?.Source is { } source
+                    ? $"The workbook has no sheet named \"{source}\" (for {targets[i].Label})."
+                    : $"The workbook has no \"{targets[i].Label}\" sheet.");
 
         return problems.Count > 0
             ? new StyleWorkbookReadResult(null, problems.Take(StyleImportRules.MaxReadProblems).ToList())
             : new StyleWorkbookReadResult(new StyleWorkbook(rows[0], rows[1], rows[2]), []);
     }
 
-    /// <summary>By name first; a sheet with an unknown name counts as the next unused one of the first three.</summary>
-    private static int SheetIndex(string? name, int position, bool[] found)
-    {
-        var key = Normalize(name);
-        for (var i = 0; i < Sheets.Length; i++)
-            if (!found[i] && Sheets[i].Names.Contains(key)) return i;
-        return position < Sheets.Length && !found[position] && !Sheets.Any(s => s.Names.Contains(key)) ? position : -1;
-    }
-
-    private static void ReadSheet(IExcelDataReader reader, Sheet sheet, List<StagedRow> rows, List<string> problems)
+    private static void ReadSheet(IExcelDataReader reader, List<(ImportTargetSheet Sheet, ImportSheetMapping Map, List<StagedRow> Rows)> feeds, List<string> problems)
     {
         if (!reader.Read())
         {
-            problems.Add($"The \"{sheet.Label}\" sheet is empty: the first row must hold the headings.");
+            foreach (var (sheet, _, _) in feeds) problems.Add($"The \"{sheet.Label}\" sheet is empty: the first row must hold the headings.");
             return;
         }
 
-        // Heading row -> staging column -> Excel column index.
-        var map = new int[sheet.Columns.Length];
-        Array.Fill(map, -1);
-        for (var c = 0; c < reader.FieldCount; c++)
+        // Per import sheet: staging column -> Excel column index (-1 = not imported).
+        var headings = Headings(reader);
+        var maps = new List<int[]>();
+        foreach (var (sheet, map, _) in feeds)
         {
-            var heading = Normalize(Convert.ToString(reader.GetValue(c), CultureInfo.InvariantCulture));
-            if (heading.Length == 0) continue;
+            var indexes = sheet.Columns.Select(c => map.Columns.GetValueOrDefault(c.Name) is { Length: > 0 } h ? StyleImportMapper.FindHeading(headings, h) : -1).ToArray();
             for (var k = 0; k < sheet.Columns.Length; k++)
-                if (map[k] < 0 && sheet.Columns[k].Headings.Contains(heading)) { map[k] = c; break; }
+                if (indexes[k] < 0 && map.Columns.GetValueOrDefault(sheet.Columns[k].Name) is { Length: > 0 } h)
+                    problems.Add($"The \"{reader.Name}\" sheet has no \"{h}\" column (for {sheet.Label} {sheet.Columns[k].Name}).");
+                else if (indexes[k] < 0 && sheet.Columns[k].Required)
+                    problems.Add($"The \"{sheet.Label}\" sheet has no {sheet.Columns[k].Name} column.");
+            maps.Add(indexes);
         }
-        foreach (var missing in sheet.Columns.Where((col, k) => col.Required && map[k] < 0))
-            problems.Add($"The \"{sheet.Label}\" sheet has no {missing.Name} column.");
         if (problems.Count > 0) return;
 
         var rowNo = 1;
         while (reader.Read())
         {
             rowNo++;
-            var values = new object?[sheet.Columns.Length];
-            var any = false;
-            for (var k = 0; k < sheet.Columns.Length; k++)
+            for (var f = 0; f < feeds.Count; f++)
             {
-                if (map[k] < 0 || map[k] >= reader.FieldCount) continue;
-                var column = sheet.Columns[k];
-                var value = column.IsDate ? AsDate(reader.GetValue(map[k])) : AsText(reader.GetValue(map[k]));
-                if (value is string text && text.Length > column.MaxLength)
+                var (sheet, _, rows) = feeds[f];
+                var values = new object?[sheet.Columns.Length];
+                var any = false;
+                for (var k = 0; k < sheet.Columns.Length; k++)
                 {
-                    problems.Add($"{sheet.Label} row {rowNo}: {column.Name} is longer than {column.MaxLength} characters.");
-                    if (problems.Count >= StyleImportRules.MaxReadProblems) return;
-                    value = text[..column.MaxLength];
+                    var c = maps[f][k];
+                    if (c < 0 || c >= reader.FieldCount) continue;
+                    var column = sheet.Columns[k];
+                    var value = column.IsDate ? AsDate(reader.GetValue(c)) : AsText(reader.GetValue(c));
+                    if (value is string text && text.Length > column.MaxLength)
+                    {
+                        problems.Add($"{sheet.Label} row {rowNo}: {column.Name} is longer than {column.MaxLength} characters.");
+                        if (problems.Count >= StyleImportRules.MaxReadProblems) return;
+                        value = text[..column.MaxLength];
+                    }
+                    values[k] = value;
+                    any |= value is not null;
                 }
-                values[k] = value;
-                any |= value is not null;
+                if (!any) continue;   // blank row
+                if (rows.Count >= StyleImportRules.MaxRowsPerSheet)
+                {
+                    problems.Add($"The \"{sheet.Label}\" sheet has more than {StyleImportRules.MaxRowsPerSheet:N0} rows. Split the file.");
+                    return;
+                }
+                rows.Add(new StagedRow(rowNo, values));
             }
-            if (!any) continue;   // blank row
-            if (rows.Count >= StyleImportRules.MaxRowsPerSheet)
-            {
-                problems.Add($"The \"{sheet.Label}\" sheet has more than {StyleImportRules.MaxRowsPerSheet:N0} rows. Split the file.");
-                return;
-            }
-            rows.Add(new StagedRow(rowNo, values));
         }
+    }
+
+    /// <summary>The current row as headings: trimmed text, null for an empty cell.</summary>
+    private static List<string?> Headings(IExcelDataReader reader)
+    {
+        var headings = new List<string?>();
+        for (var c = 0; c < reader.FieldCount; c++)
+            headings.Add(Convert.ToString(reader.GetValue(c), CultureInfo.InvariantCulture)?.Trim() is { Length: > 0 } h ? h : null);
+        return headings;
     }
 
     /// <summary>
@@ -198,6 +180,4 @@ public sealed class StyleWorkbookReader : IStyleWorkbookReader
         _ => null,
     };
 
-    internal static string Normalize(string? text)
-        => new((text ?? "").Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
 }

@@ -20,10 +20,19 @@ public sealed class FakeStyleRepository : IStyleRepository
 
     public StyleListQuery? LastListQuery { get; private set; }
 
+    public Task<IReadOnlyList<StyleCountDto>> CountAsync(StyleListQuery query, string groupBy, CancellationToken ct = default)
+    {
+        LastListQuery = query;
+        return Task.FromResult<IReadOnlyList<StyleCountDto>>([new("2027-SS", "2027-SS", 3), new("2026-FW", "2026-FW", 2)]);
+    }
+
+    /// <summary>How many styles a list query finds (default none).</summary>
+    public Func<StyleListQuery, int>? Totals { get; init; }
+
     public Task<PagedResult<StyleListItemDto>> ListAsync(StyleListQuery query, CancellationToken ct = default)
     {
         LastListQuery = query;
-        return Task.FromResult(new PagedResult<StyleListItemDto>([], 0));
+        return Task.FromResult(new PagedResult<StyleListItemDto>([], Totals?.Invoke(query) ?? 0));
     }
 
     public Task<StyleDetailDto?> GetAsync(int styleId, CancellationToken ct = default)
@@ -51,6 +60,20 @@ public sealed class FakeStyleRepository : IStyleRepository
 
     public Task DeleteStyleAsync(int styleId, byte[] rowVer, string changedBy, CancellationToken ct = default)
         => Write("delete-style", styleId, rowVer, changedBy);
+
+    public Task SetColorwayImageAsync(int styleId, int colorwayId, byte[] rowVer, string imageUrl, string changedBy, CancellationToken ct = default)
+    {
+        if (!rowVer.SequenceEqual(CurrentRowVer))
+            throw new StyleRuleException(409, "Someone else changed this colorway after you opened it. Reload and try again.");
+        return Write("colorway-image", colorwayId, imageUrl, changedBy);
+    }
+
+    public Task SwapPicturesAsync(int styleId, byte[] rowVer, string changedBy, CancellationToken ct = default)
+    {
+        if (!rowVer.SequenceEqual(CurrentRowVer))
+            throw new StyleRuleException(409, "Someone else changed this style after you opened it. Reload and try again.");
+        return Write("swap-pictures", styleId, rowVer, changedBy);
+    }
 
     public Task<int> CopyStyleAsync(int styleId, CopyStyleRequest request, string changedBy, CancellationToken ct = default)
         => Write("copy", styleId, request, changedBy, 43);
@@ -127,7 +150,7 @@ public sealed class StylesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     public async Task Styles_are_validated_field_by_field()
     {
         var (admin, _) = await SignInAsync("Admin");
-        var bad = await admin.PostAsJsonAsync("/api/v1/styles", Style(styleNo: "", season: "SS27", gender: "MEN"));
+        var bad = await admin.PostAsJsonAsync("/api/v1/styles", Style(styleNo: "", season: "", gender: "MEN"));
         Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
         var body = await bad.Content.ReadAsStringAsync();
         Assert.Contains("\"styleNo\"", body);
@@ -178,6 +201,24 @@ public sealed class StylesTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"/api/v1/styles/5/bom-lines/9?rowVer={Uri.EscapeDataString(RowVer)}")).StatusCode);
         Assert.Equal(FakeStyleRepository.CurrentRowVer, (byte[])factory.Styles.Writes.Last().Request!);
+    }
+
+    [Fact]
+    public async Task Picture_and_sketch_can_be_swapped_by_editors_with_the_row_version()
+    {
+        var (viewer, _) = await SignInAsync("Viewer");
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await viewer.PostAsync($"/api/v1/styles/5/swap-pictures?rowVer={Uri.EscapeDataString(RowVer)}", null)).StatusCode);
+
+        var (merchandiser, me) = await SignInAsync("Merchandiser");
+        Assert.Equal(HttpStatusCode.BadRequest, (await merchandiser.PostAsync("/api/v1/styles/5/swap-pictures", null)).StatusCode);
+        var stale = await merchandiser.PostAsync($"/api/v1/styles/5/swap-pictures?rowVer={Uri.EscapeDataString(Convert.ToBase64String(new byte[8]))}", null);
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await merchandiser.PostAsync($"/api/v1/styles/5/swap-pictures?rowVer={Uri.EscapeDataString(RowVer)}", null)).StatusCode);
+        var write = factory.Styles.Writes.Last();
+        Assert.Equal(("swap-pictures", 5, me.UserName), (write.Action, write.Id, write.ChangedBy));
     }
 
     [Fact]

@@ -43,6 +43,13 @@ public sealed class OpenAiCompatibleOptions
     public string ImageModel { get; set; } = "";
     /// <summary>Size asked of OpenAI-compatible image servers (connections set in the app use it too).</summary>
     public string ImageSize { get; set; } = "1024x1024";
+    /// <summary>
+    /// Renders with a sketch on OpenAI-compatible servers go to images/edits (image-to-image): how far the picture may move
+    /// away from the sketch, 0-1. 0.85 turns a flat sketch into a photo that keeps its silhouette and seams (FLUX.1-schnell
+    /// on OpenVINO Model Server, tested 2026-10-13; 0.6 still looked like a drawing). 0 = never send the sketch, for servers
+    /// without images/edits.
+    /// </summary>
+    public double ImageSketchStrength { get; set; } = 0.85;
     /// <summary>True when the server runs on the company network. Set false if it points at an outside service.</summary>
     public bool InHouse { get; set; } = true;
     public int TimeoutSeconds { get; set; } = 120;
@@ -81,7 +88,130 @@ internal static class AiHttp
         }
     }
 
+    /// <summary>
+    /// A chat completion read as a stream (stream=true), returning the answer text. Reading stops as soon as the text holds
+    /// one complete JSON value: some servers (OpenVINO Model Server 2026.4 with Qwen2.5) apply the schema but do not end
+    /// the answer after the JSON, and would otherwise generate until max_tokens; closing the connection stops them.
+    /// Servers that ignore stream=true and answer with one JSON body are read the usual way.
+    /// </summary>
+    public static async Task<string?> ChatTextAsync(HttpClient http, HttpRequestMessage message, int timeoutSeconds, ILogger logger, string provider,
+        string purpose, CancellationToken ct)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+        try
+        {
+            using var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning("{Provider} returned {Status} for {Purpose}.", provider, (int)response.StatusCode, purpose);
+                throw new AiServiceException("The AI service could not answer. Try again in a minute.");
+            }
+            if (response.Content.Headers.ContentType?.MediaType != "text/event-stream")
+            {
+                var json = await response.Content.ReadFromJsonAsync<JsonNode>(timeout.Token);
+                return json?["choices"] is JsonArray { Count: > 0 } choices && choices[0]?["message"]?["content"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
+            using var reader = new StreamReader(stream);
+            var text = new System.Text.StringBuilder();
+            var watch = new JsonStreamWatch(OpenAiApi.MaxStringLength);
+            while (await reader.ReadLineAsync(timeout.Token) is { } line)
+            {
+                if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
+                var data = line[5..].Trim();
+                if (data == "[DONE]") break;
+                var chunk = JsonNode.Parse(data);
+                if (chunk?["error"] is not null)
+                {
+                    logger.LogWarning("{Provider} reported an error while answering {Purpose}.", provider, purpose);
+                    throw new AiServiceException("The AI service could not answer. Try again in a minute.");
+                }
+                if (chunk?["choices"] is JsonArray { Count: > 0 } c && c[0]?["delta"]?["content"] is JsonValue d && d.TryGetValue<string>(out var part))
+                {
+                    text.Append(part);
+                    watch.Feed(part);
+                    if (watch.Complete) break;   // the rest would be noise: closing the connection stops the server
+                    if (watch.RanOn)
+                    {
+                        // A model stuck inside one text value (seen with OpenVINO Model Server 2026.4 and a vague instruction).
+                        logger.LogWarning("{Provider} answer for {Purpose} ran on inside one value; stopped after {Chars} characters.", provider, purpose, text.Length);
+                        throw new AiServiceException("The AI service's answer ran on without finishing. Try again, or use a stronger model for this job.");
+                    }
+                }
+            }
+            return text.ToString();
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new AiServiceException("The AI service took too long to answer. Try again.");
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning(ex, "{Provider} request for {Purpose} failed.", provider, purpose);
+            throw new AiServiceException("The AI service could not be reached. Try again in a minute.", ex);
+        }
+        catch (IOException ex) when (!ct.IsCancellationRequested)
+        {
+            // The server closed the connection while answering (e.g. it stopped or ran out of memory).
+            logger.LogWarning(ex, "{Provider} stopped answering {Purpose}.", provider, purpose);
+            throw new AiServiceException("The AI service stopped answering. Try again in a minute.", ex);
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            throw new AiServiceException("The AI service returned an answer that could not be read. Try again.", ex);
+        }
+    }
+
     public static string Url(string endpoint, string path) => $"{endpoint.TrimEnd('/')}/{path}";
+
+    /// <summary>
+    /// Follows a streamed answer one character at a time: skips a leading &lt;think&gt; block, then tracks the first JSON
+    /// value (depth, strings, escapes). Complete: the value has closed. RanOn: one string grew past the limit (the model
+    /// is stuck writing inside it, so the JSON would never close).
+    /// </summary>
+    internal sealed class JsonStreamWatch(int maxStringLength)
+    {
+        private readonly System.Text.StringBuilder _before = new();
+        private bool _started, _inThink, _inString, _escape;
+        private int _depth, _stringLength;
+
+        public bool Complete { get; private set; }
+        public bool RanOn { get; private set; }
+
+        public void Feed(string part)
+        {
+            foreach (var ch in part)
+            {
+                if (Complete || RanOn) return;
+                if (!_started)
+                {
+                    _before.Append(ch);
+                    if (_before.Length > 16) _before.Remove(0, _before.Length - 16);
+                    var tail = _before.ToString();
+                    if (!_inThink && tail.EndsWith("<think>", StringComparison.Ordinal)) _inThink = true;
+                    else if (_inThink && tail.EndsWith("</think>", StringComparison.Ordinal)) _inThink = false;
+                    else if (!_inThink && ch is '{' or '[') { _started = true; _depth = 1; }
+                    continue;
+                }
+                if (_inString)
+                {
+                    if (_escape) _escape = false;
+                    else if (ch == '\\') _escape = true;
+                    else if (ch == '"') { _inString = false; continue; }
+                    if (++_stringLength > maxStringLength) RanOn = true;
+                    continue;
+                }
+                switch (ch)
+                {
+                    case '"': _inString = true; _stringLength = 0; break;
+                    case '{' or '[': _depth++; break;
+                    case '}' or ']': if (--_depth == 0) Complete = true; break;
+                }
+            }
+        }
+    }
 
     public static AiProviderInfo Info(AiConnection? c) => AiConnectionInfo.Of(c);
 }
@@ -149,13 +279,27 @@ public static partial class OpenAiApi
         if (!string.IsNullOrWhiteSpace(c.ApiKey)) m.Headers.Authorization = new AuthenticationHeaderValue("Bearer", c.ApiKey);
     }
 
+    /// <summary>
+    /// Longest answer asked for (tokens). The app's longest answers (25 material readings, BOM check notes) need about
+    /// 2,000; the cap stops a model that does not end its answer from running until the timeout.
+    /// </summary>
+    public const int MaxAnswerTokens = 4096;
+
+    /// <summary>
+    /// Longest single text value accepted in a streamed answer (characters). The app's longest field is a 1,000-character
+    /// description; beyond this the model is taken to be stuck inside the value and the answer is stopped.
+    /// </summary>
+    public const int MaxStringLength = 3000;
+
     public static async Task<string> GenerateJsonAsync(HttpClient http, AiConnection c, ILogger logger, string purpose, string system, string user,
-        JsonObject schema, double temperature, CancellationToken ct)
+        JsonObject schema, double temperature, CancellationToken ct, int maxTokens = 0)
     {
         var body = new JsonObject
         {
             ["model"] = c.Model,
             ["temperature"] = temperature,
+            ["max_tokens"] = maxTokens > 0 ? Math.Min(maxTokens, MaxAnswerTokens) : MaxAnswerTokens,
+            ["stream"] = true,
             ["messages"] = new JsonArray(
                 new JsonObject { ["role"] = "system", ["content"] = system },
                 new JsonObject { ["role"] = "user", ["content"] = user }),
@@ -169,8 +313,7 @@ public static partial class OpenAiApi
         using var message = new HttpRequestMessage(HttpMethod.Post, AiHttp.Url(c.Endpoint, "chat/completions")) { Content = JsonContent.Create(body) };
         Auth(message, c);
 
-        var json = await AiHttp.SendAsync(http, message, c.TimeoutSeconds, logger, c.Name, purpose, ct);
-        var text = json?["choices"] is JsonArray { Count: > 0 } choices && choices[0]?["message"]?["content"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+        var text = await AiHttp.ChatTextAsync(http, message, c.TimeoutSeconds, logger, c.Name, purpose, ct);
         return CleanJson(text) ?? throw new AiServiceException("The AI service returned an empty answer. Try again.");
     }
 
@@ -187,6 +330,47 @@ public static partial class OpenAiApi
     }
 
     /// <summary>
+    /// Image-to-image (OpenAI images/edits, multipart): the sketch is laid on a white canvas of the requested size, so the
+    /// server neither stretches nor crops it, and the model redraws it following the prompt.
+    /// </summary>
+    public static async Task<GeneratedImage> EditImageAsync(HttpClient http, AiConnection c, string size, double strength, ILogger logger, string purpose,
+        string prompt, ReferenceImage sketch, CancellationToken ct)
+    {
+        var (width, height) = ParseSize(size);
+        byte[] canvas;
+        try { canvas = Files.ImageOptimizer.FitOnCanvas(sketch.Content, width, height); }
+        catch (UnreadableImageException ex) { throw new AiServiceException("The sketch could not be read. Upload it again or render without it.", ex); }
+
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent(c.Model), "model" },
+            { new StringContent(prompt), "prompt" },
+            { new StringContent("1"), "n" },
+            { new StringContent($"{width}x{height}"), "size" },
+            { new StringContent(strength.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)), "strength" },
+            { new StringContent("b64_json"), "response_format" },
+        };
+        var image = new ByteArrayContent(canvas);
+        image.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        form.Add(image, "image", "sketch.png");
+        using var message = new HttpRequestMessage(HttpMethod.Post, AiHttp.Url(c.Endpoint, "images/edits")) { Content = form };
+        Auth(message, c);
+
+        var json = await AiHttp.SendAsync(http, message, c.TimeoutSeconds, logger, c.Name, purpose, ct);
+        var data = json?["data"] is JsonArray { Count: > 0 } items && items[0]?["b64_json"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+        return AiImages.Decode(data);
+    }
+
+    /// <summary>"1024x1024" -> (1024, 1024); anything unreadable -> 1024 square.</summary>
+    public static (int Width, int Height) ParseSize(string size)
+    {
+        var parts = size.Split('x', 'X');
+        return parts.Length == 2 && int.TryParse(parts[0], out var w) && int.TryParse(parts[1], out var h) && w is >= 64 and <= 4096 && h is >= 64 and <= 4096
+            ? (w, h)
+            : (1024, 1024);
+    }
+
+    /// <summary>
     /// One picture plus text to a vision model (Ollama, vLLM, LM Studio: OpenAI image_url content with a data: URL), answer
     /// constrained to the schema like <see cref="GenerateJsonAsync"/>.
     /// </summary>
@@ -198,6 +382,8 @@ public static partial class OpenAiApi
         {
             ["model"] = c.Model,
             ["temperature"] = 0.1,
+            ["max_tokens"] = MaxAnswerTokens,
+            ["stream"] = true,
             ["messages"] = new JsonArray(
                 new JsonObject { ["role"] = "system", ["content"] = system },
                 new JsonObject
@@ -216,8 +402,7 @@ public static partial class OpenAiApi
         using var message = new HttpRequestMessage(HttpMethod.Post, AiHttp.Url(c.Endpoint, "chat/completions")) { Content = JsonContent.Create(body) };
         Auth(message, c);
 
-        var json = await AiHttp.SendAsync(http, message, c.TimeoutSeconds, logger, c.Name, purpose, ct);
-        var text = json?["choices"] is JsonArray { Count: > 0 } choices && choices[0]?["message"]?["content"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+        var text = await AiHttp.ChatTextAsync(http, message, c.TimeoutSeconds, logger, c.Name, purpose, ct);
         return CleanJson(text) ?? throw new AiServiceException("The AI service returned an empty answer. Try again.");
     }
 
@@ -261,7 +446,10 @@ public static partial class OpenAiApi
     [GeneratedRegex(@"<think>.*?</think>", RegexOptions.Singleline)]
     private static partial Regex ThinkRegex();
 
-    /// <summary>Reasoning models can prefix a &lt;think&gt; block, and some wrap the JSON in a ``` fence.</summary>
+    /// <summary>
+    /// Reasoning models can prefix a &lt;think&gt; block, some wrap the JSON in a ``` fence, and some go on writing after
+    /// it: the first complete JSON value is kept (or the cleaned text when there is none, which then fails to parse).
+    /// </summary>
     public static string? CleanJson(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
@@ -272,7 +460,36 @@ public static partial class OpenAiApi
             var end = t.LastIndexOf("```", StringComparison.Ordinal);
             if (start > 0 && end > start) t = t[(start + 1)..end].Trim();
         }
+        if (FirstJsonValue(t) is { } json) return json;
         return t.Length == 0 ? null : t;
+    }
+
+    /// <summary>The first complete top-level JSON object or array in the text (strings and escapes respected), or null.</summary>
+    public static string? FirstJsonValue(string text)
+    {
+        var start = text.IndexOfAny(['{', '[']);
+        if (start < 0) return null;
+        var depth = 0;
+        var inString = false;
+        for (var i = start; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (inString)
+            {
+                if (ch == '\\') i++;
+                else if (ch == '"') inString = false;
+                continue;
+            }
+            switch (ch)
+            {
+                case '"': inString = true; break;
+                case '{' or '[': depth++; break;
+                case '}' or ']':
+                    if (--depth == 0) return text[start..(i + 1)];
+                    break;
+            }
+        }
+        return null;
     }
 }
 
@@ -281,13 +498,14 @@ public sealed class RoutedAiJsonClient(HttpClient http, IAiConnectionResolver re
 {
     public async Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default) => AiConnectionInfo.Of(await resolver.ExplainAsync(AiPurposes.Text, ct));
 
-    public async Task<string> GenerateJsonAsync(string purpose, string systemInstruction, string userText, JsonObject schema, double temperature, CancellationToken ct = default)
+    public async Task<string> GenerateJsonAsync(string purpose, string systemInstruction, string userText, JsonObject schema, double temperature, CancellationToken ct = default,
+        int maxTokens = 0)
     {
         var c = await resolver.ResolveAsync(AiPurposes.Text, ct);
         if (!AiHttp.Info(c).IsConfigured) throw new AiServiceException("AI text answers are not set up on this server.");
         return c!.Kind == AiConnectionKinds.Gemini
             ? await GeminiApi.GenerateJsonAsync(http, c, logger, purpose, systemInstruction, userText, schema, temperature, ct)
-            : await OpenAiApi.GenerateJsonAsync(http, c, logger, purpose, systemInstruction, userText, schema, temperature, ct);
+            : await OpenAiApi.GenerateJsonAsync(http, c, logger, purpose, systemInstruction, userText, schema, temperature, ct, maxTokens);
     }
 }
 
@@ -295,16 +513,25 @@ public sealed class RoutedAiJsonClient(HttpClient http, IAiConnectionResolver re
 public sealed class RoutedAiImageClient(HttpClient http, IAiConnectionResolver resolver, IOptions<OpenAiCompatibleOptions> openAi, ILogger<RoutedAiImageClient> logger)
     : IAiImageClient
 {
-    public async Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default) => AiConnectionInfo.Of(await resolver.ExplainAsync(AiPurposes.Image, ct));
+    /// <summary>OpenAI-compatible servers take the sketch too (images/edits) unless ImageSketchStrength is 0.</summary>
+    public async Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default)
+    {
+        var r = await resolver.ExplainAsync(AiPurposes.Image, ct);
+        var info = AiConnectionInfo.Of(r);
+        return r.Connection?.Kind == AiConnectionKinds.OpenAiCompatible && SketchStrength > 0 ? info with { SupportsReferenceImage = true } : info;
+    }
 
     public async Task<GeneratedImage> GenerateImageAsync(string purpose, string prompt, ReferenceImage? reference, CancellationToken ct = default)
     {
         var c = await resolver.ResolveAsync(AiPurposes.Image, ct);
         if (!AiHttp.Info(c).IsConfigured) throw new AiServiceException("Image generation is not set up on this server.");
-        return c!.Kind == AiConnectionKinds.Gemini
-            ? await GeminiApi.GenerateImageAsync(http, c, logger, purpose, prompt, reference, ct)
+        if (c!.Kind == AiConnectionKinds.Gemini) return await GeminiApi.GenerateImageAsync(http, c, logger, purpose, prompt, reference, ct);
+        return reference is not null && SketchStrength > 0
+            ? await OpenAiApi.EditImageAsync(http, c, openAi.Value.ImageSize, SketchStrength, logger, purpose, prompt, reference, ct)
             : await OpenAiApi.GenerateImageAsync(http, c, openAi.Value.ImageSize, logger, purpose, prompt, ct);
     }
+
+    private double SketchStrength => Math.Clamp(openAi.Value.ImageSketchStrength, 0, 1);
 }
 
 /// <summary>

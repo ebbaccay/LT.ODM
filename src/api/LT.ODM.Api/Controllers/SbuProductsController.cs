@@ -1,5 +1,6 @@
 using LT.ODM.Application.ConceptStudio;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace LT.ODM.Api.Controllers;
 
@@ -25,5 +26,6 @@ public sealed class SbuProductsController(IProductImageStore images, ILogger<Sbu
 
     /// <summary>Serves a product photo to signed-in users (the screen fetches it with the sign-in token).</summary>
     [HttpGet("images/{fileName}")]
-    public IActionResult GetImage(string fileName) => ImageUploads.Serve(this, images, fileName);
+    [DisableRateLimiting]   // cheap files for signed-in users; one page can show dozens
+    public Task<IActionResult> GetImage(string fileName, int? w, CancellationToken ct) => ImageUploads.ServeAsync(this, images, fileName, w, ct);
 }

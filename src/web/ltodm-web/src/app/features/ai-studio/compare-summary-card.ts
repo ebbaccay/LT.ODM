@@ -1,24 +1,25 @@
-import { ChangeDetectionStrategy, Component, inject, input, linkedSignal, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideSparkles } from '@ng-icons/lucide';
-import { toast } from '@spartan-ng/brain/sonner';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { catchError, map, of } from 'rxjs';
-import { problemMessage } from '../../core/auth/auth.service';
 import { AiStudioService, CompareSummary, StyleCompare } from './ai-studio.service';
+import { AiTaskRunning } from './ai-task-running';
+import { AiTasksSession } from './ai-tasks.session';
 
 /**
  * The AI's written summary of a style comparison, asked for on demand. Shows nothing at all when no AI text
- * service is set up, so the rule-based comparison around it reads as complete without AI.
+ * service is set up, so the rule-based comparison around it reads as complete without AI. The request runs in
+ * AiTasksSession, so leaving the page (or Minimise) neither stops nor loses it.
  */
 @Component({
   selector: 'app-compare-summary-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgIcon, HlmButtonImports, HlmCardImports, HlmSpinnerImports, TranslocoPipe],
+  imports: [NgIcon, AiTaskRunning, HlmButtonImports, HlmCardImports, HlmSpinnerImports, TranslocoPipe],
   providers: [provideIcons({ lucideSparkles })],
   host: { class: 'contents' },
   template: `
@@ -33,6 +34,7 @@ import { AiStudioService, CompareSummary, StyleCompare } from './ai-studio.servi
             {{ (summary() ? 'ai.compare.summarizeAgain' : 'ai.compare.summarize') | transloco }}
           </button>
         </div>
+        <app-ai-task-running [task]="task()" />
         @if (summary(); as s) {
           <p class="font-medium">{{ s.headline }}</p>
           <p class="text-sm">{{ s.summary }}</p>
@@ -66,31 +68,21 @@ import { AiStudioService, CompareSummary, StyleCompare } from './ai-studio.servi
 })
 export class CompareSummaryCard {
   private readonly svc = inject(AiStudioService);
-  private readonly transloco = inject(TranslocoService);
+  private readonly tasks = inject(AiTasksSession);
 
   readonly diff = input.required<StyleCompare>();
 
   /** True once the server says an AI text service is set up (hidden while unknown or on error). */
   readonly textReady = toSignal(this.svc.status().pipe(map((s) => s.text.isConfigured), catchError(() => of(false))), { initialValue: false });
 
-  /** Cleared whenever a new pair of styles comes in. */
-  readonly summary = linkedSignal<StyleCompare, CompareSummary | null>({ source: this.diff, computation: () => null });
-  readonly summarizing = signal(false);
+  /** One summary per pair of styles: a new pair shows its own (or none). */
+  readonly task = this.tasks.watch<CompareSummary>(computed(() => `compare:${this.diff().to.styleId}:${this.diff().from.styleId}`));
+  readonly summary = computed(() => (this.task()?.status === 'done' ? this.task()!.result : null));
+  readonly summarizing = computed(() => this.task()?.status === 'running');
 
   summarize(): void {
     const d = this.diff();
     if (this.summarizing()) return;
-    this.summarizing.set(true);
-    this.svc.summarize(d.to.styleId, d.from.styleId).subscribe({
-      next: (s) => {
-        // Ignore an answer for a pair that is no longer shown.
-        if (this.diff() === d) this.summary.set(s);
-        this.summarizing.set(false);
-      },
-      error: (e) => {
-        this.summarizing.set(false);
-        toast.error(this.transloco.translate('ai.failed'), { description: problemMessage(e) });
-      },
-    });
+    this.tasks.run('compareSummary', `compare:${d.to.styleId}:${d.from.styleId}`, d.to.styleNo, this.svc.summarize(d.to.styleId, d.from.styleId));
   }
 }

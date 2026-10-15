@@ -10,7 +10,32 @@
   </header>
 
   @let b = batch();
-  @if (!b) {
+  @if (!b && inspection(); as insp) {
+    <!-- Map columns -->
+    @if (uploadError(); as err) {
+      <div class="border-destructive/40 bg-destructive/5 flex gap-3 rounded-md border p-3 text-sm" role="alert">
+        <ng-icon name="lucideCircleAlert" class="text-destructive mt-0.5 shrink-0" />
+        <div class="min-w-0">
+          <p class="font-medium">{{ err.title }}</p>
+          @if (err.problems.length) {
+            <ul class="text-muted-foreground mt-1 list-disc pl-5">
+              @for (p of err.problems; track $index) {
+                <li>{{ p }}</li>
+              }
+            </ul>
+          }
+        </div>
+      </div>
+    }
+    <app-import-mapping
+      [inspection]="insp"
+      [fileName]="insp.fileName"
+      [busy]="uploading()"
+      (back)="leaveMapping()"
+      (edited)="mappingEdited($event)"
+      (confirmed)="upload($event)"
+    />
+  } @else if (!b) {
     <!-- Upload -->
     <section hlmCard class="gap-4 p-5">
       <label
@@ -50,11 +75,11 @@
 
       <div class="flex flex-wrap items-center justify-between gap-3">
         <p class="text-muted-foreground text-xs">{{ 'settings.import.sheetsHint' | transloco }}</p>
-        <button hlmBtn type="button" class="h-11 w-full sm:w-auto lg:h-9" [disabled]="!file() || uploading()" (click)="upload()">
-          @if (uploading()) {
-            <hlm-spinner />{{ 'settings.import.checking' | transloco }}
+        <button hlmBtn type="button" class="h-11 w-full sm:w-auto lg:h-9" [disabled]="!file() || inspecting()" (click)="inspect()">
+          @if (inspecting()) {
+            <hlm-spinner />{{ 'settings.import.map.reading' | transloco }}
           } @else {
-            <ng-icon name="lucideUpload" />{{ 'settings.import.uploadAndCheck' | transloco }}
+            {{ 'settings.import.map.next' | transloco }}<ng-icon name="lucideArrowRight" />
           }
         </button>
       </div>
@@ -93,9 +118,27 @@
                   }
                 </p>
               </div>
-              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="reopen(r.batchId)">
-                {{ (r.status === 'Staged' ? 'settings.import.resume' : 'settings.import.view') | transloco }}
-              </button>
+              <div class="flex flex-wrap gap-2">
+                @if (r.status === 'Mapping') {
+                  <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [disabled]="!r.hasFile" (click)="editMapping(r.batchId)">
+                    {{ 'settings.import.continueMapping' | transloco }}
+                  </button>
+                } @else {
+                  @if (canRemap(r)) {
+                    <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-8" (click)="editMapping(r.batchId)">
+                      <ng-icon name="lucideTableProperties" />{{ 'settings.import.changeMapping' | transloco }}
+                    </button>
+                  }
+                  <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="reopen(r.batchId)">
+                    {{ (r.status === 'Staged' ? 'settings.import.resume' : 'settings.import.view') | transloco }}
+                  </button>
+                }
+                @if (canDelete(r)) {
+                  <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-8" [attr.aria-label]="'settings.import.delete.confirm' | transloco" (click)="deleteImport(r)">
+                    <ng-icon name="lucideTrash2" />
+                  </button>
+                }
+              </div>
             </li>
           }
         </ul>
@@ -116,9 +159,21 @@
           </p>
           <p class="text-muted-foreground mt-1 text-xs">{{ b.uploadedBy }} · {{ b.uploadedUtc | date: 'medium' }}</p>
         </div>
-        <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-9" [attr.aria-label]="'actions.close' | transloco" (click)="close()">
-          <ng-icon name="lucideX" />
-        </button>
+        <div class="flex items-center gap-1">
+          @if (canRemap(b)) {
+            <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="editMapping(b.batchId)">
+              <ng-icon name="lucideTableProperties" />{{ 'settings.import.changeMapping' | transloco }}
+            </button>
+          }
+          @if (b.status === 'Cancelled') {
+            <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-9" [attr.aria-label]="'settings.import.delete.confirm' | transloco" (click)="deleteImport(b)">
+              <ng-icon name="lucideTrash2" />
+            </button>
+          }
+          <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-9" [attr.aria-label]="'actions.close' | transloco" (click)="close()">
+            <ng-icon name="lucideX" />
+          </button>
+        </div>
       </div>
 
       @if (s) {
@@ -156,11 +211,44 @@
             <ng-icon name="lucideCircleCheck" class="shrink-0 text-emerald-600 dark:text-emerald-400" />
             {{ 'settings.import.committedLine' | transloco: { count: c.styles, newCount: c.new, replaced: c.replaced, lines: (c.bomLines | number) } }}
           </p>
-          <div class="flex gap-2">
+          <div class="flex flex-wrap gap-2">
+            @if (b.canRollBack) {
+              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="rollingBack()" (click)="rollback()">
+                @if (rollingBack()) {
+                  <hlm-spinner class="size-4" />
+                } @else {
+                  <ng-icon name="lucideUndo2" />
+                }
+                {{ 'settings.import.rollback.button' | transloco }}
+              </button>
+            }
             <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="close()">{{ 'settings.import.importAnother' | transloco }}</button>
             <a hlmBtn class="h-11 lg:h-9" routerLink="/styles">{{ 'settings.import.openStyles' | transloco }}</a>
           </div>
         </div>
+        @if (blockers(); as list) {
+          <div class="border-destructive/40 bg-destructive/5 rounded-md border p-3 text-sm" role="alert">
+            <p class="flex items-start gap-2 font-medium">
+              <ng-icon name="lucideCircleAlert" class="text-destructive mt-0.5 shrink-0" />{{ 'settings.import.rollback.blocked' | transloco: { count: list.length } }}
+            </p>
+            <ul class="mt-2 flex max-h-72 flex-col gap-1 overflow-y-auto pl-6 text-xs" role="list">
+              @for (x of list; track $index) {
+                <li>
+                  @if (x.styleNo) {
+                    <span class="font-mono font-medium">{{ x.styleNo }}</span><span class="text-muted-foreground"> · {{ x.seasonCode }}</span> —
+                  }
+                  {{ x.reason }}
+                </li>
+              }
+            </ul>
+            <p class="text-muted-foreground mt-2 text-xs">{{ 'settings.import.rollback.blockedHint' | transloco }}</p>
+          </div>
+        }
+      } @else if (b.status === 'RolledBack') {
+        <p class="text-muted-foreground rounded-md border p-3 text-sm" role="status">
+          {{ 'settings.import.rollback.line' | transloco: { by: b.rolledBackBy, removed: s?.rolledBack?.removed ?? 0, restored: s?.rolledBack?.restored ?? 0, codes: s?.rolledBack?.codes ?? 0 } }}
+          {{ b.rolledBackUtc | date: 'medium' }}
+        </p>
       } @else if (b.status === 'Cancelled') {
         <p class="text-muted-foreground rounded-md border p-3 text-sm">{{ 'settings.import.cancelledLine' | transloco }}</p>
       } @else if (s?.styles?.blocked) {
@@ -171,12 +259,35 @@
       }
     </section>
 
+    @if (isStaged() && !codes()) {
+      <!-- The questions need the New codes list: say it is coming (or that it failed) rather than show nothing. -->
+      <section hlmCard class="flex-row flex-wrap items-center justify-between gap-3 px-5 py-4 text-sm" role="status">
+        @if (codesFailed()) {
+          <span class="text-destructive flex items-center gap-2"><ng-icon name="lucideCircleAlert" />{{ 'settings.import.ask.loadFailed' | transloco }}</span>
+          <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="loadCodes()">{{ 'settings.import.ask.retry' | transloco }}</button>
+        } @else {
+          <span class="text-muted-foreground flex items-center gap-2"><hlm-spinner class="size-4" />{{ 'settings.import.ask.loading' | transloco }}</span>
+        }
+      </section>
+    }
+    @if (isStaged() && codes(); as c) {
+      <app-import-decisions
+        [batchId]="b.batchId"
+        [codes]="c"
+        [skippedBom]="s?.skippedBom ?? null"
+        [(remember)]="remember"
+        (changed)="onAnswered($event)"
+        (review)="tab.set('codes')"
+        (showWarnings)="tab.set('issues'); setSeverity('Warning')"
+      />
+    }
+
     <!-- Tabs -->
     <div class="bg-muted flex w-full rounded-lg p-1 sm:w-fit" role="tablist">
       @for (t of [
         { id: 'styles', label: 'settings.import.tabStyles', count: stylesTotal() },
         { id: 'issues', label: 'settings.import.tabIssues', count: (s?.errors ?? 0) + (s?.warnings ?? 0) },
-        { id: 'codes', label: 'settings.import.tabCodes', count: codes()?.codes?.length ?? 0 }
+        { id: 'codes', label: 'settings.import.tabCodes', count: codes()?.codes?.length ?? null }
       ]; track t.id) {
         <button
           type="button"
@@ -187,7 +298,15 @@
           (click)="tab.set($any(t.id))"
         >
           {{ t.label | transloco }}
-          <span class="text-muted-foreground text-xs tabular-nums">{{ t.count | number }}</span>
+          @if (t.count === null) {
+            @if (codesFailed()) {
+              <span class="text-destructive text-xs">!</span>
+            } @else if (isStaged()) {
+              <hlm-spinner class="size-3" />
+            }
+          } @else {
+            <span class="text-muted-foreground text-xs tabular-nums">{{ t.count | number }}</span>
+          }
         </button>
       }
     </div>

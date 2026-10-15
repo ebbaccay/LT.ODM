@@ -8,7 +8,7 @@ using Microsoft.Data.SqlClient;
 namespace LT.ODM.Infrastructure.StyleLibrary;
 
 /// <summary>Style Library import batches: staging.usp_StyleImport_* (db/procedures/style.import.procedures.sql).</summary>
-public sealed class StyleImportRepository(IDbConnectionFactory connectionFactory) : IStyleImportRepository
+public sealed class StyleImportRepository(IDbConnectionFactory connectionFactory, StyleDashboardCache dashboard) : IStyleImportRepository
 {
     /// <summary>Checking and committing ~100k rows takes a few seconds; allow for much larger files.</summary>
     private const int LongCommandSeconds = 600;
@@ -25,22 +25,90 @@ public sealed class StyleImportRepository(IDbConnectionFactory connectionFactory
         public DateTime UploadedUtc { get; init; }
         public string? FinishedBy { get; init; }
         public DateTime? FinishedUtc { get; init; }
+        public string? RolledBackBy { get; init; }
+        public DateTime? RolledBackUtc { get; init; }
+        public bool CanRollBack { get; init; }
+        public bool HasFile { get; init; }
 
         public StyleImportBatchDto ToDto() => new(BatchId, FileName, Status,
             Summary is null ? null : JsonSerializer.Deserialize<StyleImportSummary>(Summary, Json),
             UploadedBy, DateTime.SpecifyKind(UploadedUtc, DateTimeKind.Utc), FinishedBy,
-            FinishedUtc is { } f ? DateTime.SpecifyKind(f, DateTimeKind.Utc) : null);
+            FinishedUtc is { } f ? DateTime.SpecifyKind(f, DateTimeKind.Utc) : null,
+            RolledBackBy, RolledBackUtc is { } r ? DateTime.SpecifyKind(r, DateTimeKind.Utc) : null, CanRollBack, HasFile);
     }
 
-    public async Task<StyleImportBatchDto> StageAsync(string fileName, StyleWorkbook workbook, string uploadedBy, CancellationToken ct = default)
+    public async Task<StyleImportBatchDto> CreateDraftAsync(string fileName, string storedFile, ImportColumnMapping mapping, string uploadedBy, CancellationToken ct = default)
     {
-        await using var conn = (SqlConnection)await connectionFactory.OpenAsync(ct);
-        var batchId = await conn.QuerySingleAsync<int>(Proc("staging.usp_StyleImport_Create", new { FileName = fileName, UploadedBy = uploadedBy }, ct));
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        var batchId = await conn.QuerySingleAsync<int>(Proc("staging.usp_StyleImport_Create", new
+        {
+            FileName = fileName, UploadedBy = uploadedBy, StoredFile = storedFile, Mapping = JsonSerializer.Serialize(mapping, Json), Status = "Mapping",
+        }, ct));
+        return (await conn.QuerySingleAsync<BatchRow>(Proc("staging.usp_StyleImport_Get", new { BatchId = batchId }, ct))).ToDto();
+    }
+
+    private sealed class FileRow
+    {
+        public int BatchId { get; init; }
+        public string FileName { get; init; } = "";
+        public string Status { get; init; } = "";
+        public string? StoredFile { get; init; }
+        public string? Mapping { get; init; }
+    }
+
+    public async Task<StyleImportFile?> GetFileAsync(int batchId, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        var row = await conn.QuerySingleOrDefaultAsync<FileRow>(Proc("staging.usp_StyleImport_GetFile", new { BatchId = batchId }, ct));
+        if (row is null) return null;
+        ImportColumnMapping? mapping = null;
         try
         {
-            await BulkCopyAsync(conn, "staging.StyleRow", batchId, StyleWorkbookReader.StyleSheet, workbook.Styles, ct);
-            await BulkCopyAsync(conn, "staging.ArticleRow", batchId, StyleWorkbookReader.ArticleSheet, workbook.Articles, ct);
-            await BulkCopyAsync(conn, "staging.BomRow", batchId, StyleWorkbookReader.BomSheet, workbook.Bom, ct);
+            mapping = row.Mapping is null ? null : JsonSerializer.Deserialize<ImportColumnMapping>(row.Mapping, Json);
+        }
+        catch (JsonException)
+        {
+            mapping = null;   // unreadable: the page suggests one again
+        }
+        return new StyleImportFile(row.BatchId, row.FileName, row.Status, row.StoredFile,
+            mapping?.Sheets is null ? null : StyleImportMapper.Clean(mapping));
+    }
+
+    public async Task SaveBatchMappingAsync(int batchId, ImportColumnMapping mapping, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        await RuleErrors(() => conn.ExecuteAsync(Proc("staging.usp_StyleImport_SaveMapping",
+            new { BatchId = batchId, Mapping = JsonSerializer.Serialize(mapping, Json) }, ct)));
+    }
+
+    public async Task<StyleImportBatchDto> RestageAsync(int batchId, ImportColumnMapping mapping, StyleWorkbook workbook, string uploadedBy, CancellationToken ct = default)
+    {
+        await using var conn = (SqlConnection)await connectionFactory.OpenAsync(ct);
+        await RuleErrors(() => conn.ExecuteAsync(Proc("staging.usp_StyleImport_Restage",
+            new { BatchId = batchId, Mapping = JsonSerializer.Serialize(mapping, Json), UploadedBy = uploadedBy }, ct)));
+        return await LoadAndCheckAsync(conn, batchId, workbook, uploadedBy, ct);
+    }
+
+    public async Task<string?> DeleteAsync(int batchId, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        return await RuleErrors(() => conn.QuerySingleAsync<string?>(Proc("staging.usp_StyleImport_Delete", new { BatchId = batchId }, ct)));
+    }
+
+    public async Task<IReadOnlyList<string>> PurgeFilesAsync(CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        return (await conn.QueryAsync<string>(Proc("staging.usp_StyleImport_Purge", null, ct))).ToList();
+    }
+
+    /// <summary>Bulk-copies the sheets into a batch and checks it; on failure the batch is cancelled.</summary>
+    private async Task<StyleImportBatchDto> LoadAndCheckAsync(SqlConnection conn, int batchId, StyleWorkbook workbook, string uploadedBy, CancellationToken ct)
+    {
+        try
+        {
+            await BulkCopyAsync(conn, "staging.StyleRow", batchId, StyleImportLayout.Style, workbook.Styles, ct);
+            await BulkCopyAsync(conn, "staging.ArticleRow", batchId, StyleImportLayout.Article, workbook.Articles, ct);
+            await BulkCopyAsync(conn, "staging.BomRow", batchId, StyleImportLayout.Bom, workbook.Bom, ct);
             var batch = await conn.QuerySingleAsync<BatchRow>(Proc("staging.usp_StyleImport_Check", new { BatchId = batchId }, ct, LongCommandSeconds));
             return batch.ToDto();
         }
@@ -101,6 +169,7 @@ public sealed class StyleImportRepository(IDbConnectionFactory connectionFactory
             OverwriteStyleKeys = JsonSerializer.Serialize(overwriteStyleKeys),
             CommittedBy = committedBy,
         }, ct, LongCommandSeconds)));
+        dashboard.Invalidate();
         return row.ToDto();
     }
 
@@ -110,17 +179,60 @@ public sealed class StyleImportRepository(IDbConnectionFactory connectionFactory
         using var grid = await conn.QueryMultipleAsync(Proc("staging.usp_StyleImport_NewCodes", new { BatchId = batchId }, ct));
         var codes = (await grid.ReadAsync<ImportNewCodeDto>()).ToList();
         var options = (await grid.ReadAsync<ImportCodeOptionDto>()).ToList();
-        return new ImportNewCodesDto(codes, options);
+        var applied = (await conn.QueryAsync<ImportAppliedAliasDto>(Proc("staging.usp_StyleImport_AppliedAliases", new { BatchId = batchId }, ct))).ToList();
+        return new ImportNewCodesDto(codes, options, ImportCustomerGrouping.Build(codes, options), applied);
     }
 
-    public async Task<StyleImportBatchDto> MapCodeAsync(int batchId, MapImportCodeRequest r, CancellationToken ct = default)
+    public async Task<StyleImportBatchDto> MapCodesAsync(int batchId, IReadOnlyList<MapImportCodeItem> items, bool remember, string mappedBy, CancellationToken ct = default)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
-        var row = await RuleErrors(() => conn.QuerySingleAsync<BatchRow>(Proc("staging.usp_StyleImport_MapCode", new
+        var row = await RuleErrors(() => conn.QuerySingleAsync<BatchRow>(Proc("staging.usp_StyleImport_MapCodes", new
         {
-            BatchId = batchId, r.List, r.Value, r.Code,
+            BatchId = batchId, Items = JsonSerializer.Serialize(items, Json), Remember = remember, MappedBy = mappedBy,
         }, ct, LongCommandSeconds)));
         return row.ToDto();
+    }
+
+    public async Task<StyleImportBatchDto> GroupCustomersAsync(int batchId, GroupImportCustomersRequest r, string mappedBy, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        var row = await RuleErrors(() => conn.QuerySingleAsync<BatchRow>(Proc("staging.usp_StyleImport_GroupCustomers", new
+        {
+            BatchId = batchId, Values = JsonSerializer.Serialize(r.Values ?? []), r.Code, r.Name, r.Remember, MappedBy = mappedBy,
+        }, ct, LongCommandSeconds)));
+        dashboard.Invalidate();
+        return row.ToDto();
+    }
+
+    public async Task<StyleImportBatchDto> BrandCustomersAsync(int batchId, BrandImportCustomersRequest r, string mappedBy, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        var row = await RuleErrors(() => conn.QuerySingleAsync<BatchRow>(Proc("staging.usp_StyleImport_BrandCustomers", new
+        {
+            BatchId = batchId, Values = JsonSerializer.Serialize(r.Values ?? []), r.Brand, r.Name, r.AlsoCustomer, r.Remember, MappedBy = mappedBy,
+        }, ct, LongCommandSeconds)));
+        return row.ToDto();
+    }
+
+    public async Task<bool> ForgetCodeAsync(string list, string value, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        return await conn.QuerySingleAsync<int>(Proc("staging.usp_StyleImport_ForgetAlias", new { List = list, Value = value }, ct)) > 0;
+    }
+
+    public async Task<StyleImportRollbackResult> RollbackAsync(int batchId, string rolledBackBy, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        var result = await RuleErrors(async () =>
+        {
+            using var grid = await conn.QueryMultipleAsync(Proc("staging.usp_StyleImport_Rollback",
+                new { BatchId = batchId, RolledBackBy = rolledBackBy, MaxAgeDays = StyleImportRules.RollbackDays }, ct, LongCommandSeconds));
+            var blockers = (await grid.ReadAsync<StyleImportRollbackBlockerDto>()).ToList();
+            var batch = await grid.ReadSingleAsync<BatchRow>();
+            return new StyleImportRollbackResult(batch.ToDto(), blockers);
+        });
+        if (result.Blockers.Count == 0) dashboard.Invalidate();
+        return result;
     }
 
     public async Task CancelAsync(int batchId, string cancelledBy, CancellationToken ct = default)
@@ -129,8 +241,44 @@ public sealed class StyleImportRepository(IDbConnectionFactory connectionFactory
         await RuleErrors(() => conn.ExecuteAsync(Proc("staging.usp_StyleImport_Cancel", new { BatchId = batchId, CancelledBy = cancelledBy }, ct)));
     }
 
+    private sealed class MappingRow
+    {
+        public int MappingId { get; init; }
+        public string Name { get; init; } = "";
+        public string Definition { get; init; } = "{}";
+        public string UpdatedBy { get; init; } = "";
+        public DateTime UpdatedUtc { get; init; }
+
+        public ImportMappingDto ToDto() => new(MappingId, Name,
+            StyleImportMapper.Clean(JsonSerializer.Deserialize<ImportColumnMapping>(Definition, Json) ?? new ImportColumnMapping(new Dictionary<string, ImportSheetMapping>())),
+            UpdatedBy, DateTime.SpecifyKind(UpdatedUtc, DateTimeKind.Utc));
+    }
+
+    public async Task<IReadOnlyList<ImportMappingDto>> ListMappingsAsync(CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        var rows = await conn.QueryAsync<MappingRow>(Proc("staging.usp_ImportMapping_List", null, ct));
+        return rows.Select(r => r.ToDto()).ToList();
+    }
+
+    public async Task<ImportMappingDto> SaveMappingAsync(string name, ImportColumnMapping mapping, string savedBy, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        var row = await RuleErrors(() => conn.QuerySingleAsync<MappingRow>(Proc("staging.usp_ImportMapping_Save", new
+        {
+            Name = name, Definition = JsonSerializer.Serialize(mapping, Json), SavedBy = savedBy,
+        }, ct)));
+        return row.ToDto();
+    }
+
+    public async Task<bool> DeleteMappingAsync(int mappingId, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        return await conn.QuerySingleAsync<int>(Proc("staging.usp_ImportMapping_Delete", new { MappingId = mappingId }, ct)) > 0;
+    }
+
     /// <summary>Streams one sheet into its staging table (BatchId, RowNo, then the sheet's columns in order).</summary>
-    private static async Task BulkCopyAsync(SqlConnection conn, string table, int batchId, StyleWorkbookReader.Sheet sheet,
+    private static async Task BulkCopyAsync(SqlConnection conn, string table, int batchId, ImportTargetSheet sheet,
         IReadOnlyList<StagedRow> rows, CancellationToken ct)
     {
         using var data = new DataTable();

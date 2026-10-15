@@ -217,7 +217,7 @@ public sealed class AccessRepository(IDbConnectionFactory connectionFactory) : I
     }
 }
 
-public sealed class ReferenceDataRepository(IDbConnectionFactory connectionFactory) : IReferenceDataRepository
+public sealed class ReferenceDataRepository(IDbConnectionFactory connectionFactory, StyleLibrary.StyleDashboardCache dashboard) : IReferenceDataRepository
 {
     public async Task<IReadOnlyList<RefListItemDto>> GetAsync(string list, CancellationToken ct = default)
     {
@@ -233,11 +233,13 @@ public sealed class ReferenceDataRepository(IDbConnectionFactory connectionFacto
         {
             List = list, r.IsNew, r.Code, r.Name, r.SortOrder, r.IsActive, ChangedBy = changedBy,
         }, ct)));
+        dashboard.Invalidate();   // pick-list names are shown on the dashboard
     }
 
     public async Task DeleteAsync(string list, string code, CancellationToken ct = default)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
         await MenuRepository.RuleErrors(() => conn.ExecuteAsync(MenuRepository.Proc("ref.usp_RefList_Delete", new { List = list, Code = code }, ct)));
+        dashboard.Invalidate();
     }
 }

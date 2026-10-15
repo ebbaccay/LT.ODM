@@ -144,6 +144,9 @@ public interface IImageSearchRepository
     Task<IReadOnlyList<ImageVectorToIndexDto>> VectorsToIndexAsync(string model, int take, string indexedBy, CancellationToken ct = default);
     Task<int> SaveVectorsAsync(IReadOnlyList<ImageVectorReading> readings, string model, string indexedBy, CancellationToken ct = default);
 
+    /// <summary>How a vector compares with every current picture of the model (style.usp_ImageVectorStats).</summary>
+    Task<ImageVectorStatsDto> VectorStatsAsync(string model, float[] vector, CancellationToken ct = default);
+
     /// <summary>By a look-alike vector, or (vector null) by the picture of fromStyleId.</summary>
     Task<IReadOnlyList<ImageMatchDto>> SearchVectorsAsync(string model, float[]? vector, int? fromStyleId, string? customer, int take, CancellationToken ct = default);
 }
@@ -160,7 +163,7 @@ public interface IImageSearchRepository
 /// </summary>
 public sealed class ImageSearchService(
     IAiVisionClient vision, IAiEmbeddingClient embedding, IImageEmbeddingModel imageModel, IAiConnectionResolver connections,
-    IImageSearchRepository repo, IStyleImageStore store)
+    IImageSearchRepository repo, IStyleImageStore store, PictureTagger tagger)
 {
     private const string LocalImagePrefix = "/api/v1/styles/images/";
 
@@ -216,7 +219,10 @@ public sealed class ImageSearchService(
     {
         var ready = await ReadinessAsync(ct);
         IndexImagesResultDto? vectors = null;
-        if (ready.LookAlike && await IndexVectorsAsync(indexedBy, ct) is { } v)
+        var newVectors = ready.LookAlike ? await IndexVectorsAsync(indexedBy, ct) : null;
+        // Picture tags (hood, closure, pattern, colours) from the vectors, milliseconds per picture: after every vector round.
+        if (ready.LookAlikeWords) await tagger.TagAsync(ct);
+        if (newVectors is { } v)
         {
             vectors = v;
             // Only missing files left in this step: go on with the descriptions instead of stopping here.

@@ -57,11 +57,28 @@ function Step($name, [scriptblock] $action) {
     }
 }
 
+# Like the app: the first complete JSON object in the answer counts; text after it is ignored (some servers, e.g.
+# OpenVINO Model Server 2026.4, do not end the answer after the JSON; the app stops reading there, this script caps it).
+function FirstJson([string] $text) {
+    $start = $text.IndexOfAny([char[]]'{[')
+    if ($start -lt 0) { return $text }
+    $depth = 0; $inString = $false
+    for ($i = $start; $i -lt $text.Length; $i++) {
+        $ch = $text[$i]
+        if ($inString) { if ($ch -eq '\') { $i++ } elseif ($ch -eq '"') { $inString = $false }; continue }
+        if ($ch -eq '"') { $inString = $true }
+        elseif ($ch -eq '{' -or $ch -eq '[') { $depth++ }
+        elseif ($ch -eq '}' -or $ch -eq ']') { $depth--; if ($depth -eq 0) { return $text.Substring($start, $i - $start + 1) } }
+    }
+    $text
+}
+
 function Answer($response) {
     $text = [string]$response.choices[0].message.content
     $text = [regex]::Replace($text, '(?s)<think>.*?</think>', '').Trim()
     if ($text.StartsWith('```')) { $text = ($text -replace '^```[a-zA-Z]*\s*', '' -replace '```\s*$', '').Trim() }
-    $text | ConvertFrom-Json
+    if ($response.choices[0].finish_reason -eq 'length') { Write-Host '  (the server did not end its answer after the JSON; the app stops reading there)' -ForegroundColor Yellow }
+    (FirstJson $text) | ConvertFrom-Json
 }
 
 function Schema($properties, $required) {
@@ -96,16 +113,17 @@ Write-Host "AI server: $Endpoint"
 
 Step 'Models' {
     $ids = @((Call 'GET' 'models' $null).data | ForEach-Object { $_.id })
-    $missing = @($TextModel, $VisionModel, $EmbeddingModel | Where-Object { $ids -notcontains $_ })
+    $missing = @($TextModel, $VisionModel, $EmbeddingModel | Where-Object { $_ -and $ids -notcontains $_ })
     if ($missing.Count) { throw "Not on the server: $($missing -join ', '). Available: $($ids -join ', '). Pull them (ollama pull <name>)." }
     "$($ids.Count) models: $($ids -join ', ')"
 }
 
 Step "Text ($TextModel)" {
     $body = @{
-        model = $TextModel; temperature = 0.1
+        model = $TextModel; temperature = 0.1; max_tokens = 300
         messages = @(
-            @{ role = 'system'; content = 'You turn a request into filters for a garment style library. Answer in JSON.' },
+            # Like the app's prompts, the instruction names the fields (a vague "Answer in JSON." can make some models run on).
+            @{ role = 'system'; content = "You turn a request into filters for a garment style library.`n- gender: MALE, FEMALE, KIDS or UNISEX.`n- productType: the garment type in capitals, e.g. JACKET.`n- season: YEAR-TERM, e.g. SS27 is 2027-SS." },
             @{ role = 'user'; content = "men's recycled polyester running jackets for SS27" })
         response_format = (Schema @{ gender = @{ type = 'string' }; productType = @{ type = 'string' }; season = @{ type = 'string' } } @('gender', 'productType'))
     }
@@ -114,9 +132,10 @@ Step "Text ($TextModel)" {
     "gender=$($a.gender), productType=$($a.productType), season=$($a.season)"
 }
 
-Step "Vision ($VisionModel)" {
+if (-not $VisionModel) { Write-Host "`n== Vision: skipped (-VisionModel '')" -ForegroundColor DarkGray }
+else { Step "Vision ($VisionModel)" {
     $body = @{
-        model = $VisionModel; temperature = 0.1
+        model = $VisionModel; temperature = 0.1; max_tokens = 400
         messages = @(
             @{ role = 'system'; content = 'You describe one garment picture. Answer in JSON.' },
             @{ role = 'user'; content = @(
@@ -127,7 +146,7 @@ Step "Vision ($VisionModel)" {
     $a = Answer (Call 'POST' 'chat/completions' $body)
     if (-not $a.garment) { throw 'The model did not describe the picture (is it a vision model?).' }
     "garment=$($a.garment); colours=$(@($a.colours) -join ', ')"
-}
+} }
 
 Step "Embedding ($EmbeddingModel)" {
     $v = (Call 'POST' 'embeddings' @{ model = $EmbeddingModel; input = 'navy hooded track jacket with white side stripes' }).data[0].embedding

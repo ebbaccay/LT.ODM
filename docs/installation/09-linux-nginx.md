@@ -140,8 +140,8 @@ server {
     ssl_certificate_key /etc/ssl/ltodm/ltodm.key;
     ssl_protocols TLSv1.2 TLSv1.3;
 
-    # Settings > Import accepts workbooks up to 50 MB (nginx default: 1 MB).
-    client_max_body_size 55m;
+    # Settings > Import accepts workbooks up to 100 MB (nginx default: 1 MB).
+    client_max_body_size 105m;
 
     location / {
         proxy_pass         http://127.0.0.1:5000;

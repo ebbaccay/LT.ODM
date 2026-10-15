@@ -49,6 +49,26 @@ export interface StyleListItem {
   hasHistory: boolean;
   lastChangedUtc: string;
   isActive: boolean;
+  /** Where the list search was found (null without a search). */
+  found: StyleSearchFound | null;
+}
+
+/** A list search found in the style's own number / model / description, and on how many colorways and BOM lines (up to 3 of each listed). */
+export interface StyleSearchFound {
+  inStyle: boolean;
+  colorways: number;
+  bomLines: number;
+  matches: StyleSearchMatch[];
+}
+
+export interface StyleSearchMatch {
+  kind: 'Colorway' | 'BomLine';
+  /** Colorway code or material code. */
+  code: string;
+  /** Colorway name or the BOM line's material description. */
+  text: string | null;
+  /** BOM line section (content class). */
+  section: string | null;
 }
 
 export interface StyleListFilter {
@@ -59,8 +79,12 @@ export interface StyleListFilter {
   productType?: string;
   weaveType?: string;
   gender?: string;
+  /** Picture tags 'attribute:value' separated by commas (hood:hooded,colour:navy); only styles with tagged pictures match. */
+  looks?: string;
   /** 'active', 'inactive', or empty for both. */
   status?: string;
+  /** 'with' (a picture or sketch), 'without', or empty for both. */
+  pictures?: string;
   skip?: number;
   take?: number;
 }
@@ -110,6 +134,57 @@ export interface Colorway {
   updatedBy: string | null;
   updatedUtc: string | null;
   rowVer: string;
+}
+
+/** Box in pixels of the source picture. */
+export interface PictureBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Garment views of one colour in the sketch (colour as #rrggbb). */
+export interface ColourGroup {
+  index: number;
+  colour: string;
+  box: PictureBox;
+  views: PictureBox[];
+}
+
+export interface ColorwayPictureSuggestion {
+  colorwayId: number;
+  colorwayCode: string;
+  colorwayName: string | null;
+  imageUrl: string | null;
+  /** Colour read from the name (null = no known colour, e.g. "multicolor"). */
+  nameColour: string | null;
+  nameWord: string | null;
+  group: number | null;
+  box: PictureBox | null;
+  distance: number | null;
+  sure: boolean;
+}
+
+export interface ColorwayPictures {
+  source: 'Sketch' | 'Image';
+  sourceUrl: string;
+  width: number;
+  height: number;
+  groups: ColourGroup[];
+  colorways: ColorwayPictureSuggestion[];
+}
+
+export interface SaveColorwayPictures {
+  sourceUrl: string;
+  enhance: boolean;
+  items: { colorwayId: number; rowVer: string; x: number; y: number; width: number; height: number }[];
+}
+
+export interface ColorwayPictureSaved {
+  colorwayId: number;
+  imageUrl: string | null;
+  problem: string | null;
 }
 
 export interface BomLineColorway {
@@ -367,6 +442,27 @@ export class StyleLibraryService {
 
   updateStyle(styleId: number, request: SaveStyleRequest): Observable<unknown> {
     return this.http.put(`${this.api}/${styleId}`, request);
+  }
+
+  /** Which part of the style's sketch (or picture) shows each colorway; nothing changes. */
+  colorwayPictures(styleId: number, source?: 'Sketch' | 'Image'): Observable<ColorwayPictures> {
+    const query = source ? `?source=${source}` : '';
+    return this.http.get<ColorwayPictures>(`${this.api}/${styleId}/colorway-pictures${query}`);
+  }
+
+  /** Cuts the confirmed parts and sets them as the colorways' pictures. */
+  saveColorwayPictures(styleId: number, request: SaveColorwayPictures): Observable<ColorwayPictureSaved[]> {
+    return this.http.post<ColorwayPictureSaved[]>(`${this.api}/${styleId}/colorway-pictures`, request);
+  }
+
+  /** A stored picture as a blob (with the sign-in token), e.g. to draw boxes on it. */
+  imageBlob(url: string): Observable<Blob> {
+    return this.http.get(`${environment.apiBaseUrl}${url}`, { responseType: 'blob' });
+  }
+
+  /** Swaps the style's picture and sketch (or moves the only one to the other place). */
+  swapPictures(styleId: number, rowVer: string): Observable<unknown> {
+    return this.http.post(`${this.api}/${styleId}/swap-pictures?rowVer=${encodeURIComponent(rowVer)}`, null);
   }
 
   deleteStyle(styleId: number, rowVer: string): Observable<unknown> {

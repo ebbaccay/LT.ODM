@@ -31,6 +31,7 @@ public static class ReferenceLists
     public static readonly IReadOnlyList<RefListDefinition> All =
     [
         new("customers", 32, CodeCase.AsTyped, null, AnyCode, 150, true, false, true),
+        new("brands", 32, CodeCase.Upper, "^[^|]+$", "Use at most {0} characters, without |.", 100, true, false, true),
         new("seasons", 16, CodeCase.Upper, "^[0-9]{4}-[A-Z]{2,4}$", "Use the year, a dash and the season term (e.g. 2027-SS).", 64, false, false, true),
         new("seasonTerms", 8, CodeCase.Upper, "^[A-Z]{2,4}$", "Use 2-4 letters (e.g. SS).", 32, true, true, false),
         new("businessUnits", 16, CodeCase.AsTyped, null, AnyCode, 100, true, false, true),
@@ -68,7 +69,8 @@ public static class ReferenceLists
         var errors = new Dictionary<string, string[]>();
         var code = NormalizeCode(d, r.Code);
         var codeOk = code.Length > 0 && code.Length <= d.CodeMaxLength && !code.Any(char.IsControl)
-                     && (d.CodePattern is null || Regex.IsMatch(code, d.CodePattern));
+                     // The pattern is for new codes; existing ones may predate it (imported seasons such as '26FW').
+                     && (d.CodePattern is null || !r.IsNew || Regex.IsMatch(code, d.CodePattern));
         if (!codeOk) errors["code"] = [string.Format(d.CodeRule, d.CodeMaxLength)];
         var name = r.Name?.Trim() ?? "";
         if ((d.NameRequired && name.Length == 0) || name.Length > d.NameMaxLength)

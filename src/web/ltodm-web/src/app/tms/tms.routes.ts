@@ -102,6 +102,11 @@ export const TMS_ROUTES: Routes = [
         title: 'titles.import',
       },
       {
+        path: 'image-import',
+        loadComponent: () => import('./modules/settings/style-image-import/style-image-import').then((m) => m.StyleImageImport),
+        title: 'titles.imageImport',
+      },
+      {
         path: 'reference-lists',
         loadComponent: () => import('./modules/settings/reference-lists/reference-lists').then((m) => m.ReferenceLists),
         title: 'titles.refLists',

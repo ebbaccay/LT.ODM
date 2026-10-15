@@ -17,7 +17,7 @@ public static partial class StyleQueryParser
     {
         public bool HasCriteria => Filters.Search is not null || Filters.Material is not null || Filters.Customer is not null
             || Filters.Seasons.Count > 0 || Filters.BusinessUnit is not null || Filters.ProductTypes.Count > 0 || Filters.WeaveType is not null
-            || Filters.Gender is not null;
+            || Filters.Gender is not null || Filters.Looks is { Count: > 0 };
 
         public bool Complete => HasCriteria && Unmatched.Count == 0;
     }
@@ -57,6 +57,8 @@ public static partial class StyleQueryParser
     private static readonly Dictionary<string, string[]> ProductSynonyms = new(StringComparer.Ordinal)
     {
         ["tee"] = ["tshirt"], ["hoodie"] = ["hooded", "sweat"], ["sweater"] = ["pullover"], ["legging"] = ["tight"],
+        // A hoodie is filed as HOODED SWEAT: "sweatshirt" covers it too, and "hooded sweatshirt" finds it.
+        ["sweatshirt"] = ["sweat"],
     };
 
     /// <summary>Product type details in brackets: "long sleeve t-shirts" keeps the T-SHIRT (LONG SLEEVE) types.</summary>
@@ -116,6 +118,15 @@ public static partial class StyleQueryParser
 
         var productTypes = ReadProductTypes(tokens, used, lookups.ProductTypes, unmatched);
 
+        // Picture looks ("hooded", "full zip", "striped", "navy"), after product types so "hooded sweat" stays a product type.
+        var looks = new List<string>();
+        foreach (var (words, tag) in PictureTagVocabulary.Phrases)
+            while (FindRun(tokens, used, words) is { } at)
+            {
+                Mark(used, at, words.Length);
+                looks.Add(tag);
+            }
+
         string? gender = null, weave = null, customer = null, search = null;
         var materials = new List<string>();
         for (var i = 0; i < tokens.Count; i++)
@@ -141,7 +152,8 @@ public static partial class StyleQueryParser
             BusinessUnit: businessUnits.Count == 0 ? null : string.Join(',', businessUnits.Distinct()),
             ProductTypes: productTypes,
             WeaveType: weave is not null && lookups.WeaveTypes.Count > 0 && !lookups.WeaveTypes.Any(x => x.Code == weave) ? null : weave,
-            Gender: gender);
+            Gender: gender,
+            Looks: looks.Distinct().ToList());
         return new Result(filters, unmatched.Distinct().ToList());
     }
 
@@ -286,6 +298,7 @@ public static partial class StyleQueryParser
             new("productType", Sorted(productWords.Concat(["tee", "hoodie", "leggings"]))),
             new("detail", ["long sleeve", "short sleeve", "sleeveless", "midweight", "1/2", "3/4", "7/8"]),
             new("weave", ["knit", "woven"]),
+            new("look", PictureTagVocabulary.Attributes.SelectMany(a => a.Values.Select(v => v.Words.FirstOrDefault())).OfType<string>().ToList()),
             // A unit's first word, unless it is read as a gender or a customer first ("kids", "adidas").
             new("businessUnit", Sorted(l.BusinessUnits.Select(b => Words(b.Name) is { Length: > 0 } w && w[0].Length >= 4 ? w[0] : b.Code.ToLowerInvariant())
                 .Where(w => !GenderWords.ContainsKey(w) && CustomerFor(w, l.Customers) is null))),

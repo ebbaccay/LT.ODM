@@ -1,0 +1,352 @@
+<section class="flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'settings.imageImport.title' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 max-w-3xl text-sm">{{ 'settings.imageImport.subtitle' | transloco }}</p>
+    </div>
+    <a hlmBtn variant="outline" class="h-11 lg:h-9" routerLink="/settings/import">{{ 'settings.imageImport.workbookImport' | transloco }}</a>
+  </header>
+
+  <!-- Helpers: image model (finding the garment) and upscaler (sharper small pictures) -->
+  @if (status(); as s) {
+    <div class="flex flex-wrap gap-2 text-xs">
+      <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1" [class]="toneBadge(s.aiEnabled && s.cropModel ? 'green' : 'amber')"
+            [title]="s.cropModelProblem ?? ''">
+        <ng-icon [name]="s.aiEnabled && s.cropModel ? 'lucideCircleCheck' : 'lucideTriangleAlert'" />
+        {{ (s.aiEnabled && s.cropModel ? 'settings.imageImport.finderModel' : 'settings.imageImport.finderRules') | transloco }}
+      </span>
+      <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1" [class]="toneBadge(s.aiEnabled && s.upscaler ? 'green' : 'amber')"
+            [title]="s.upscalerProblem ?? ''">
+        <ng-icon [name]="s.aiEnabled && s.upscaler ? 'lucideCircleCheck' : 'lucideTriangleAlert'" />
+        {{ (s.aiEnabled && s.upscaler ? 'settings.imageImport.upscalerOn' : 'settings.imageImport.upscalerOff') | transloco }}
+      </span>
+      @if (!s.aiEnabled) {
+        <span class="text-muted-foreground self-center">{{ 'settings.imageImport.aiOff' | transloco }}</span>
+      }
+    </div>
+  }
+
+  <!-- Pictures already in the library: sketches saved as pictures (or photos as sketches) -->
+  <section hlmCard class="gap-3 p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="min-w-0">
+        <h2 class="font-medium">{{ 'settings.imageImport.existingTitle' | transloco }}</h2>
+        <p class="text-muted-foreground text-sm">{{ 'settings.imageImport.existingHint' | transloco }}</p>
+      </div>
+      <button hlmBtn variant="outline" type="button" class="h-11 w-full sm:w-auto lg:h-9" [disabled]="checking() || moving()" (click)="checkExisting()">
+        @if (checking()) { <hlm-spinner class="size-4" />{{ 'settings.imageImport.existingChecking' | transloco }} }
+        @else { <ng-icon name="lucideScanSearch" />{{ 'settings.imageImport.existingCheck' | transloco }} }
+      </button>
+    </div>
+    @if (existing(); as ex) {
+      <p class="text-muted-foreground text-xs" aria-live="polite">
+        {{ 'settings.imageImport.existingSummary' | transloco: { styles: ex.stylesChecked, files: ex.filesChecked, found: ex.suggestions.length } }}
+        @if (ex.filesUnreadable) { · {{ 'settings.imageImport.existingUnreadable' | transloco: { count: ex.filesUnreadable } }} }
+      </p>
+      @if (ex.suggestions.length) {
+        <ul class="divide-y rounded-md border" role="list">
+          @for (s of ex.suggestions; track s.styleId) {
+            <li class="flex items-center gap-3 px-3 py-2">
+              <hlm-checkbox [inputId]="'ex-' + s.styleId" [checked]="existingTicked().has(s.styleId)"
+                            [disabled]="s.action === 'Conflict' || moving()" (checkedChange)="toggleExisting(s)" />
+              <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-3" [for]="'ex-' + s.styleId">
+                <span class="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded border bg-white">
+                  @if (existingFile(s); as u) { <img [appAuthSrc]="u" alt="" class="size-full object-contain" loading="lazy" /> }
+                </span>
+                <span class="min-w-0">
+                  <span class="block truncate text-sm font-medium">{{ s.styleNo }}</span>
+                  <span class="text-muted-foreground block truncate text-xs">{{ s.customerCode }} · {{ s.seasonCode }}{{ s.modelName ? ' · ' + s.modelName : '' }}</span>
+                </span>
+              </label>
+              <span class="flex shrink-0 flex-col items-end gap-1 text-xs">
+                <span class="rounded px-1.5 py-0.5" [class]="toneBadge(s.action === 'Conflict' ? 'neutral' : s.sure ? 'green' : 'amber')">
+                  {{ 'settings.imageImport.existing' + s.action | transloco }}
+                </span>
+                @if (!s.sure && s.action !== 'Conflict') { <span class="text-muted-foreground">{{ 'settings.imageImport.detectedUnsure' | transloco }}</span> }
+              </span>
+            </li>
+          }
+        </ul>
+        <div class="flex justify-end">
+          <button hlmBtn type="button" class="h-11 w-full sm:w-auto lg:h-9" [disabled]="!existingTicked().size || moving()" (click)="moveExisting()">
+            @if (moving()) { <hlm-spinner class="size-4" /> } @else { <ng-icon name="lucideArrowLeftRight" /> }
+            {{ 'settings.imageImport.existingMove' | transloco: { count: existingTicked().size } }}
+          </button>
+        </div>
+      } @else {
+        <p class="text-sm">{{ 'settings.imageImport.existingNone' | transloco }}</p>
+      }
+    }
+  </section>
+
+  <!-- Files and options -->
+  <section hlmCard class="gap-4 p-5">
+    <label
+      for="picture-files"
+      class="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors"
+      [class]="dragging() ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent/40'"
+      (dragover)="onDragOver($event)"
+      (dragleave)="dragging.set(false)"
+      (drop)="onDrop($event)"
+    >
+      <ng-icon name="lucideImageUp" class="text-muted-foreground text-4xl" />
+      <span class="font-medium">{{ 'settings.imageImport.dropHere' | transloco }}</span>
+      <span class="text-muted-foreground text-sm">{{ 'settings.imageImport.dropHint' | transloco }}</span>
+      <input id="picture-files" type="file" class="sr-only" multiple accept=".jpg,.jpeg,.png,.gif,.webp,image/*" (change)="onFileInput($event)" />
+    </label>
+    <div class="flex flex-wrap items-center gap-2">
+      <label for="picture-folder" hlmBtn variant="outline" class="h-11 cursor-pointer lg:h-9">
+        <ng-icon name="lucideFolderOpen" />{{ 'settings.imageImport.chooseFolder' | transloco }}
+      </label>
+      <input id="picture-folder" type="file" class="sr-only" multiple webkitdirectory (change)="onFileInput($event)" />
+      @if (rows().length) {
+        <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" [disabled]="saving()" (click)="clear()">
+          <ng-icon name="lucideX" />{{ 'settings.imageImport.clear' | transloco }}
+        </button>
+      }
+    </div>
+
+    <fieldset class="grid gap-3 border-t pt-4 sm:grid-cols-3">
+      <legend class="sr-only">{{ 'settings.imageImport.options' | transloco }}</legend>
+      <div class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium">{{ 'settings.imageImport.saveAs' | transloco }}</span>
+        <div class="flex gap-1 rounded-md border p-1" role="radiogroup" [attr.aria-label]="'settings.imageImport.saveAs' | transloco">
+          @for (o of saveAsOptions; track o.id) {
+            <button type="button" role="radio" class="h-9 flex-1 rounded px-2 text-sm transition-colors"
+                    [class]="saveAs() === o.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
+                    [attr.aria-checked]="saveAs() === o.id" (click)="setSaveAs(o.id)">
+              {{ o.label | transloco }}
+            </button>
+          }
+        </div>
+        <span class="text-muted-foreground text-xs">{{ 'settings.imageImport.saveAsHint' | transloco }}</span>
+      </div>
+      <label class="flex items-start gap-2 text-sm" for="opt-enhance">
+        <hlm-checkbox inputId="opt-enhance" [checked]="enhance()" (checkedChange)="enhance.set(!enhance())" />
+        <span><span class="font-medium">{{ 'settings.imageImport.enhance' | transloco }}</span><br />
+          <span class="text-muted-foreground text-xs">{{ 'settings.imageImport.enhanceHint' | transloco }}</span></span>
+      </label>
+      <label class="flex items-start gap-2 text-sm" for="opt-overwrite">
+        <hlm-checkbox inputId="opt-overwrite" [checked]="overwrite()" (checkedChange)="overwrite.set(!overwrite())" />
+        <span><span class="font-medium">{{ 'settings.imageImport.overwrite' | transloco }}</span><br />
+          <span class="text-muted-foreground text-xs">{{ 'settings.imageImport.overwriteHint' | transloco }}</span></span>
+      </label>
+    </fieldset>
+  </section>
+
+  @if (rows().length) {
+    @let c = counts();
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-wrap gap-1" role="tablist">
+        @for (f of filters; track f.id) {
+          <button type="button" role="tab" class="h-9 rounded-full border px-3 text-sm transition-colors"
+                  [class]="filter() === f.id ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'"
+                  [attr.aria-selected]="filter() === f.id" (click)="filter.set(f.id); shown.set(40)">
+            {{ f.label | transloco }} <span class="tabular-nums opacity-75">{{ $any(c)[f.id] }}</span>
+          </button>
+        }
+      </div>
+      <label class="flex items-center gap-2 text-sm" for="library-only">
+        <hlm-checkbox inputId="library-only" [checked]="libraryOnly()" (checkedChange)="libraryOnly.set(!libraryOnly()); shown.set(40)" />
+        {{ 'settings.imageImport.libraryOnly' | transloco: { count: c.noStyle } }}
+      </label>
+      @if (analysing()) {
+        <span class="text-muted-foreground flex items-center gap-2 text-sm" aria-live="polite">
+          <hlm-spinner class="size-4" />{{ 'settings.imageImport.analysing' | transloco: { done: c.analysed, total: c.all } }}
+        </span>
+      }
+    </div>
+
+    <ul class="flex flex-col gap-3" role="list">
+      @for (r of visible(); track r.id) {
+        @let a = r.analysis;
+        <li hlmCard class="gap-0 p-0">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="truncate text-sm font-medium" [title]="r.file.name">{{ r.file.name }}</span>
+              @if (a?.fileKey; as key) {
+                <span class="rounded px-1.5 py-0.5 font-mono text-xs" [class]="toneBadge('neutral')">{{ key }}</span>
+              }
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              @switch (r.status) {
+                @case ('waiting') { <span class="text-muted-foreground">{{ 'settings.imageImport.waiting' | transloco }}</span> }
+                @case ('analysing') { <span class="text-muted-foreground flex items-center gap-1.5"><hlm-spinner class="size-3.5" />{{ 'settings.imageImport.analysingOne' | transloco }}</span> }
+                @case ('saving') { <span class="text-muted-foreground flex items-center gap-1.5"><hlm-spinner class="size-3.5" />{{ 'settings.imageImport.savingOne' | transloco }}</span> }
+                @case ('saved') {
+                  <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5" [class]="toneBadge('green')">
+                    <ng-icon name="lucideCircleCheck" />{{ 'settings.imageImport.savedOne' | transloco: { count: r.result?.updated?.length ?? 0 } }}
+                  </span>
+                }
+                @case ('error') { <span class="rounded-full px-2 py-0.5" [class]="toneBadge('red')">{{ 'settings.imageImport.failed' | transloco }}</span> }
+                @default {
+                  @if (a && a.matches.length === 0) {
+                    <span class="rounded-full px-2 py-0.5" [class]="toneBadge('neutral')">{{ 'settings.imageImport.noStyle' | transloco }}</span>
+                  } @else if (a && !a.crop.sure) {
+                    <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5" [class]="toneBadge('amber')">
+                      <ng-icon name="lucideTriangleAlert" />{{ 'settings.imageImport.checkBox' | transloco }}
+                    </span>
+                  } @else if (a && saveAs() === 'Auto' && !kindSure(a)) {
+                    <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5" [class]="toneBadge('amber')">
+                      <ng-icon name="lucideTriangleAlert" />{{ 'settings.imageImport.checkKind' | transloco }}
+                    </span>
+                  }
+                }
+              }
+              <button hlmBtn variant="ghost" size="icon" type="button" class="size-9" [disabled]="r.status === 'saving'"
+                      [attr.aria-label]="('settings.imageImport.remove' | transloco) + ' ' + r.file.name" (click)="remove(r)">
+                <ng-icon name="lucideX" />
+              </button>
+            </div>
+          </div>
+
+          @if (r.error) {
+            <p class="text-destructive flex items-center gap-2 px-4 pt-3 text-sm" role="alert"><ng-icon name="lucideCircleAlert" />{{ r.error }}</p>
+          }
+
+          @if (a) {
+            <div class="grid gap-4 p-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+              <!-- Picture with the garment box -->
+              <div class="flex min-w-0 flex-col gap-2">
+                @if (r.status === 'saved') {
+                  <img [appAuthSrc]="r.result?.imageUrl" [thumb]="false" alt="" class="max-h-72 w-full rounded-md border bg-white object-contain" />
+                } @else {
+                  <app-crop-box-editor [src]="r.url" [naturalWidth]="a.crop.width" [naturalHeight]="a.crop.height"
+                                       [box]="r.box" (boxChange)="setBox(r, $event)" [label]="boxLabel(r)" />
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-muted-foreground mr-auto text-xs">
+                      {{ boxLabel(r) }} · {{ (a.crop.outcome === 'NotFound' ? 'settings.imageImport.notFoundHint' : 'settings.imageImport.dragHint') | transloco }}
+                    </span>
+                    <button hlmBtn variant="outline" size="sm" type="button" class="h-9" (click)="resetBox(r)" [disabled]="r.status === 'saving'">
+                      <ng-icon name="lucideRotateCcw" />{{ 'settings.imageImport.resetBox' | transloco }}
+                    </button>
+                    <button hlmBtn variant="outline" size="sm" type="button" class="h-9" (click)="wholePicture(r)" [disabled]="r.status === 'saving' || !r.box">
+                      <ng-icon name="lucideMaximize" />{{ 'settings.imageImport.useWhole' | transloco }}
+                    </button>
+                    <button hlmBtn variant="outline" size="sm" type="button" class="h-9" (click)="preview(r)" [disabled]="r.previewing || r.status === 'saving'">
+                      @if (r.previewing) { <hlm-spinner class="size-4" /> } @else { <ng-icon name="lucideEye" /> }
+                      {{ 'settings.imageImport.preview' | transloco }}
+                    </button>
+                  </div>
+                  @if (r.previewUrl) {
+                    <figure class="relative rounded-md border bg-white p-2">
+                      <img [src]="r.previewUrl" alt="" class="mx-auto max-h-80 object-contain" />
+                      <figcaption class="text-muted-foreground mt-1 text-center text-xs">{{ 'settings.imageImport.previewCaption' | transloco }}</figcaption>
+                      <button hlmBtn variant="ghost" size="icon" type="button" class="absolute top-1 right-1 size-8"
+                              [attr.aria-label]="'settings.imageImport.closePreview' | transloco" (click)="closePreview(r)">
+                        <ng-icon name="lucideX" />
+                      </button>
+                    </figure>
+                  }
+                }
+              </div>
+
+              <!-- Styles found from the file name -->
+              <div class="flex min-w-0 flex-col gap-2">
+                <!-- Picture or sketch: detected, switchable per file -->
+                <div class="flex flex-col gap-1.5">
+                  <span class="text-sm font-medium" [id]="'kind-' + r.id">{{ 'settings.imageImport.saveTo' | transloco }}</span>
+                  <div class="flex gap-1 rounded-md border p-1" role="radiogroup" [attr.aria-labelledby]="'kind-' + r.id">
+                    @for (f of ['Image', 'Sketch']; track f) {
+                      <button type="button" role="radio" class="h-9 flex-1 rounded px-3 text-sm transition-colors"
+                              [class]="r.field === f ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
+                              [disabled]="r.status === 'saved' || r.status === 'saving'"
+                              [attr.aria-checked]="r.field === f" (click)="setField(r, $any(f))">
+                        {{ (f === 'Image' ? 'settings.imageImport.asPicture' : 'settings.imageImport.asSketch') | transloco }}
+                      </button>
+                    }
+                  </div>
+                  <span class="text-muted-foreground text-xs">
+                    @if (a.kind.kind) {
+                      {{ (a.kind.kind === 'Sketch' ? 'settings.imageImport.detectedSketch' : 'settings.imageImport.detectedPhoto') | transloco }}{{ a.kind.sure ? '' : (' ' + ('settings.imageImport.detectedUnsure' | transloco)) }}
+                    } @else {
+                      {{ 'settings.imageImport.detectedNone' | transloco }}
+                    }
+                  </span>
+                </div>
+                <p class="text-sm font-medium">{{ 'settings.imageImport.styles' | transloco }}</p>
+                @if (a.matches.length === 0) {
+                  <p class="text-muted-foreground text-sm">
+                    {{ (a.fileKey ? 'settings.imageImport.noStyleHint' : 'settings.imageImport.noKeyHint') | transloco: { key: a.fileKey } }}
+                  </p>
+                } @else {
+                  <ul class="divide-y rounded-md border" role="list">
+                    @for (m of a.matches; track m.styleId) {
+                      <li class="flex items-center gap-3 px-3 py-2">
+                        <hlm-checkbox [inputId]="'m-' + r.id + '-' + m.styleId" [checked]="r.ticked.has(m.styleId)"
+                                      [disabled]="r.status === 'saved' || r.status === 'saving'" (checkedChange)="toggle(r, m)" />
+                        <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-3" [for]="'m-' + r.id + '-' + m.styleId">
+                          <span class="bg-muted flex size-10 shrink-0 items-center justify-center overflow-hidden rounded border">
+                            @if (existingUrl(r, m); as u) {
+                              <img [appAuthSrc]="u" alt="" class="size-full object-cover" loading="lazy" />
+                            } @else {
+                              <ng-icon name="lucideImage" class="text-muted-foreground" />
+                            }
+                          </span>
+                          <span class="min-w-0">
+                            <span class="block truncate text-sm font-medium">{{ m.styleNo }}</span>
+                            <span class="text-muted-foreground block truncate text-xs">
+                              {{ m.customerCode }} · {{ m.seasonCode }}{{ m.modelName ? ' · ' + m.modelName : '' }}
+                            </span>
+                          </span>
+                        </label>
+                        <span class="flex shrink-0 flex-col items-end gap-1 text-xs">
+                          <span class="rounded px-1.5 py-0.5" [class]="toneBadge(matchTone(m.match))">{{ 'settings.imageImport.match' + m.match | transloco }}</span>
+                          @if (hasExisting(r, m) && r.status !== 'saved') {
+                            <span class="text-muted-foreground">{{ (overwrite() ? 'settings.imageImport.willReplace' : 'settings.imageImport.willKeep') | transloco }}</span>
+                          }
+                          @if (r.result?.skipped?.includes(m.styleId)) {
+                            <span class="text-muted-foreground">{{ 'settings.imageImport.kept' | transloco }}</span>
+                          }
+                        </span>
+                      </li>
+                    }
+                  </ul>
+                  @if (r.status === 'saved') {
+                    <a routerLink="/styles" class="text-primary text-sm underline-offset-4 hover:underline">{{ 'settings.imageImport.openStyles' | transloco }}</a>
+                  }
+                }
+              </div>
+            </div>
+          }
+        </li>
+      }
+    </ul>
+    @if (filtered().length > visible().length) {
+      <button hlmBtn variant="outline" type="button" class="h-11 self-center lg:h-9" (click)="showMore()">
+        {{ 'settings.imageImport.showMore' | transloco: { count: filtered().length - visible().length } }}
+      </button>
+    }
+    @if (filtered().length === 0) {
+      <p class="text-muted-foreground py-8 text-center text-sm">{{ 'settings.imageImport.nothingHere' | transloco }}</p>
+    }
+
+    <!-- Save bar -->
+    <div class="bg-background/95 sticky bottom-0 z-20 -mx-1 rounded-t-lg border-t px-4 py-3 backdrop-blur">
+      @if (saving()) {
+        <div class="mb-2 flex flex-col gap-1">
+          <div class="flex justify-between text-sm" aria-live="polite">
+            <span>{{ 'settings.imageImport.savingProgress' | transloco: { done: saveDone(), total: saveTotal() } }}</span>
+            <span class="tabular-nums">{{ savePercent() }}%</span>
+          </div>
+          <div class="bg-muted h-2 overflow-hidden rounded-full" role="progressbar" aria-valuemin="0" [attr.aria-valuemax]="saveTotal()"
+               [attr.aria-valuenow]="saveDone()" [attr.aria-label]="'settings.imageImport.saving' | transloco">
+            <div class="bg-primary h-full rounded-full transition-[width] duration-300" [style.width.%]="savePercent()"></div>
+          </div>
+        </div>
+      }
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-muted-foreground text-sm" aria-live="polite">
+          {{ 'settings.imageImport.readyLine' | transloco: { ready: c.ready, saved: c.saved, check: c.check } }}
+        </p>
+        <button hlmBtn type="button" class="h-11 w-full sm:w-auto lg:h-9" [disabled]="!c.ready || saving()" (click)="saveAll()">
+          @if (saving()) {
+            <hlm-spinner />{{ 'settings.imageImport.saving' | transloco }}
+          } @else {
+            <ng-icon name="lucideSave" />{{ 'settings.imageImport.saveCount' | transloco: { count: c.ready } }}
+          }
+        </button>
+      </div>
+    </div>
+  }
+</section>

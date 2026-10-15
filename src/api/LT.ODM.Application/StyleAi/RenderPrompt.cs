@@ -77,7 +77,7 @@ public static partial class RenderPrompt
         if (f.Fabrics.Count > 1) sb.Append($"Also uses {string.Join("; ", f.Fabrics.Skip(1))}. ");
         if (f.Colours.Count > 0) sb.Append($"Colours: {string.Join(", ", f.Colours)}. ");
         if (f.Details.Count > 0) sb.Append($"Visible details: {string.Join(", ", f.Details)}. ");
-        if (withSketch) sb.Append("Follow the attached flat sketch exactly for the silhouette, seams, panels and trim placement. ");
+        if (withSketch) sb.Append("Follow the attached flat sketch exactly for the silhouette, seams, panels and trim placement, but show a real garment, not a drawing. ");
         sb.Append("Ghost-mannequin front view, centred, on a plain light-grey studio background, soft even lighting, ");
         sb.Append("true-to-life fabric texture and drape. No person, no brand names, no logos, no readable text or labels.");
         return Strip(sb.ToString());

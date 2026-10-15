@@ -45,7 +45,7 @@ public sealed class AiStudioController(StyleAiAssistant assistant, IAiJsonClient
         var query = request.Query?.Trim() ?? "";
         if (query.Length is < 3 or > 300)
             return Task.FromResult<IActionResult>(Invalid("query", "Describe the styles you are looking for in 3 to 300 characters."));
-        return Run(async () => Ok(await assistant.SearchAsync(query, useAi, ct)));
+        return Run(async () => Ok(await assistant.SearchAsync(query, useAi, ct, request.SkipLook)));
     }
 
     // ----- Change summary -----

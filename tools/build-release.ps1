@@ -65,6 +65,11 @@ Get-ChildItem $wwwroot -Filter '*.map' -Recurse | Remove-Item
 Step 'Database scripts'
 Copy-Item (Join-Path $root 'db') (Join-Path $Output 'db') -Recurse
 
+Step 'Server tools'
+# Checks an in-house AI server from the web server (docs/ai/in-house-server.md).
+New-Item -ItemType Directory -Force (Join-Path $Output 'tools') | Out-Null
+Copy-Item (Join-Path $root 'tools/test-ai-server.ps1') (Join-Path $Output 'tools')
+
 Write-Host "`nRelease ready in $Output" -ForegroundColor Green
 Write-Host "Deploy: run the db scripts (docs/installation/02-database.md), then copy api\ to the site folder"
 Write-Host "and merge your web.config changes (docs/installation/03-iis-deployment.md)."

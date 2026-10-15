@@ -22,7 +22,7 @@ import { Colorway, ColorwayStatus, StyleLibraryService, styleError, toNumber } f
         <div class="grid gap-4 sm:grid-cols-2">
           <div class="flex flex-col gap-1.5">
             <label hlmLabel for="cw-code">{{ 'styles.colorway.code' | transloco }}</label>
-            <input hlmInput id="cw-code" class="h-11 font-mono lg:h-9" maxlength="20" autocomplete="off" [value]="code()" (input)="code.set($any($event.target).value)" [attr.aria-invalid]="!!e['colorwayCode']" />
+            <input hlmInput id="cw-code" class="h-11 font-mono lg:h-9" maxlength="40" autocomplete="off" [value]="code()" (input)="code.set($any($event.target).value)" [attr.aria-invalid]="!!e['colorwayCode']" />
             @if (e['colorwayCode']) { <p class="text-destructive text-xs">{{ e['colorwayCode'] }}</p> }
           </div>
           <div class="flex flex-col gap-1.5">

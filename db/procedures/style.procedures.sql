@@ -1,7 +1,7 @@
 /*
     LT ODM Style Library - styles, colorways, BOM lines and style history (Styles screens, /api/v1/styles)
 
-    Reads:  usp_Style_Lookups, usp_Style_List, usp_Style_Get, usp_Dashboard_Get
+    Reads:  usp_Style_Lookups, fn_SearchPlaces, usp_Style_List, usp_Style_Get, usp_Dashboard_Get
     Writes: usp_Style_Save / _Delete / _Copy, usp_Colorway_Save / _Delete, usp_BomLine_Save / _Delete,
             usp_StyleHistory_Set / _Remove
 
@@ -25,7 +25,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SELECT Code = PartnerCode, Name FROM partner.Partner WHERE PartnerType = 'Customer' AND IsActive = 1 ORDER BY PartnerCode;
-    SELECT Code = s.SeasonCode, Name = ISNULL(s.Description, s.SeasonCode) FROM ref.Season s JOIN ref.SeasonTerm t ON t.Term = s.Term
+    SELECT Code = s.SeasonCode, Name = ISNULL(s.Description, s.SeasonCode) FROM ref.Season s LEFT JOIN ref.SeasonTerm t ON t.Term = s.Term
     WHERE s.IsActive = 1 ORDER BY s.SeasonYear DESC, t.SortOrder DESC;
     SELECT Code = BusinessUnitCode, Name FROM ref.BusinessUnit WHERE IsActive = 1 ORDER BY Name;
     SELECT Code = ProductTypeCode, Name FROM ref.ProductType WHERE IsActive = 1 ORDER BY Name;
@@ -39,8 +39,57 @@ END
 GO
 
 /*
-    One page of styles. @Search matches style number, model, description or a colorway code.
-    Newest season first, then style number.
+    Where a search is found on the styles: each place (the style itself, one colorway, one BOM line) holding every
+    word of @Search. Kind: S = style number, model or description; C = colorway code or name; B = BOM line (material
+    code and description, nominated and SAP supplier code and name, the line's material colours). Words are matched
+    as "contains", case-insensitive, all in the same place: "navy zip" finds a zip line coloured navy, not a style with
+    a navy colorway and some zip. Reads the whole library, so callers store the result once (usp_Style_List,
+    usp_Style_Counts).
+*/
+CREATE OR ALTER FUNCTION style.fn_SearchPlaces (@Search nvarchar(100))
+RETURNS @places TABLE (StyleId int NOT NULL, Kind char(1) NOT NULL, RefId int NOT NULL, PRIMARY KEY (StyleId, Kind, RefId))
+AS
+BEGIN
+    /* The words, split once into a keyed table (split inline, the plan re-split them for every row: 10x slower).
+       Upper-cased and compared in binary: several times faster than the database collation for a %...% match. */
+    DECLARE @w TABLE (Pattern nvarchar(110) NOT NULL PRIMARY KEY);
+    INSERT @w
+    SELECT DISTINCT UPPER(N'%' + REPLACE(REPLACE(REPLACE(TRIM(value), N'[', N'[[]'), N'%', N'[%]'), N'_', N'[_]') + N'%')
+    FROM STRING_SPLIT(@Search, N' ') WHERE TRIM(value) <> N'';
+    IF NOT EXISTS (SELECT 1 FROM @w) RETURN;
+
+    INSERT @places
+    SELECT s.StyleId, 'S', s.StyleId
+    FROM style.Style s
+    WHERE NOT EXISTS (SELECT 1 FROM @w w WHERE UPPER(CONCAT_WS(N' ', s.StyleNo, s.ModelName, s.ModelCode, s.Description)) COLLATE Latin1_General_100_BIN2 NOT LIKE w.Pattern);
+
+    INSERT @places
+    SELECT k.StyleId, 'C', k.ColorwayId
+    FROM style.Colorway k
+    WHERE NOT EXISTS (SELECT 1 FROM @w w WHERE UPPER(CONCAT_WS(N' ', k.ColorwayCode, k.ColorwayName)) COLLATE Latin1_General_100_BIN2 NOT LIKE w.Pattern);
+
+    /* A word counts for a BOM line when it is in the line's own text or in one of its material colours (checked per
+       colour row: joining all colours into one text per line made every search several times slower). */
+    INSERT @places
+    SELECT b.StyleId, 'B', b.BomLineId
+    FROM style.BomLine b
+    JOIN mat.Material m ON m.MaterialId = b.MaterialId
+    LEFT JOIN partner.Partner sp ON sp.PartnerId = b.SupplierId
+    WHERE NOT EXISTS (
+        SELECT 1 FROM @w w
+        WHERE UPPER(CONCAT_WS(N' ', m.MaterialCode, b.MaterialDescription, b.NominatedSupplierCode, b.NominatedSupplierName, sp.PartnerCode, sp.Name))
+                  COLLATE Latin1_General_100_BIN2 NOT LIKE w.Pattern
+          AND NOT EXISTS (SELECT 1 FROM style.BomLineColorway x
+                          WHERE x.BomLineId = b.BomLineId
+                            AND UPPER(CONCAT_WS(N' ', x.MaterialColorCode, x.MaterialColorDescription)) COLLATE Latin1_General_100_BIN2 LIKE w.Pattern));
+    RETURN;
+END
+GO
+
+/*
+    One page of styles. @Search: every word in one place of the style (style number / model / description, a
+    colorway, or a BOM line; see style.fn_SearchPlaces). Newest season first, then style number.
+    Second result: for a search, up to 3 colorways and 3 BOM lines per style on the page where it was found.
 */
 CREATE OR ALTER PROCEDURE style.usp_Style_List
     @Search           nvarchar(100) = NULL,
@@ -51,7 +100,9 @@ CREATE OR ALTER PROCEDURE style.usp_Style_List
     @WeaveTypeCode    nvarchar(8)   = NULL,
     @Gender           nvarchar(16)  = NULL,
     @Material         nvarchar(100) = NULL,   -- word(s) in a BOM line's material code or description; several words must all be on the same line
+    @Looks            nvarchar(400) = NULL,   -- picture tags 'attribute:value' separated by commas (hood:hooded,colour:navy); a style needs all
     @IsActive         bit           = NULL,   -- NULL = active and inactive
+    @HasPicture       bit           = NULL,   -- 1 = has a picture or sketch, 0 = has neither, NULL = all
     @Skip             int           = 0,
     @Take             int           = 50
 AS
@@ -62,11 +113,17 @@ BEGIN
        display columns and counts for that page only. */
     /* "Contains" search, case-insensitive: upper-cased and compared in binary (several times faster than the
        database collation for a %...% match, which has to read every style). */
-    DECLARE @like nvarchar(110) = UPPER(N'%' + REPLACE(REPLACE(REPLACE(@Search, N'[', N'[[]'), N'%', N'[%]'), N'_', N'[_]') + N'%');
+    /* Where the search is found (read once; the library-wide scan is the costly part). */
+    DECLARE @found TABLE (StyleId int NOT NULL, Kind char(1) NOT NULL, RefId int NOT NULL, PRIMARY KEY (StyleId, Kind, RefId));
+    IF @Search IS NOT NULL INSERT @found SELECT StyleId, Kind, RefId FROM style.fn_SearchPlaces(@Search);
     DECLARE @materialWords TABLE (Pattern nvarchar(110) NOT NULL PRIMARY KEY);
     INSERT @materialWords
     SELECT DISTINCT UPPER(N'%' + REPLACE(REPLACE(REPLACE(TRIM(value), N'[', N'[[]'), N'%', N'[%]'), N'_', N'[_]') + N'%')
     FROM STRING_SPLIT(@Material, N' ') WHERE TRIM(value) <> N'';
+    DECLARE @lookTags TABLE (Attribute varchar(20) NOT NULL, Value varchar(30) NOT NULL, PRIMARY KEY (Attribute, Value));
+    INSERT @lookTags
+    SELECT DISTINCT LEFT(TRIM(LEFT(value, CHARINDEX(':', value) - 1)), 20), LEFT(TRIM(SUBSTRING(value, CHARINDEX(':', value) + 1, 60)), 30)
+    FROM STRING_SPLIT(@Looks, N',') WHERE CHARINDEX(':', value) > 1;
     DECLARE @businessUnits TABLE (Code nvarchar(16) NOT NULL PRIMARY KEY);
     INSERT @businessUnits SELECT DISTINCT LEFT(TRIM(value), 16) FROM STRING_SPLIT(@BusinessUnitCode, N',') WHERE TRIM(value) <> N'';
     DECLARE @seasons TABLE (Code nvarchar(16) NOT NULL PRIMARY KEY);
@@ -76,34 +133,38 @@ BEGIN
     DECLARE @customerId int = (SELECT PartnerId FROM partner.Partner WHERE PartnerType = 'Customer' AND PartnerCode = @CustomerCode);
     IF @CustomerCode IS NOT NULL AND @customerId IS NULL SET @customerId = -1;
 
-    DECLARE @match TABLE (StyleId int NOT NULL PRIMARY KEY, SeasonYear smallint NOT NULL, TermOrder smallint NOT NULL, StyleNo nvarchar(40) NOT NULL);
+    DECLARE @match TABLE (StyleId int NOT NULL PRIMARY KEY, SeasonYear smallint NULL, TermOrder smallint NULL, StyleNo nvarchar(100) NOT NULL);
     INSERT @match (StyleId, SeasonYear, TermOrder, StyleNo)
     SELECT s.StyleId, se.SeasonYear, t.SortOrder, s.StyleNo
     FROM style.Style s
     JOIN ref.Season se ON se.SeasonCode = s.SeasonCode
-    JOIN ref.SeasonTerm t ON t.Term = se.Term
+    LEFT JOIN ref.SeasonTerm t ON t.Term = se.Term
     WHERE (@customerId IS NULL OR s.CustomerId = @customerId)
       AND (@SeasonCode IS NULL OR s.SeasonCode IN (SELECT Code FROM @seasons))
       AND (@BusinessUnitCode IS NULL OR s.BusinessUnitCode IN (SELECT Code FROM @businessUnits))
       AND (@ProductTypeCode IS NULL OR s.ProductTypeCode IN (SELECT Code FROM @productTypes))
       AND (@WeaveTypeCode IS NULL OR s.WeaveTypeCode = @WeaveTypeCode)
       AND (@Gender IS NULL OR s.Gender = @Gender)
+      AND (@Looks IS NULL OR NOT EXISTS (SELECT 1 FROM @lookTags l WHERE NOT EXISTS (
+               SELECT 1 FROM style.fn_StyleTags() t WHERE t.StyleId = s.StyleId AND t.Attribute = l.Attribute AND t.Value = l.Value)))
       AND (@IsActive IS NULL OR s.IsActive = @IsActive)
+      AND (@HasPicture IS NULL OR @HasPicture = IIF(s.ImageUrl IS NULL AND s.SketchUrl IS NULL, 0, 1))
       AND (@Material IS NULL OR EXISTS (
                SELECT 1 FROM style.BomLine b JOIN mat.Material m ON m.MaterialId = b.MaterialId
                WHERE b.StyleId = s.StyleId
                  AND NOT EXISTS (SELECT 1 FROM @materialWords w
                                  WHERE UPPER(b.MaterialDescription) COLLATE Latin1_General_100_BIN2 NOT LIKE w.Pattern
                                    AND UPPER(m.MaterialCode) COLLATE Latin1_General_100_BIN2 NOT LIKE w.Pattern)))
-      AND (@Search IS NULL OR s.StyleId IN (
-               SELECT x.StyleId FROM style.Style x
-               WHERE UPPER(x.StyleNo) COLLATE Latin1_General_100_BIN2 LIKE @like OR UPPER(x.ModelName) COLLATE Latin1_General_100_BIN2 LIKE @like
-                  OR UPPER(x.ModelCode) COLLATE Latin1_General_100_BIN2 LIKE @like OR UPPER(x.Description) COLLATE Latin1_General_100_BIN2 LIKE @like
-               UNION
-               SELECT k.StyleId FROM style.Colorway k WHERE UPPER(k.ColorwayCode) COLLATE Latin1_General_100_BIN2 LIKE @like))
+      AND (@Search IS NULL OR s.StyleId IN (SELECT StyleId FROM @found))
     OPTION (RECOMPILE);
 
     DECLARE @total int = @@ROWCOUNT;
+
+    DECLARE @page TABLE (StyleId int NOT NULL PRIMARY KEY, SeasonYear smallint NULL, TermOrder smallint NULL, StyleNo nvarchar(100) NOT NULL);
+    INSERT @page
+    SELECT StyleId, SeasonYear, TermOrder, StyleNo FROM @match
+    ORDER BY SeasonYear DESC, TermOrder DESC, StyleNo
+    OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;
 
     SELECT s.StyleId, s.StyleNo, s.BaseStyleNo, s.Description, s.ModelCode, s.ModelName,
            CustomerCode = c.PartnerCode, CustomerName = c.Name, s.SeasonCode,
@@ -113,15 +174,38 @@ BEGIN
            BomLineCount  = (SELECT COUNT(*) FROM style.BomLine b WHERE b.StyleId = s.StyleId),
            HasHistory    = CAST(IIF(EXISTS (SELECT 1 FROM style.StyleHistory h WHERE h.StyleId = s.StyleId OR h.SourceStyleId = s.StyleId), 1, 0) AS bit),
            LastChangedUtc = ISNULL(s.UpdatedUtc, s.CreatedUtc),
+           -- Search only: where on the style it was found
+           FoundInStyle      = CAST(IIF(EXISTS (SELECT 1 FROM @found f WHERE f.StyleId = s.StyleId AND f.Kind = 'S'), 1, 0) AS bit),
+           ColorwayMatches   = (SELECT COUNT(*) FROM @found f WHERE f.StyleId = s.StyleId AND f.Kind = 'C'),
+           BomLineMatches    = (SELECT COUNT(*) FROM @found f WHERE f.StyleId = s.StyleId AND f.Kind = 'B'),
            TotalCount = @total
-    FROM (SELECT StyleId, SeasonYear, TermOrder, StyleNo FROM @match
-          ORDER BY SeasonYear DESC, TermOrder DESC, StyleNo
-          OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY) p
+    FROM @page p
     JOIN style.Style s ON s.StyleId = p.StyleId
     JOIN partner.Partner c ON c.PartnerId = s.CustomerId
     LEFT JOIN ref.BusinessUnit bu ON bu.BusinessUnitCode = s.BusinessUnitCode
     LEFT JOIN ref.ProductType pt ON pt.ProductTypeCode = s.ProductTypeCode
     ORDER BY p.SeasonYear DESC, p.TermOrder DESC, p.StyleNo;
+
+    /* The colorways and BOM lines the search was found on, for the page: up to 3 of each per style, in page order. */
+    WITH f AS
+    (
+        SELECT f.StyleId, f.Kind, Code = k.ColorwayCode, Text = k.ColorwayName, Section = CAST(NULL AS nvarchar(100)),
+               Seq = k.SortOrder, Rn = ROW_NUMBER() OVER (PARTITION BY f.StyleId ORDER BY k.SortOrder, k.ColorwayCode)
+        FROM @found f JOIN style.Colorway k ON k.ColorwayId = f.RefId
+        WHERE f.Kind = 'C' AND f.StyleId IN (SELECT StyleId FROM @page)
+        UNION ALL
+        SELECT f.StyleId, f.Kind, m.MaterialCode, LEFT(b.MaterialDescription, 200), cc.Name,
+               b.LineSeq, ROW_NUMBER() OVER (PARTITION BY f.StyleId ORDER BY cc.SortOrder, b.LineSeq)
+        FROM @found f
+        JOIN style.BomLine b ON b.BomLineId = f.RefId
+        JOIN mat.Material m ON m.MaterialId = b.MaterialId
+        LEFT JOIN ref.ContentClass cc ON cc.ContentClassCode = b.ContentClassCode
+        WHERE f.Kind = 'B' AND f.StyleId IN (SELECT StyleId FROM @page)
+    )
+    SELECT f.StyleId, Kind = IIF(f.Kind = 'C', 'Colorway', 'BomLine'), f.Code, f.Text, f.Section
+    FROM f JOIN @page p ON p.StyleId = f.StyleId
+    WHERE f.Rn <= 3
+    ORDER BY p.SeasonYear DESC, p.TermOrder DESC, p.StyleNo, f.Kind DESC, f.Rn;
 END
 GO
 
@@ -187,7 +271,7 @@ BEGIN
     FROM @family f
     JOIN style.Style s ON s.StyleId = f.StyleId
     JOIN ref.Season se ON se.SeasonCode = s.SeasonCode
-    JOIN ref.SeasonTerm t ON t.Term = se.Term
+    LEFT JOIN ref.SeasonTerm t ON t.Term = se.Term
     LEFT JOIN style.StyleHistory h ON h.StyleId = s.StyleId
     ORDER BY se.SeasonYear, t.SortOrder, LEN(s.StyleNo), s.StyleNo;
 END
@@ -225,7 +309,7 @@ BEGIN
     (
         SELECT TOP (@Seasons) se.SeasonCode, se.SeasonYear, TermOrder = t.SortOrder
         FROM ref.Season se
-        JOIN ref.SeasonTerm t ON t.Term = se.Term
+        LEFT JOIN ref.SeasonTerm t ON t.Term = se.Term
         WHERE EXISTS (SELECT 1 FROM style.Style s WHERE s.SeasonCode = se.SeasonCode)
         ORDER BY se.SeasonYear DESC, t.SortOrder DESC
     )
@@ -293,7 +377,8 @@ GO
 
 /* ---------- Shared helpers for writes ---------- */
 
-/* Adds a season typed as 2028-FW if its term is known; THROWs otherwise. */
+/* Adds a season typed as 2028-FW if its term is known; THROWs otherwise. Existing seasons pass whatever their name
+   (imported ones such as '26FW' keep the source system's name until normalised). */
 CREATE OR ALTER PROCEDURE style.usp_EnsureSeason
     @SeasonCode nvarchar(16)
 AS
@@ -312,11 +397,11 @@ END
 GO
 
 /* Suffix of a style number relative to its base ('S2508MR1212_SS27' -> 'SS27'). */
-CREATE OR ALTER FUNCTION style.fn_Suffix (@StyleNo nvarchar(40))
-RETURNS nvarchar(40)
+CREATE OR ALTER FUNCTION style.fn_Suffix (@StyleNo nvarchar(100))
+RETURNS nvarchar(100)
 AS
 BEGIN
-    RETURN IIF(CHARINDEX(N'_', @StyleNo) > 1, SUBSTRING(@StyleNo, CHARINDEX(N'_', @StyleNo) + 1, 40), NULL);
+    RETURN IIF(CHARINDEX(N'_', @StyleNo) > 1, SUBSTRING(@StyleNo, CHARINDEX(N'_', @StyleNo) + 1, 100), NULL);
 END
 GO
 
@@ -338,7 +423,7 @@ BEGIN
         SELECT st.StyleId, st.CustomerId, st.StyleNo, st.SeasonCode, OrderKey = se.SeasonYear * 100 + t.SortOrder
         FROM style.Style st
         JOIN ref.Season se ON se.SeasonCode = st.SeasonCode
-        JOIN ref.SeasonTerm t ON t.Term = se.Term
+        LEFT JOIN ref.SeasonTerm t ON t.Term = se.Term
     ),
     candidates AS (
         SELECT v.StyleId, RootId = r.StyleId,
@@ -369,7 +454,7 @@ CREATE OR ALTER PROCEDURE style.usp_Style_Save
     @RowVer              binary(8)     = NULL,
     @CustomerCode        nvarchar(32),
     @SeasonCode          nvarchar(16),
-    @StyleNo             nvarchar(40),
+    @StyleNo             nvarchar(100),
     @Description         nvarchar(400) = NULL,
     @ModelCode           nvarchar(60)  = NULL,
     @ModelName           nvarchar(100) = NULL,
@@ -470,6 +555,35 @@ END
 GO
 
 /*
+    Swaps the style's picture and sketch (Styles > style page, "Swap picture and sketch"): fixes a picture saved in the
+    wrong place. With only one of them set, it moves to the other place.
+*/
+CREATE OR ALTER PROCEDURE style.usp_Style_SwapPictures
+    @StyleId   int,
+    @RowVer    binary(8),
+    @ChangedBy nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    BEGIN TRANSACTION;
+    IF NOT EXISTS (SELECT 1 FROM style.Style WITH (UPDLOCK) WHERE StyleId = @StyleId)
+        THROW 50404, 'This style no longer exists.', 1;
+    IF NOT EXISTS (SELECT 1 FROM style.Style WHERE StyleId = @StyleId AND RowVer = @RowVer)
+        THROW 50409, 'Someone else changed this style after you opened it. Reload and try again.', 1;
+    IF EXISTS (SELECT 1 FROM style.Style WHERE StyleId = @StyleId AND ImageUrl IS NULL AND SketchUrl IS NULL)
+        THROW 50400, 'This style has no picture or sketch to swap.', 1;
+
+    -- Both columns are read before either is written, so this swaps.
+    UPDATE style.Style
+    SET ImageUrl = SketchUrl, SketchUrl = ImageUrl, UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
+    WHERE StyleId = @StyleId;
+    COMMIT TRANSACTION;
+END
+GO
+
+/*
     Reuses a style in another season (or as a variant in the same season): copies the header, colorways (with images),
     BOM lines and their colorway colours to a new style number, and links it to the original (LinkSource Manual).
     Returns the new StyleId.
@@ -477,7 +591,7 @@ GO
 CREATE OR ALTER PROCEDURE style.usp_Style_Copy
     @StyleId    int,
     @SeasonCode nvarchar(16),
-    @StyleNo    nvarchar(40),
+    @StyleNo    nvarchar(100),
     @ChangedBy  nvarchar(64)
 AS
 BEGIN
@@ -543,7 +657,7 @@ CREATE OR ALTER PROCEDURE style.usp_Colorway_Save
     @ColorwayId   int           = NULL,
     @StyleId      int,
     @RowVer       binary(8)     = NULL,
-    @ColorwayCode nvarchar(20),
+    @ColorwayCode nvarchar(100),
     @ColorwayName nvarchar(150) = NULL,
     @Status       varchar(10)   = 'INRANGE',
     @SortOrder    smallint      = NULL,
@@ -580,6 +694,29 @@ BEGIN
     EXEC style.usp_Style_Touch @StyleId, @ChangedBy;
     COMMIT TRANSACTION;
     SELECT ColorwayId = @ColorwayId;
+END
+GO
+
+/* Sets a colorway's picture (style page > Colorway pictures: cut from the style's sketch). */
+CREATE OR ALTER PROCEDURE style.usp_Colorway_SetImage
+    @StyleId    int,
+    @ColorwayId int,
+    @RowVer     binary(8),
+    @ImageUrl   nvarchar(500),
+    @ChangedBy  nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    BEGIN TRANSACTION;
+    IF NOT EXISTS (SELECT 1 FROM style.Colorway WITH (UPDLOCK) WHERE ColorwayId = @ColorwayId AND StyleId = @StyleId)
+        THROW 50404, 'This colorway no longer exists.', 1;
+    IF NOT EXISTS (SELECT 1 FROM style.Colorway WHERE ColorwayId = @ColorwayId AND RowVer = @RowVer)
+        THROW 50409, 'Someone else changed this colorway after you opened it. Reload and try again.', 1;
+    UPDATE style.Colorway SET ImageUrl = @ImageUrl, UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME() WHERE ColorwayId = @ColorwayId;
+    EXEC style.usp_Style_Touch @StyleId, @ChangedBy;
+    COMMIT TRANSACTION;
 END
 GO
 

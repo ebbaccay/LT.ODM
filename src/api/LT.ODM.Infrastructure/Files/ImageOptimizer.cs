@@ -65,6 +65,39 @@ public static class ImageOptimizer
         return untouched && content.Length <= best.Length ? (content, kind) : (best, bestKind);
     }
 
+    /// <summary>
+    /// The image (turned upright) scaled to fit width x height and centred on white, as PNG: the input of an image-to-image
+    /// model, which draws at the size it is given. Transparent parts become white.
+    /// </summary>
+    public static byte[] FitOnCanvas(byte[] content, int width, int height)
+    {
+        using var data = SKData.CreateCopy(content);
+        using var codec = SKCodec.Create(data) ?? throw new UnreadableImageException();
+        var origin = codec.EncodedOrigin;
+        var info = codec.Info.WithColorType(SKColorType.Rgba8888).WithAlphaType(SKAlphaType.Premul).WithColorSpace(SKColorSpace.CreateSrgb());
+        using var decoded = new SKBitmap(info);
+        var result = codec.GetPixels(info, decoded.GetPixels());
+        if (result is not (SKCodecResult.Success or SKCodecResult.IncompleteInput)) throw new UnreadableImageException();
+
+        var swap = origin is SKEncodedOrigin.LeftTop or SKEncodedOrigin.RightTop or SKEncodedOrigin.RightBottom or SKEncodedOrigin.LeftBottom;
+        var (uprightW, uprightH) = swap ? (info.Height, info.Width) : (info.Width, info.Height);
+        var scale = Math.Min((double)width / uprightW, (double)height / uprightH);
+
+        using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul, SKColorSpace.CreateSrgb()))
+            ?? throw new UnreadableImageException();
+        var canvas = surface.Canvas;
+        canvas.Clear(SKColors.White);
+        canvas.Translate((float)((width - uprightW * scale) / 2), (float)((height - uprightH * scale) / 2));
+        canvas.Scale((float)scale);
+        ApplyOrigin(canvas, origin, info.Width, info.Height);
+        using (var source = SKImage.FromBitmap(decoded))
+            canvas.DrawImage(source, 0, 0, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+        canvas.Flush();
+        using var image = surface.Snapshot();
+        using var encoded = image.Encode(SKEncodedImageFormat.Png, 100) ?? throw new UnreadableImageException();
+        return encoded.ToArray();
+    }
+
     /// <summary>JPEG has no transparency: transparent parts become white (a sketch on a clear background stays readable).</summary>
     private static byte[] EncodeJpeg(SKImage image, int width, int height)
     {

@@ -42,6 +42,8 @@ export const routes: Routes = [
         children: [
           { path: '', pathMatch: 'full', redirectTo: 'search' },
           { path: 'search', loadComponent: () => import('./features/ai-studio/smart-search').then((m) => m.SmartSearch), title: 'titles.aiSearch' },
+          // Questions about the library: phrase list first, then the Text job picks one read-only tool.
+          { path: 'assistant', loadComponent: () => import('./features/ai-studio/library-assistant').then((m) => m.LibraryAssistant), title: 'titles.aiAssistant' },
           // In-house only: Vision + Embedding jobs; the API lets only Admin and Merchandiser build the index.
           { path: 'image-search', loadComponent: () => import('./features/ai-studio/image-search').then((m) => m.ImageSearch), title: 'titles.aiImageSearch' },
           { path: 'compare', loadComponent: () => import('./features/ai-studio/change-summary').then((m) => m.ChangeSummary), title: 'titles.aiCompare' },

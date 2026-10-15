@@ -8,8 +8,9 @@ One root folder, set by `Files:Root` (environment variable `Files__Root`). Defau
 
 | Subfolder | What | Uploaded from | Served at (signed-in users only) | Referenced in the database by |
 |---|---|---|---|---|
-| `style-library\` | Style sketches and photos, colorway images, BOM line images, **AI renders** | Styles (style, colorway and BOM line forms); AI Studio > Style render | `/api/v1/styles/images/{name}` | `style.Style.SketchUrl`, `style.Style.ImageUrl`, `style.Colorway.ImageUrl`, `style.BomLine.ImageUrl`, `style.AiRender.ImageUrl` |
+| `style-library\` | Style sketches and photos, colorway images, BOM line images, **AI renders** | Styles (style, colorway and BOM line forms); AI Studio > Style render; Settings > Import pictures (one file shared by every style ticked) | `/api/v1/styles/images/{name}` | `style.Style.SketchUrl`, `style.Style.ImageUrl`, `style.Colorway.ImageUrl`, `style.BomLine.ImageUrl`, `style.AiRender.ImageUrl` |
 | `concept-inspiration\` | Concept Studio inspiration board images | Concept Studio | `/api/v1/concept-studio/images/{name}` | The TMS concept record's `inspiration_images` (JSON list of addresses) |
+| `style-imports\` | Style Library workbooks (.xlsx) kept while their import is not committed, so the columns can be mapped later or again | Settings > Import | Never served (read by the API only) | `staging.ImportBatch.StoredFile`. Deleted on commit, when the import is deleted, or 7 days after a cancel or an unfinished mapping |
 | `sbu-products\` | SBU product photos | SBU Products | `/api/v1/sbu-products/images/{name}` | The TMS SBU product's image field |
 
 Example: a style photo saved as `D:\LTODM\uploads\style-library\3f2a…9c1e.jpg` is stored in `style.Style.ImageUrl` as `/api/v1/styles/images/3f2a…9c1e.jpg`.
@@ -31,6 +32,11 @@ Every image is made smaller **on the server** before it is written, whether it w
 The browser also resizes before uploading (same limits) so uploads are quick; the server step covers anything that skips the browser (AI renders, other clients). A file that cannot be decoded is refused with *"This image could not be read"*.
 
 Typical stored sizes: a 1600 x 1067 photo or AI render **250-400 KB** (a phone photo of 3-8 MB, or a 1-2 MB AI render, before), a 1600 px line sketch **30-150 KB**, an 800 px product photo **60-120 KB**. Images stored before this change are not re-compressed.
+
+## Thumbnails and browser caching
+
+- **Thumbnails.** Lists, cards and the dashboard ask for a small copy: `?w=160`, `320` or `640` on any image address (`/api/v1/styles/images/...`, `/concept-studio/images/...`, `/sbu-products/images/...`). The web app picks the size from the box the picture is shown in (times the screen's pixel density); large previews and the printable customer proposal get the original. A thumbnail is made on first request with the same compression and kept in a `_thumbs\<width>\` folder beside the originals (e.g. `style-library\_thumbs\320\`), a few KB to tens of KB each. The `_thumbs` folders can be deleted at any time (they are made again when needed) and need not be backed up.
+- **Browser caching.** Image names are random and never reused, so the API lets browsers keep images: `Cache-Control: private, max-age=31536000, immutable` (private: they need the sign-in, so proxies do not keep them). A picture seen once loads from the browser's own cache afterwards.
 
 ## File names and checks
 
@@ -59,9 +65,19 @@ The look-alike model for image search ships **separately** from the release (abo
 
 The server never downloads the model itself and needs no internet access for it. Without the files, image search still works through the in-house AI server (slower), and the page says the model is not installed. Back the folder up with the release files (it can always be downloaded again).
 
+## Picture upscaler file
+
+Settings > Import pictures makes small cut-outs sharper with Real-ESRGAN general x4v3 (licence BSD-3-Clause, commercial use allowed; 4.6 MB). Install it once per web server:
+
+1. On a machine with internet access, download `realesr-general-x4v3.onnx` from [huggingface.co/jonathanst29/tinier-upscale-models](https://huggingface.co/jonathanst29/tinier-upscale-models/tree/main), an ONNX export of the official [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) weights. SHA-256 of the file used in development: `924ebad6532777303582d4ce7811849b88869231a3ae7093e0f21200249df8d5`.
+2. Copy it to the server outside the site, e.g. `D:\LTODM\models\realesr-general-x4v3\realesr-general-x4v3.onnx`, and set `StyleImages:Upscaler:File` to it ([Configuration](04-configuration.md#picture-upscaler-built-into-the-api)). The app pool identity needs **read** access only.
+3. Restart the site. Settings > Import pictures shows *Sharpening: AI upscaler*.
+
+Without the file, small pictures are enlarged smoothly (softer). Back it up with the image search model.
+
 ## Deleting
 
-Removing an image from a style, colorway, BOM line, concept or product **does not delete the file**, because another record may still use it (a reused style keeps its images, a saved concept keeps its board). Deleting an AI render removes its record; the file stays. Unused files are not cleaned up automatically yet: to free space, compare the folder against the addresses in the columns above.
+Removing an image from a style, colorway, BOM line, concept or product **does not delete the file**, because another record may still use it (a reused style keeps its images, a saved concept keeps its board). Deleting an AI render removes its record; the file stays. Unused files are not cleaned up automatically yet: to free space, compare the folder against the addresses in the columns above (and delete the `_thumbs` folders, which are rebuilt on use).
 
 ## Permissions, backup and moving
 

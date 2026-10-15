@@ -41,7 +41,7 @@ export function seasonSuffix(seasonCode: string): string {
           </div>
           <div class="flex flex-col gap-1.5">
             <label hlmLabel for="cp-styleno">{{ 'styles.copy.newStyleNo' | transloco }}</label>
-            <input hlmInput id="cp-styleno" class="h-11 font-mono lg:h-9" maxlength="40" autocomplete="off"
+            <input hlmInput id="cp-styleno" class="h-11 font-mono lg:h-9" maxlength="60" autocomplete="off"
               [value]="styleNo()" (input)="onStyleNo($any($event.target).value)" [attr.aria-invalid]="!!e['styleNo']" />
             @if (e['styleNo']) { <p class="text-destructive text-xs">{{ e['styleNo'] }}</p> }
           </div>
@@ -103,7 +103,7 @@ export class CopyStyleDialog {
     const season = this.season().trim().toUpperCase();
     const styleNo = this.styleNo().trim();
     const errors: Record<string, string> = {};
-    if (!/^[0-9]{4}-[A-Z]{2,4}$/.test(season)) errors['seasonCode'] = this.transloco.translate('styles.form.seasonInvalid', { example: '2028-SS' });
+    if (!/^[0-9]{4}-[A-Z]{2,4}$/.test(season) && !(this.lookups()?.seasons ?? []).some((s) => s.code === season)) errors['seasonCode'] = this.transloco.translate('styles.form.seasonInvalid', { example: '2028-SS' });
     if (!styleNo) errors['styleNo'] = this.transloco.translate('styles.copy.newStyleNoRequired');
     this.errors.set(errors);
     if (Object.keys(errors).length) return;

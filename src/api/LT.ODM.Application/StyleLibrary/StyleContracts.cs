@@ -35,17 +35,35 @@ public sealed record StyleLookupsDto(
 
 /// <summary>
 /// Season, BusinessUnit and ProductType may hold several codes separated by commas (AI Studio search: "jackets" covers JACKET, JACKETS,
-/// JACKETMDW; "running" covers RUA, RUB, RUX). Material matches BOM material codes and descriptions; several words must all be on one BOM line. IsActive null lists active and inactive styles.
+/// JACKETMDW; "running" covers RUA, RUB, RUX). Material matches BOM material codes and descriptions; several words must all be on one BOM line.
+/// Looks: picture tags "attribute:value" separated by commas (hood:hooded,colour:navy); a style needs them all (styles without pictures never match). IsActive null lists active and inactive styles.
 /// </summary>
 public sealed record StyleListQuery(
     string? Search, string? Customer, string? Season, string? BusinessUnit, string? ProductType, string? WeaveType, string? Gender,
-    int Skip, int Take, string? Material = null, bool? IsActive = null);
+    int Skip, int Take, string? Material = null, bool? IsActive = null, string? Looks = null, bool? HasPicture = null);
+
+/// <summary>Key: the season, customer, product type, business unit, gender or weave code (null = not set).</summary>
+public sealed record StyleCountDto(string? Key, string? Name, int Styles);
+
+public static class StyleCountGroups
+{
+    public static readonly string[] All = ["season", "customer", "productType", "businessUnit", "gender", "weaveType"];
+}
 
 public sealed record StyleListItemDto(
     int StyleId, string StyleNo, string BaseStyleNo, string? Description, string? ModelCode, string? ModelName,
     string CustomerCode, string CustomerName, string SeasonCode, string? BusinessUnitCode, string? BusinessUnitName,
     string? ProductTypeCode, string? ProductTypeName, string? WeaveTypeCode, string? Gender, string? ImageUrl, string? SketchUrl,
-    int ColorwayCount, int BomLineCount, bool HasHistory, DateTime LastChangedUtc, bool IsActive = true);
+    int ColorwayCount, int BomLineCount, bool HasHistory, DateTime LastChangedUtc, bool IsActive = true, StyleSearchFoundDto? Found = null);
+
+/// <summary>
+/// Where a list search was found on a style (null without a search): in the style's own number, model or description,
+/// and on how many colorways and BOM lines, with up to 3 of each.
+/// </summary>
+public sealed record StyleSearchFoundDto(bool InStyle, int Colorways, int BomLines, IReadOnlyList<StyleSearchMatchDto> Matches);
+
+/// <summary>A colorway (code, name) or BOM line (material code, description, section) the search was found on.</summary>
+public sealed record StyleSearchMatchDto(string Kind, string Code, string? Text, string? Section);
 
 public sealed record StyleHeaderDto(
     int StyleId, string CustomerCode, string CustomerName, string SeasonCode, string StyleNo, string BaseStyleNo, string? Description,
@@ -128,8 +146,12 @@ public static partial class StyleValidation
     public static readonly string[] Statuses = ["INRANGE", "DROPPED"];
     public static readonly string[] Relations = ["CarryOver", "Variant"];
 
-    [GeneratedRegex(@"^[0-9]{4}-[A-Z]{2,4}$")]
-    private static partial Regex SeasonRegex();
+    /// <summary>
+    /// A season code: an existing season may have any name (imports keep the source system's, e.g. '26FW'); a new one
+    /// must be year-term, which style.usp_EnsureSeason checks.
+    /// </summary>
+    private static bool IsSeasonCode(string? code)
+        => code?.Trim() is { Length: > 0 and <= 16 } c && !c.Contains('|') && !c.Any(char.IsControl);
 
     /// <summary>Images uploaded here (/api/v1/styles/images/&lt;32 hex&gt;.ext) or an https:// address (e.g. from the import).</summary>
     [GeneratedRegex(@"^(/api/v1/styles/images/[0-9a-f]{32}\.(jpg|png|gif|webp)|https://\S+)$")]
@@ -139,9 +161,9 @@ public static partial class StyleValidation
     {
         var e = new Errors();
         e.Required("customerCode", r.CustomerCode, 32, "Enter the customer code.");
-        e.Required("styleNo", r.StyleNo, 40, "Enter the style number.");
-        if (string.IsNullOrWhiteSpace(r.SeasonCode) || !SeasonRegex().IsMatch(r.SeasonCode.Trim()))
-            e.Add("seasonCode", "Enter the season as year-term, e.g. 2027-SS.");
+        e.Required("styleNo", r.StyleNo, 60, "Enter the style number.");
+        if (!IsSeasonCode(r.SeasonCode))
+            e.Add("seasonCode", "Choose a season, or type a new one as year-term, e.g. 2027-SS.");
         e.Max("description", r.Description, 400);
         e.Max("modelCode", r.ModelCode, 60);
         e.Max("modelName", r.ModelName, 100);
@@ -159,16 +181,16 @@ public static partial class StyleValidation
     public static Dictionary<string, string[]> Copy(CopyStyleRequest r)
     {
         var e = new Errors();
-        e.Required("styleNo", r.StyleNo, 40, "Enter the new style number.");
-        if (string.IsNullOrWhiteSpace(r.SeasonCode) || !SeasonRegex().IsMatch(r.SeasonCode.Trim()))
-            e.Add("seasonCode", "Enter the season as year-term, e.g. 2027-SS.");
+        e.Required("styleNo", r.StyleNo, 60, "Enter the new style number.");
+        if (!IsSeasonCode(r.SeasonCode))
+            e.Add("seasonCode", "Choose a season, or type a new one as year-term, e.g. 2027-SS.");
         return e.Result;
     }
 
     public static Dictionary<string, string[]> Colorway(SaveColorwayRequest r)
     {
         var e = new Errors();
-        e.Required("colorwayCode", r.ColorwayCode, 20, "Enter the colorway (article) code.");
+        e.Required("colorwayCode", r.ColorwayCode, 40, "Enter the colorway (article) code.");
         e.Max("colorwayName", r.ColorwayName, 150);
         if (!string.IsNullOrWhiteSpace(r.Status) && !Statuses.Contains(r.Status.Trim().ToUpperInvariant()))
             e.Add("status", "Choose In range or Dropped.");

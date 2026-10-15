@@ -95,18 +95,38 @@ const EXAMPLES = ['ai.search.example1', 'ai.search.example2', 'ai.search.example
 
       @if (result(); as r) {
         <section hlmCard class="gap-3 p-5">
-          @if (r.source === 'ai') {
+          @if (r.source === 'look') {
+            <p class="flex flex-wrap items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
+              <ng-icon name="lucideScanEye" />{{ 'ai.search.byLook' | transloco }}
+            </p>
+            @if (r.phraseListFoundNothing) {
+              <p class="text-xs text-amber-700 dark:text-amber-400">{{ 'ai.search.phraseListFoundNothing' | transloco }}</p>
+            }
+            <p class="text-muted-foreground text-xs">{{ 'ai.search.byLookHint' | transloco }}</p>
+          } @else if (r.source === 'ai') {
             <p class="text-sm">
               <span hlmBadge variant="outline" class="mr-1.5"><ng-icon name="lucideSparkles" />{{ 'ai.search.sourceAi' | transloco }}</span>
               <span class="text-muted-foreground">{{ 'ai.search.readAs' | transloco }}</span> {{ r.explanation || '—' }}
             </p>
+          } @else if (r.aiFoundNothing) {
+            <p class="text-sm">
+              <span hlmBadge variant="outline" class="mr-1.5"><ng-icon name="lucideSparkles" />{{ 'ai.search.sourceAi' | transloco }}</span>
+              <span class="text-muted-foreground">{{ 'ai.search.readAs' | transloco }}</span> {{ r.explanation || '—' }}
+            </p>
+            <p class="text-xs text-amber-700 dark:text-amber-400">{{ 'ai.search.aiFoundNothing' | transloco }}</p>
           } @else {
             <p class="flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
               <ng-icon name="lucideListChecks" />{{ 'ai.search.byRules' | transloco }}
             </p>
           }
-          @if (r.unmatched.length) {
-            <p class="text-xs text-amber-700 dark:text-amber-400">{{ 'ai.search.unmatched' | transloco: { words: r.unmatched.join(', ') } }}</p>
+          @if (r.unmatched.length && !r.aiFoundNothing) {
+            <p class="text-xs text-amber-700 dark:text-amber-400">
+              @if (aiError(); as reason) {
+                {{ 'ai.search.unmatchedAiFailed' | transloco: { words: r.unmatched.join(', '), reason } }}
+              } @else {
+                {{ 'ai.search.unmatched' | transloco: { words: r.unmatched.join(', ') } }}
+              }
+            </p>
           }
           <div class="flex flex-wrap gap-1.5">
             @for (c of chips(); track c.label + c.value) {
@@ -117,9 +137,22 @@ const EXAMPLES = ['ai.search.example1', 'ai.search.example2', 'ai.search.example
           </div>
           <div class="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
             <p class="text-sm font-medium">{{ 'ai.search.found' | transloco: { count: (r.results.total | number) } }}</p>
-            <a hlmBtn variant="outline" class="h-11 lg:h-9" routerLink="/styles" [queryParams]="stylesParams()">
-              {{ 'ai.search.openInStyles' | transloco }}<ng-icon name="lucideArrowRight" />
-            </a>
+            @if (r.source === 'look') {
+              <div class="flex flex-wrap gap-2">
+                @if (aiCanRun()) {
+                  <button hlmBtn variant="outline" class="h-11 lg:h-9" [disabled]="busy()" (click)="searchWithAi()">
+                    <ng-icon name="lucideSparkles" />{{ 'ai.search.withAiInstead' | transloco }}
+                  </button>
+                }
+                <a hlmBtn variant="outline" class="h-11 lg:h-9" routerLink="/ai/image-search" [queryParams]="{ q: query().trim() }">
+                  {{ 'ai.search.looks.open' | transloco }}<ng-icon name="lucideArrowRight" />
+                </a>
+              </div>
+            } @else {
+              <a hlmBtn variant="outline" class="h-11 lg:h-9" routerLink="/styles" [queryParams]="stylesParams()">
+                {{ 'ai.search.openInStyles' | transloco }}<ng-icon name="lucideArrowRight" />
+              </a>
+            }
           </div>
         </section>
 
@@ -157,7 +190,7 @@ const EXAMPLES = ['ai.search.example1', 'ai.search.example2', 'ai.search.example
 
         <!-- Styles whose pictures match the request (built-in image model, ~30 ms, nothing sent). Hidden when no match is close. -->
         @if (looks(); as l) {
-          @if (l.matches.length && !l.weak) {
+          @if (l.matches.length && !l.weak && r.source !== 'look') {
             <section hlmCard class="gap-3 p-5">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <h2 class="flex items-center gap-2 font-medium"><ng-icon name="lucideScanEye" />{{ 'ai.search.looks.title' | transloco }}</h2>
@@ -199,6 +232,8 @@ export class SmartSearch {
   readonly query = signal('');
   readonly busy = signal(false);
   readonly result = signal<StyleSearchResult | null>(null);
+  /** Why the AI could not read the request (it was tried and failed): shown with the words it left out. */
+  readonly aiError = signal<string | null>(null);
 
   /** The built-in image model can search words and some pictures are indexed (AI Studio > Image search). */
   private readonly looksReady = toSignal(
@@ -221,6 +256,7 @@ export class SmartSearch {
     add('ai.search.chip.gender', f.gender);
     add('ai.search.chip.weave', f.weaveType);
     add('ai.search.chip.material', f.material);
+    add('ai.search.chip.looks', (f.looks ?? []).join(', '));
     add('ai.search.chip.keywords', f.search);
     return list;
   });
@@ -239,6 +275,7 @@ export class SmartSearch {
     set('weaveType', f.weaveType);
     set('gender', f.gender);
     set('material', f.material);
+    set('looks', (f.looks ?? []).join(','));
     return p;
   });
 
@@ -256,13 +293,37 @@ export class SmartSearch {
     document.getElementById('ai-search')?.focus();
   }
 
-  /** The phrase list first; AI only for words it does not know, and only when AI can run. */
+  readonly aiCanRun = computed(() => !!this.aiReady()?.text.isConfigured);
+
+  /** After a match by look: ask the AI to read the request instead (the picture step is skipped). */
+  searchWithAi(): void {
+    const q = this.query().trim();
+    if (q.length < 3 || this.busy()) return;
+    this.busy.set(true);
+    this.aiError.set(null);
+    this.svc.search(q, true).subscribe({
+      next: (r) => {
+        this.result.set(r);
+        this.busy.set(false);
+      },
+      error: (e) => {
+        this.busy.set(false);
+        toast.error(this.transloco.translate('ai.failed'), { description: problemMessage(e) });
+      },
+    });
+  }
+
+  /**
+   * The phrase list first, then (still without the AI server) the built-in image model when a picture clearly stands out;
+   * AI only for words neither understood, and only when AI can run.
+   */
   run(event?: Event): void {
     event?.preventDefault();
     const q = this.query().trim();
     if (q.length < 3 || this.busy()) return;
     this.busy.set(true);
     this.looks.set(null);
+    this.aiError.set(null);
     const aiCanRun = !!this.aiReady()?.text.isConfigured;
     this.svc
       .searchByRules(q)
@@ -270,7 +331,9 @@ export class SmartSearch {
         // Look-alikes start as soon as the phrase list has read the request (its customer keeps them to that brand),
         // without waiting for the text model.
         map((r) => (this.findLooks(q, r.filters.customer), r)),
-        switchMap((r) => (r.unmatched.length && aiCanRun ? this.svc.search(q).pipe(catchError((e) => (this.aiFailed(e), of(r)))) : of(r))),
+        switchMap((r) =>
+          r.source !== 'look' && r.unmatched.length && aiCanRun ? this.svc.search(q, true).pipe(catchError((e) => (this.aiFailed(e), of(r)))) : of(r),
+        ),
       )
       .subscribe({
       next: (r) => {
@@ -299,6 +362,7 @@ export class SmartSearch {
 
   /** AI could not read it: the phrase list's result is shown instead. */
   private aiFailed(e: unknown): void {
+    this.aiError.set(problemMessage(e));
     toast.warning(this.transloco.translate('ai.search.aiFailed'), { description: problemMessage(e) });
   }
 }

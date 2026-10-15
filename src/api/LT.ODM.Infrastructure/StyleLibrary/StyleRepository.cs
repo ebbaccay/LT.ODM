@@ -8,7 +8,7 @@ using Microsoft.Data.SqlClient;
 namespace LT.ODM.Infrastructure.StyleLibrary;
 
 /// <summary>Styles screens: style.usp_* procedures (db/procedures/style.procedures.sql).</summary>
-public sealed class StyleRepository(IDbConnectionFactory connectionFactory) : IStyleRepository
+public sealed class StyleRepository(IDbConnectionFactory connectionFactory, StyleDashboardCache dashboard) : IStyleRepository
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -29,15 +29,30 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory) : IS
     public async Task<PagedResult<StyleListItemDto>> ListAsync(StyleListQuery q, CancellationToken ct = default)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
-        var rows = (await conn.QueryAsync<ListRow>(Proc("style.usp_Style_List", new
+        using var grid = await conn.QueryMultipleAsync(Proc("style.usp_Style_List", new
         {
             q.Search, CustomerCode = q.Customer, SeasonCode = q.Season, BusinessUnitCode = q.BusinessUnit, ProductTypeCode = q.ProductType,
-            WeaveTypeCode = q.WeaveType, q.Gender, q.Material, q.IsActive, q.Skip, q.Take,
-        }, ct))).ToList();
+            WeaveTypeCode = q.WeaveType, q.Gender, q.Material, q.IsActive, q.Looks, q.HasPicture, q.Skip, q.Take,
+        }, ct));
+        var rows = (await grid.ReadAsync<ListRow>()).ToList();
+        var matches = (await grid.ReadAsync<MatchRow>()).ToLookup(m => m.StyleId);
         return new PagedResult<StyleListItemDto>(rows.Select(r => new StyleListItemDto(
             r.StyleId, r.StyleNo, r.BaseStyleNo, r.Description, r.ModelCode, r.ModelName, r.CustomerCode, r.CustomerName, r.SeasonCode,
             r.BusinessUnitCode, r.BusinessUnitName, r.ProductTypeCode, r.ProductTypeName, r.WeaveTypeCode, r.Gender, r.ImageUrl, r.SketchUrl,
-            r.ColorwayCount, r.BomLineCount, r.HasHistory, Utc(r.LastChangedUtc), r.IsActive)).ToList(), rows.FirstOrDefault()?.TotalCount ?? 0);
+            r.ColorwayCount, r.BomLineCount, r.HasHistory, Utc(r.LastChangedUtc), r.IsActive,
+            q.Search is null ? null : new StyleSearchFoundDto(r.FoundInStyle, r.ColorwayMatches, r.BomLineMatches,
+                matches[r.StyleId].Select(m => new StyleSearchMatchDto(m.Kind, m.Code, m.Text, m.Section)).ToList()))).ToList(),
+            rows.FirstOrDefault()?.TotalCount ?? 0);
+    }
+
+    public async Task<IReadOnlyList<StyleCountDto>> CountAsync(StyleListQuery q, string groupBy, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        return (await conn.QueryAsync<GroupRow>(Proc("style.usp_Style_Counts", new
+        {
+            GroupBy = groupBy, q.Search, CustomerCode = q.Customer, SeasonCode = q.Season, BusinessUnitCode = q.BusinessUnit, ProductTypeCode = q.ProductType,
+            WeaveTypeCode = q.WeaveType, q.Gender, q.Material, q.IsActive, q.Looks,
+        }, ct))).Select(r => new StyleCountDto(r.Key, r.Name, r.Styles)).ToList();
     }
 
     public async Task<StyleDetailDto?> GetAsync(int styleId, CancellationToken ct = default)
@@ -67,7 +82,10 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory) : IS
                 f.Suffix, f.LinkSource, f.Note, f.LinkedBy, f.IsCurrent)).ToList());
     }
 
-    public async Task<StyleDashboardDto> GetDashboardAsync(CancellationToken ct = default)
+    /// <summary>From <see cref="StyleDashboardCache"/>: the procedure runs at most once per change (or every few minutes).</summary>
+    public Task<StyleDashboardDto> GetDashboardAsync(CancellationToken ct = default) => dashboard.GetAsync(LoadDashboardAsync, ct);
+
+    private async Task<StyleDashboardDto> LoadDashboardAsync(CancellationToken ct)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
         using var grid = await conn.QueryMultipleAsync(Proc("style.usp_Dashboard_Get", null, ct));
@@ -102,6 +120,13 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory) : IS
 
     public Task DeleteStyleAsync(int styleId, byte[] rowVer, string changedBy, CancellationToken ct = default)
         => Execute("style.usp_Style_Delete", new { StyleId = styleId, RowVer = rowVer, ChangedBy = changedBy }, ct);
+
+    public Task SwapPicturesAsync(int styleId, byte[] rowVer, string changedBy, CancellationToken ct = default)
+        => Execute("style.usp_Style_SwapPictures", new { StyleId = styleId, RowVer = rowVer, ChangedBy = changedBy }, ct);
+
+    public Task SetColorwayImageAsync(int styleId, int colorwayId, byte[] rowVer, string imageUrl, string changedBy, CancellationToken ct = default)
+        => Execute("style.usp_Colorway_SetImage",
+            new { StyleId = styleId, ColorwayId = colorwayId, RowVer = rowVer, ImageUrl = imageUrl, ChangedBy = changedBy }, ct);
 
     public Task<int> CopyStyleAsync(int styleId, CopyStyleRequest r, string changedBy, CancellationToken ct = default)
         => Scalar("style.usp_Style_Copy", new
@@ -145,16 +170,31 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory) : IS
     public Task RemoveHistoryAsync(int styleId, string changedBy, CancellationToken ct = default)
         => Execute("style.usp_StyleHistory_Remove", new { StyleId = styleId, ChangedBy = changedBy }, ct);
 
+    // Every write goes through these two: each one clears the dashboard (also after a failure, which may have changed part).
     private async Task<int> Scalar(string proc, object parameters, CancellationToken ct)
     {
-        await using var conn = await connectionFactory.OpenAsync(ct);
-        return await RuleErrors(() => conn.QuerySingleAsync<int>(Proc(proc, parameters, ct)));
+        try
+        {
+            await using var conn = await connectionFactory.OpenAsync(ct);
+            return await RuleErrors(() => conn.QuerySingleAsync<int>(Proc(proc, parameters, ct)));
+        }
+        finally
+        {
+            dashboard.Invalidate();
+        }
     }
 
     private async Task Execute(string proc, object parameters, CancellationToken ct)
     {
-        await using var conn = await connectionFactory.OpenAsync(ct);
-        await RuleErrors(() => conn.ExecuteAsync(Proc(proc, parameters, ct)));
+        try
+        {
+            await using var conn = await connectionFactory.OpenAsync(ct);
+            await RuleErrors(() => conn.ExecuteAsync(Proc(proc, parameters, ct)));
+        }
+        finally
+        {
+            dashboard.Invalidate();
+        }
     }
 
     /// <summary>THROW 50400 / 50404 / 50409 -> StyleRuleException with that HTTP status.</summary>
@@ -210,6 +250,8 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory) : IS
 
     private sealed class LookupRow { public string Code { get; init; } = ""; public string Name { get; init; } = ""; }
 
+    private sealed class GroupRow { public string? Key { get; init; } public string? Name { get; init; } public int Styles { get; init; } }
+
     private sealed class ListRow
     {
         public int StyleId { get; init; }
@@ -234,7 +276,19 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory) : IS
         public bool HasHistory { get; init; }
         public DateTime LastChangedUtc { get; init; }
         public bool IsActive { get; init; }
+        public bool FoundInStyle { get; init; }
+        public int ColorwayMatches { get; init; }
+        public int BomLineMatches { get; init; }
         public int TotalCount { get; init; }
+    }
+
+    private sealed class MatchRow
+    {
+        public int StyleId { get; init; }
+        public string Kind { get; init; } = "";
+        public string Code { get; init; } = "";
+        public string? Text { get; init; }
+        public string? Section { get; init; }
     }
 
     private sealed class HeaderRow

@@ -6,6 +6,7 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowLeft,
+  lucideArrowLeftRight,
   lucideCopy,
   lucideDownload,
   lucideFileText,
@@ -15,6 +16,7 @@ import {
   lucideLink,
   lucidePencil,
   lucidePlus,
+  lucideImages,
   lucideSearch,
   lucideShieldAlert,
   lucideTrash2,
@@ -36,6 +38,7 @@ import { toneBadge } from '@tms/shared/ui/tones';
 import { BomLineDialog } from './bom-line-dialog';
 import { ColorwayDialog } from './colorway-dialog';
 import { CopyStyleDialog } from './copy-style-dialog';
+import { ColorwayPicturesDialog } from './colorway-pictures-dialog';
 import { DesignPromptDialog } from './design-prompt-dialog';
 import { HistoryDialog } from './history-dialog';
 import { StyleFormDialog } from './style-form-dialog';
@@ -60,11 +63,11 @@ interface BomSection {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe, DecimalPipe, RouterLink, NgIcon, AuthImgDirective, Modal, StyleFormDialog, ColorwayDialog, BomLineDialog, CopyStyleDialog,
-    HistoryDialog, DesignPromptDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, TranslocoPipe,
+    HistoryDialog, DesignPromptDialog, ColorwayPicturesDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, TranslocoPipe,
   ],
   providers: [
     provideIcons({
-      lucideArrowLeft, lucideCopy, lucideDownload, lucideFileText, lucideGitBranch, lucideGitCompareArrows, lucideImage, lucideLink, lucidePencil, lucidePlus, lucideSearch, lucideShieldAlert,
+      lucideArrowLeft, lucideArrowLeftRight, lucideCopy, lucideDownload, lucideFileText, lucideGitBranch, lucideGitCompareArrows, lucideImage, lucideLink, lucidePencil, lucidePlus, lucideImages, lucideSearch, lucideShieldAlert,
       lucideTrash2, lucideUnlink, lucideWandSparkles,
     }),
   ],
@@ -100,6 +103,7 @@ export class StyleDetail implements OnInit {
   readonly copyOpen = signal(false);
   readonly historyOpen = signal(false);
   readonly promptOpen = signal(false);
+  readonly cwPicturesOpen = signal(false);
   readonly colorwayOpen = signal(false);
   readonly editingColorway = signal<Colorway | null>(null);
   readonly lineOpen = signal(false);
@@ -160,7 +164,8 @@ export class StyleDetail implements OnInit {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((p) => {
       this.styleId.set(Number(p.get('id')));
       this.bomColorway.set(null);
-      this.bomSearch.set('');
+      // Opened from a Styles list search found on the BOM: start with that search.
+      this.bomSearch.set(this.route.snapshot.queryParamMap.get('bomSearch') ?? '');
       this.compareIds.set([]);
       this.load(true);
     });
@@ -227,6 +232,27 @@ export class StyleDetail implements OnInit {
   onCopied(newId: number): void {
     this.copyOpen.set(false);
     void this.router.navigate(['/styles', newId]);
+  }
+
+  readonly swapping = signal(false);
+
+  /** Swaps the picture and the sketch (a picture saved in the wrong place); with only one, moves it to the other place. */
+  swapPictures(): void {
+    const s = this.style();
+    if (!s || this.swapping()) return;
+    this.swapping.set(true);
+    this.svc.swapPictures(s.styleId, s.rowVer).subscribe({
+      next: () => {
+        this.swapping.set(false);
+        toast.success(this.t('styles.detail.picturesSwapped'));
+        this.load();
+      },
+      error: (e) => {
+        this.swapping.set(false);
+        toast.error(styleError(e).message);
+        this.load();
+      },
+    });
   }
 
   async deleteStyle(): Promise<void> {

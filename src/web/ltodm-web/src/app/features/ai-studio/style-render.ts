@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -21,6 +21,8 @@ import { problemMessage } from '../../core/auth/auth.service';
 import { StyleLibraryService, StyleListItem, styleError } from '../style-library/style-library.service';
 import { AiProviderBanner } from './ai-provider-banner';
 import { AiStudioService, RenderBrief, StyleRender } from './ai-studio.service';
+import { AiTaskRunning } from './ai-task-running';
+import { AiTasksSession } from './ai-tasks.session';
 import { StylePicker } from './style-picker';
 
 const MAX_PROMPT = 2000;
@@ -30,13 +32,14 @@ const MAX_PROMPT = 2000;
  * colours, visible trims) and, when the image model accepts one, its uploaded sketch as the silhouette guide.
  * The page shows exactly what is sent; the prompt can be edited or rewritten by the text model before drawing.
  * Renders are kept apart from real photos; an editor can still use one as the style's photo.
+ * Drawing can take minutes on an in-house server: it runs in AiTasksSession, so Minimise (or leaving) does not stop it.
  * Address: /ai/render?styleId=..&colorwayId=..
  */
 @Component({
   selector: 'app-style-render',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe, RouterLink, NgIcon, AuthImgDirective, Modal, AiProviderBanner, StylePicker, HlmBadgeImports, HlmButtonImports, HlmCardImports,
+    DatePipe, RouterLink, NgIcon, AuthImgDirective, Modal, AiProviderBanner, AiTaskRunning, StylePicker, HlmBadgeImports, HlmButtonImports, HlmCardImports,
     HlmNativeSelectImports, HlmSkeletonImports, HlmSpinnerImports, HlmTextareaImports, TranslocoPipe,
   ],
   providers: [provideIcons({ lucideImage, lucideImagePlus, lucideRefreshCw, lucideSparkles, lucideTrash2, lucideWandSparkles, lucideX })],
@@ -50,6 +53,7 @@ export class StyleRenderPage implements OnInit {
   private readonly confirmDlg = inject(ConfirmDialogService);
   private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly tasks = inject(AiTasksSession);
 
   readonly canEdit = this.styles.canEdit;
   readonly maxPrompt = MAX_PROMPT;
@@ -61,8 +65,22 @@ export class StyleRenderPage implements OnInit {
   readonly prompt = signal('');
   readonly useSketch = signal(true);
   readonly writing = signal(false);
-  readonly rendering = signal(false);
   readonly preview = signal<StyleRender | null>(null);
+
+  /** One render at a time per style, kept by the session while the user is elsewhere. */
+  readonly renderTask = this.tasks.watch<StyleRender>(computed(() => (this.styleId() ? `render:${this.styleId()}` : null)));
+  readonly rendering = computed(() => this.renderTask()?.status === 'running');
+
+  constructor() {
+    // A render that finished (here or while away) joins the list unless the list already has it from the server.
+    effect(() => {
+      const t = this.renderTask();
+      const b = this.brief();
+      const r = t?.status === 'done' ? t.result : null;
+      if (r && b && b.style.styleId === r.styleId && !b.renders.some((x) => x.renderId === r.renderId))
+        untracked(() => this.brief.set({ ...b, renders: [r, ...b.renders] }));
+    });
+  }
 
   ngOnInit(): void {
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((p) => {
@@ -132,18 +150,8 @@ export class StyleRenderPage implements OnInit {
   generate(): void {
     const b = this.brief();
     if (!b || this.rendering()) return;
-    this.rendering.set(true);
-    this.svc.render(b.style.styleId, b.colorwayId, this.prompt().trim(), this.useSketch() && b.sketchUsable).subscribe({
-      next: (r) => {
-        this.brief.update((x) => (x ? { ...x, renders: [r, ...x.renders] } : x));
-        this.rendering.set(false);
-        toast.success(this.transloco.translate('ai.render.done'));
-      },
-      error: (e) => {
-        this.rendering.set(false);
-        toast.error(this.transloco.translate('ai.failed'), { description: problemMessage(e) });
-      },
-    });
+    this.tasks.run('render', `render:${b.style.styleId}`, b.style.styleNo,
+      this.svc.render(b.style.styleId, b.colorwayId, this.prompt().trim(), this.useSketch() && b.sketchUsable));
   }
 
   async remove(r: StyleRender): Promise<void> {

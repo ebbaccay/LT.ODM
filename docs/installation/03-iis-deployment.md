@@ -66,8 +66,8 @@ Edit `D:\LTODM\api\web.config` (keep the `<aspNetCore>` element that `dotnet pub
       </handlers>
       <security>
         <requestFiltering>
-          <!-- Settings > Import accepts workbooks up to 50 MB (IIS's default limit is 30 MB). -->
-          <requestLimits maxAllowedContentLength="57671680" />
+          <!-- Settings > Import accepts workbooks up to 100 MB (IIS's default limit is 30 MB). -->
+          <requestLimits maxAllowedContentLength="110100480" />
         </requestFiltering>
       </security>
       <aspNetCore processPath="dotnet" arguments=".\LT.ODM.Api.dll" hostingModel="inprocess"
@@ -86,6 +86,14 @@ Edit `D:\LTODM\api\web.config` (keep the `<aspNetCore>` element that `dotnet pub
 ```
 
 Each new release brings a fresh `web.config`. Keep your server copy and put it back after copying a release, or set these values as app-pool environment variables instead (they survive releases; see [Configuration](04-configuration.md)).
+
+The request limit can survive releases the same way: write it to `applicationHost.config` instead of `web.config` (elevated prompt; use your site's name as IIS Manager shows it):
+
+```
+%windir%\system32\inetsrv\appcmd.exe set config "LTODM" -section:system.webServer/security/requestFiltering /requestLimits.maxAllowedContentLength:110100480 /commit:apphost
+```
+
+Check: IIS Manager > the site > Request Filtering > Edit Feature Settings shows *Maximum allowed content length* 110100480. Do not set it from that dialog: it saves to the site's `web.config`, which the next release replaces.
 
 ## 6. Settings and secrets
 

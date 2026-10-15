@@ -87,7 +87,7 @@ const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
               <p class="text-muted-foreground text-xs">
                 {{ row.what | transloco }}
                 @if (!row.ready) {
-                  <span class="text-amber-700 dark:text-amber-400">{{ row.why | transloco }}</span>
+                  <span [class]="row.optional ? '' : 'text-amber-700 dark:text-amber-400'">{{ row.why | transloco }}</span>
                 }
               </p>
             </div>
@@ -259,10 +259,11 @@ export class ImageSearch implements OnInit {
     return [
       { key: 'lookAlike', title: k + 'lookAlike.title', what: k + (l.supportsWords ? 'lookAlike.whatWords' : 'lookAlike.what'),
         pictures: l.pictures, indexed: l.indexed, failed: l.failed, ready: l.isAvailable,
-        why: l.problem === 'aiOff' ? k + 'aiOff' : k + 'lookAlike.notInstalled' },
-      { key: 'descriptions', title: k + 'descriptions.title', what: k + 'descriptions.what',
+        why: l.problem === 'aiOff' ? k + 'aiOff' : k + 'lookAlike.notInstalled', optional: false },
+      // Optional: search by photo and by words work with the built-in model; descriptions are for a (GPU) AI server later.
+      { key: 'descriptions', title: k + 'descriptions.titleOptional', what: k + 'descriptions.what',
         pictures: s.pictures, indexed: s.indexed, failed: s.failed, ready: this.jobsReady(),
-        why: k + 'descriptions.notSetUp' },
+        why: k + 'descriptions.optional', optional: true },
     ];
   });
   readonly mode = signal<'photo' | 'words'>('photo');

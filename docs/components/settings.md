@@ -20,16 +20,75 @@ Every pick list on the Styles screens: customers, seasons, season terms, busines
 
 ## Import (`/settings/import`)
 
-Loads the Style Library workbook (sheets *Style Header*, *Article*, *BOM Detail*; download the template from the page). Files up to 50 MB.
+Loads the Style Library workbook (sheets *Style Header*, *Article*, *BOM Detail*; download the template from the page). Files up to 100 MB. Style ID and Article ID can be up to 100 characters; a longer value stops the upload with its sheet and row.
 
-1. **Upload**: the server reads the workbook, stages every row and checks it. Nothing reaches the library yet.
-2. **Preview** tabs:
+1. **Map columns**: after choosing the file, pick the workbook sheet for Style Header, Article and BOM Detail, and for each Excel column the database column it goes to (or *Not imported*). Columns with a known heading (the template's, and spellings such as `Season_id`, `AD_COnsump_UOM`, `ASAD_Consump_Allowance`) are matched for you; sample values show what each column holds. Example, GO style export: `Gen_Mat_ID` → *Ad_Mat_ID* (material code) and `Prod_tyle_id` → *Prod_type_id*. **Save this mapping as** keeps it by name; the next file whose sheets and headings fit a saved mapping opens with it (the best fit if several do). Required columns (*) must be mapped before upload.
+2. **Upload**: the server reads the workbook with that mapping, stages every row and checks it. Nothing reaches the library yet.
+3. **Preview** tabs:
    - **Styles**: each style as **New**, **Changed** (header, colorways and/or BOM differ from the library), **Unchanged** or **Blocked** (has errors).
    - **Issues**: every error and warning with its sheet and row.
-   - **New codes**: codes the import would add to the reference lists (customer, product type, weave, business unit, material type, unit, SAP supplier) and values that block rows (content class, article status) or are left blank (gender). Each comes with a suggestion: **Same spelling** (ignoring case, spaces, punctuation and a plural S: `JACKETS` → `JACKET`, `YDS` → `yd`) or, after **Suggest with AI**, an AI suggestion with a reason. **Use** rewrites those rows in this import (not the workbook) and checks again. Values left alone are added as new codes at commit.
-3. **Commit** writes the New styles and the Changed styles you ticked. A replaced style keeps its id; images uploaded in the app are kept when the file has none. Style history links are rebuilt.
+   - **New codes**: codes the import would add to the reference lists (season, customer, product type, weave, business unit, material type, unit, SAP supplier) and values that block rows (content class, article status) or are left blank (gender). Each comes with a suggestion: **Same spelling** (ignoring case, spaces, punctuation and a plural S: `JACKETS` → `JACKET`, `YDS` → `yd`) or, after **Suggest with AI**, an AI suggestion with a reason. **Use** rewrites those rows in this import (not the workbook) and checks again. Values left alone are added as new codes at commit.
+4. **Commit** writes the New styles and the Changed styles you ticked. A replaced style keeps its id; images uploaded in the app are kept when the file has none. Style history links are rebuilt.
 
 Unfinished imports can be reopened from **Recent imports**; staged imports older than a day are cancelled automatically.
+
+**Kept workbooks.** Choosing **Next: map columns** keeps the workbook on the server with a new import in status *Mapping columns*; the mapping is saved as you edit it. In **Recent imports**:
+- *Mapping columns*: **Continue mapping** reopens the step where you left it;
+- *Waiting to commit* and *Cancelled*: **Change mapping** reopens the step with the mapping used; uploading again checks the kept workbook from scratch with the new mapping (the import is waiting to commit again; no new file needed);
+- any import not committed can be **deleted** (trash icon): it leaves the list with its checked rows and kept workbook. Committed imports stay (use **Roll back**).
+The workbook is deleted on commit, and 7 days after a cancel or an unfinished mapping (an unfinished mapping is then removed from the list); after that, upload the file again. Imports cancelled before 2026-10-15 have no kept workbook and can only be viewed or deleted.
+
+**Roll back** (Admin; on a committed import, for 30 days after the commit) undoes it in one transaction: the styles it added are deleted with their colorways, BOM lines, AI renders and picture data; the styles it replaced get back the header, colorways and BOM they had before (commit keeps a copy of each in `staging.ImportUndoStyle`; restored colorways and BOM lines get new ids); materials it changed get their old description, type and section back, and materials it added are deleted when no BOM uses them (with their description readings); style history is rebuilt for the families involved. Then each season, customer, supplier, product type, business unit, weave, material type and unit it added is deleted if nothing uses it (one still in use, e.g. by a later import, stays).
+Nothing is changed, and the page lists why, when anything happened after the import: a style edited or deleted, replaced by a later import, colorways or BOM lines added or changed, AI renders made, style history linked by hand, or a material it touched edited. Undo those changes (or leave the import) and try again. Imports committed before rollback existed (2026-10-14) cannot be rolled back. The rollback data is kept for 30 days (`StyleImportRules.RollbackDays`).
+
+**BOM rows without a material code** (Ad_Mat_ID, or the column mapped to it, empty or NULL) cannot become BOM lines: each is a warning (*this BOM row is skipped*), the Questions panel and the commit confirmation say how many rows in how many styles, and the commit leaves them out; their styles import with the rest of their BOM. To keep them, fill in the material code and upload again.
+An Article row without an Article ID blocks its style (before 2026-10-14 it was reported without blocking and the commit then failed).
+
+**Seasons** are kept as the workbook writes them: `2027-SS`, or the source system's own names (`26FW`, `FA26`, `SS27`, `26Q2`, `CR26`, `999`). Year and term are read from the name where possible (`26FW` → 2026 FW) to sort seasons; the others sort last and are not used for style history links until normalised. On **New codes**, a season such as `FA26` is suggested as `2026-FA` when that season exists; **Use** moves the rows to it. New seasons typed in the app (style form, Reference lists) still use year-term.
+
+**Questions before commit** (above the preview tabs) group what would otherwise add duplicates:
+- values with a suggested existing code, list by list: *63 SAP supplier values match existing codes* (SAP numbers match with or without leading zeros, `0001100131` = `1100131`; seasons such as `FA26` = `2026-FA`) → **Use all**, or **Review** on the New codes tab;
+- customer accounts that look like one customer, by the brand word in their names (`Cust_Name`): accounts whose brand word starts with an existing customer's code or matches its name are offered to it (*4 customer accounts look like SKE* → **Map all to SKE**); two or more accounts with the same brand word and no existing customer (11 POLO accounts) can be mapped to a customer you choose, **grouped as a new customer** (code and name; the customer is added straight away), or kept separate;
+  or **kept separate, same brand**: each account stays its own customer, all under one brand (`ref.Brand`, `partner.Partner.BrandCode`; the brand is added if new, e.g. POLO for 11 POLO accounts; for a group that looks like an existing customer such as SKE, that customer gets the brand too if it has none);
+- customers that will still be added as new are listed (with their brand), and the commit confirmation says how many customers and SAP suppliers it adds.
+
+**Brands** can also come from the workbook: map a column to *Customer_Brand* (one brand per customer account in a file). New brands are added at commit (and listed on the New codes tab); an existing customer without a brand gets the file's, one with a brand keeps it. Brands are listed in Reference lists > Brands (*Used by* counts customers). A rollback or deleting the import removes brands and customers added for it (when unused) and takes back brands it gave existing customers.
+
+With **Remember my answers** ticked (default), every answer here and on the New codes tab is saved (`staging.ImportCodeAlias`) and applied to later uploads before the check, so each value is asked about once. The panel shows the answers an import used; **Forget** makes later imports ask again (to undo one in the current import, cancel and upload again).
+
+**BOM rows without an Article ID** apply to all of the style's colorways; one warning per style says how many rows did so.
+
+**Extra columns** (added 2026-10-14): *Cust_Name* is kept on each style (`style.Style.CustomerName`) and names a customer the import adds (instead of its code); *Consump_Allowance* (`ASAD_Consump_Allowance`) is stored per BOM line (`style.BomLine.ConsumptionAllowance`, a number of 0 or more) and is part of what makes a BOM line Changed. Neither is shown on the Styles screens yet.
+
+## Import pictures (`/settings/image-import`)
+
+Adds style pictures from a folder of files named after the style. Admin only. Nothing changes until **Save**.
+
+**File names.** The style number is the file name up to its first `_` (`RC2606OW001_Img01.jpg` → `RC2606OW001`; the rest is ignored, as for style numbers in the library). A file is offered for:
+
+| Match | Example for `RC2606OW001` | Ticked |
+|---|---|---|
+| **Same number** | `RC2606OW001` | Yes |
+| **Version** (suffix after `_` or `-`) | `RC2606OW001_H`, `RC2606OW001_LH`, `RC2617OW006-H` | Yes |
+| **Letter version** (its own style) | `RC2701OW001A_H` | No |
+| **Base style** (file has a letter version) | `RC2702OM001` for `RC2702OM001A_Img01.jpg` | No |
+
+All seasons of a style number are listed. Files whose number is not in the library show **No style found**. **Only styles in the library** (on by default) hides those files from the list; they stay under the **No style found** tab. While saving, a progress bar shows how many pictures are done.
+
+**Steps.**
+
+1. Drop the pictures or a folder on the page, or use **Choose a folder** (JPEG, PNG, GIF or WebP, up to 10 MB each). Each file is analysed on the server, two at a time (1-6 s each).
+2. Check each picture. On sheets that hold other information (checkpoint tables, screenshots of a sketch window), the server suggests the **garment box**. It finds the picture among the table lines and text, and the image model built into the API picks the part that looks like a garment. Drag the box to move it, drag a corner to resize, or drag elsewhere to draw a new one (arrow keys move it; Shift + arrows resize). **Whole picture** keeps everything; **Suggested box** goes back to the suggestion. Pictures marked **Check the box** are the ones the model is not sure about. **Preview** shows the result exactly as it will be saved.
+3. Tick the styles, choose the options and **Save**. Options:
+   - **Save as**: **Detect** (default), Picture (`style.Style.ImageUrl`) or Sketch (`SketchUrl`). With Detect, each file goes where it belongs: sketches and flat drawings to the sketch, photos of the made garment to the picture. Each file also has its own **Save to** switch showing what was detected; close calls say *Not sure* and are listed under **Check the box**. Detection uses the image model built into the API plus black outlines and background colour (tested on 45 sketches and photos: all right, 2 close calls). Without the model only clear cases are detected, and the rest go to the picture. A picture saved in the wrong place can be moved later on the style's page (**Swap picture and sketch**).
+   - **Make small pictures sharper** (on): cut-outs under 600 px are enlarged 4x, under 150 px 16x (two passes), with the AI upscaler built into the API. Without it, or with AI features off, they are enlarged smoothly instead.
+   - **Replace existing pictures** (off): styles that already have a picture of that kind keep it.
+
+One file is stored per picture and shared by all styles ticked; it goes through the usual [compression](../installation/08-file-storage.md#compression) (at most 1600 px). New pictures appear in image search after **Index pictures** in AI Studio > Image search.
+
+**Pictures already in the library.** **Check existing pictures** (top of the page) runs the same sketch-or-photo check on every stored style picture and sketch (each file once, about a quarter of a second each) and lists the styles to fix: *Sketch → move to sketch*, *Photo → move to picture*, *Swap picture and sketch*, or *Both look the same kind* (left alone; check by hand). Clear calls start ticked, close calls do not. **Move** swaps picture and sketch on the ticked styles. A style changed since the check is skipped (check again). Nothing changes before **Move**. On LTODM (2026-10-13) the first run moved 42 imported sketches from the picture to the sketch; 3 close calls (dark textured flats, all sketches) and one conflict (OJS27250477: a photo in the sketch place) were left for a person to decide.
+
+**How good is the box?** Tested on 37 checkpoint sheets and sketch screenshots: about 6 in 7 boxes needed no change. The rest cut off a view, took in a table column, or picked text next to a very small picture (those are mostly marked **Check the box**). The finder and the upscaler run on the web server's CPU. Nothing is sent to an AI service ([Data sent to AI services](../ai/data-sent.md#settings--import-pictures)). Without the image model, the box is chosen by shape alone and every picture is marked to check.
 
 ## Translations (`/settings/translations`)
 

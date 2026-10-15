@@ -212,12 +212,13 @@ export const LAB_CAPABILITIES: LabCapability[] = [
   },
   {
     id: 'assistant',
+    live: { route: '/ai/assistant', roles: ['admin', 'merchandiser', 'costing', 'viewer'], where: 'ai.lab.liveFeature.assistant' },
     purpose: 'text',
     icon: 'lucideMessagesSquare',
     status: 'needsInfra',
     needs: 2,
     readiness: ['library', 'bom'],
-    runsOn: 'Text LLM with tool calling on vLLM; tools = the library\'s stored procedures (read-only)',
+    runsOn: 'Text LLM (e.g. Qwen2.5 7B on Ollama) picks one read-only tool; tools = the library\'s stored procedures',
     sample: {
       kind: 'chat',
       turns: [

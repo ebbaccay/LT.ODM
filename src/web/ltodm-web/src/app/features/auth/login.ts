@@ -67,10 +67,7 @@ import { PasswordInput } from './password-input';
       </div>
 
       <div hlmField>
-        <div class="flex items-center justify-between">
-          <label hlmFieldLabel for="password">{{ 'auth.login.password' | transloco }}</label>
-          <a routerLink="/forgot-password" class="text-primary text-sm font-medium hover:underline">{{ 'auth.login.forgot' | transloco }}</a>
-        </div>
+        <label hlmFieldLabel for="password">{{ 'auth.login.password' | transloco }}</label>
         <app-password-input inputId="password" formControlName="password" autocomplete="current-password" (capsLock)="capsLock.set($event)" />
         @if (capsLock()) {
           <p class="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400" role="status">
@@ -80,9 +77,13 @@ import { PasswordInput } from './password-input';
         <hlm-field-error validator="required">{{ 'auth.login.passwordRequired' | transloco }}</hlm-field-error>
       </div>
 
-      <div class="flex items-center gap-2.5">
-        <hlm-checkbox inputId="remember" formControlName="rememberMe" />
-        <label hlmLabel for="remember" class="font-normal">{{ 'auth.login.remember' | transloco }}</label>
+      <!-- Tab order follows the page: user name, password, show password, keep me signed in, forgot password, sign in. -->
+      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div class="flex items-center gap-2.5">
+          <hlm-checkbox inputId="remember" formControlName="rememberMe" />
+          <label hlmLabel for="remember" class="font-normal">{{ 'auth.login.remember' | transloco }}</label>
+        </div>
+        <a routerLink="/forgot-password" class="text-primary text-sm font-medium hover:underline">{{ 'auth.login.forgot' | transloco }}</a>
       </div>
 
       <button hlmBtn type="submit" class="shadow-primary/30 h-11 w-full text-base shadow-lg" [disabled]="busy()">

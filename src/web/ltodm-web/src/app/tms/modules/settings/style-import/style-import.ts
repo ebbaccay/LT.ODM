@@ -4,13 +4,17 @@ import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideArrowRight,
   lucideCircleAlert,
   lucideCircleCheck,
   lucideDownload,
   lucideFileSpreadsheet,
   lucideSearch,
   lucideSparkles,
+  lucideTableProperties,
+  lucideTrash2,
   lucideTriangleAlert,
+  lucideUndo2,
   lucideUpload,
   lucideX,
 } from '@ng-icons/lucide';
@@ -24,6 +28,7 @@ import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import {
   ImportCodeList,
+  ImportColumnMapping,
   ImportCodeSuggestion,
   ImportNewCode,
   ImportNewCodes,
@@ -32,10 +37,15 @@ import {
   StyleImportIssue,
   StyleImportService,
   StyleImportStyle,
+  RollbackBlocker,
+  WorkbookInspection,
   importErrorMessage,
+  rollbackBlockers,
 } from '@services/style-import.service';
 import { ConfirmDialogService } from '@tms/shared/confirm-dialog/confirm-dialog.service';
 import { Tone, toneBadge } from '@tms/shared/ui/tones';
+import { ImportDecisions } from './import-decisions';
+import { ImportMapping } from './import-mapping';
 
 const PAGE = 100;
 
@@ -43,7 +53,8 @@ const ACTION_TONE: Record<ImportStyleAction, Tone> = { New: 'green', Changed: 'a
 
 /**
  * Settings > Import (Admin): loads the Style Library workbook (Style Header, Article, BOM Detail sheets).
- * Upload -> the API stages and checks every row -> preview (what happens to each style, issues by sheet and row)
+ * Choose a file -> Map columns (which sheet and Excel column feeds each database column; saved mappings are reused)
+ * -> Upload -> the API stages and checks every row -> preview (what happens to each style, issues by sheet and row)
  * -> Commit writes New styles and the Changed styles ticked here; Unchanged and Blocked styles are left alone.
  * Nothing reaches the library before Commit. An unfinished import can be reopened from Recent imports.
  */
@@ -52,11 +63,11 @@ const ACTION_TONE: Record<ImportStyleAction, Tone> = { New: 'green', Changed: 'a
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe, DecimalPipe, RouterLink, TranslocoPipe, NgIcon, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports,
-    HlmInputImports, HlmSkeletonImports, HlmSpinnerImports,
+    HlmInputImports, HlmSkeletonImports, HlmSpinnerImports, ImportMapping, ImportDecisions,
   ],
   providers: [
     provideIcons({
-      lucideCircleAlert, lucideCircleCheck, lucideDownload, lucideFileSpreadsheet, lucideSearch, lucideSparkles, lucideTriangleAlert, lucideUpload, lucideX,
+      lucideArrowRight, lucideCircleAlert, lucideCircleCheck, lucideDownload, lucideFileSpreadsheet, lucideSearch, lucideSparkles, lucideTableProperties, lucideTrash2, lucideTriangleAlert, lucideUndo2, lucideUpload, lucideX,
     }),
   ],
   templateUrl: './style-import.html',
@@ -75,12 +86,21 @@ export class StyleImport implements OnInit {
   readonly dragging = signal(false);
   readonly uploading = signal(false);
   readonly uploadError = signal<{ title: string; problems: string[] } | null>(null);
+  /** The chosen file's sheets and headings, while its columns are being mapped. */
+  readonly inspection = signal<WorkbookInspection | null>(null);
+  readonly inspecting = signal(false);
+  /** Mapping edits waiting to be saved (saved shortly after the last change, and when leaving the step). */
+  private pendingMapping: ImportColumnMapping | null = null;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ── Batches ────────────────────────────────────────────────
   readonly recent = signal<StyleImportBatch[]>([]);
   readonly recentLoading = signal(false);
   readonly batch = signal<StyleImportBatch | null>(null);
   readonly committing = signal(false);
+  readonly rollingBack = signal(false);
+  /** Why the last rollback attempt stopped (nothing was changed). */
+  readonly blockers = signal<RollbackBlocker[] | null>(null);
 
   // ── Preview ────────────────────────────────────────────────
   readonly tab = signal<'styles' | 'issues' | 'codes'>('styles');
@@ -99,9 +119,12 @@ export class StyleImport implements OnInit {
 
   // ── New codes ──────────────────────────────────────────────
   readonly codes = signal<ImportNewCodes | null>(null);
+  readonly codesFailed = signal(false);
   readonly suggestions = signal<ReadonlyMap<string, ImportCodeSuggestion>>(new Map());
   readonly suggesting = signal(false);
   readonly mapping = signal<string | null>(null);
+  /** Keep answers (Use, Use all, grouping) for later imports. */
+  readonly remember = signal(true);
   /** Code picked in "use existing", per list|value. */
   readonly picked = signal<Record<string, string>>({});
   readonly unmatched = computed(() => (this.codes()?.codes ?? []).filter((c) => !c.suggestedCode && !this.suggestions().get(this.codeKey(c))).length);
@@ -158,6 +181,7 @@ export class StyleImport implements OnInit {
 
   private pick(file: File | null): void {
     this.uploadError.set(null);
+    this.inspection.set(null);
     if (!file) return;
     if (!file.name.toLowerCase().endsWith('.xlsx')) {
       this.uploadError.set({ title: this.transloco.translate('settings.import.onlyXlsx'), problems: [] });
@@ -166,15 +190,38 @@ export class StyleImport implements OnInit {
     this.file.set(file);
   }
 
-  upload(): void {
+  /** Reads the file's sheets and headings for the Map columns step. */
+  inspect(): void {
     const file = this.file();
-    if (!file || this.uploading()) return;
+    if (!file || this.inspecting()) return;
+    this.inspecting.set(true);
+    this.uploadError.set(null);
+    this.svc.inspect(file).subscribe({
+      next: (inspection) => {
+        this.inspecting.set(false);
+        this.file.set(null);
+        this.inspection.set(inspection);
+        this.loadRecent();
+      },
+      error: (e) => {
+        this.inspecting.set(false);
+        this.uploadError.set(importErrorMessage(e));
+      },
+    });
+  }
+
+  /** Stages the kept workbook with the mapping and opens the result. */
+  upload(mapping: ImportColumnMapping): void {
+    const insp = this.inspection();
+    if (!insp || this.uploading()) return;
+    this.cancelSave();
     this.uploading.set(true);
     this.uploadError.set(null);
-    this.svc.upload(file).subscribe({
+    this.svc.stage(insp.batchId, mapping).subscribe({
       next: (batch) => {
         this.uploading.set(false);
         this.file.set(null);
+        this.inspection.set(null);
         this.open(batch);
         this.loadRecent();
       },
@@ -185,10 +232,78 @@ export class StyleImport implements OnInit {
     });
   }
 
+  /** Saves the mapping shortly after the last change (Recent imports can resume it). */
+  mappingEdited(mapping: ImportColumnMapping): void {
+    this.pendingMapping = mapping;
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => this.flushMapping(), 800);
+  }
+
+  private flushMapping(): void {
+    const insp = this.inspection();
+    const mapping = this.pendingMapping;
+    this.cancelSave();
+    if (insp && mapping) this.svc.saveBatchMapping(insp.batchId, mapping).subscribe({ error: (e) => toast.error(importErrorMessage(e).title) });
+  }
+
+  private cancelSave(): void {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = null;
+    this.pendingMapping = null;
+  }
+
+  /** Leaves Map columns; the workbook and the mapping so far stay with the import (Recent imports). */
+  leaveMapping(): void {
+    this.flushMapping();
+    this.inspection.set(null);
+    this.uploadError.set(null);
+    this.loadRecent();
+  }
+
+  /** Opens Map columns for an import that was not committed (its kept workbook, its mapping). */
+  editMapping(batchId: number): void {
+    this.uploadError.set(null);
+    this.svc.reinspect(batchId).subscribe({
+      next: (inspection) => {
+        this.batch.set(null);
+        this.file.set(null);
+        this.inspection.set(inspection);
+      },
+      error: (e) => toast.error(importErrorMessage(e).title),
+    });
+  }
+
+  /** Deletes an import that was not committed, with its kept workbook. */
+  async deleteImport(r: StyleImportBatch): Promise<void> {
+    const ok = await this.confirmDlg.confirm({
+      title: this.transloco.translate('settings.import.delete.title'),
+      message: this.transloco.translate('settings.import.delete.message', { file: r.fileName }),
+      confirmLabel: this.transloco.translate('settings.import.delete.confirm'),
+      cancelLabel: this.transloco.translate('settings.import.keep'),
+      variant: 'danger',
+    });
+    if (!ok) return;
+    this.svc.deleteImport(r.batchId).subscribe({
+      next: () => {
+        toast.success(this.transloco.translate('settings.import.delete.done', { file: r.fileName }));
+        if (this.batch()?.batchId === r.batchId) this.batch.set(null);
+        this.loadRecent();
+      },
+      error: (e) => toast.error(importErrorMessage(e).title),
+    });
+  }
+
+  /** Not committed: can be deleted from the list. */
+  canDelete = (r: StyleImportBatch) => r.status === 'Mapping' || r.status === 'Staged' || r.status === 'Cancelled';
+
+  /** The workbook is kept and the import not committed: its columns can be mapped (again). */
+  canRemap = (r: StyleImportBatch) => r.hasFile && this.canDelete(r);
+
   // ── Open a batch ───────────────────────────────────────────
 
   open(batch: StyleImportBatch): void {
     this.batch.set(batch);
+    this.blockers.set(null);
     this.overwrite.set(new Set());
     this.actionFilter.set(null);
     this.severityFilter.set(null);
@@ -205,8 +320,15 @@ export class StyleImport implements OnInit {
   loadCodes(): void {
     const b = this.batch();
     this.codes.set(null);
+    this.codesFailed.set(false);
     if (!b || b.status !== 'Staged') return;
-    this.svc.newCodes(b.batchId).subscribe({ next: (c) => this.codes.set(c), error: (e) => toast.error(importErrorMessage(e).title) });
+    this.svc.newCodes(b.batchId).subscribe({
+      next: (c) => this.codes.set(c),
+      error: (e) => {
+        this.codesFailed.set(true);
+        toast.error(importErrorMessage(e).title);
+      },
+    });
   }
 
   suggestCodes(): void {
@@ -235,7 +357,7 @@ export class StyleImport implements OnInit {
     const b = this.batch();
     if (!b || !code || this.mapping()) return;
     this.mapping.set(this.codeKey(c));
-    this.svc.mapCode(b.batchId, c.list, c.value, code).subscribe({
+    this.svc.mapCode(b.batchId, c.list, c.value, code, this.remember()).subscribe({
       next: (batch) => {
         this.mapping.set(null);
         toast.success(this.transloco.translate('settings.import.codes.mapped', { value: c.value, code }));
@@ -249,6 +371,14 @@ export class StyleImport implements OnInit {
         toast.error(importErrorMessage(e).title);
       },
     });
+  }
+
+  /** An answer in the questions panel changed the staged rows: show the new check. */
+  onAnswered(batch: StyleImportBatch): void {
+    this.batch.set(batch);
+    this.loadStyles();
+    this.loadIssues();
+    this.svc.newCodes(batch.batchId).subscribe({ next: (x) => this.codes.set(x), error: () => undefined });
   }
 
   pickCode(c: ImportNewCode, code: string): void {
@@ -387,7 +517,7 @@ export class StyleImport implements OnInit {
         newCount: s.styles.new,
         replaceCount: this.overwrite().size,
         skipCount: s.styles.total - this.toWrite(),
-      }),
+      }) + this.newPartnersNote(),
       confirmLabel: this.transloco.translate('settings.import.commit'),
       cancelLabel: this.transloco.translate('actions.cancel'),
       variant: this.overwrite().size ? 'warning' : 'info',
@@ -406,6 +536,48 @@ export class StyleImport implements OnInit {
       error: (e) => {
         this.committing.set(false);
         toast.error(importErrorMessage(e).title);
+      },
+    });
+  }
+
+  /** Flags customers and SAP suppliers the commit would add, so adding them is a choice. */
+  private newPartnersNote(): string {
+    const codes = this.codes()?.codes ?? [];
+    const customers = codes.filter((c) => c.list === 'customer').length;
+    const suppliers = codes.filter((c) => c.list === 'supplier').length;
+    const skipped = this.summary()?.skippedBom?.rows ?? 0;
+    return (customers + suppliers ? ' ' + this.transloco.translate('settings.import.ask.commitAdds', { customers, suppliers }) : '')
+      + (skipped ? ' ' + this.transloco.translate('settings.import.ask.commitSkips', { rows: skipped }) : '');
+  }
+
+  /** Undoes the commit; when styles changed since, lists them instead (nothing is changed). */
+  async rollback(): Promise<void> {
+    const b = this.batch();
+    const c = b?.summary?.committed;
+    if (!b || !c || this.rollingBack()) return;
+    const ok = await this.confirmDlg.confirm({
+      title: this.transloco.translate('settings.import.rollback.title'),
+      message: this.transloco.translate('settings.import.rollback.message', { file: b.fileName, newCount: c.new, replaced: c.replaced }),
+      confirmLabel: this.transloco.translate('settings.import.rollback.confirm'),
+      cancelLabel: this.transloco.translate('settings.import.keep'),
+      variant: 'danger',
+    });
+    if (!ok) return;
+    this.rollingBack.set(true);
+    this.blockers.set(null);
+    this.svc.rollback(b.batchId).subscribe({
+      next: (done) => {
+        this.rollingBack.set(false);
+        this.batch.set(done);
+        this.loadStyles();
+        this.loadRecent();
+        toast.success(this.transloco.translate('settings.import.rollback.done', { removed: done.summary?.rolledBack?.removed ?? 0, restored: done.summary?.rolledBack?.restored ?? 0 }));
+      },
+      error: (e) => {
+        this.rollingBack.set(false);
+        const blockers = rollbackBlockers(e);
+        if (blockers) this.blockers.set(blockers);
+        else toast.error(importErrorMessage(e).title);
       },
     });
   }
@@ -430,5 +602,6 @@ export class StyleImport implements OnInit {
   sheetLabel = (sheet: StyleImportIssue['sheet']) =>
     sheet === 'Style' ? 'Style Header' : sheet === 'Article' ? 'Article' : 'BOM Detail';
 
-  statusTone = (status: StyleImportBatch['status']): Tone => (status === 'Committed' ? 'green' : status === 'Staged' ? 'amber' : 'neutral');
+  statusTone = (status: StyleImportBatch['status']): Tone =>
+    status === 'Committed' ? 'green' : status === 'Staged' ? 'amber' : status === 'Mapping' ? 'primary' : status === 'RolledBack' ? 'red' : 'neutral';
 }

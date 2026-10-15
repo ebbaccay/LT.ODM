@@ -96,7 +96,7 @@ export interface SaveMenuItemRequest {
 
 /** A pick list the Reference lists page can maintain, with the API's rules for its form. */
 export interface RefListInfo {
-  /** customers, seasons, seasonTerms, businessUnits, productTypes, weaveTypes, contentClasses, materialTypes, uoms, suppliers */
+  /** customers, brands, seasons, seasonTerms, businessUnits, productTypes, weaveTypes, contentClasses, materialTypes, uoms, suppliers */
   key: string;
   codeMaxLength: number;
   /** 'upper' / 'lower': the API stores codes in this case; '' = as typed. */

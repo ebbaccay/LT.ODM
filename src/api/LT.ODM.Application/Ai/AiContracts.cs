@@ -21,8 +21,10 @@ public interface IAiJsonClient
     /// <summary>
     /// One request. <paramref name="schema"/> is standard JSON Schema with lower-case types ("object", "string", ...);
     /// each provider converts it to its own dialect. Returns the model's JSON text; failures become AiServiceExceptions.
+    /// maxTokens: the longest answer the feature needs (0 = the default cap); a small cap stops a model that loops early.
     /// </summary>
-    Task<string> GenerateJsonAsync(string purpose, string systemInstruction, string userText, JsonObject schema, double temperature, CancellationToken ct = default);
+    Task<string> GenerateJsonAsync(string purpose, string systemInstruction, string userText, JsonObject schema, double temperature, CancellationToken ct = default,
+        int maxTokens = 0);
 }
 
 /// <summary>An image model. The service is chosen per call (Settings > AI connections).</summary>

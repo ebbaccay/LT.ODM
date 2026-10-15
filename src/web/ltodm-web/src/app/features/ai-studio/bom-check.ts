@@ -18,6 +18,8 @@ import { problemMessage } from '../../core/auth/auth.service';
 import { StyleLibraryService, StyleListItem, StyleLookups } from '../style-library/style-library.service';
 import { AiProviderBanner } from './ai-provider-banner';
 import { AiStudioService, BOM_RULES, BomCheck, BomCheckExplanation, BomCheckFinding, BomCheckQuery, BomRule, Severity } from './ai-studio.service';
+import { AiTaskRunning } from './ai-task-running';
+import { AiTasksSession } from './ai-tasks.session';
 import { StylePicker } from './style-picker';
 
 type Scope = 'style' | 'group';
@@ -27,14 +29,14 @@ const SEVERITY_TONE: Record<Severity, Tone> = { High: 'red', Medium: 'amber', Lo
 /**
  * AI Studio > BOM check: rules flag BOM lines that need a look (missing or outlying consumption, LCO vs brand gaps,
  * changes from the reused style, missing suppliers). The check itself is SQL rules and needs no AI; "Explain with AI"
- * sends the first 80 findings (most severe first) for a plain-language summary and a fix-first list.
+ * sends the 40 most severe findings for a plain-language summary and a fix-first list.
  * Address: /ai/bom-check?styleId=.. or ?customer=..&season=.. (both empty = the whole library).
  */
 @Component({
   selector: 'app-bom-check',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DecimalPipe, RouterLink, NgIcon, AiProviderBanner, StylePicker, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmInputImports, HlmNativeSelectImports,
+    DecimalPipe, RouterLink, NgIcon, AiProviderBanner, AiTaskRunning, StylePicker, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmInputImports, HlmNativeSelectImports,
     HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe,
   ],
   providers: [provideIcons({ lucideClipboardCheck, lucideSearch, lucideShieldAlert, lucideSparkles, lucideX })],
@@ -47,6 +49,7 @@ export class BomCheckPage implements OnInit {
   private readonly router = inject(Router);
   private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly tasks = inject(AiTasksSession);
 
   readonly rules = BOM_RULES;
   readonly severities: Severity[] = ['High', 'Medium', 'Low'];
@@ -58,8 +61,11 @@ export class BomCheckPage implements OnInit {
   readonly pickedStyle = signal<string | null>(null);
   readonly result = signal<BomCheck | null>(null);
   readonly loading = signal(false);
-  readonly explanation = signal<BomCheckExplanation | null>(null);
-  readonly explaining = signal(false);
+  /** The check shown (its query as a key): the AI explanation belongs to it and is kept by the session while away. */
+  private readonly checked = signal<string | null>(null);
+  readonly explainTask = this.tasks.watch<BomCheckExplanation>(computed(() => (this.checked() ? `bom:${this.checked()}` : null)));
+  readonly explanation = computed(() => (this.explainTask()?.status === 'done' ? this.explainTask()!.result : null));
+  readonly explaining = computed(() => this.explainTask()?.status === 'running');
   readonly ruleFilter = signal<BomRule | ''>('');
   readonly severityFilter = signal<Severity | ''>('');
   /** Search over the findings shown: style, season, customer, material, section and rule. Every word must match. */
@@ -99,7 +105,7 @@ export class BomCheckPage implements OnInit {
       if (p.keys.length) this.run();
       else {
         this.result.set(null);
-        this.explanation.set(null);
+        this.checked.set(null);
       }
     });
   }
@@ -107,7 +113,7 @@ export class BomCheckPage implements OnInit {
   setScope(scope: Scope): void {
     this.scope.set(scope);
     this.result.set(null);
-    this.explanation.set(null);
+    this.checked.set(null);
   }
 
   pickStyle(s: StyleListItem): void {
@@ -127,13 +133,14 @@ export class BomCheckPage implements OnInit {
 
   run(): void {
     this.loading.set(true);
-    this.explanation.set(null);
+    this.checked.set(null);
     this.ruleFilter.set('');
     this.severityFilter.set('');
     this.search.set('');
     this.svc.bomCheck(this.query()).subscribe({
       next: (r) => {
         this.result.set(r);
+        this.checked.set(queryKey(this.query()));
         this.loading.set(false);
         if (this.query().styleId && r.findings[0]) this.pickedStyle.set(r.findings[0].styleNo);
       },
@@ -145,18 +152,13 @@ export class BomCheckPage implements OnInit {
   }
 
   explain(): void {
-    if (this.explaining()) return;
-    this.explaining.set(true);
-    this.svc.explain(this.query()).subscribe({
-      next: (x) => {
-        this.explanation.set(x);
-        this.explaining.set(false);
-      },
-      error: (e) => {
-        this.explaining.set(false);
-        toast.error(this.transloco.translate('ai.failed'), { description: problemMessage(e) });
-      },
-    });
+    const key = this.checked();
+    if (!key || this.explaining()) return;
+    const q = this.query();
+    const label = q.styleId
+      ? (this.pickedStyle() ?? `#${q.styleId}`)
+      : [q.customer, q.season].filter((x) => !!x).join(' ') || this.transloco.translate('ai.tasks.wholeLibrary');
+    this.tasks.run('bomExplain', `bom:${key}`, label, this.svc.explain(q));
   }
 
   toggleRule(rule: BomRule): void {
@@ -204,3 +206,6 @@ export class BomCheckPage implements OnInit {
     }
   }
 }
+
+/** The same check gives the same key, whichever way it was reached. */
+const queryKey = (q: BomCheckQuery) => (q.styleId ? `style=${q.styleId}` : `customer=${q.customer ?? ''};season=${q.season ?? ''}`);

@@ -25,7 +25,7 @@ Sensitivity is LT's view of the data: **Low** (reference lists and generic text)
 
 | | |
 |---|---|
-| Job / calls | Text, 1 per search **only when the phrase list does not understand every word** ([Smart search](../components/ai-studio.md#smart-search-aisearch)); requests made of phrase-list words send nothing |
+| Job / calls | Text, 1 per search **only when the phrase list does not understand every word and no style picture clearly matches** ([Smart search](../components/ai-studio.md#smart-search-aisearch)); requests made of phrase-list words, or matched by the built-in image model, send nothing |
 | Sent | The request as typed; today's date; the library's code lists: customers (code and name), season codes, business units, product types, weave types (code and name) |
 | Not sent | Any style data. The AI only fills filters; the results come from the database |
 | Styles that look like this | The request is also searched by picture with the image model built into the API ([Image search](#ai-studio--image-search)): **nothing is sent anywhere** for it |
@@ -40,9 +40,20 @@ Sensitivity is LT's view of the data: **Low** (reference lists and generic text)
 | Where | **In-house server only.** Vision and Embedding accept only OpenAI-compatible connections; a Gemini connection is refused before anything is sent. With *Allow cloud AI services* off, a connection not marked "runs on the LT network" is blocked too |
 | Sent (Vision) | One picture, made at most 768 px: a style photo, sketch, colorway picture or AI render (index), or the uploaded photo (search); a fixed instruction. No style number, customer or other field goes with it |
 | Sent (Embedding) | The text the vision model wrote about the picture (garment, colours, details, fabric look, description), or the words typed |
-| Stored | In LT's database: the description and its vector (`style.ImageIndex`), the look-alike vector (`style.ImageVector`). **Uploaded search photos are not stored** |
+| Stored | In LT's database: the description and its vector (`style.ImageIndex`), the look-alike vector (`style.ImageVector`), picture tags (`style.ImageTag`, from the look-alike vector, nothing sent). **Uploaded search photos are not stored** |
 | Not sent | Style numbers, customers, BOMs, suppliers, costs |
 | Sensitivity | Medium (pictures of customer designs), kept inside LT |
+
+### AI Studio > Library assistant
+
+| | |
+|---|---|
+| Job / calls | Text, **2 per question** (pick the look-up, word the answer); **none** when the phrase list understands the question |
+| Sent (call 1) | The question; the last 4 questions of the conversation with the look-up and arguments used; the library's code lists (customers, season codes, business units, product types, weaves with names); today's date; the list of look-ups |
+| Sent (call 2) | The question and the look-up's result: depending on the look-up, style numbers, models, customers, seasons, product types, BOM lines (material codes and descriptions, suppliers, consumption), colorway codes, material where-used and supplier shares, recycled shares, colour counts, BOM check findings, change lists between two styles. At most 10-25 rows |
+| Not sent | Costs and prices (no cost look-up today), pictures, user names. Questions answered from the phrase list, a saved question or "looks like" send nothing (the look-alike search runs inside the API) |
+| Stored (inside LT) | Questions the AI answered, with the look-up and filters chosen (`ai.SavedQuestion`, no user names, no answers); see [Saved questions](../components/library-assistant.md#saved-questions-common-questions-answered-at-once) |
+| Sensitivity | Medium (customer style details and suppliers). Keep **Allow cloud AI services** off to keep it on the in-house server; when cost look-ups are added this becomes High |
 
 ### AI Studio > Change summary and Styles > Compare styles ("Summarize with AI")
 
@@ -68,7 +79,7 @@ Sensitivity is LT's view of the data: **Low** (reference lists and generic text)
 |---|---|
 | Job / calls | **Rewrite with AI**: Text, 1 call. **Generate render**: Image, 1 call |
 | Sent (Rewrite) | The facts shown on the page: garment type, gender, construction, model name, colorway code and name, up to 3 shortened fabric descriptions, colours, visible trims; whether a sketch exists |
-| Sent (Generate) | The description as shown in the prompt box (brand names such as adidas, Skechers, Parley and Primegreen are removed before sending); **the style's uploaded sketch image** when "Use the sketch" is ticked and the image service is Gemini |
+| Sent (Generate) | The description as shown in the prompt box (brand names such as adidas, Skechers, Parley and Primegreen are removed before sending); **the style's uploaded sketch image** when "Use the sketch" is ticked: to Gemini, or to an in-house image server (`images/edits`, stays on the LT network) |
 | Not sent | Photos, BOM figures, suppliers, costs |
 | Sensitivity | Medium (the sketch is a customer design) |
 
@@ -114,9 +125,9 @@ Sensitivity is LT's view of the data: **Low** (reference lists and generic text)
 | | |
 |---|---|
 | Job / calls | Text, 1 per click |
-| Sent | Up to 60 values the spelling rule could not match: which list, the value, the file's own name for it, row count; the existing codes and names of those lists (for suppliers: every SAP supplier code and name) |
+| Sent | Up to 60 values the spelling rule could not match: which list (season, customer, brand, product type, ...), the value, the file's own name for it (for customers: the Cust_Name), row count; the existing codes and names of those lists (for suppliers: every SAP supplier code and name; for seasons: every season code) |
 | Not sent | The workbook rows, styles, BOM lines |
-| Sensitivity | Low to medium (supplier list) |
+| Sensitivity | Low to medium (supplier list, customer account names) |
 
 ### Materials > Description reader
 
@@ -126,6 +137,15 @@ Sensitivity is LT's view of the data: **Low** (reference lists and generic text)
 | Sent | For each material: id, material code, description (first 600 characters), section |
 | Not sent | Which styles use it, consumption, suppliers, costs |
 | Sensitivity | Medium (descriptions name the customer's materials and programmes) |
+
+### Settings > Import pictures
+
+| | |
+|---|---|
+| Built-in models | **Nothing is sent anywhere.** The garment finder (rules, plus the image search model built into the API to choose the garment), the sketch-or-photo check (the same model plus pixel rules) and the upscaler run inside the API on the web server |
+| Job / calls | None |
+| Stored | In LT's file storage: the cut-out picture (`style-library`), set as the picture or sketch of the styles ticked. The uploaded sheets themselves are not kept |
+| Sensitivity | Medium (pictures of customer designs), kept inside LT |
 
 ### Settings > AI connections ("Test connection")
 

@@ -10,6 +10,7 @@ import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmInputImports } from '@spartan-ng/helm/input';
+import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
 import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { AuthImgDirective } from '@tms/shared/ui/auth-img';
@@ -19,8 +20,9 @@ import { GENDERS, StyleLibraryService, StyleListFilter, StyleListItem, StyleLook
 
 const PAGE = 50;
 // status: '' = active styles (the default), 'inactive', or 'all'.
+// pictures: '' = styles with a picture or sketch (the default), or 'all'.
 // weaveType and material have no select here; AI Studio's smart search sets them (and several seasons / product types).
-const FILTER_KEYS = ['search', 'customer', 'season', 'businessUnit', 'productType', 'gender', 'status', 'weaveType', 'material'] as const;
+const FILTER_KEYS = ['search', 'customer', 'season', 'businessUnit', 'productType', 'gender', 'status', 'weaveType', 'material', 'looks', 'pictures'] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 
 /**
@@ -32,7 +34,7 @@ type FilterKey = (typeof FILTER_KEYS)[number];
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe, DecimalPipe, RouterLink, NgIcon, AuthImgDirective, StyleFormDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports,
-    HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, TranslocoPipe,
+    HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, TranslocoPipe,
   ],
   providers: [provideIcons({ lucideGitBranch, lucideImage, lucidePlus, lucideSearch, lucideShirt, lucideX })],
   templateUrl: './styles-list.html',
@@ -48,7 +50,7 @@ export class StylesList implements OnInit {
   readonly genders = GENDERS;
   readonly lookups = signal<StyleLookups | null>(null);
   readonly filter = signal<Record<FilterKey, string>>({
-    search: '', customer: '', season: '', businessUnit: '', productType: '', gender: '', status: '', weaveType: '', material: '',
+    search: '', customer: '', season: '', businessUnit: '', productType: '', gender: '', status: '', weaveType: '', material: '', looks: '', pictures: '',
   });
   readonly styles = signal<StyleListItem[]>([]);
   readonly total = signal(0);
@@ -57,7 +59,15 @@ export class StylesList implements OnInit {
   /** Image URLs that failed to load (the row falls back to the sketch, then the placeholder). */
   readonly brokenImages = signal<ReadonlySet<string>>(new Set());
 
-  readonly activeFilters = computed(() => FILTER_KEYS.filter((k) => k !== 'search' && this.filter()[k]).length);
+  // "With pictures only" is a view setting (on by default), not a filter to count or clear.
+  readonly activeFilters = computed(() => FILTER_KEYS.filter((k) => k !== 'search' && k !== 'pictures' && this.filter()[k]).length);
+  readonly picturesOnly = computed(() => this.filter().pictures !== 'all');
+
+  /** The search's words as one pattern, to highlight them in the colorways and BOM lines it was found on. */
+  private readonly searchPattern = computed(() => {
+    const words = this.filter().search.trim().split(/\s+/).filter(Boolean);
+    return words.length ? new RegExp(`(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'i') : null;
+  });
 
   /** Filters the selects cannot show (several codes, or no select at all), as removable chips. */
   readonly extraChips = computed(() => {
@@ -68,6 +78,7 @@ export class StylesList implements OnInit {
     if (f.productType.includes(',')) chips.push({ key: 'productType', label: 'styles.chipProductTypes', value: f.productType.replaceAll(',', ', ') });
     if (f.weaveType) chips.push({ key: 'weaveType', label: 'styles.chipWeave', value: f.weaveType });
     if (f.material) chips.push({ key: 'material', label: 'styles.chipMaterial', value: f.material });
+    if (f.looks) chips.push({ key: 'looks', label: 'styles.chipLooks', value: f.looks.replaceAll(',', ', ') });
     return chips;
   });
 
@@ -82,6 +93,33 @@ export class StylesList implements OnInit {
     this.searchInput.pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef)).subscribe((value) => this.setFilter('search', value));
   }
 
+  /** Text split into plain and highlighted (search word) parts. */
+  highlight(text: string | null): { text: string; hit: boolean }[] {
+    const re = this.searchPattern();
+    if (!text) return [];
+    if (!re) return [{ text, hit: false }];
+    // With one capture group, split() alternates plain text (even indexes) and matched words (odd indexes).
+    return text
+      .split(re)
+      .map((part, i) => ({ text: part, hit: i % 2 === 1 }))
+      .filter((p) => p.text);
+  }
+
+  /** How many more colorways / BOM lines matched than are listed under the style. */
+  moreFound(s: StyleListItem, kind: 'Colorway' | 'BomLine'): number {
+    const f = s.found;
+    if (!f) return 0;
+    return (kind === 'Colorway' ? f.colorways : f.bomLines) - f.matches.filter((m) => m.kind === kind).length;
+  }
+
+  /** Opens the style where the search was found: the BOM tab filtered by the search, or the colorways. */
+  rowParams(s: StyleListItem): Record<string, string> | null {
+    const f = s.found;
+    if (f?.bomLines) return { tab: 'bom', bomSearch: this.filter().search.trim() };
+    if (f?.colorways) return { tab: 'colorways' };
+    return null;
+  }
+
   onSearch(event: Event): void {
     this.searchInput.next((event.target as HTMLInputElement).value);
   }
@@ -93,14 +131,20 @@ export class StylesList implements OnInit {
     void this.router.navigate([], { queryParams, queryParamsHandling: 'merge', replaceUrl: true });
   }
 
+  /** Keeps "With pictures only" as it is; clears everything else. */
   clearFilters(): void {
-    void this.router.navigate([], { queryParams: {}, replaceUrl: true });
+    void this.router.navigate([], { queryParams: { pictures: this.filter().pictures || null }, replaceUrl: true });
+  }
+
+  togglePicturesOnly(): void {
+    this.setFilter('pictures', this.picturesOnly() ? 'all' : '');
   }
 
   load(more = false): void {
     const f = this.filter();
     const status = f.status === 'all' ? undefined : (f.status || 'active');
-    const query: StyleListFilter = { ...f, status, skip: more ? this.styles().length : 0, take: PAGE };
+    const pictures = f.pictures === 'all' ? undefined : 'with';
+    const query: StyleListFilter = { ...f, status, pictures, skip: more ? this.styles().length : 0, take: PAGE };
     this.loading.set(true);
     this.svc.list(query).subscribe({
       next: (page) => {

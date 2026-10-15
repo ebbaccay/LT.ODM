@@ -9,7 +9,8 @@
 | Garment Quotation and other ported screens spin forever | WebSockets blocked: IIS WebSocket Protocol feature missing, or a proxy strips the upgrade | Install the feature (and `iisreset`) |
 | Users are signed out every few minutes | The app is served on two different host names, or the clock of the server is wrong | Use one host name; check server time |
 | Sign-in fails for everyone with "Too many attempts" | A load balancer or proxy was put in front: every user shares its IP, so the per-IP limit (10/min) is shared | Add forwarded-headers handling to the API (see [IIS deployment](03-iis-deployment.md#behind-a-load-balancer-or-reverse-proxy)) |
-| Import of a large workbook fails with 404.13 | IIS request limit (30 MB default) | Set `maxAllowedContentLength="57671680"` |
+| Settings > Import: "The import could not be completed" (500); event log shows *The SELECT permission was denied on the object 'StyleRow'* | The `ltodm_app` role has INSERT but not SELECT on the staging tables; SqlBulkCopy reads the table's columns first | Run the three `GRANT SELECT, INSERT ON staging.…` lines from [Database §3](02-database.md#3-permissions-for-the-application). No restart needed |
+| Import of a large workbook fails with 404.13 | IIS request limit (30 MB default) | Set `maxAllowedContentLength="110100480"` (105 MB) in `web.config` |
 | Images do not show, or upload fails with 500 | App-pool account lacks Modify on `Files:Root` | Grant Modify |
 | "New users never get the email" | `Email:*` not set or the relay refuses the server | Set SMTP settings; Admin can resend with **Send password link**. Until SMTP works, give the user a temporary password (**Edit access > Set temporary password**) |
 | AI pages say "AI is not set up" | No connection for the job and no appsettings fallback | Settings > AI connections: add a connection and set the job |

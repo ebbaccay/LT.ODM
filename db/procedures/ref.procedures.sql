@@ -13,6 +13,7 @@
       seasons         ref.Season                     '2027-SS'            Description    IsActive         styles
       seasonTerms     ref.SeasonTerm                 2-4 letters          Name           SortOrder        seasons
       customers       partner.Partner (Customer)     as typed             Name           IsActive         styles
+      brands          ref.Brand                      upper-case           Name           IsActive         customers
       suppliers       partner.Partner (Supplier)     as typed             Name           IsActive         BOM lines
 
     Codes are the keys styles, BOM lines and the workbook import use, so they cannot change once created (the API
@@ -67,7 +68,7 @@ BEGIN
     ELSE IF @List = 'seasons'
         SELECT Code = x.SeasonCode, Name = x.Description, SortOrder = CAST(NULL AS int), x.IsActive,
                UsageCount = (SELECT COUNT(*) FROM style.Style s WHERE s.SeasonCode = x.SeasonCode)
-        FROM ref.Season x JOIN ref.SeasonTerm t ON t.Term = x.Term
+        FROM ref.Season x LEFT JOIN ref.SeasonTerm t ON t.Term = x.Term
         ORDER BY x.SeasonYear DESC, t.SortOrder DESC;
     ELSE IF @List = 'seasonTerms'
         SELECT Code = x.Term, x.Name, SortOrder = CAST(x.SortOrder AS int), IsActive = CAST(NULL AS bit),
@@ -77,6 +78,10 @@ BEGIN
         SELECT Code = x.PartnerCode, x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
                UsageCount = (SELECT COUNT(*) FROM style.Style s WHERE s.CustomerId = x.PartnerId)
         FROM partner.Partner x WHERE x.PartnerType = 'Customer' ORDER BY x.PartnerCode;
+    ELSE IF @List = 'brands'
+        SELECT Code = x.BrandCode, x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
+               UsageCount = (SELECT COUNT(*) FROM partner.Partner p WHERE p.BrandCode = x.BrandCode)
+        FROM ref.Brand x ORDER BY x.BrandCode;
     ELSE IF @List = 'suppliers'
         SELECT Code = x.PartnerCode, x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
                UsageCount = (SELECT COUNT(*) FROM style.BomLine b WHERE b.SupplierId = x.PartnerId)
@@ -116,12 +121,14 @@ BEGIN
         WHEN @List = 'businessUnits'  THEN IIF(EXISTS (SELECT 1 FROM ref.BusinessUnit WHERE BusinessUnitCode = @Code), 1, 0)
         WHEN @List = 'seasons'        THEN IIF(EXISTS (SELECT 1 FROM ref.Season WHERE SeasonCode = @Code), 1, 0)
         WHEN @List = 'seasonTerms'    THEN IIF(EXISTS (SELECT 1 FROM ref.SeasonTerm WHERE Term = @Code), 1, 0)
+        WHEN @List = 'brands'         THEN IIF(EXISTS (SELECT 1 FROM ref.Brand WHERE BrandCode = @Code), 1, 0)
         WHEN @partnerType IS NOT NULL THEN IIF(EXISTS (SELECT 1 FROM partner.Partner WHERE PartnerType = @partnerType AND PartnerCode = @Code), 1, 0)
     END;
     IF @exists IS NULL THROW 50070, 'Unknown reference list.', 1;
     IF @IsNew = 1 AND @exists = 1 THROW 50071, 'This code already exists in the list.', 1;
     IF @IsNew = 0 AND @exists = 0 THROW 50072, 'This code was not found. It may have been deleted; reload the list.', 1;
 
+    -- New seasons are typed as year-term; imported ones may have other names (kept until normalised).
     IF @List = 'seasons' AND @IsNew = 1
        AND NOT EXISTS (SELECT 1 FROM ref.SeasonTerm WHERE Term = SUBSTRING(@Code, 6, 8))
         THROW 50073, 'The season term after the year is not in the Season terms list. Add the term first.', 1;
@@ -171,6 +178,11 @@ BEGIN
         IF @IsNew = 1 INSERT ref.SeasonTerm (Term, Name, SortOrder) VALUES (@Code, @Name, @SortOrder);
         ELSE UPDATE ref.SeasonTerm SET Name = @Name, SortOrder = @SortOrder WHERE Term = @Code;
     END
+    ELSE IF @List = 'brands'
+    BEGIN
+        IF @IsNew = 1 INSERT ref.Brand (BrandCode, Name, IsActive) VALUES (@Code, @Name, @IsActive);
+        ELSE UPDATE ref.Brand SET Name = @Name, IsActive = @IsActive WHERE BrandCode = @Code;
+    END
     ELSE
     BEGIN
         IF @IsNew = 1
@@ -205,6 +217,7 @@ BEGIN
         WHEN @List = 'businessUnits'  THEN IIF(EXISTS (SELECT 1 FROM style.Style WHERE BusinessUnitCode = @Code), 1, 0)
         WHEN @List = 'seasons'        THEN IIF(EXISTS (SELECT 1 FROM style.Style WHERE SeasonCode = @Code), 1, 0)
         WHEN @List = 'seasonTerms'    THEN IIF(EXISTS (SELECT 1 FROM ref.Season WHERE Term = @Code), 1, 0)
+        WHEN @List = 'brands'         THEN IIF(EXISTS (SELECT 1 FROM partner.Partner WHERE BrandCode = @Code), 1, 0)
         WHEN @List = 'customers'      THEN IIF(EXISTS (SELECT 1 FROM style.Style WHERE CustomerId = @partnerId), 1, 0)
         WHEN @List = 'suppliers'      THEN IIF(EXISTS (SELECT 1 FROM style.BomLine WHERE SupplierId = @partnerId), 1, 0)
     END;
@@ -220,6 +233,7 @@ BEGIN
     ELSE IF @List = 'businessUnits' DELETE ref.BusinessUnit WHERE BusinessUnitCode = @Code;
     ELSE IF @List = 'seasons'       DELETE ref.Season WHERE SeasonCode = @Code;
     ELSE IF @List = 'seasonTerms'   DELETE ref.SeasonTerm WHERE Term = @Code;
+    ELSE IF @List = 'brands'        DELETE ref.Brand WHERE BrandCode = @Code;
     ELSE                            DELETE partner.Partner WHERE PartnerId = @partnerId;
 END
 GO

@@ -142,13 +142,16 @@ builder.Services.AddCors(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    // Default policy: 100 requests per minute per client IP.
+    // Every API call: 600 per minute per signed-in user (per client IP before sign-in) by default. Per user, because
+    // offices behind one address (NAT, VPN, remote desktop) would otherwise share one allowance; generous, because one
+    // page can make 20-60 calls. Stored images do not count ([DisableRateLimiting] on their endpoints).
+    var permitPerMinute = builder.Configuration.GetValue("RateLimiting:PermitPerMinute", 600);
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
         RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            context.User.FindFirst("sub")?.Value is { } user ? "user:" + user : "ip:" + (context.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 100,
+                PermitLimit = permitPerMinute,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
@@ -205,6 +208,19 @@ else
     app.UseHsts();
 }
 app.UseStatusCodePages();
+
+// The browser gave up on a request (page change, refresh, a newer search): queries stop with the request's token, and
+// SqlClient reports that as SqlException "Operation cancelled by user". Nobody is waiting, so it is not an error.
+app.Use(async (context, next) =>
+{
+    try { await next(); }
+    catch (Exception ex) when (context.RequestAborted.IsCancellationRequested
+                               && ex is OperationCanceledException or Microsoft.Data.SqlClient.SqlException)
+    {
+        app.Logger.LogDebug("Request {Path} abandoned by the client.", context.Request.Path);
+        if (!context.Response.HasStarted) context.Response.StatusCode = 499;   // client closed request (nginx's code)
+    }
+});
 app.UseHttpsRedirection();
 
 // The web app (Angular build in wwwroot) is served by the API, so app and API share one address (one IIS site).

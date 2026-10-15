@@ -8,6 +8,8 @@ import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { filter } from 'rxjs';
 import { PwaService } from '../../core/pwa/pwa.service';
+import { AiTasksTray } from '../../features/ai-studio/ai-tasks-tray';
+import { LibraryAssistantBubble } from '../../features/ai-studio/library-assistant-bubble';
 import { LayoutService } from '../service/layout.service';
 import { AppFooter } from './app.footer';
 import { AppSidebar } from './app.sidebar';
@@ -24,6 +26,8 @@ import { AppTopbar } from './app.topbar';
     AppTopbar,
     AppSidebar,
     AppFooter,
+    LibraryAssistantBubble,
+    AiTasksTray,
   ],
   providers: [provideIcons({ lucideRefreshCw, lucideWifiOff })],
   template: `
@@ -73,6 +77,18 @@ import { AppTopbar } from './app.topbar';
       </main>
       <app-footer class="print:hidden" />
     </div>
+
+    <!-- Library assistant conversation away from its page (chat bubble). Loaded once the page is idle, so its code is
+         not part of the start-up bundle every page waits for. -->
+    @defer (on idle) {
+      <app-library-assistant-bubble />
+    }
+
+    <!-- Slow AI jobs (renders, BOM check explanations, change summaries) running or ready while the user is elsewhere.
+         Deferred like the bubble: the jobs live in AiTasksSession, so nothing is missed before the tray loads. -->
+    @defer (on idle) {
+      <app-ai-tasks-tray />
+    }
 
     @if (!pwa.online()) {
       <div

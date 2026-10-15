@@ -35,6 +35,26 @@ public interface IImageStore
 
     /// <summary>Opens a stored image, or null when the name is invalid or the file does not exist.</summary>
     (Stream Content, string ContentType)? Open(string fileName);
+
+    /// <summary>
+    /// A smaller copy of a stored image (longest side at most <paramref name="width"/> px, one of
+    /// <see cref="ImageRules.ThumbnailWidths"/>), made on first request and kept beside the original; the original when
+    /// it is already that small. Null when the original does not exist.
+    /// </summary>
+    Task<(Stream Content, string ContentType)?> OpenThumbnailAsync(string fileName, int width, CancellationToken ct = default)
+        => Task.FromResult(Open(fileName));
+}
+
+public static class ImageRules
+{
+    /// <summary>Thumbnail sizes offered (?w=): list rows, cards, larger previews.</summary>
+    public static readonly int[] ThumbnailWidths = [160, 320, 640];
+
+    /// <summary>
+    /// Stored images never change (each upload gets a new random name), so browsers may keep them: private (they need
+    /// the sign-in), for a year, without checking again.
+    /// </summary>
+    public const string CacheControl = "private, max-age=31536000, immutable";
 }
 
 /// <summary>Inspiration-board images uploaded in Concept Studio.</summary>

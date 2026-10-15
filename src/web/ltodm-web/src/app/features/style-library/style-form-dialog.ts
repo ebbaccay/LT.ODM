@@ -53,7 +53,7 @@ const EMPTY: Form = {
           </div>
           <div class="flex flex-col gap-1.5">
             <label hlmLabel for="sf-styleno">{{ 'styles.form.styleNo' | transloco }}</label>
-            <input hlmInput id="sf-styleno" class="h-11 font-mono lg:h-9" maxlength="40" autocomplete="off"
+            <input hlmInput id="sf-styleno" class="h-11 font-mono lg:h-9" maxlength="60" autocomplete="off"
               [value]="f.styleNo" (input)="set('styleNo', $any($event.target).value)" [attr.aria-invalid]="!!e['styleNo']" />
             @if (e['styleNo']) { <p class="text-destructive text-xs">{{ e['styleNo'] }}</p> }
           </div>
@@ -205,7 +205,8 @@ export class StyleFormDialog {
     };
     const missing: Record<string, string> = {};
     if (!request.customerCode) missing['customerCode'] = this.transloco.translate('styles.form.customerRequired');
-    if (!/^[0-9]{4}-[A-Z]{2,4}$/.test(request.seasonCode)) missing['seasonCode'] = this.transloco.translate('styles.form.seasonInvalid', { example: '2027-SS' });
+    // A season from the list (imported ones keep names like 26FW), or a new one typed as year-term.
+    if (!/^[0-9]{4}-[A-Z]{2,4}$/.test(request.seasonCode) && !(this.lookups()?.seasons ?? []).some((s) => s.code === request.seasonCode)) missing['seasonCode'] = this.transloco.translate('styles.form.seasonInvalid', { example: '2027-SS' });
     if (!request.styleNo) missing['styleNo'] = this.transloco.translate('styles.form.styleNoRequired');
     if (Object.keys(missing).length) {
       this.errors.set(missing);

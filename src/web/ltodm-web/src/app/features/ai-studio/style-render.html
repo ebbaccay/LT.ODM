@@ -121,6 +121,7 @@
               <ng-icon name="lucideImagePlus" />{{ 'ai.render.generate' | transloco }}
             }
           </button>
+          <app-ai-task-running [task]="renderTask()" />
         } @else {
           <p class="text-muted-foreground text-xs">{{ 'ai.render.readOnly' | transloco }}</p>
         }

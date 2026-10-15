@@ -103,6 +103,11 @@ public sealed class FakeImageSearchRepository : IImageSearchRepository
         return Task.FromResult(readings.Count);
     }
 
+    /// <summary>What the stats procedure returns (default: no pictures, so Smart search skips the look step).</summary>
+    public ImageVectorStatsDto Stats { get; set; } = new(0, 0, 0);
+
+    public Task<ImageVectorStatsDto> VectorStatsAsync(string model, float[] vector, CancellationToken ct = default) => Task.FromResult(Stats);
+
     public Task<IReadOnlyList<ImageMatchDto>> SearchVectorsAsync(string model, float[]? vector, int? fromStyleId, string? customer, int take, CancellationToken ct = default)
     {
         if (vector is null && fromStyleId is { } id && !StylesWithVectors.Contains(id)) return Task.FromResult<IReadOnlyList<ImageMatchDto>>([]);

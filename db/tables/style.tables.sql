@@ -49,20 +49,59 @@ CREATE TABLE ref.SeasonTerm
 );
 GO
 
-/* '2027-SS': year + term. */
+/* '2027-SS': year + term. Imported seasons may have other names ('26FW', 'FA26', '26Q2', '999'): they are kept as
+   written until normalised, with SeasonYear / Term filled when the name shows them (ref.fn_SeasonParts), else NULL. */
 IF OBJECT_ID(N'ref.Season', N'U') IS NULL
 CREATE TABLE ref.Season
 (
     SeasonCode   nvarchar(16)  NOT NULL,
-    SeasonYear   smallint      NOT NULL,
-    Term         nvarchar(8)   NOT NULL,
+    SeasonYear   smallint      NULL,
+    Term         nvarchar(8)   NULL,
     Description  nvarchar(64)  NULL,
     IsActive     bit           NOT NULL CONSTRAINT DF_ref_Season_IsActive DEFAULT (1),
 
     CONSTRAINT PK_ref_Season PRIMARY KEY CLUSTERED (SeasonCode),
     CONSTRAINT FK_ref_Season_Term FOREIGN KEY (Term) REFERENCES ref.SeasonTerm (Term),
-    CONSTRAINT CK_ref_Season_Code CHECK (REGEXP_LIKE(SeasonCode, N'^[0-9]{4}-[A-Z]{2,4}$'))
+    CONSTRAINT CK_ref_Season_Code CHECK (LEN(SeasonCode) > 0 AND CHARINDEX(N'|', SeasonCode) = 0)
 );
+GO
+/* Changed 2026-10-14: seasons keep the name they were imported with; year and term are optional. */
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_ref_Season_Code' AND definition LIKE N'%REGEXP_LIKE%')
+BEGIN
+    ALTER TABLE ref.Season DROP CONSTRAINT CK_ref_Season_Code;
+    ALTER TABLE ref.Season ADD CONSTRAINT CK_ref_Season_Code CHECK (LEN(SeasonCode) > 0 AND CHARINDEX(N'|', SeasonCode) = 0);
+END
+IF COLUMNPROPERTY(OBJECT_ID(N'ref.Season'), N'Term', 'AllowsNull') = 0
+BEGIN
+    ALTER TABLE ref.Season DROP CONSTRAINT FK_ref_Season_Term;
+    ALTER TABLE ref.Season ALTER COLUMN SeasonYear smallint NULL;
+    ALTER TABLE ref.Season ALTER COLUMN Term nvarchar(8) NULL;
+    ALTER TABLE ref.Season ADD CONSTRAINT FK_ref_Season_Term FOREIGN KEY (Term) REFERENCES ref.SeasonTerm (Term);
+END
+GO
+
+/*
+    Year and term read from a season name, for sorting seasons that are not normalised yet:
+      '2027-SS', '26FW', 'FA26' -> year + term (the term only if it is on ref.SeasonTerm); '26Q2', 'Q227' -> year only;
+      anything else ('999', 'CR') -> NULL.
+*/
+CREATE OR ALTER FUNCTION ref.fn_SeasonParts (@SeasonCode nvarchar(16))
+RETURNS TABLE
+AS RETURN
+SELECT p.SeasonYear,
+       Term = (SELECT t.Term FROM ref.SeasonTerm t WHERE t.Term = p.Term)
+FROM (SELECT c = UPPER(TRIM(@SeasonCode))) x
+CROSS APPLY (SELECT
+    SeasonYear = CASE
+        WHEN REGEXP_LIKE(x.c, N'^[0-9]{4}-[A-Z]{2,4}$')         THEN TRY_CONVERT(smallint, LEFT(x.c, 4))
+        WHEN REGEXP_LIKE(x.c, N'^[0-9]{2}([A-Z]{2,4}|Q[1-4])$') THEN 2000 + TRY_CONVERT(smallint, LEFT(x.c, 2))
+        WHEN REGEXP_LIKE(x.c, N'^([A-Z]{2,4}|Q[1-4])[0-9]{2}$') THEN 2000 + TRY_CONVERT(smallint, RIGHT(x.c, 2))
+    END,
+    Term = CASE
+        WHEN REGEXP_LIKE(x.c, N'^[0-9]{4}-[A-Z]{2,4}$') THEN SUBSTRING(x.c, 6, 4)
+        WHEN REGEXP_LIKE(x.c, N'^[0-9]{2}[A-Z]{2,4}$')  THEN SUBSTRING(x.c, 3, 4)
+        WHEN REGEXP_LIKE(x.c, N'^[A-Z]{2,4}[0-9]{2}$')  THEN LEFT(x.c, LEN(x.c) - 2)
+    END) p;
 GO
 
 IF OBJECT_ID(N'ref.BusinessUnit', N'U') IS NULL
@@ -147,6 +186,28 @@ CREATE TABLE partner.Partner
 );
 GO
 
+/*
+    Brands (added 2026-10-15): customer accounts that stay separate customers but belong to one brand
+    (11 POLO accounts -> brand POLO; the Skechers accounts -> SKE). Set from the workbook (Customer_Brand) or the
+    import's Questions panel.
+*/
+IF OBJECT_ID(N'ref.Brand', N'U') IS NULL
+CREATE TABLE ref.Brand
+(
+    BrandCode  nvarchar(32)   NOT NULL,
+    Name       nvarchar(100)  NOT NULL,
+    IsActive   bit            NOT NULL CONSTRAINT DF_ref_Brand_IsActive DEFAULT (1),
+    CONSTRAINT PK_ref_Brand PRIMARY KEY CLUSTERED (BrandCode),
+    CONSTRAINT CK_ref_Brand_Code CHECK (LEN(BrandCode) > 0 AND CHARINDEX(N'|', BrandCode) = 0)
+);
+GO
+IF COL_LENGTH(N'partner.Partner', N'BrandCode') IS NULL
+    ALTER TABLE partner.Partner ADD BrandCode nvarchar(32) NULL CONSTRAINT FK_partner_Partner_Brand REFERENCES ref.Brand (BrandCode);
+GO
+IF INDEXPROPERTY(OBJECT_ID(N'partner.Partner'), N'IX_partner_Partner_Brand', 'IndexId') IS NULL
+    CREATE INDEX IX_partner_Partner_Brand ON partner.Partner (BrandCode) WHERE BrandCode IS NOT NULL;
+GO
+
 /* ================================ mat ================================ */
 
 IF OBJECT_ID(N'mat.Material', N'U') IS NULL
@@ -178,9 +239,9 @@ CREATE TABLE style.Style
     StyleId             int IDENTITY(1, 1) NOT NULL,
     CustomerId          int                NOT NULL,
     SeasonCode          nvarchar(16)       NOT NULL,
-    StyleNo             nvarchar(40)       NOT NULL,
+    StyleNo             nvarchar(100)      NOT NULL,
     -- Style number without the reuse suffix ('S2508MR1212_SS27' -> 'S2508MR1212'): groups a style family.
-    BaseStyleNo         AS (CAST(IIF(CHARINDEX(N'_', StyleNo) > 1, LEFT(StyleNo, CHARINDEX(N'_', StyleNo) - 1), StyleNo) AS nvarchar(40))) PERSISTED,
+    BaseStyleNo         AS (CAST(IIF(CHARINDEX(N'_', StyleNo) > 1, LEFT(StyleNo, CHARINDEX(N'_', StyleNo) - 1), StyleNo) AS nvarchar(100))) PERSISTED,
     Description         nvarchar(400)      NULL,
     ModelCode           nvarchar(60)       NULL,
     ModelName           nvarchar(100)      NULL,
@@ -191,6 +252,7 @@ CREATE TABLE style.Style
     BusinessUnitCode    nvarchar(16)       NULL,
     SketchUrl           nvarchar(500)      NULL,
     ImageUrl            nvarchar(500)      NULL,
+    CustomerName        nvarchar(150)      NULL,   -- Cust_Name from the source system
     IsActive            bit                NOT NULL CONSTRAINT DF_style_Style_IsActive DEFAULT (1),   -- 0 = kept for history, not in use
     SourceCreatedUtc    datetime2(3)       NULL,   -- Create_dt from the source system
     ImportBatchId       int                NULL,   -- last import that wrote this style
@@ -214,6 +276,22 @@ GO
 /* Added 2026-10-07: active / inactive tag (existing styles become active). */
 IF COL_LENGTH(N'style.Style', N'IsActive') IS NULL
     ALTER TABLE style.Style ADD IsActive bit NOT NULL CONSTRAINT DF_style_Style_IsActive DEFAULT (1);
+/* Added 2026-10-14: the customer account's name as the source system writes it (Cust_Name), kept per style because the
+   customer code may later be mapped to a broader customer (several Skechers accounts -> SKE). */
+IF COL_LENGTH(N'style.Style', N'CustomerName') IS NULL
+    ALTER TABLE style.Style ADD CustomerName nvarchar(150) NULL;
+GO
+/* Widened 2026-10-14 (GO export: style numbers up to 49 characters, room for more): StyleNo 40 -> 100. Indexes and the
+   unique key on StyleNo widen in place; only the computed BaseStyleNo is rebuilt, so its index is dropped here and
+   re-created below. */
+IF COL_LENGTH(N'style.Style', N'StyleNo') < 200
+BEGIN
+    IF INDEXPROPERTY(OBJECT_ID(N'style.Style'), N'IX_style_Style_Family', 'IndexId') IS NOT NULL
+        DROP INDEX IX_style_Style_Family ON style.Style;
+    ALTER TABLE style.Style DROP COLUMN BaseStyleNo;
+    ALTER TABLE style.Style ALTER COLUMN StyleNo nvarchar(100) NOT NULL;
+    ALTER TABLE style.Style ADD BaseStyleNo AS (CAST(IIF(CHARINDEX(N'_', StyleNo) > 1, LEFT(StyleNo, CHARINDEX(N'_', StyleNo) - 1), StyleNo) AS nvarchar(100))) PERSISTED;
+END
 GO
 IF INDEXPROPERTY(OBJECT_ID(N'style.Style'), N'IX_style_Style_Season', 'IndexId') IS NULL
     CREATE INDEX IX_style_Style_Season ON style.Style (SeasonCode, CustomerId) INCLUDE (StyleNo, ModelName);
@@ -251,7 +329,7 @@ CREATE TABLE style.StyleHistory
     StyleId        int            NOT NULL,
     SourceStyleId  int            NOT NULL,
     Relation       varchar(10)    NOT NULL,
-    Suffix         nvarchar(40)   NULL,       -- what was added to the base style number, e.g. 'SS27', 'B_GRADE_FW26'
+    Suffix         nvarchar(100)  NULL,       -- what was added to the base style number, e.g. 'SS27', 'B_GRADE_FW26'
     LinkSource     varchar(8)     NOT NULL CONSTRAINT DF_style_StyleHistory_LinkSource DEFAULT ('Import'),
     Note           nvarchar(400)  NULL,
     CreatedBy      nvarchar(64)   NOT NULL,
@@ -275,6 +353,10 @@ BEGIN
     ALTER TABLE style.StyleHistory ADD CONSTRAINT CK_style_StyleHistory_LinkSource CHECK (LinkSource IN ('Import', 'Auto', 'Manual'));
 END
 GO
+/* Widened 2026-10-14 with StyleNo. */
+IF COL_LENGTH(N'style.StyleHistory', N'Suffix') < 200
+    ALTER TABLE style.StyleHistory ALTER COLUMN Suffix nvarchar(100) NULL;
+GO
 IF INDEXPROPERTY(OBJECT_ID(N'style.StyleHistory'), N'IX_style_StyleHistory_Source', 'IndexId') IS NULL
     CREATE INDEX IX_style_StyleHistory_Source ON style.StyleHistory (SourceStyleId);
 GO
@@ -286,7 +368,7 @@ CREATE TABLE style.Colorway
     ColorwayId          int IDENTITY(1, 1) NOT NULL,
     StyleId             int                NOT NULL,
     SortOrder           smallint           NOT NULL,
-    ColorwayCode        nvarchar(20)       NOT NULL,
+    ColorwayCode        nvarchar(100)      NOT NULL,
     ColorwayName        nvarchar(150)      NULL,
     Status              varchar(10)        NOT NULL CONSTRAINT DF_style_Colorway_Status DEFAULT ('INRANGE'),
     ImageUrl            nvarchar(500)      NULL,
@@ -301,6 +383,11 @@ CREATE TABLE style.Colorway
     CONSTRAINT FK_style_Colorway_Style FOREIGN KEY (StyleId) REFERENCES style.Style (StyleId),
     CONSTRAINT CK_style_Colorway_Status CHECK (Status IN ('INRANGE', 'DROPPED'))
 );
+GO
+/* Widened 2026-10-14 (GO export: article codes up to 30 characters, room for more): ColorwayCode 20 -> 100
+   (indexes widen in place). */
+IF COL_LENGTH(N'style.Colorway', N'ColorwayCode') < 200
+    ALTER TABLE style.Colorway ALTER COLUMN ColorwayCode nvarchar(100) NOT NULL;
 GO
 IF INDEXPROPERTY(OBJECT_ID(N'style.Colorway'), N'IX_style_Colorway_Code', 'IndexId') IS NULL
     CREATE INDEX IX_style_Colorway_Code ON style.Colorway (ColorwayCode);
@@ -323,6 +410,7 @@ CREATE TABLE style.BomLine
     LcoConsumption      decimal(18, 6)     NULL,
     BrandConsumption    decimal(18, 6)     NULL,       -- AD_Consump
     UomCode             nvarchar(8)        NULL,
+    ConsumptionAllowance decimal(18, 6)    NULL,       -- ASAD_Consump_Allowance
     ImageUrl            nvarchar(500)      NULL,
     CreatedBy           nvarchar(64)       NOT NULL,
     CreatedUtc          datetime2(3)       NOT NULL CONSTRAINT DF_style_BomLine_CreatedUtc DEFAULT (SYSUTCDATETIME()),
@@ -339,6 +427,10 @@ CREATE TABLE style.BomLine
     CONSTRAINT FK_style_BomLine_Supplier FOREIGN KEY (SupplierId) REFERENCES partner.Partner (PartnerId),
     CONSTRAINT FK_style_BomLine_Uom FOREIGN KEY (UomCode) REFERENCES ref.Uom (UomCode)
 );
+GO
+/* Added 2026-10-14: consumption allowance from the workbook (ASAD_Consump_Allowance). */
+IF COL_LENGTH(N'style.BomLine', N'ConsumptionAllowance') IS NULL
+    ALTER TABLE style.BomLine ADD ConsumptionAllowance decimal(18, 6) NULL;
 GO
 IF INDEXPROPERTY(OBJECT_ID(N'style.BomLine'), N'IX_style_BomLine_Material', 'IndexId') IS NULL
     CREATE INDEX IX_style_BomLine_Material ON style.BomLine (MaterialId) INCLUDE (StyleId);
@@ -376,7 +468,7 @@ CREATE TABLE style.AiRender
     RenderId      int IDENTITY(1, 1) NOT NULL,
     StyleId       int                NOT NULL,
     ColorwayId    int                NULL,
-    ColorwayCode  nvarchar(20)       NULL,
+    ColorwayCode  nvarchar(100)      NULL,
     ImageUrl      nvarchar(500)      NOT NULL,
     Prompt        nvarchar(4000)     NOT NULL,
     Provider      nvarchar(60)       NOT NULL,
@@ -392,6 +484,10 @@ CREATE TABLE style.AiRender
 GO
 IF INDEXPROPERTY(OBJECT_ID(N'style.AiRender'), N'IX_style_AiRender_Style', 'IndexId') IS NULL
     CREATE INDEX IX_style_AiRender_Style ON style.AiRender (StyleId, RenderId DESC);
+GO
+/* Widened 2026-10-14 with style.Colorway.ColorwayCode. */
+IF COL_LENGTH(N'style.AiRender', N'ColorwayCode') < 200
+    ALTER TABLE style.AiRender ALTER COLUMN ColorwayCode nvarchar(100) NULL;
 GO
 
 /*
@@ -467,6 +563,55 @@ IF INDEXPROPERTY(OBJECT_ID(N'style.ImageVector'), N'IX_style_ImageVector_ImageUr
     CREATE INDEX IX_style_ImageVector_ImageUrl ON style.ImageVector (ImageUrl);
 GO
 
+/* Picture tags (TagVersion = the tag vocabulary that tagged this vector; NULL = to tag, e.g. after the picture changed). */
+IF COL_LENGTH(N'style.ImageVector', N'TagVersion') IS NULL
+    ALTER TABLE style.ImageVector ADD TagVersion varchar(40) NULL, TaggedUtc datetime2(3) NULL;
+GO
+
+/*
+    Picture tags: what a style picture looks like (hood, closure, pattern, colours), read by the built-in image model
+    (Marqo-FashionSigLIP) by comparing the picture's look-alike vector with short descriptions of each tag - no AI server.
+    Only confident tags are stored (Score = closeness to the tag, Margin = lead over the next value of the same attribute).
+    A tag counts while its Version equals the vector's TagVersion and the vector's picture is still the style's.
+    Searched as "attribute:value" (hood:hooded, colour:navy) by Styles, Smart search and the Library assistant.
+*/
+IF OBJECT_ID(N'style.ImageTag', N'U') IS NULL
+CREATE TABLE style.ImageTag
+(
+    ImageTagId     int IDENTITY(1, 1) NOT NULL,
+    ImageVectorId  int                NOT NULL,
+    Attribute      varchar(20)        NOT NULL,
+    Value          varchar(30)        NOT NULL,
+    Score          decimal(9, 4)      NOT NULL,
+    Margin         decimal(9, 4)      NOT NULL,
+    Version        varchar(40)        NOT NULL,
+
+    CONSTRAINT PK_style_ImageTag PRIMARY KEY CLUSTERED (ImageTagId),
+    CONSTRAINT UQ_style_ImageTag UNIQUE (ImageVectorId, Attribute, Value),
+    CONSTRAINT FK_style_ImageTag_Vector FOREIGN KEY (ImageVectorId) REFERENCES style.ImageVector (ImageVectorId) ON DELETE CASCADE
+);
+GO
+IF INDEXPROPERTY(OBJECT_ID(N'style.ImageTag'), N'IX_style_ImageTag_Value', 'IndexId') IS NULL
+    CREATE INDEX IX_style_ImageTag_Value ON style.ImageTag (Attribute, Value) INCLUDE (ImageVectorId, Version);
+GO
+
+/*
+    A style's current picture tags: tags of the vector's current tag version, for a picture the style still has (photo,
+    sketch, colorway picture or render with the same address). Used by the look filters of style.usp_Style_List / _Counts.
+*/
+CREATE OR ALTER FUNCTION style.fn_StyleTags()
+RETURNS TABLE
+AS
+RETURN
+    SELECT DISTINCT v.StyleId, t.Attribute, t.Value
+    FROM style.ImageTag t
+    JOIN style.ImageVector v ON v.ImageVectorId = t.ImageVectorId AND v.TagVersion = t.Version
+    WHERE (v.Source = 'Photo' AND EXISTS (SELECT 1 FROM style.Style s WHERE s.StyleId = v.StyleId AND s.ImageUrl = v.ImageUrl))
+       OR (v.Source = 'Sketch' AND EXISTS (SELECT 1 FROM style.Style s WHERE s.StyleId = v.StyleId AND s.SketchUrl = v.ImageUrl))
+       OR (v.Source = 'Colorway' AND EXISTS (SELECT 1 FROM style.Colorway c WHERE c.ColorwayId = v.ItemId AND c.StyleId = v.StyleId AND c.ImageUrl = v.ImageUrl))
+       OR (v.Source = 'Render' AND EXISTS (SELECT 1 FROM style.AiRender r WHERE r.RenderId = v.ItemId AND r.StyleId = v.StyleId AND r.ImageUrl = v.ImageUrl));
+GO
+
 /* ================================ staging ================================ */
 
 /*
@@ -487,7 +632,7 @@ CREATE TABLE staging.ImportBatch
     FinishedUtc  datetime2(3)       NULL,
 
     CONSTRAINT PK_staging_ImportBatch PRIMARY KEY CLUSTERED (BatchId),
-    CONSTRAINT CK_staging_ImportBatch_Status CHECK (Status IN ('Staged', 'Committed', 'Cancelled')),
+    CONSTRAINT CK_staging_ImportBatch_Status CHECK (Status IN ('Mapping', 'Staged', 'Committed', 'Cancelled', 'RolledBack')),
     CONSTRAINT CK_staging_ImportBatch_Kind CHECK (Kind IN ('StyleLibrary'))
 );
 GO
@@ -501,7 +646,7 @@ CREATE TABLE staging.StyleRow
     RowNo          int            NOT NULL,
     Cust           nvarchar(32)   NULL,
     SeasonId       nvarchar(16)   NULL,
-    StyleId        nvarchar(40)   NULL,
+    StyleId        nvarchar(100)  NULL,
     Description    nvarchar(400)  NULL,
     ModelId        nvarchar(60)   NULL,
     ModelName      nvarchar(100)  NULL,
@@ -528,9 +673,9 @@ CREATE TABLE staging.ArticleRow
     RowNo       int            NOT NULL,
     Cust        nvarchar(32)   NULL,
     SeasonId    nvarchar(16)   NULL,
-    StyleId     nvarchar(40)   NULL,
+    StyleId     nvarchar(100)  NULL,
     SeqNo       nvarchar(8)    NULL,
-    ArticleId   nvarchar(20)   NULL,
+    ArticleId   nvarchar(100)  NULL,
     Description nvarchar(150)  NULL,
     Status      nvarchar(16)   NULL,
     ImageUrl    nvarchar(500)  NULL,
@@ -546,13 +691,13 @@ CREATE TABLE staging.BomRow
     RowNo           int             NOT NULL,
     Cust            nvarchar(32)    NULL,
     SeasonId        nvarchar(16)    NULL,
-    StyleId         nvarchar(40)    NULL,
+    StyleId         nvarchar(100)   NULL,
     PartNo          nvarchar(16)    NULL,
     AdMatId         nvarchar(64)    NULL,
     MaterialDesc    nvarchar(4000)  NULL,
     MatTypeId       nvarchar(16)    NULL,
     MatTypeDesc     nvarchar(100)   NULL,
-    ContentClass    nvarchar(8)     NULL,
+    ContentClass    nvarchar(100)   NULL,   -- wide, so a wrong value reaches the check (New codes) instead of stopping the upload
     AdSupplierId    nvarchar(32)    NULL,
     AdSupplierName  nvarchar(100)   NULL,
     LcoConsump      nvarchar(32)    NULL,
@@ -561,7 +706,7 @@ CREATE TABLE staging.BomRow
     SapSupplierId   nvarchar(32)    NULL,
     SapSupplierName nvarchar(150)   NULL,
     ArticleSeq      nvarchar(16)    NULL,
-    ArticleId       nvarchar(20)    NULL,
+    ArticleId       nvarchar(100)   NULL,
     ArticleDesc     nvarchar(150)   NULL,
     MatColorId      nvarchar(80)    NULL,
     MatColorDesc    nvarchar(150)   NULL,
@@ -581,10 +726,10 @@ IF OBJECT_ID(N'staging.ImportStyle', N'U') IS NULL
 CREATE TABLE staging.ImportStyle
 (
     BatchId        int            NOT NULL,
-    StyleKey       nvarchar(100)  NOT NULL,   -- Cust|Season|Style
+    StyleKey       nvarchar(200)  NOT NULL,   -- Cust|Season|Style
     CustomerCode   nvarchar(32)   NOT NULL,
     SeasonCode     nvarchar(16)   NOT NULL,
-    StyleNo        nvarchar(40)   NOT NULL,
+    StyleNo        nvarchar(100)  NOT NULL,
     ModelName      nvarchar(100)  NULL,
     Action         varchar(10)    NOT NULL,
     ExistingStyleId int           NULL,
@@ -609,7 +754,7 @@ CREATE TABLE staging.ImportIssue
     Sheet     varchar(16)        NOT NULL,
     RowNo     int                NULL,
     Severity  varchar(8)         NOT NULL,
-    StyleKey  nvarchar(100)      NULL,    -- Cust|Season|Style, so the preview can group issues by style
+    StyleKey  nvarchar(200)      NULL,    -- Cust|Season|Style, so the preview can group issues by style
     Message   nvarchar(400)      NOT NULL,
     CONSTRAINT PK_staging_ImportIssue PRIMARY KEY CLUSTERED (IssueId),
     CONSTRAINT FK_staging_ImportIssue_Batch FOREIGN KEY (BatchId) REFERENCES staging.ImportBatch (BatchId) ON DELETE CASCADE,
@@ -618,6 +763,145 @@ CREATE TABLE staging.ImportIssue
 GO
 IF INDEXPROPERTY(OBJECT_ID(N'staging.ImportIssue'), N'IX_staging_ImportIssue_Batch', 'IndexId') IS NULL
     CREATE INDEX IX_staging_ImportIssue_Batch ON staging.ImportIssue (BatchId, Sheet, RowNo);
+GO
+/* Widened 2026-10-14 with StyleNo and ColorwayCode (100); StyleKey (Cust|Season|Style) 100 -> 200, so the ImportStyle
+   primary key on it is rebuilt. Content_Class 8 -> 100 so a wrong value is reported by the check, not the upload. */
+IF COL_LENGTH(N'staging.StyleRow', N'StyleId') < 200
+BEGIN
+    ALTER TABLE staging.StyleRow   ALTER COLUMN StyleId      nvarchar(100) NULL;
+    ALTER TABLE staging.ArticleRow ALTER COLUMN StyleId      nvarchar(100) NULL;
+    ALTER TABLE staging.ArticleRow ALTER COLUMN ArticleId    nvarchar(100) NULL;
+    ALTER TABLE staging.BomRow     ALTER COLUMN StyleId      nvarchar(100) NULL;
+    ALTER TABLE staging.BomRow     ALTER COLUMN ArticleId    nvarchar(100) NULL;
+    ALTER TABLE staging.BomRow     ALTER COLUMN ContentClass nvarchar(100) NULL;
+    ALTER TABLE staging.ImportStyle DROP CONSTRAINT PK_staging_ImportStyle;
+    ALTER TABLE staging.ImportStyle ALTER COLUMN StyleKey nvarchar(200) NOT NULL;
+    ALTER TABLE staging.ImportStyle ALTER COLUMN StyleNo  nvarchar(100) NOT NULL;
+    ALTER TABLE staging.ImportStyle ADD CONSTRAINT PK_staging_ImportStyle PRIMARY KEY CLUSTERED (BatchId, StyleKey);
+    ALTER TABLE staging.ImportIssue ALTER COLUMN StyleKey nvarchar(200) NULL;
+END
+GO
+/* Added 2026-10-14: customer name (Cust_Name) and consumption allowance (Consump_Allowance) from the workbook. */
+IF COL_LENGTH(N'staging.StyleRow', N'CustName') IS NULL
+    ALTER TABLE staging.StyleRow ADD CustName nvarchar(150) NULL;
+IF COL_LENGTH(N'staging.BomRow', N'ConsumpAllowance') IS NULL
+    ALTER TABLE staging.BomRow ADD ConsumpAllowance nvarchar(32) NULL;
+GO
+/* Added 2026-10-15: the customer account's brand (Customer_Brand); wide, so a wrong value reaches the check. */
+IF COL_LENGTH(N'staging.StyleRow', N'CustBrand') IS NULL
+    ALTER TABLE staging.StyleRow ADD CustBrand nvarchar(100) NULL;
+GO
+/* BOM rows without an Article ID apply to all of the style's colorways: their articles are found by style. */
+IF INDEXPROPERTY(OBJECT_ID(N'staging.ArticleRow'), N'IX_staging_ArticleRow_Style', 'IndexId') IS NULL
+    CREATE INDEX IX_staging_ArticleRow_Style ON staging.ArticleRow (BatchId, StyleId) INCLUDE (Cust, SeasonId, ArticleId);
+GO
+
+/*
+    Saved column mappings (Settings > Import, Map columns): which workbook sheet and heading feeds each staging column,
+    so a workbook with other headings (e.g. the GO style export) loads without editing it.
+    Definition: {"sheets":{"Style":{"source":"Style_Parm","columns":{"StyleId":"Style_id",...}},"Article":{...},"Bom":{...}}}
+*/
+/* Added 2026-10-14: a committed import can be rolled back (Status RolledBack). */
+IF COL_LENGTH(N'staging.ImportBatch', N'RolledBackBy') IS NULL
+    ALTER TABLE staging.ImportBatch ADD RolledBackBy nvarchar(64) NULL, RolledBackUtc datetime2(3) NULL;
+/*
+    Added 2026-10-15: the uploaded workbook is kept (Files:Root/style-imports, StoredFile = its file name) with the column
+    mapping chosen for it, so an import can be mapped later, mapped again or resumed. Status Mapping = file read, columns
+    not mapped yet. The file goes on commit, or 7 days after a cancel or an unfinished mapping.
+*/
+IF COL_LENGTH(N'staging.ImportBatch', N'StoredFile') IS NULL
+    ALTER TABLE staging.ImportBatch ADD StoredFile nvarchar(64) NULL, Mapping nvarchar(max) NULL;
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_staging_ImportBatch_Status' AND definition NOT LIKE N'%Mapping%')
+BEGIN
+    ALTER TABLE staging.ImportBatch DROP CONSTRAINT CK_staging_ImportBatch_Status;
+    ALTER TABLE staging.ImportBatch ADD CONSTRAINT CK_staging_ImportBatch_Status CHECK (Status IN ('Mapping', 'Staged', 'Committed', 'Cancelled', 'RolledBack'));
+END
+GO
+
+/*
+    What a commit did, so it can be rolled back (staging.usp_StyleImport_Rollback). Kept for 30 days after the commit.
+      ImportUndoStyle    Kind N = style the import added; R = style it replaced, with Snapshot = the style before (json:
+                         header, colorways, BOM lines with their colorways)
+      ImportUndoMaterial Kind N = material it added; U = material it changed, with the values before
+      ImportUndoCode     reference codes it added (season, customer, supplier, ...), removed on rollback when unused
+    No foreign keys: the commit fills them with OUTPUT ... INTO.
+*/
+IF OBJECT_ID(N'staging.ImportUndoStyle', N'U') IS NULL
+CREATE TABLE staging.ImportUndoStyle
+(
+    BatchId   int            NOT NULL,
+    StyleId   int            NOT NULL,
+    Kind      char(1)        NOT NULL,
+    Snapshot  nvarchar(max)  NULL,
+    CONSTRAINT PK_staging_ImportUndoStyle PRIMARY KEY CLUSTERED (BatchId, StyleId),
+    CONSTRAINT CK_staging_ImportUndoStyle_Kind CHECK (Kind IN ('N', 'R'))
+);
+GO
+IF OBJECT_ID(N'staging.ImportUndoMaterial', N'U') IS NULL
+CREATE TABLE staging.ImportUndoMaterial
+(
+    BatchId           int             NOT NULL,
+    MaterialId        int             NOT NULL,
+    Kind              char(1)         NOT NULL,
+    Description       nvarchar(4000)  NULL,
+    MaterialTypeCode  nvarchar(16)    NULL,
+    ContentClassCode  nvarchar(8)     NULL,
+    CONSTRAINT PK_staging_ImportUndoMaterial PRIMARY KEY CLUSTERED (BatchId, MaterialId)
+);
+GO
+IF OBJECT_ID(N'staging.ImportUndoCode', N'U') IS NULL
+CREATE TABLE staging.ImportUndoCode
+(
+    BatchId  int           NOT NULL,
+    Kind     varchar(16)   NOT NULL,
+    Code     nvarchar(64)  NOT NULL,
+    CONSTRAINT PK_staging_ImportUndoCode PRIMARY KEY CLUSTERED (BatchId, Kind, Code)
+);
+GO
+
+/*
+    Remembered answers from the New codes tab (Settings > Import): a value in a workbook that means an existing code
+    (supplier '0001100131' = '1100131', customer '0000001304' = 'SKE'). Every upload applies them before the check,
+    so each value is asked about once. ImportAppliedAlias records which ones an import used (shown, can be forgotten).
+*/
+IF OBJECT_ID(N'staging.ImportCodeAlias', N'U') IS NULL
+CREATE TABLE staging.ImportCodeAlias
+(
+    List        varchar(16)    NOT NULL,
+    Value       nvarchar(150)  NOT NULL,
+    Code        nvarchar(64)   NOT NULL,
+    CreatedBy   nvarchar(64)   NOT NULL,
+    CreatedUtc  datetime2(3)   NOT NULL CONSTRAINT DF_staging_ImportCodeAlias_CreatedUtc DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT PK_staging_ImportCodeAlias PRIMARY KEY CLUSTERED (List, Value)
+);
+GO
+IF OBJECT_ID(N'staging.ImportAppliedAlias', N'U') IS NULL
+CREATE TABLE staging.ImportAppliedAlias
+(
+    BatchId  int            NOT NULL,
+    List     varchar(16)    NOT NULL,
+    Value    nvarchar(150)  NOT NULL,
+    Code     nvarchar(64)   NOT NULL,
+    Rows     int            NOT NULL,
+    CONSTRAINT PK_staging_ImportAppliedAlias PRIMARY KEY CLUSTERED (BatchId, List, Value),
+    CONSTRAINT FK_staging_ImportAppliedAlias_Batch FOREIGN KEY (BatchId) REFERENCES staging.ImportBatch (BatchId) ON DELETE CASCADE
+);
+GO
+
+IF OBJECT_ID(N'staging.ImportMapping', N'U') IS NULL
+CREATE TABLE staging.ImportMapping
+(
+    MappingId   int IDENTITY(1, 1) NOT NULL,
+    Name        nvarchar(100)      NOT NULL,
+    Definition  nvarchar(max)      NOT NULL,
+    CreatedBy   nvarchar(64)       NOT NULL,
+    CreatedUtc  datetime2(3)       NOT NULL CONSTRAINT DF_staging_ImportMapping_CreatedUtc DEFAULT (SYSUTCDATETIME()),
+    UpdatedBy   nvarchar(64)       NULL,
+    UpdatedUtc  datetime2(3)       NULL,
+    CONSTRAINT PK_staging_ImportMapping PRIMARY KEY CLUSTERED (MappingId),
+    CONSTRAINT UQ_staging_ImportMapping_Name UNIQUE (Name),
+    CONSTRAINT CK_staging_ImportMapping_Definition CHECK (ISJSON(Definition) = 1)
+);
 GO
 
 /* ================================ seed: fixed code lists ================================ */

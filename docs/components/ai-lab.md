@@ -14,9 +14,9 @@ A showcase of AI capabilities planned for production. **The demo results are wri
 | Colour reader | Needs data | Colorway photos; customers' colour libraries | Vision |
 | Cost estimate from BOM | Needs data | Quotation history linked to library styles; material prices; SMV | Prediction |
 | Lead-time forecast | Needs data | Actual production lead times; supplier lead times | Prediction |
-| Library assistant | Needs the in-house AI server | A model that can call tools; a read-only list of procedures it may use | Text |
+| Library assistant | **Live** ([Library assistant](library-assistant.md), AI Studio > Library assistant) | - | Text |
 
-The Library assistant is planned to use the same phrase list as Smart search (`StyleQueryParser`) first: questions made of known words (gender, season, product type, business unit, customer, material, style number) are answered from the database without AI, and only the rest go to the AI server.
+The Library assistant uses the same phrase list as Smart search (`StyleQueryParser`) first: questions made of known words are answered from the database without AI, and only the rest go to the Text job, which picks one read-only tool ([Library assistant](library-assistant.md)).
 
 For each capability the page shows what it does, what it needs, **Your data today** (live), which AI job it would use and whether a service is connected (admins get a **Configure** link), and a **Run demo** button. Live capabilities have an **Open the real feature** button.
 

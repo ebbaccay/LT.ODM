@@ -12,7 +12,9 @@ ALTER DATABASE LTODM SET READ_COMMITTED_SNAPSHOT ON;  -- recommended: readers do
 
 ## 2. Deploy the scripts
 
-All scripts are **idempotent**: running them again on an existing database creates what is missing and updates procedures, without touching data. Run them from the `db` folder of the release with `sqlcmd -I` (`-I` turns QUOTED_IDENTIFIER on, which filtered indexes and several procedures need; plain `sqlcmd` defaults to off). `-b` stops on the first error.
+**Easiest: `db\deploy-db.cmd`** (in every release). Double-click it (or run it from a prompt) on a machine with `sqlcmd` that reaches the SQL Server. It asks for the server (default `localhost`), the database (default `LTODM`), a SQL login (blank = Windows sign-in) and its password (hidden, used only for this run), and whether to trust the server's certificate (answer **Y** for a self-signed certificate; newer `sqlcmd` versions refuse it otherwise). It then runs every script below in order and stops at the first error, naming the script. The login needs rights to change the database (e.g. `db_owner`); the website's own login is not enough. For scripted use it reads `LTODM_DB_SERVER`, `LTODM_DB_NAME`, `LTODM_DB_USER`, `SQLCMDPASSWORD`, `LTODM_DB_TRUST` (Y/N) and `LTODM_DB_YES=1` (no questions). The TMS procedures (below) are not part of it.
+
+The same by hand: all scripts are **idempotent**: running them again on an existing database creates what is missing and updates procedures, without touching data. Run them from the `db` folder of the release with `sqlcmd -I` (`-I` turns QUOTED_IDENTIFIER on, which filtered indexes and several procedures need; plain `sqlcmd` defaults to off). `-b` stops on the first error.
 
 ```powershell
 cd db
@@ -30,11 +32,15 @@ run procedures\style.procedures.sql            # Styles screens and home dashboa
 run procedures\ref.procedures.sql              # Settings > Reference lists
 run procedures\mat.procedures.sql              # Materials and its views
 run procedures\mat.spec.procedures.sql         # Materials > Description reader (creates mat.MaterialSpec)
-run procedures\style.ai.procedures.sql         # AI Studio: BOM check, renders, concept matching
+run procedures\style.ai.procedures.sql         # AI Studio: BOM check, renders, concept matching, image search
+run procedures\style.tags.procedures.sql       # Picture tags (look filters; tables in tables\style.tables.sql)
+run procedures\style.assistant.procedures.sql  # AI Studio > Library assistant (style counts)
+run procedures\style.image-import.procedures.sql  # Settings > Import pictures (style matching, set picture, check existing pictures)
 
 # AI connections (ai schema)
 run tables\ai.tables.sql
 run procedures\ai.procedures.sql
+run procedures\ai.assistant.procedures.sql    # Library assistant saved questions (table in tables\ai.tables.sql)
 
 # Menu again: adds pages introduced by the scripts above (keeps changes made in Settings > Menu)
 run seed\nav.menu.sql
@@ -62,7 +68,7 @@ run tms\concept-studio.team-visibility.sql     # concept team visibility rules
 
 The API signs in with a **SQL login** (SQL authentication), so the same setup works for a web server on Windows (IIS) or Linux (nginx); Windows authentication from Linux would need Kerberos. The SQL Server instance must allow **SQL Server and Windows Authentication mode** (SSMS: server Properties > Security; restart the service after changing it).
 
-The login needs to run procedures and to bulk-insert into the three import staging tables. Nothing else. Use a different password per environment and keep it only in the web server's settings ([Configuration](04-configuration.md)).
+The login needs to run procedures and to bulk-insert into the three import staging tables (SELECT and INSERT on those). Nothing else. Use a different password per environment and keep it only in the web server's settings ([Configuration](04-configuration.md)).
 
 ```sql
 USE master;
@@ -84,9 +90,10 @@ GRANT EXECUTE ON SCHEMA::mat     TO ltodm_app;
 GRANT EXECUTE ON SCHEMA::staging TO ltodm_app;
 GRANT EXECUTE ON SCHEMA::ai      TO ltodm_app;
 -- Settings > Import bulk-copies the workbook into these tables (SqlBulkCopy with CheckConstraints).
-GRANT INSERT ON staging.StyleRow   TO ltodm_app;
-GRANT INSERT ON staging.ArticleRow TO ltodm_app;
-GRANT INSERT ON staging.BomRow     TO ltodm_app;
+-- SqlBulkCopy reads each table's columns first with a SELECT, so it needs SELECT as well as INSERT.
+GRANT SELECT, INSERT ON staging.StyleRow   TO ltodm_app;
+GRANT SELECT, INSERT ON staging.ArticleRow TO ltodm_app;
+GRANT SELECT, INSERT ON staging.BomRow     TO ltodm_app;
 
 ALTER ROLE ltodm_app ADD MEMBER ltodm_app_login;
 ```
@@ -108,7 +115,7 @@ Procedures and tables share an owner (`dbo`), so ownership chaining covers the r
 | `mat` | Material master, material readings (`MaterialSpec`) |
 | `style` | Styles, colorways, BOM lines, colours per colorway, style history, AI renders |
 | `staging` | Workbook imports waiting to be committed |
-| `ai` | AI connections (API keys encrypted), which connection each AI job uses (or Off), and the central switches (`ai.Policy`: AI on/off, cloud allowed; cloud starts not allowed on a new database) |
+| `ai` | AI connections (API keys encrypted), which connection each AI job uses (or Off), Library assistant saved questions, and the central switches (`ai.Policy`: AI on/off, cloud allowed; cloud starts not allowed on a new database) |
 | `dbo` | Tables and procedures from TMS used by the ported modules |
 
 ## 5. Health check

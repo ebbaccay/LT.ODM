@@ -31,11 +31,12 @@ Screen ──► API endpoint ──► feature service (builds the data, see "D
 
 | Job | Used by (today) |
 |---|---|
-| **Text** | AI Studio: smart search, change summaries, BOM check explanations, render prompt rewrite, concept-to-style matching. Concept Studio briefs. Cost Optimization ideas. Market Trends analysis. Import new-code suggestions. Material description reader |
+| **Text** | AI Studio: smart search, Library assistant, change summaries, BOM check explanations, render prompt rewrite, concept-to-style matching. Concept Studio briefs. Cost Optimization ideas. Market Trends analysis. Import new-code suggestions. Material description reader |
 | **Image** | AI Studio style renders |
 | **Vision** | AI Studio image search: reads garment pictures into a description. **In-house (OpenAI-compatible) only** |
 | **Embedding** | AI Studio image search: turns descriptions and search words into vectors of **1024 numbers**. **In-house (OpenAI-compatible) only** |
-| *(built in, not a job)* | Image search look-alike vectors: an ONNX image model (Marqo-FashionSigLIP, 768 numbers; picture and text parts, tokenizer in `SiglipTokenizer.cs`) **inside the API**, no connection, nothing sent. Search by photo, words and more like this use it unless the user ticks *Use the AI server*. Configured in appsettings (`ImageSearch:ImageModel`); the **AI features** switch turns it off |
+| *(built in, not a job)* | Image search look-alike vectors: an ONNX image model (Marqo-FashionSigLIP, 768 numbers; picture and text parts, tokenizer in `SiglipTokenizer.cs`) **inside the API**, no connection, nothing sent. Search by photo, words and more like this use it unless the user ticks *Use the AI server*. Configured in appsettings (`ImageSearch:ImageModel`); the **AI features** switch turns it off. Settings > Import pictures uses it too, to choose the garment on a sheet and to tell sketches from photos (`PictureKindRules.cs`) |
+| *(built in, not a job)* | Settings > Import pictures upscaler: Real-ESRGAN general x4v3 (ONNX, BSD-3-Clause) **inside the API**, enlarges small cut-outs 4x per pass. `StyleImages:Upscaler:File`; the **AI features** switch turns it off (plain enlargement instead) |
 | Document, Prediction | Prepared for AI Lab capabilities (tech pack reader, cost and lead-time forecasts); nothing calls them yet |
 
 A **connection** is a service: type (Gemini, OpenAI-compatible, Custom HTTP), address, optional API key, timeout, and whether it runs on the LT network. A **job** points at one connection and one model. Saving a change clears the cache, so the next call uses it; on other server processes it applies within 60 seconds.
@@ -59,7 +60,7 @@ Settings > AI connections > **Switches**, and the **Off** choice on each job. Th
 | Provider | Text | Image | Notes |
 |---|---|---|---|
 | Gemini | `POST {endpoint}/models/{model}:generateContent` with `responseMimeType: application/json` and `responseSchema` (the answer is forced to the schema) | Same endpoint with `responseModalities: ["IMAGE"]`, aspect ratio 3:4; the sketch is attached as `inlineData` | API key in the `x-goog-api-key` header. Always cloud |
-| OpenAI-compatible | `POST {endpoint}/chat/completions` with `response_format: json_schema` (vLLM, Ollama, LM Studio constrain the answer); `<think>` blocks and code fences are removed | `POST {endpoint}/images/generations`, `response_format: b64_json`, size from `Ai:OpenAiCompatible:ImageSize`; **no sketch reference** | Optional `Authorization: Bearer` key. "Runs on the LT network" decides the banner |
+| OpenAI-compatible | `POST {endpoint}/chat/completions` with `response_format: json_schema` (vLLM, Ollama, LM Studio constrain the answer); `<think>` blocks and code fences are removed | `POST {endpoint}/images/generations`, `response_format: b64_json`, size from `Ai:OpenAiCompatible:ImageSize`. With the sketch: `POST {endpoint}/images/edits` (multipart: the sketch centred on a white `ImageSize` canvas as PNG, `strength` from `ImageSketchStrength`, default 0.85; 0 = never send the sketch) | Optional `Authorization: Bearer` key. "Runs on the LT network" decides the banner |
 | Custom HTTP | - | - | Only stored and tested (for future prediction services) |
 
 **Vision and Embedding** (image search) have no Gemini path and no appsettings default: they must be set in Settings > AI connections to an OpenAI-compatible connection, otherwise the call is refused with a readable message.
@@ -70,6 +71,13 @@ Settings > AI connections > **Switches**, and the **Off** choice on each job. Th
 | Embedding | `POST {endpoint}/embeddings` with `{ model, input }`; the first vector must have exactly 1024 numbers (`style.ImageIndex.Embedding` is `vector(1024)`) |
 
 The API's HTTP clients for AI have no timeout of their own: the connection's **timeout** (5-600 s) applies to every call, so a slow CPU server can be given several minutes.
+
+**Reading answers from OpenAI-compatible servers** (Text and Vision jobs; `AiHttp.ChatTextAsync`). The request asks for a streamed answer (`stream: true`) with at most `max_tokens` 4096 (less where the answer is short: Smart search 500, change summary 900, BOM check explanation 1,500), and the app reads it as it arrives:
+
+- It **stops as soon as the first JSON value is complete** and closes the connection, which also stops the server generating. Some servers do not end the answer after the JSON (OpenVINO Model Server 2026.4 with Qwen2.5, October 2026) and would otherwise run to the timeout.
+- It **stops with an error** ("the AI service's answer ran on") when one text value passes 3,000 characters (`OpenAiApi.MaxStringLength`; the app's longest field is 1,000): the model is stuck inside it and the JSON would never close. Seen when an instruction did not name the fields; every app prompt names them.
+- A leading `<think>` block is skipped; text after the JSON and code fences are dropped (`CleanJson`).
+- A server that ignores `stream: true` and answers in one piece is read the usual way.
 
 **Test connection** calls `GET {endpoint}/models` and lists the models, so admins pick a model the service really has.
 
@@ -120,7 +128,7 @@ The API's HTTP clients for AI have no timeout of their own: the connection's **t
 |---|---|
 | Contracts (jobs, connections, info) | `src/api/LT.ODM.Application/Ai/` |
 | Routed clients, Gemini and OpenAI-compatible calls, resolver, tester | `src/api/LT.ODM.Infrastructure/Ai/AiClients.cs`, `AiSettings.cs` |
-| Feature services | `src/api/LT.ODM.Application/StyleAi/` (assistant, comparer, render prompt, concept matcher, material reader, import code advisor, image search `ImageSearch.cs`); built-in image model `src/api/LT.ODM.Infrastructure/Ai/OnnxImageEmbeddingModel.cs`; `src/api/LT.ODM.Infrastructure/Ai/` (concept draft, cost suggestions, trend analysis) |
+| Feature services | `src/api/LT.ODM.Application/StyleAi/` (assistant, comparer, render prompt, concept matcher, material reader, import code advisor, image search `ImageSearch.cs`); built-in image model `src/api/LT.ODM.Infrastructure/Ai/OnnxImageEmbeddingModel.cs`; picture import `src/api/LT.ODM.Application/StyleLibrary/StyleImageImport.cs` with `src/api/LT.ODM.Infrastructure/Files/GarmentCropFinder.cs` and `GarmentCropper.cs` (upscaler); `src/api/LT.ODM.Infrastructure/Ai/` (concept draft, cost suggestions, trend analysis) |
 | Endpoints | `AiStudioController` (`/api/v1/ai`), `ImageSearchController` (`/api/v1/ai/image-search`: `status`, `index`, `words`, `photo`, `similar/{styleId}`), `AiSettingsController` (`/api/v1/admin/ai`, switches: `PUT /api/v1/admin/ai/policy`), `StyleImportsController` (`.../codes/suggest`), Concept Studio, Cost Optimization, Market Trends controllers |
 | SQL | `db/tables/ai.tables.sql`, `db/procedures/ai.procedures.sql`, `style.ai.procedures.sql` (incl. `style.fn_ImageSlots`, `usp_ImageIndex_*`, `usp_ImageSearch`, `usp_ImageVector_*`, `usp_ImageVectorSearch`; tables `style.ImageIndex`, `style.ImageVector` in `style.tables.sql`), `mat.spec.procedures.sql` |
 | Server check | `tools/test-ai-server.ps1` (models, text JSON, vision, 1024-number embedding) |

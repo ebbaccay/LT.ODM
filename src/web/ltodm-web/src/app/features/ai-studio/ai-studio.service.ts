@@ -119,6 +119,8 @@ export interface StyleSearchFilters {
   productTypes: string[];
   weaveType: string | null;
   gender: string | null;
+  /** Picture tags (hood:hooded, colour:navy). */
+  looks?: string[] | null;
 }
 
 export interface StyleSearchResult {
@@ -127,9 +129,14 @@ export interface StyleSearchResult {
   explanation: string | null;
   results: Paged<StyleListItem>;
   /** rules: the phrase list understood it (no AI call). ai: the AI read it. */
-  source: 'rules' | 'ai';
-  /** Words the phrase list did not understand, ignored because AI was not used. */
+  /** rules: phrase list. look: matched by how the pictures look (built-in image model). ai: the AI read it. */
+  source: 'rules' | 'look' | 'ai';
+  /** Every word was understood but no style met them all: matched by the pictures instead (source look). */
+  phraseListFoundNothing?: boolean;
+  /** Words the phrase list did not understand, ignored because AI was not used (or its reading found nothing). */
   unmatched: string[];
+  /** The AI read the request but its criteria found no style: the phrase list's result is shown (source rules). */
+  aiFoundNothing?: boolean;
 }
 
 /** Words understood without AI, by criterion, and example requests that find styles today. */
@@ -387,12 +394,15 @@ export class AiStudioService {
     return (this.status$ ??= this.http.get<AiStatus>(`${this.api}/status`).pipe(shareReplay({ bufferSize: 1, refCount: false })));
   }
 
-  /** Phrase list, then AI for requests it does not fully understand (AI rate limit applies). */
-  search(query: string): Observable<StyleSearchResult> {
-    return this.http.post<StyleSearchResult>(`${this.api}/style-search`, { query });
+  /**
+   * Phrase list, then the built-in image model (pictures that clearly stand out), then AI for requests it does not fully
+   * understand (AI rate limit applies). skipLook: straight from the phrase list to the AI ("Search with AI instead").
+   */
+  search(query: string, skipLook = false): Observable<StyleSearchResult> {
+    return this.http.post<StyleSearchResult>(`${this.api}/style-search`, { query, skipLook });
   }
 
-  /** Phrase list only: never calls AI. */
+  /** Phrase list, then the built-in image model: never calls the AI server. */
   searchByRules(query: string): Observable<StyleSearchResult> {
     return this.http.post<StyleSearchResult>(`${this.api}/style-search/rules`, { query });
   }

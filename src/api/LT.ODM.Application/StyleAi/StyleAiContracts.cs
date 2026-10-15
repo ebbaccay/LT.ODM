@@ -14,7 +14,8 @@ public static class StyleAiRoles
 
 // ----- Smart search -----
 
-public sealed record StyleSearchRequest(string? Query);
+/// <summary>SkipLook: go straight from the phrase list to the AI ("Search with AI instead" after a look match).</summary>
+public sealed record StyleSearchRequest(string? Query, bool SkipLook = false);
 
 /// <summary>
 /// Filters read from the request (phrase list or AI); every code is one of the library's codes. BusinessUnit may hold
@@ -22,7 +23,7 @@ public sealed record StyleSearchRequest(string? Query);
 /// </summary>
 public sealed record StyleSearchFiltersDto(
     string? Search, string? Material, string? Customer, IReadOnlyList<string> Seasons, string? BusinessUnit,
-    IReadOnlyList<string> ProductTypes, string? WeaveType, string? Gender);
+    IReadOnlyList<string> ProductTypes, string? WeaveType, string? Gender, IReadOnlyList<string>? Looks = null);
 
 /// <summary>How the request was read.</summary>
 public static class StyleSearchSources
@@ -31,14 +32,19 @@ public static class StyleSearchSources
     public const string Rules = "rules";
     /// <summary>The AI read it.</summary>
     public const string Ai = "ai";
+    /// <summary>Matched by how the pictures look (the image model built into the API); no AI server.</summary>
+    public const string Look = "look";
 }
 
 /// <summary>
-/// Source: rules or ai. Explanation: the AI's reading (null for rules). Unmatched: words the phrase list did not understand
-/// and that were ignored because AI was not used (not asked for, turned off or not set up).
+/// Source: rules or ai. Explanation: the AI's reading (null for rules unless AiFoundNothing). Unmatched: words the phrase
+/// list did not understand and that were ignored (AI not used, or its reading found nothing). AiFoundNothing: the AI read
+/// the request but its criteria matched no style, so the phrase list's result is shown instead (Source rules).
+/// PhraseListFoundNothing: every word was understood but no style met them all, so the styles are matched by their pictures (Source look).
 /// </summary>
 public sealed record StyleSearchResultDto(
-    StyleSearchFiltersDto Filters, string? Explanation, PagedResult<StyleListItemDto> Results, string Source, IReadOnlyList<string> Unmatched);
+    StyleSearchFiltersDto Filters, string? Explanation, PagedResult<StyleListItemDto> Results, string Source, IReadOnlyList<string> Unmatched,
+    bool AiFoundNothing = false, bool PhraseListFoundNothing = false);
 
 /// <summary>Words understood without AI for one criterion (gender, season, productType, detail, weave, businessUnit, customer, material, styleNo).</summary>
 public sealed record StyleSearchPhraseGroupDto(string Criterion, IReadOnlyList<string> Words);
@@ -86,8 +92,10 @@ public static class BomCheckRules
     public static readonly string[] All = ["NoConsumption", "LcoBrandGap", "PeerOutlier", "MainFabricOutlier", "FamilyDrift", "LcoMissing", "NoSupplier"];
     public static readonly string[] Severities = ["High", "Medium", "Low"];
     public const int MaxRows = 500;
-    /// <summary>Findings sent to the AI for an explanation (most severe first).</summary>
-    public const int MaxExplained = 80;
+    /// <summary>Findings sent to the AI for an explanation (most severe first). Every finding costs reading time on an in-house CPU server.</summary>
+    public const int MaxExplained = 40;
+    /// <summary>Longest explanation asked for (summary, 10 priorities and a note per rule need about 1,100).</summary>
+    public const int ExplainMaxTokens = 1500;
 }
 
 public sealed record BomCheckRuleCountDto(string RuleCode, string Severity, int Lines, int Styles);

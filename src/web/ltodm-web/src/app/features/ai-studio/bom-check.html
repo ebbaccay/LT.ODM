@@ -73,6 +73,7 @@
           </button>
         }
       </div>
+      <app-ai-task-running [task]="explainTask()" />
       @if (ruleTotals().length) {
         <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
           @for (t of ruleTotals(); track t.rule) {

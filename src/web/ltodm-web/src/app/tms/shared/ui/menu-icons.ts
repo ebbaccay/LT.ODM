@@ -34,6 +34,8 @@ import {
   lucideReceipt,
   lucideRuler,
   lucideScanEye,
+  lucideImageUp,
+  lucideMessagesSquare,
   lucideScanSearch,
   lucideScissors,
   lucideSend,
@@ -70,7 +72,7 @@ export const MENU_ICONS = {
   lucideShoppingBag, lucideClipboardList, lucideCalendar, lucideChartPie, lucideDatabase, lucideBadgeCheck,
   lucideBell, lucideBookOpen, lucideBriefcase, lucideGlobe, lucideWrench,
   lucideSparkles, lucideScanSearch, lucideGitCompareArrows, lucideShieldAlert, lucideWandSparkles,
-  lucideFlaskConical, lucidePlug, lucideLanguages, lucideScanEye,
+  lucideFlaskConical, lucidePlug, lucideLanguages, lucideScanEye, lucideMessagesSquare, lucideImageUp,
 };
 
 export const MENU_ICON_NAMES = Object.keys(MENU_ICONS);

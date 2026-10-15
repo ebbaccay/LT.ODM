@@ -88,7 +88,9 @@ export class AiProviderBanner {
           blocked: p?.blocked ?? null,
         };
         return { kind, info, labelled: true };
-      });
+      })
+        // Descriptions are optional (search works with the built-in image model): an unset job is not a warning here.
+        .filter((b) => b.info.isConfigured || b.info.blocked);
     }
     const list: Banner[] = [];
     if (this.uses() !== 'image') list.push({ kind: 'text', info: s.text, labelled: false });

@@ -2,6 +2,8 @@ using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.ConceptStudio;
 using LT.ODM.Application.CostOptimization;
 using LT.ODM.Application.Ai;
+using LT.ODM.Application.LibraryAssistant;
+using LT.ODM.Application.LibraryAssistant.Tools;
 using LT.ODM.Application.MarketTrends;
 using LT.ODM.Application.StyleAi;
 using LT.ODM.Application.StyleLibrary;
@@ -34,6 +36,7 @@ public static class DependencyInjection
         services.AddSingleton<IStyleWorkbookReader, StyleWorkbookReader>();
         services.AddScoped<IStyleImportRepository, StyleImportRepository>();
         services.AddScoped<IStyleRepository, StyleRepository>();
+        services.AddSingleton<StyleDashboardCache>();
         services.AddScoped<IMaterialRepository, MaterialRepository>();
 
         services.AddSingleton<EmailQueue>();
@@ -55,6 +58,7 @@ public static class DependencyInjection
         services.AddSingleton<IConceptImageStore, FileSystemConceptImageStore>();
         services.AddSingleton<IProductImageStore, FileSystemProductImageStore>();
         services.AddSingleton<IStyleImageStore, FileSystemStyleImageStore>();
+        services.AddSingleton<IImportFileStore, FileSystemImportFileStore>();
         return services;
     }
 
@@ -85,11 +89,38 @@ public static class DependencyInjection
         services.AddScoped<ConceptMatcher>();
         services.AddScoped<IMaterialSpecRepository, MaterialSpecRepository>();
         services.AddScoped<MaterialReader>();
+        // Library assistant: one ILibraryTool per capability (the AI's instructions are built from this list).
+        services.AddScoped<LibraryAssistantService>();
+        services.AddScoped<ISavedQuestionRepository, SavedQuestionRepository>();
+        services.AddScoped<ILibraryTool, StyleSearchTool>();
+        services.AddScoped<ILibraryTool, StyleCountsTool>();
+        services.AddScoped<ILibraryTool, StyleDetailTool>();
+        services.AddScoped<ILibraryTool, CompareStylesTool>();
+        services.AddScoped<ILibraryTool, LibraryTotalsTool>();
+        services.AddScoped<ILibraryTool, MaterialLookupTool>();
+        services.AddScoped<ILibraryTool, SupplierShareTool>();
+        services.AddScoped<ILibraryTool, RecycledShareTool>();
+        services.AddScoped<ILibraryTool, StandardTrimsTool>();
+        services.AddScoped<ILibraryTool, DuplicateMaterialsTool>();
+        services.AddScoped<ILibraryTool, ColourUsageTool>();
+        services.AddScoped<ILibraryTool, BomCheckTool>();
+        services.AddScoped<ILibraryTool, LookAlikeTool>();
         // Image search's look-alike model runs inside the API (ONNX Runtime, CPU); loaded on first use, shared by all requests.
         services.Configure<ImageModelOptions>(configuration.GetSection(ImageModelOptions.SectionName));
         services.AddSingleton<IImageEmbeddingModel, OnnxImageEmbeddingModel>();
         services.AddScoped<IImageSearchRepository, ImageSearchRepository>();
         services.AddScoped<ImageSearchService>();
+        services.AddScoped<IPictureTagRepository, PictureTagRepository>();
+        services.AddScoped<PictureTagger>();
+        services.AddScoped<LookSearch>();
+        // Settings > Import pictures: garment crop (rules + the look-alike model above) and the upscaler, both inside the API.
+        services.Configure<UpscalerOptions>(configuration.GetSection(UpscalerOptions.SectionName));
+        services.AddSingleton<IGarmentCropper, GarmentCropper>();
+        // Style page > Colorway pictures: colour groups of the sketch matched to colorway names (rules, inside the API).
+        services.AddSingleton<IColorwayPictureFinder, ColorwayPictureFinder>();
+        services.AddScoped<ColorwayPictureService>();
+        services.AddScoped<IStyleImageImportRepository, StyleImageImportRepository>();
+        services.AddScoped<StyleImageImportService>();
         return services;
     }
 

@@ -69,6 +69,7 @@ INSERT @items VALUES
     (N'nav.styleLibrary',     N'nav.costing',                 'costing',              'lucideCalculator',       40,   N''),
     (N'nav.aiStudio',         N'nav.aiSearch',                'ai/search',            'lucideScanSearch',       10,   N'Admin,Merchandiser,Costing,Viewer'),
     (N'nav.aiStudio',         N'nav.aiImageSearch',           'ai/image-search',      'lucideScanEye',          15,   N'Admin,Merchandiser,Costing,Viewer'),
+    (N'nav.aiStudio',         N'nav.aiAssistant',             'ai/assistant',         'lucideMessagesSquare',   17,   N'Admin,Merchandiser,Costing,Viewer'),
     (N'nav.aiStudio',         N'nav.aiCompare',              'ai/compare',           'lucideGitCompareArrows', 20,   N'Admin,Merchandiser,Costing,Viewer'),
     (N'nav.aiStudio',         N'nav.aiBomCheck',              'ai/bom-check',         'lucideShieldAlert',      30,   N'Admin,Merchandiser,Costing,Viewer'),
     (N'nav.aiStudio',         N'nav.aiRender',                'ai/render',            'lucideWandSparkles',     40,   N'Admin,Merchandiser,Costing,Viewer'),
@@ -89,6 +90,7 @@ INSERT @items VALUES
     (N'nav.settings',         N'settings.nav.roles',          'settings/roles',       'lucideShieldCheck',      20,   N'Admin'),
     (N'nav.settings',         N'settings.nav.userRoles',      'settings/user-roles',  'lucideUsers',            30,   N'Admin'),
     (N'nav.settings',         N'settings.nav.import',         'settings/import',      'lucideFileSpreadsheet',  40,   N'Admin'),
+    (N'nav.settings',         N'settings.nav.imageImport',    'settings/image-import', 'lucideImageUp',         45,   N'Admin'),
     (N'nav.settings',         N'settings.nav.refLists',       'settings/reference-lists', 'lucideListChecks',   50,   N'Admin'),
     (N'nav.settings',         N'settings.nav.aiConnections',  'settings/ai',          'lucidePlug',             60,   N'Admin'),
     (N'nav.settings',         N'settings.nav.translations',   'settings/translations', 'lucideLanguages',       70,   N'Admin');

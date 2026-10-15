@@ -199,7 +199,7 @@ BEGIN
     SET XACT_ABORT ON;
     IF NOT EXISTS (SELECT 1 FROM style.Style WHERE StyleId = @StyleId)
         THROW 50404, N'The style was not found. It may have been deleted.', 1;
-    DECLARE @colorwayCode nvarchar(20) = NULL;
+    DECLARE @colorwayCode nvarchar(100) = NULL;
     IF @ColorwayId IS NOT NULL
     BEGIN
         SELECT @colorwayCode = ColorwayCode FROM style.Colorway WHERE ColorwayId = @ColorwayId AND StyleId = @StyleId;
@@ -288,7 +288,7 @@ BEGIN
     JOIN style.Style s ON s.StyleId = x.StyleId
     JOIN partner.Partner c ON c.PartnerId = s.CustomerId
     JOIN ref.Season se ON se.SeasonCode = s.SeasonCode
-    JOIN ref.SeasonTerm t ON t.Term = se.Term
+    LEFT JOIN ref.SeasonTerm t ON t.Term = se.Term
     LEFT JOIN ref.ProductType pt ON pt.ProductTypeCode = s.ProductTypeCode
     WHERE x.Score > 0
     ORDER BY x.Score DESC, se.SeasonYear DESC, t.SortOrder DESC, s.StyleNo;
@@ -597,7 +597,9 @@ BEGIN
 
     MERGE style.ImageVector AS d
     USING @rows AS s ON d.StyleId = s.StyleId AND d.Source = s.Source AND d.ItemId = s.ItemId
-    WHEN MATCHED THEN UPDATE SET ImageUrl = s.ImageUrl, Model = @Model, Vector = s.Vector, Error = s.Error, IndexedBy = @IndexedBy, IndexedUtc = SYSUTCDATETIME()
+    -- A new vector makes the picture's tags outdated (TagVersion NULL: tagged again on the next indexing round).
+    WHEN MATCHED THEN UPDATE SET ImageUrl = s.ImageUrl, Model = @Model, Vector = s.Vector, Error = s.Error, IndexedBy = @IndexedBy, IndexedUtc = SYSUTCDATETIME(),
+        TagVersion = NULL, TaggedUtc = NULL
     WHEN NOT MATCHED THEN INSERT (StyleId, Source, ItemId, ImageUrl, Model, Vector, Error, IndexedBy)
         VALUES (s.StyleId, s.Source, s.ItemId, s.ImageUrl, @Model, s.Vector, s.Error, @IndexedBy);
 
@@ -655,5 +657,25 @@ BEGIN
     LEFT JOIN style.ImageIndex d ON d.StyleId = x.StyleId AND d.Source = x.Source AND d.ItemId = x.ItemId AND d.ImageUrl = x.ImageUrl AND d.Error IS NULL
     WHERE x.Rn = 1 AND (@customerId IS NULL OR s.CustomerId = @customerId)
     ORDER BY x.Distance, s.StyleNo;
+END
+GO
+
+/*
+    How words (or a picture) compare with every current picture of @Model: how many pictures, and the average and spread of
+    their similarity. Smart search uses it to tell a request about looks (one picture stands out from the rest) from one
+    that is not (every picture scores about the same), before trusting the look-alike search.
+*/
+CREATE OR ALTER PROCEDURE style.usp_ImageVectorStats
+    @Model  nvarchar(200),
+    @Vector nvarchar(max)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @q vector(768) = CAST(@Vector AS vector(768));
+    SELECT Pictures = COUNT(*), Average = ISNULL(AVG(x.Similarity), 0), StdDev = ISNULL(STDEVP(x.Similarity), 0)
+    FROM (SELECT Similarity = CAST(1 - VECTOR_DISTANCE('cosine', v.Vector, @q) AS float)
+          FROM style.ImageVector v
+          JOIN style.fn_ImageSlots() p ON p.StyleId = v.StyleId AND p.Source = v.Source AND p.ItemId = v.ItemId AND p.ImageUrl = v.ImageUrl
+          WHERE v.Model = @Model AND v.Vector IS NOT NULL) x;
 END
 GO

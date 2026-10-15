@@ -30,6 +30,13 @@
             }
           </button>
         }
+        @if (canEdit() && (s.imageUrl || s.sketchUrl)) {
+          <button hlmBtn variant="ghost" size="sm" type="button" class="text-muted-foreground col-span-2 h-9 justify-self-center"
+                  [disabled]="swapping()" [title]="'styles.detail.swapPicturesHint' | transloco" (click)="swapPictures()">
+            <ng-icon name="lucideArrowLeftRight" />
+            {{ (s.imageUrl && s.sketchUrl ? 'styles.detail.swapPictures' : s.imageUrl ? 'styles.detail.moveToSketch' : 'styles.detail.moveToPicture') | transloco }}
+          </button>
+        }
       </div>
 
       <div class="flex min-w-0 flex-1 flex-col gap-4">
@@ -119,7 +126,12 @@
           <div class="flex items-center justify-between gap-3 border-b px-5 py-3">
             <h2 class="font-semibold">{{ 'styles.detail.colorways' | transloco }}</h2>
             @if (canEdit()) {
-              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="openColorway(null)"><ng-icon name="lucidePlus" />{{ 'styles.detail.addColorway' | transloco }}</button>
+              <div class="flex flex-wrap gap-2">
+                @if (colorways().length && (s.sketchUrl || s.imageUrl)) {
+                  <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="cwPicturesOpen.set(true)"><ng-icon name="lucideImages" />{{ 'styles.cwPictures.open' | transloco }}</button>
+                }
+                <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="openColorway(null)"><ng-icon name="lucidePlus" />{{ 'styles.detail.addColorway' | transloco }}</button>
+              </div>
             }
           </div>
           @if (!colorways().length) {
@@ -393,4 +405,7 @@
 
 @if (style(); as s) {
   <app-design-prompt-dialog [open]="promptOpen()" [style]="s" [colorways]="colorways()" (closed)="promptOpen.set(false)" />
+  <app-colorway-pictures-dialog [open]="cwPicturesOpen()" [styleId]="s.styleId" [styleNo]="s.styleNo" [colorways]="colorways()"
+                                [hasSketch]="!!s.sketchUrl" [hasImage]="!!s.imageUrl"
+                                (closed)="cwPicturesOpen.set(false)" (saved)="cwPicturesOpen.set(false); load()" />
 }

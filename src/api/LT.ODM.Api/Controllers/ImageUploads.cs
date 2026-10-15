@@ -33,12 +33,18 @@ internal static class ImageUploads
         }
     }
 
-    /// <summary>Serves a stored image with headers that stop browsers from running it as anything else.</summary>
-    public static IActionResult Serve(ControllerBase controller, IImageStore store, string fileName)
+    /// <summary>
+    /// Serves a stored image, or with <paramref name="width"/> (one of ImageRules.ThumbnailWidths; anything else = the
+    /// original) a thumbnail, with headers that stop browsers from running it as anything else and let them keep it
+    /// (names are never reused, so a kept copy is never out of date).
+    /// </summary>
+    public static async Task<IActionResult> ServeAsync(ControllerBase controller, IImageStore store, string fileName, int? width, CancellationToken ct)
     {
-        if (store.Open(fileName) is not { } image) return controller.NotFound();
+        var image = width is { } w && ImageRules.ThumbnailWidths.Contains(w) ? await store.OpenThumbnailAsync(fileName, w, ct) : store.Open(fileName);
+        if (image is not { } found) return controller.NotFound();
         controller.Response.Headers.XContentTypeOptions = "nosniff";
         controller.Response.Headers.ContentSecurityPolicy = "default-src 'none'";
-        return controller.File(image.Content, image.ContentType);
+        controller.Response.Headers.CacheControl = ImageRules.CacheControl;
+        return controller.File(found.Content, found.ContentType);
     }
 }

@@ -1,5 +1,6 @@
 using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.Ai;
+using LT.ODM.Application.LibraryAssistant;
 using LT.ODM.Application.ConceptStudio;
 using LT.ODM.Application.CostOptimization;
 using LT.ODM.Application.MarketTrends;
@@ -34,6 +35,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public FakeAiEmbeddingClient Embedding { get; } = new();
     public FakeImageSearchRepository ImageSearch { get; } = new();
     public FakeImageEmbeddingModel ImageModel { get; } = new();
+    public FakeSavedQuestionRepository SavedQuestions { get; } = new();
+    public FakePictureTagRepository PictureTags { get; } = new();
+    public FakeStyleImageImportRepository ImageImports { get; } = new();
     /// <summary>Uploaded images go to a temp folder that is deleted with the factory.</summary>
     public string FilesRoot { get; } = Path.Combine(Path.GetTempPath(), "ltodm-tests-" + Guid.NewGuid().ToString("N"));
     /// <summary>Stands in for wwwroot/assets/i18n; tests write the &lt;lang&gt;.json files they need.</summary>
@@ -53,6 +57,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("RateLimiting:AiPermitPerMinute", "1000");
         builder.UseSetting("Translations:BaseFolder", TranslationsBase);
         builder.UseSetting("Translations:OverridesFolder", Path.Combine(FilesRoot, "i18n"));
+        // No upscaler in tests: small pictures are enlarged the plain way (fast, the same on every machine).
+        builder.UseSetting("StyleImages:Upscaler:File", "");
 
         builder.ConfigureTestServices(services =>
         {
@@ -94,6 +100,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<IImageSearchRepository>(ImageSearch);
             services.RemoveAll<IImageEmbeddingModel>();
             services.AddSingleton<IImageEmbeddingModel>(ImageModel);
+            services.RemoveAll<ISavedQuestionRepository>();
+            services.AddSingleton<ISavedQuestionRepository>(SavedQuestions);
+            services.RemoveAll<IPictureTagRepository>();
+            services.AddSingleton<IPictureTagRepository>(PictureTags);
+            services.RemoveAll<IStyleImageImportRepository>();
+            services.AddSingleton<IStyleImageImportRepository>(ImageImports);
         });
     }
 

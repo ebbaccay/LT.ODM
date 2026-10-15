@@ -11,6 +11,9 @@
                     service outside the LT network (Gemini, or a connection not marked in-house), whatever the jobs or
                     appsettings say. A new database starts with AllowCloud = 0; a database that already used a cloud
                     connection when this table was added keeps it on.
+    ai.SavedQuestion: Library assistant questions the AI answered, by normalised text, with the look-up (tool) and
+                    arguments it chose - never the answer. Status Rule = answered from here without AI (set by a thumbs up
+                    or an Admin); Recorded = AI is used; Removed = a thumbs down or an Admin took it out. No asker names.
     Idempotent.
 
       sqlcmd -S YOUR_SERVER -d YOUR_DATABASE -E -b -I -i tables\ai.tables.sql
@@ -97,6 +100,30 @@ BEGIN
                        WHERE c.Kind = 'Gemini' OR c.InHouse = 0), 1, 0),
            N'setup', SYSUTCDATETIME();
 END
+GO
+
+IF OBJECT_ID(N'ai.SavedQuestion', N'U') IS NULL
+CREATE TABLE ai.SavedQuestion
+(
+    SavedQuestionId int IDENTITY(1, 1) NOT NULL,
+    QuestionKey     nvarchar(300)  NOT NULL,   -- lower case, no punctuation, singular words: "men jacket per season"
+    Question        nvarchar(500)  NOT NULL,   -- the latest wording asked
+    Tool            varchar(40)    NOT NULL,
+    Arguments       nvarchar(max)  NOT NULL,   -- JSON object of argument name -> text, as shown with the answer
+    Status          varchar(16)    NOT NULL CONSTRAINT DF_ai_SavedQuestion_Status DEFAULT ('Recorded'),
+    AskCount        int            NOT NULL CONSTRAINT DF_ai_SavedQuestion_AskCount DEFAULT (1),   -- answered by the AI
+    RuleHits        int            NOT NULL CONSTRAINT DF_ai_SavedQuestion_RuleHits DEFAULT (0),   -- answered from here
+    LastAskedUtc    datetime2(3)   NOT NULL CONSTRAINT DF_ai_SavedQuestion_LastAsked DEFAULT (SYSUTCDATETIME()),
+    CreatedUtc      datetime2(3)   NOT NULL CONSTRAINT DF_ai_SavedQuestion_Created DEFAULT (SYSUTCDATETIME()),
+    ChangedBy       nvarchar(64)   NULL,       -- who made it a rule or removed it
+    ChangedUtc      datetime2(3)   NULL,
+    ChangedHow      varchar(16)    NULL,       -- Feedback | Admin
+
+    CONSTRAINT PK_ai_SavedQuestion PRIMARY KEY CLUSTERED (SavedQuestionId),
+    CONSTRAINT UQ_ai_SavedQuestion_Key UNIQUE (QuestionKey),
+    CONSTRAINT CK_ai_SavedQuestion_Status CHECK (Status IN ('Recorded', 'Rule', 'Removed')),
+    CONSTRAINT CK_ai_SavedQuestion_Arguments CHECK (ISJSON(Arguments) = 1)
+);
 GO
 
 PRINT 'AI connection tables ready.';

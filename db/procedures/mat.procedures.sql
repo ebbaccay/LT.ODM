@@ -87,7 +87,7 @@ BEGIN
     OUTER APPLY (SELECT TOP 1 p.Name FROM style.BomLine b JOIN partner.Partner p ON p.PartnerId = b.SupplierId
                  WHERE b.MaterialId = m.MaterialId GROUP BY p.Name ORDER BY COUNT(*) DESC, p.Name) ts
     OUTER APPLY (SELECT TOP 1 s.SeasonCode FROM style.BomLine b JOIN style.Style s ON s.StyleId = b.StyleId
-                 JOIN ref.Season se ON se.SeasonCode = s.SeasonCode JOIN ref.SeasonTerm t ON t.Term = se.Term
+                 JOIN ref.Season se ON se.SeasonCode = s.SeasonCode LEFT JOIN ref.SeasonTerm t ON t.Term = se.Term
                  WHERE b.MaterialId = m.MaterialId ORDER BY se.SeasonYear DESC, t.SortOrder DESC) ls
     ORDER BY pg.RowNo;
 END
@@ -138,7 +138,7 @@ BEGIN
     JOIN style.Style s ON s.StyleId = b.StyleId
     JOIN partner.Partner c ON c.PartnerId = s.CustomerId
     JOIN ref.Season se ON se.SeasonCode = s.SeasonCode
-    JOIN ref.SeasonTerm t ON t.Term = se.Term
+    LEFT JOIN ref.SeasonTerm t ON t.Term = se.Term
     LEFT JOIN ref.ProductType pt ON pt.ProductTypeCode = s.ProductTypeCode
     LEFT JOIN partner.Partner sp ON sp.PartnerId = b.SupplierId
     WHERE b.MaterialId = @MaterialId
@@ -385,7 +385,7 @@ BEGIN
 
     SELECT x.SeasonCode, Styles = COUNT(*), AllRecycled = SUM(IIF(x.RecycledLines = x.FabricLines, 1, 0)),
            SomeRecycled = SUM(IIF(x.RecycledLines > 0, 1, 0)), FabricLines = SUM(x.FabricLines), RecycledLines = SUM(x.RecycledLines)
-    FROM #s x JOIN ref.Season se ON se.SeasonCode = x.SeasonCode JOIN ref.SeasonTerm t ON t.Term = se.Term
+    FROM #s x JOIN ref.Season se ON se.SeasonCode = x.SeasonCode LEFT JOIN ref.SeasonTerm t ON t.Term = se.Term
     GROUP BY x.SeasonCode, se.SeasonYear, t.SortOrder
     ORDER BY se.SeasonYear, t.SortOrder;
 

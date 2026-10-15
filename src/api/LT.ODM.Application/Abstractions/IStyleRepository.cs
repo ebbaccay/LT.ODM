@@ -10,9 +10,18 @@ public interface IStyleRepository
     Task<StyleDetailDto?> GetAsync(int styleId, CancellationToken ct = default);
     Task<StyleDashboardDto> GetDashboardAsync(CancellationToken ct = default);
 
+    /// <summary>Styles matching the list filters (Skip / Take ignored), counted per StyleCountGroups value (style.usp_Style_Counts).</summary>
+    Task<IReadOnlyList<StyleCountDto>> CountAsync(StyleListQuery query, string groupBy, CancellationToken ct = default);
+
     /// <summary>Creates (styleId null) or updates a style; returns its id.</summary>
     Task<int> SaveStyleAsync(int? styleId, SaveStyleRequest request, string changedBy, CancellationToken ct = default);
     Task DeleteStyleAsync(int styleId, byte[] rowVer, string changedBy, CancellationToken ct = default);
+
+    /// <summary>Swaps the picture and the sketch (or moves the only one to the other place).</summary>
+    Task SwapPicturesAsync(int styleId, byte[] rowVer, string changedBy, CancellationToken ct = default);
+
+    /// <summary>Sets a colorway's picture (RowVer checked: 409 when someone else changed it).</summary>
+    Task SetColorwayImageAsync(int styleId, int colorwayId, byte[] rowVer, string imageUrl, string changedBy, CancellationToken ct = default);
 
     /// <summary>Copies a style with its colorways and BOM to another season / number and links it as reused; returns the new id.</summary>
     Task<int> CopyStyleAsync(int styleId, CopyStyleRequest request, string changedBy, CancellationToken ct = default);

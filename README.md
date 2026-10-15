@@ -301,6 +301,8 @@ Two ways to work against the shared dev server instead of your local database:
 | API + Angular, **dev server database** | `dotnet run --project src/api/LT.ODM.Api --launch-profile https-devserver` | `npm start` |
 | Angular only, **API deployed on the dev server** | (nothing) | `npm run start:devserver` |
 
+All in one command: `tools\start-dev.ps1` opens three windows: local AI (OpenVINO, `..\ai-server\start-local.ps1`; skipped if port 8000 is already in use), the API with `https-devserver`, and `npm start`. The dev server database's AI connection points to `http://localhost:8000/v1`, so AI jobs then run on your PC. `-LocalDb` uses the local database (profile `https`), `-NoAi` skips OpenVINO, `-WithImage` also loads the image model for Style render (FLUX.1-schnell: slow on a CPU, about 18 GB more memory), `-AiServer <folder>` if ai-server is elsewhere.
+
 `https-devserver` sets `Database__ConnectionName=StyleLibraryDevServer`, so the API reads `ConnectionStrings:StyleLibraryDevServer` instead of `ConnectionStrings:StyleLibrary`. Store it once in user secrets (never in a committed file):
 
 ```powershell
@@ -315,9 +317,9 @@ Checks: `dotnet build`, `dotnet test`, `ng build`.
 ## API notes
 
 - Routes live under `/api/v1/...`; `/health` includes a SQL Server check; SignalR hub at `/hubs/notifications` (no auth yet, see TODO in `NotificationsHub`).
-- Errors are ProblemDetails; exception details are only shown in Development.
+- Errors are ProblemDetails; exception details are only shown in Development. A request the browser abandons (page change, refresh) is not an error: its cancelled query (SqlException "Operation cancelled by user") is logged at Debug level and answered 499.
 - All responses send `Cache-Control: no-store`.
-- Rate limiting: default 100 requests per minute per client IP.
+- Rate limiting: default 600 API requests per minute per signed-in user (per client IP before sign-in; `RateLimiting:PermitPerMinute`); stored pictures do not count.
 - CORS policy `AngularDev` (http://localhost:4200) is only enabled in Development. In production the API serves the Angular build from `wwwroot` (one IIS site, same origin; `apiBaseUrl` is empty): hashed bundles are cached for a year, `index.html` and service-worker files are `no-cache`, and app routes fall back to `index.html` (unknown `/api` and `/hubs` addresses stay 404). Build a release with `tools/build-release.ps1 -Output <folder>`; see [docs/installation/03-iis-deployment.md](docs/installation/03-iis-deployment.md).
 
 ## Front end: UI and theme

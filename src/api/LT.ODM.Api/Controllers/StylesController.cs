@@ -2,6 +2,7 @@ using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.StyleLibrary;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace LT.ODM.Api.Controllers;
@@ -25,11 +26,14 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
 
     [HttpGet]
     /// <param name="status">active, inactive, or empty for both.</param>
+    /// <param name="pictures">with (a picture or sketch), without, or empty for both.</param>
     public Task<PagedResult<StyleListItemDto>> List(string? search, string? customer, string? season, string? businessUnit, string? productType,
-        string? weaveType, string? gender, string? material, string? status, int skip = 0, int take = 50, CancellationToken ct = default)
+        string? weaveType, string? gender, string? material, string? status, int skip = 0, int take = 50, string? looks = null,
+        string? pictures = null, CancellationToken ct = default)
         => styles.ListAsync(new StyleListQuery(Clean(search, 100), Clean(customer, 32), Clean(season, 200), Clean(businessUnit, 200),
             Clean(productType, 400), Clean(weaveType, 8), Clean(gender, 16), Math.Max(0, skip), Math.Clamp(take, 1, 200), Clean(material, 100),
-            status?.Trim().ToLowerInvariant() switch { "active" => true, "inactive" => false, _ => null }), ct);
+            status?.Trim().ToLowerInvariant() switch { "active" => true, "inactive" => false, _ => null }, Clean(looks, 400),
+            pictures?.Trim().ToLowerInvariant() switch { "with" => true, "without" => false, _ => null }), ct);
 
     /// <summary>Landing page summary of the library (totals, seasons, top customers / materials / suppliers, recent changes).</summary>
     [HttpGet("dashboard")]
@@ -71,6 +75,51 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
         => RunWithRowVer(rowVer, async v =>
         {
             await styles.DeleteStyleAsync(styleId, v, CurrentUserName, ct);
+            return NoContent();
+        });
+
+    /// <summary>
+    /// Which part of the style's sketch (source=Sketch, default) or picture (Image) shows each colorway, matched by the
+    /// colour in the colorway's name. Nothing changes.
+    /// </summary>
+    [HttpGet("{styleId:int}/colorway-pictures")]
+    [Authorize(Roles = StyleRoles.Editors)]
+    public async Task<IActionResult> ColorwayPictures(int styleId, string? source, [FromServices] ColorwayPictureService pictures, CancellationToken ct)
+    {
+        try
+        {
+            return await pictures.SuggestAsync(styleId, source, ct) is { } found ? Ok(found) : NotFound();
+        }
+        catch (Exception ex) when (ex is StyleImageImportException or Application.ConceptStudio.UnreadableImageException)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: ex.Message);
+        }
+    }
+
+    /// <summary>Cuts the confirmed parts of the sketch and sets them as the colorways' pictures (one result per colorway).</summary>
+    [HttpPost("{styleId:int}/colorway-pictures")]
+    [Authorize(Roles = StyleRoles.Editors)]
+    public async Task<IActionResult> SaveColorwayPictures(int styleId, SaveColorwayPicturesRequest request, [FromServices] ColorwayPictureService pictures,
+        CancellationToken ct)
+    {
+        if ((request.Items?.Count ?? 0) > 200) return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Save at most 200 colorways at a time.");
+        try
+        {
+            return await pictures.SaveAsync(styleId, request, CurrentUserName, ct) is { } saved ? Ok(saved) : NotFound();
+        }
+        catch (Exception ex) when (ex is StyleImageImportException or Application.ConceptStudio.UnreadableImageException)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: ex.Message);
+        }
+    }
+
+    /// <summary>Swaps the style's picture and sketch, for a picture saved in the wrong place.</summary>
+    [HttpPost("{styleId:int}/swap-pictures")]
+    [Authorize(Roles = StyleRoles.Editors)]
+    public Task<IActionResult> SwapPictures(int styleId, string? rowVer, CancellationToken ct)
+        => RunWithRowVer(rowVer, async v =>
+        {
+            await styles.SwapPicturesAsync(styleId, v, CurrentUserName, ct);
             return NoContent();
         });
 
@@ -158,8 +207,10 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
         return problem ?? Ok(new { imageUrl = $"/api/v1/styles/images/{name}" });
     }
 
+    /// <summary>A stored picture; ?w=160|320|640 for a thumbnail (lists, cards). Browsers may keep it (names are never reused).</summary>
     [HttpGet("images/{fileName}")]
-    public IActionResult GetImage(string fileName) => ImageUploads.Serve(this, images, fileName);
+    [DisableRateLimiting]   // cheap files for signed-in users; one page can show dozens
+    public Task<IActionResult> GetImage(string fileName, int? w, CancellationToken ct) => ImageUploads.ServeAsync(this, images, fileName, w, ct);
 
     // ----- Helpers -----
 

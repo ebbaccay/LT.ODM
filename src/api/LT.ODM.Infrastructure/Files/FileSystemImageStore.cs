@@ -41,6 +41,48 @@ public abstract partial class FileSystemImageStore(IOptions<FileStorageOptions> 
         if (!File.Exists(path)) return null;
         return (File.OpenRead(path), ConceptStudioRules.ContentType(Path.GetExtension(fileName)));
     }
+
+    /// <summary>
+    /// Thumbnails live in &lt;folder&gt;/_thumbs/&lt;width&gt;/ under the original's name (the content may be PNG for a
+    /// .jpg name when that is smaller, so the type is read from the bytes). Written to a temporary file and moved into
+    /// place, so concurrent first requests never see half a file.
+    /// </summary>
+    public async Task<(Stream Content, string ContentType)?> OpenThumbnailAsync(string fileName, int width, CancellationToken ct = default)
+    {
+        if (!FileNameRegex().IsMatch(fileName) || !ImageRules.ThumbnailWidths.Contains(width)) return null;
+        var original = Path.Combine(_folder, fileName);
+        if (!File.Exists(original)) return null;
+        if (width >= maxDimension) return Open(fileName);
+
+        var folder = Path.Combine(_folder, "_thumbs", width.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var path = Path.Combine(folder, fileName);
+        if (!File.Exists(path))
+        {
+            var content = await File.ReadAllBytesAsync(original, ct);
+            if (ConceptStudioRules.DetectImage(content) is not { } kind) return Open(fileName);
+            byte[] small;
+            try
+            {
+                (small, _) = ImageOptimizer.Optimize(content, kind, width);
+            }
+            catch (UnreadableImageException)
+            {
+                return Open(fileName);
+            }
+            Directory.CreateDirectory(folder);
+            var temp = Path.Combine(folder, $"{Guid.NewGuid():N}.tmp");
+            await File.WriteAllBytesAsync(temp, small, ct);
+            File.Move(temp, path, overwrite: true);
+        }
+        var stream = File.OpenRead(path);
+        var head = new byte[16];
+        var read = await stream.ReadAsync(head, ct);
+        stream.Position = 0;
+        var type = ConceptStudioRules.DetectImage(head.AsSpan(0, read)) is { } k
+            ? ConceptStudioRules.ContentType(ConceptStudioRules.Extension(k))
+            : ConceptStudioRules.ContentType(Path.GetExtension(fileName));
+        return (stream, type);
+    }
 }
 
 // Size limits match what each screen already resizes to in the browser; the server applies them to anything that skips it.

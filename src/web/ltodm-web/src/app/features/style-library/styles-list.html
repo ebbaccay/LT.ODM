@@ -61,6 +61,10 @@
         <option hlmNativeSelectOption value="inactive">{{ 'styles.inactiveStyles' | transloco }}</option>
         <option hlmNativeSelectOption value="all">{{ 'styles.allStatuses' | transloco }}</option>
       </hlm-native-select>
+      <label class="flex h-11 items-center gap-2 text-sm whitespace-nowrap lg:h-9" for="filter-pictures">
+        <hlm-checkbox inputId="filter-pictures" [checked]="picturesOnly()" (checkedChange)="togglePicturesOnly()" />
+        {{ 'styles.picturesOnly' | transloco }}
+      </label>
       @if (activeFilters() || f.search) {
         <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" (click)="clearFilters()"><ng-icon name="lucideX" />{{ 'styles.clear' | transloco }}</button>
       }
@@ -90,7 +94,10 @@
     } @else if (!styles().length) {
       <div class="flex flex-col items-center gap-2 px-5 py-14 text-center">
         <ng-icon name="lucideShirt" class="text-muted-foreground text-4xl" />
-        @if (f.search || activeFilters()) {
+        @if (picturesOnly()) {
+          <p class="font-medium">{{ 'styles.noPictureMatch' | transloco }}</p>
+          <button hlmBtn variant="outline" type="button" class="mt-1 h-11 lg:h-9" (click)="togglePicturesOnly()">{{ 'styles.showAllStyles' | transloco }}</button>
+        } @else if (f.search || activeFilters()) {
           <p class="font-medium">{{ 'styles.noMatch' | transloco }}</p>
           <p class="text-muted-foreground text-sm">{{ 'styles.noMatchHint' | transloco }}</p>
         } @else {
@@ -113,6 +120,7 @@
           <li>
             <a
               [routerLink]="['/styles', s.styleId]"
+              [queryParams]="rowParams(s)"
               class="hover:bg-accent/40 grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-0.5 px-5 py-3 transition-colors lg:grid-cols-[3.5rem_minmax(0,1.5fr)_minmax(0,8rem)_minmax(0,1fr)_minmax(0,4.5rem)_minmax(0,4.5rem)_minmax(0,7rem)]"
             >
               <span class="bg-muted row-span-2 flex size-14 items-center justify-center overflow-hidden rounded-md border lg:row-span-1">
@@ -146,6 +154,33 @@
               <span class="hidden text-right text-sm tabular-nums lg:block">{{ s.colorwayCount }}</span>
               <span class="hidden text-right text-sm tabular-nums lg:block">{{ s.bomLineCount }}</span>
               <span class="text-muted-foreground hidden text-sm lg:block">{{ s.lastChangedUtc | date: 'mediumDate' }}</span>
+              <!-- Search: the colorways and BOM lines it was found on, words highlighted -->
+              @if (s.found?.matches?.length) {
+                <span class="col-[2/-1] mt-1.5 flex min-w-0 flex-col gap-1 border-l-2 pl-3 text-xs" [attr.aria-label]="'styles.foundIn' | transloco">
+                  @for (m of s.found!.matches; track $index) {
+                    <span class="flex min-w-0 items-baseline gap-2">
+                      <span class="text-muted-foreground w-24 shrink-0 truncate">{{ m.kind === 'Colorway' ? ('styles.foundColorway' | transloco) : (m.section || ('styles.foundBomLine' | transloco)) }}</span>
+                      <span class="shrink-0 font-mono">@for (p of highlight(m.code); track $index) {@if (p.hit) {<mark class="text-foreground rounded-sm bg-amber-200/80 dark:bg-amber-400/30">{{ p.text }}</mark>} @else {{{ p.text }}}}</span>
+                      <span class="text-muted-foreground min-w-0 truncate" [title]="m.text ?? ''">@for (p of highlight(m.text); track $index) {@if (p.hit) {<mark class="text-foreground rounded-sm bg-amber-200/80 dark:bg-amber-400/30">{{ p.text }}</mark>} @else {{{ p.text }}}}</span>
+                    </span>
+                  }
+                  @let moreColorways = moreFound(s, 'Colorway');
+                  @let moreLines = moreFound(s, 'BomLine');
+                  @if (moreColorways > 0 || moreLines > 0) {
+                    <span class="text-muted-foreground">
+                      @if (moreColorways > 0) {
+                        {{ 'styles.foundMoreColorways' | transloco: { count: moreColorways } }}
+                      }
+                      @if (moreColorways > 0 && moreLines > 0) {
+                        ·
+                      }
+                      @if (moreLines > 0) {
+                        {{ 'styles.foundMoreLines' | transloco: { count: moreLines } }}
+                      }
+                    </span>
+                  }
+                </span>
+              }
             </a>
           </li>
         }

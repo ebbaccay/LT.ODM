@@ -115,6 +115,7 @@
                 @for (p of previews(); track p.itemRecid; let first = $first) {
                   <img
                     [appAuthSrc]="p.imageUrl"
+                    [thumb]="false"
                     [alt]="p.name"
                     class="bg-muted w-full rounded-md object-cover"
                     [class]="first ? 'col-span-2 aspect-[4/3]' : 'aspect-square'"
@@ -141,7 +142,7 @@
                 <li class="proposal-block flex flex-col overflow-hidden rounded-lg border">
                   <div class="bg-muted text-muted-foreground flex aspect-[4/3] items-center justify-center overflow-hidden">
                     @if (p.imageUrl) {
-                      <img [appAuthSrc]="p.imageUrl" [alt]="p.name" class="size-full object-cover" loading="lazy" (loadError)="p.imageUrl = ''" />
+                      <img [appAuthSrc]="p.imageUrl" [thumb]="false" [alt]="p.name" class="size-full object-cover" loading="lazy" (loadError)="p.imageUrl = ''" />
                     } @else {
                       <ng-icon name="lucideImage" class="text-2xl opacity-50" />
                     }

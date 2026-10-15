@@ -81,8 +81,9 @@ Without SMTP, new users cannot receive their set-password link; an Admin can sen
 | `Auth:Password:*` | MinLength 12, MaxLength 128, upper, lower, digit, symbol, HistoryCount 5 | Password policy |
 | `RateLimiting:AuthPermitPerMinute` | 10 | Sign-in and password requests per client IP per minute |
 | `RateLimiting:AiPermitPerMinute` | 10 | AI requests per user per minute (protects cost and rate limits) |
+| `RateLimiting:PermitPerMinute` | 600 | All API requests per **signed-in user** per minute (per client IP before sign-in). Pictures (`.../images/...`) do not count. Too many answers `429 Too Many Requests` until the minute is over |
 
-The API also limits every client IP to 100 requests per minute overall.
+The overall limit used to be 100 per client IP, which a few quick refreshes of a page with pictures could use up, and which everyone behind one office address (NAT, VPN, remote desktop) shared.
 
 ## AI
 
@@ -97,7 +98,7 @@ The AI service for each job is normally chosen **in the app** (Settings > AI con
 | `Ai:Gemini:Endpoint` | `https://generativelanguage.googleapis.com/v1beta` | |
 | `Ai:Gemini:TimeoutSeconds` | 60 | |
 | `Ai:OpenAiCompatible:Endpoint` | (empty) | e.g. `http://ai-server.lt.local:8000/v1` |
-| `Ai:OpenAiCompatible:Model`, `ImageModel`, `ImageEndpoint`, `ImageSize` (1024x1024), `ApiKey`, `TimeoutSeconds` (120), `InHouse` (true) | | `ImageSize` is also used for in-house image connections set in the app |
+| `Ai:OpenAiCompatible:Model`, `ImageModel`, `ImageEndpoint`, `ImageSize` (1024x1024), `ImageSketchStrength` (0.85), `ApiKey`, `TimeoutSeconds` (120), `InHouse` (true) | | `ImageSize` and `ImageSketchStrength` are also used for in-house image connections set in the app. `ImageSketchStrength`: how far a render may move away from the sketch (0-1); **0 = never send the sketch**, for image servers without `images/edits`. On a CPU-only server use `512x512` or smaller |
 
 See [AI overview](../ai/overview.md).
 
@@ -115,6 +116,18 @@ Search by photo, by words and "more like this" use an image model that runs **in
 | `ImageSearch:ImageModel:Size`, `Mean`, `Std` | 224, 0.5, 0.5 | Input size and pixel normalisation of the model. Change only with another model |
 
 The model must return 768 numbers per picture (`style.ImageVector.Vector` is `vector(768)`). The **AI features** switch in Settings > AI connections turns it off too.
+
+Settings > Import pictures uses the same model to choose the garment on a sheet ([Settings](../components/settings.md#import-pictures-settingsimage-import)).
+
+### Picture upscaler (built into the API)
+
+Settings > Import pictures enlarges small cut-outs with an upscaler that runs **inside the API** (ONNX Runtime on the CPU; nothing sent anywhere). Its file is not in the release: copy it to the server once ([File storage](08-file-storage.md#picture-upscaler-file)).
+
+| Setting | Default | Notes |
+|---|---|---|
+| `StyleImages:Upscaler:File` | `App_Data/models/realesr-general-x4v3/realesr-general-x4v3.onnx` | Relative paths start at the API folder. On servers set it **outside the site**, e.g. `D:\LTODM\models\realesr-general-x4v3\realesr-general-x4v3.onnx`. Empty or missing = small pictures are enlarged smoothly instead |
+
+The model must take an RGB picture (values 0-1, `[1, 3, h, w]`) and return it 4x larger. The **AI features** switch turns it off too.
 
 ## Other
 

@@ -19,12 +19,16 @@ public sealed class FakeAiJsonClient : IAiJsonClient
     public bool IsConfigured { get; set; } = true;
     public Dictionary<string, string> Answers { get; } = [];
     public List<(string Purpose, string UserText)> Calls { get; } = [];
+    /// <summary>The answer cap of the last call (0 = the default cap).</summary>
+    public int LastMaxTokens { get; private set; }
 
     public Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default) => Task.FromResult(new AiProviderInfo("Fake", "fake-text", IsConfigured, LeavesNetwork: false));
 
-    public Task<string> GenerateJsonAsync(string purpose, string systemInstruction, string userText, JsonObject schema, double temperature, CancellationToken ct = default)
+    public Task<string> GenerateJsonAsync(string purpose, string systemInstruction, string userText, JsonObject schema, double temperature, CancellationToken ct = default,
+        int maxTokens = 0)
     {
         Calls.Add((purpose, userText));
+        LastMaxTokens = maxTokens;
         return Task.FromResult(Answers.TryGetValue(purpose, out var a) ? a : "{}");
     }
 }
@@ -193,8 +197,88 @@ public sealed class AiStudioTests(ApiFactory factory) : IClassFixture<ApiFactory
         Assert.Empty(result.Filters.ProductTypes);         // the fake library has no product types
         Assert.Equal("MALE", result.Filters.Gender);
         Assert.Null(result.Filters.Search);
-        Assert.Equal(("ADI", "recycled", "MALE"), (styles.LastListQuery!.Customer, styles.LastListQuery.Material, styles.LastListQuery.Gender));
+        // The phrase list read "recycled" itself (as RECYCLED): its reading is kept over the AI's (the search ignores case).
+        Assert.Equal(("ADI", "RECYCLED", "MALE"), (styles.LastListQuery!.Customer, styles.LastListQuery.Material, styles.LastListQuery.Gender));
         Assert.Equal("ai", result.Source);
+    }
+
+    /// <summary>A small in-house model (qwen2.5-7b on OpenVINO, 2026-10-13) read "windbreakers for SS27" without the season and with filters nobody asked for.</summary>
+    private const string SmallModelReading = """
+        { "seasons": [], "productTypes": ["JACKET"], "gender": "UNISEX", "looks": [], "explanation": "Windbreakers are typically jackets." }
+        """;
+
+    private static readonly StyleLookupsDto SeasonLibrary = new(
+        [new LookupItem("ADI", "adidas")], [new LookupItem("2027-SS", "2027-SS")], [], [new LookupItem("JACKET", "JACKET")], [], [], [], [], [],
+        [new LookupItem("SS", "Spring/Summer")]);
+
+    [Fact]
+    public async Task Ai_search_keeps_what_the_phrase_list_understood_and_only_adds_to_it()
+    {
+        var text = new FakeAiJsonClient();
+        text.Answers["a style search"] = SmallModelReading;
+        var styles = new FakeStyleRepository { Lookups = SeasonLibrary, Totals = _ => 12 };
+
+        var result = await Assistant(text, styles).SearchAsync("windbreakers for SS27", useAi: true);
+
+        Assert.Equal(("ai", false), (result.Source, result.AiFoundNothing));
+        Assert.Equal(["2027-SS"], result.Filters.Seasons);          // stated in the request: kept although the AI dropped it
+        Assert.Equal(["JACKET"], result.Filters.ProductTypes);      // what the AI added for "windbreakers"
+        Assert.Null(result.Filters.Gender);                         // "UNISEX" was not in the request: the phrase list knows every gender word
+        Assert.Equal(StyleAiAssistant.SearchMaxTokens, text.LastMaxTokens);   // a small answer is asked for: a looping model stops early
+        Assert.Equal(("2027-SS", null), (styles.LastListQuery!.Season, styles.LastListQuery.Gender));
+    }
+
+    [Fact]
+    public async Task Change_summary_sends_a_limited_number_of_bom_changes_and_asks_for_a_short_answer()
+    {
+        var text = new FakeAiJsonClient();
+        text.Answers["a change summary"] = """{ "headline": "Fabric swapped", "summary": "The shell fabric changed.", "highlights": [], "checks": [] }""";
+        var lines = Enumerable.Range(1, 100).Select(i => new BomLineChangeDto("Added", "FAB", "Fabric", i, "M" + i, "Desc " + i, null, null, [])).ToList();
+        var diff = new StyleCompareDto(new StyleRefDto(1, "A", "2026-FW", "ADI", null, null, null, 8, 31), new StyleRefDto(2, "A_H", "2026-FW", "ADI", null, null, null, 8, 131),
+            "Variant", [], [], lines, 8, 31);
+
+        var result = await Assistant(text, new FakeStyleRepository()).SummarizeAsync(diff);
+
+        Assert.Equal("The shell fabric changed.", result.Summary);
+        Assert.Equal(StyleAiAssistant.SummaryMaxTokens, text.LastMaxTokens);
+        var sent = JsonNode.Parse(text.Calls.Single().UserText)!;
+        Assert.Equal(StyleAiAssistant.SummaryBomLines, sent["bomChanges"]!.AsArray().Count);
+        Assert.Equal(100 - StyleAiAssistant.SummaryBomLines, (int)sent["moreBomChanges"]!);   // the rest are only counted
+    }
+
+    [Fact]
+    public async Task Bom_check_explanation_sends_the_most_severe_findings_and_asks_for_a_bounded_answer()
+    {
+        var text = new FakeAiJsonClient();
+        text.Answers["a BOM check explanation"] = """{ "summary": "Mostly data gaps.", "priorities": [{ "bomLineId": 1, "why": "No consumption.", "action": "Enter it." }], "ruleNotes": [] }""";
+        var findings = Enumerable.Range(1, 100).Select(i => new BomCheckFindingDto(i, 1, "A", "2026-FW", "ADI", i, null, "M" + i, "Desc", "FAB", "yd",
+            null, null, "NoConsumption", "High", null, null, null, null, null)).ToList();
+        var check = new BomCheckDto(1, 100, 100, [new BomCheckRuleCountDto("NoConsumption", "High", 100, 1)], findings);
+
+        var result = await Assistant(text, new FakeStyleRepository()).ExplainAsync(check);
+
+        Assert.Equal([1], result.Priorities.Select(p => p.BomLineId));
+        Assert.Equal(BomCheckRules.ExplainMaxTokens, text.LastMaxTokens);
+        var sent = JsonNode.Parse(text.Calls.Single().UserText)!;
+        Assert.Equal(BomCheckRules.MaxExplained, sent["findings"]!.AsArray().Count);
+        Assert.Equal(100 - BomCheckRules.MaxExplained, (int)sent["findingsNotSent"]!);
+    }
+
+    [Fact]
+    public async Task When_the_ai_reading_finds_nothing_the_phrase_list_result_is_shown()
+    {
+        var text = new FakeAiJsonClient();
+        text.Answers["a style search"] = SmallModelReading;
+        // No SS27 jackets in the library; the season alone matches 303 styles.
+        var styles = new FakeStyleRepository { Lookups = SeasonLibrary, Totals = q => q.ProductType is null ? 303 : 0 };
+
+        var result = await Assistant(text, styles).SearchAsync("windbreakers for SS27", useAi: true);
+
+        Assert.Equal(("rules", true, 303), (result.Source, result.AiFoundNothing, result.Results.Total));
+        Assert.Equal(["2027-SS"], result.Filters.Seasons);
+        Assert.Empty(result.Filters.ProductTypes);
+        Assert.Equal(["windbreakers"], result.Unmatched);
+        Assert.Equal("Windbreakers are typically jackets.", result.Explanation);   // shown so users see what the AI tried
     }
 
     // ----- Phrase list: no AI for requests it understands -----

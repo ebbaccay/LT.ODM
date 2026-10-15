@@ -89,6 +89,12 @@ public sealed class ImageSearchRepository(IDbConnectionFactory connectionFactory
         }, ct))).ToList();
     }
 
+    public async Task<ImageVectorStatsDto> VectorStatsAsync(string model, float[] vector, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        return await conn.QuerySingleAsync<ImageVectorStatsDto>(Proc("style.usp_ImageVectorStats", new { Model = model, Vector = VectorJson(vector) }, ct));
+    }
+
     /// <summary>"[0.1,-0.2,...]": the text SQL Server casts to vector(1024) or vector(768).</summary>
     internal static string VectorJson(float[] vector)
     {

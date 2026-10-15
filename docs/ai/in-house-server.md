@@ -10,7 +10,7 @@ LT ODM talks to in-house servers with the **OpenAI-compatible API**, which vLLM,
 |---|---|---|
 | Test connection | `GET /v1/models` | Lists model ids |
 | Text | `POST /v1/chat/completions` | **Structured output**: honours `response_format: {"type":"json_schema", ...}`. vLLM (guided decoding), Ollama 0.5+ and LM Studio do; without it answers may not parse and the app shows "could not read the answer" |
-| Image | `POST /v1/images/generations` | Returns `b64_json`. LocalAI (diffusers backend with Stable Diffusion XL or FLUX) or any server with this endpoint. The sketch is **not** sent to in-house image servers (prompt only) |
+| Image | `POST /v1/images/generations`; with a sketch `POST /v1/images/edits` | Returns `b64_json`. OpenVINO Model Server (FLUX.1-schnell), LocalAI (diffusers backend) or any server with these endpoints. A render with **Use the sketch** goes to `images/edits` (image-to-image, see [OpenVINO image model](#openvino-image-model-renders)); a server without it needs `Ai:OpenAiCompatible:ImageSketchStrength` = 0 (prompt only) |
 | Vision (image search) | `POST /v1/chat/completions` | A vision model that accepts `image_url` content with a `data:` URL, plus structured output (Ollama, vLLM, LM Studio) |
 | Embedding (image search) | `POST /v1/embeddings` | An embedding model whose vectors have exactly **1024 numbers** (`qwen3-embedding:0.6b`, `bge-m3`, `mxbai-embed-large`); larger ones such as `qwen3-embedding:4b` (2560) are refused |
 
@@ -28,9 +28,125 @@ The answer can include a reasoning `<think>…</think>` block or a ``` fence; th
 
 **Check the licence before pulling any model.** Within one family the licence can change with the size (Qwen2.5 and Qwen2.5-VL: 7B Apache 2.0, but 3B research-only and 72B under the Qwen licence). The licence is on the model's page at ollama.com (the *License* section) and on its Hugging Face page. LT ODM is commercial use, so research-only and non-commercial models are not allowed, even on a dev server.
 
+**Without a GPU, text answers are slow.** On the tested laptop (MX550, 2 GB: qwen2.5:7b runs on the CPU) a Library assistant question takes minutes; on a GPU server with 16 GB or more it takes seconds. Ollama's default context window is 4096 tokens; set `OLLAMA_CONTEXT_LENGTH=8192` on the AI server if long prompts (many product types, more assistant tools) get cut.
+
 Test with real LT data before switching: the material reader and the BOM check explanations are the most demanding (long structured answers). Raise the connection's timeout (default 120 s) if a smaller server is slow.
 
-> **Image search by photo needs no AI server.** Its look-alike model runs inside the LT ODM API ([File storage](../installation/08-file-storage.md#image-search-model-files)). The AI server is only needed for the descriptions behind search by words, and for the other AI features.
+> **Image search needs no AI server.** Search by photo, by words and "more like this" use the image model built into the LT ODM API ([File storage](../installation/08-file-storage.md#image-search-model-files)). The AI server is needed for the other AI features (smart search's AI step, summaries, BOM check notes, Concept Studio, material reader...) and for image search with *Use the AI server* ticked.
+
+## Choosing the server software
+
+Any server with an OpenAI-style API works; nothing in the app changes. For a Windows server with an Intel CPU and no GPU (such as LTODMSVR):
+
+| Server | When |
+|---|---|
+| **OpenVINO Model Server** (Intel, Apache 2.0) | **Recommended for Intel CPUs.** Runs as a Windows service; uses the CPU's AVX-512 / VNNI instructions with int4/int8 models. Steps below |
+| Ollama (MIT) | Easiest to try, e.g. on a laptop. On Windows it runs in the signed-in user's session (not a service) and updates itself; on Linux it is a proper service. Steps further below |
+| llama.cpp `llama-server` (MIT) | Simple fallback: one model per process, run as a service with a wrapper (NSSM / WinSW) |
+| vLLM | Only with an NVIDIA GPU (Linux) |
+
+Whatever is chosen, check it with `tools\test-ai-server.ps1` before pointing the app at it.
+
+## Setting up OpenVINO Model Server (Windows, Intel CPU)
+
+Tested with release **2026.4.1** on an Intel laptop CPU (October 2026). Two folders end up on the server: the program (`C:\ovms` below) and the models (`C:\models`, with `config.json`). Any folders work, e.g. `E:\LTODM\ai-server\ovms-2026.4.1\ovms` and `E:\LTODM\ai-server\models`: use them in step 3 (the service runs `ovms.exe` from the installer's own folder and reads `config.json` from the folder given to it). The model paths inside `config.json` are relative, so the models folder can be copied anywhere.
+
+**Models** (all Apache 2.0, ready-made OpenVINO versions from huggingface.co/OpenVINO; the same models as the Ollama setup):
+
+| App job | Model on the server | Name in the app | Size |
+|---|---|---|---|
+| Text | `OpenVINO/Qwen2.5-7B-Instruct-int4-ov` | `qwen2.5-7b` | about 4.5 GB |
+| Vision | `OpenVINO/Qwen2.5-VL-7B-Instruct-int4-ov` | `qwen2.5-vl-7b` | about 5.5 GB |
+| Embedding | `OpenVINO/Qwen3-Embedding-0.6B-int8-ov` (1024 numbers; needs `--pooling LAST`) | `qwen3-embedding-0.6b` | 0.6 GB |
+
+**Measured** (laptop, Intel i7-1270P, CPU only, 2026-10-13; same requests as the Ollama check on that laptop):
+
+| | OpenVINO Model Server | Ollama (same models) |
+|---|---|---|
+| Text: one short JSON answer (filters for a request) | **6-8 s** | ~50 s |
+| Vision: one 768 px garment photo described | **24 s** (87 s on the first call) | ~180 s |
+| Embedding: one text | 0.1 s | ~18 s (with model reloads) |
+| Memory: text + embedding / vision + embedding / all three | **7.9 / 9.8 / 15.2 GB** | |
+
+A server with 16 GB that also runs SQL Server and the website can hold **text + embedding or vision + embedding**, not all three: load only the models in use (see *Memory* below) or add RAM (32 GB holds all three).
+
+**Use a recent LT ODM build with it.** This server applies the JSON schema but does not always end the answer: after the JSON it may go on writing, and with a vague instruction the model can get stuck inside one value. The app reads answers as a stream and stops at the end of the JSON, and stops with *"the AI service's answer ran on"* when one value passes 3,000 characters (see [AI overview](overview.md)). Builds before 2026-10-13 waited for such answers until the connection's timeout.
+
+**1. Prepare the package (on any Windows PC with internet).** The server itself needs no internet access.
+
+```powershell
+# Program: download, check, unpack (the zip has an ovms\ folder). Needs the Visual C++ 2015-2022 x64 runtime (aka.ms/vs/17/release/VC_redist.x64.exe).
+$v = "2026.4.1"
+curl.exe -L -o ovms.zip "https://github.com/openvinotoolkit/model_server/releases/download/v$v/ovms_windows_${v}_python_off.zip"
+curl.exe -L -o ovms.zip.sha256 "https://github.com/openvinotoolkit/model_server/releases/download/v$v/ovms_windows_${v}_python_off.zip.sha256"
+(Get-FileHash ovms.zip -Algorithm SHA256).Hash   # must equal the value in ovms.zip.sha256
+tar -xf ovms.zip
+.\ovms\setupvars.ps1
+
+# Models: download into a models folder and register them in its config.json
+$m = "D:\transfer\models"
+.\ovms\ovms.exe --pull --source_model OpenVINO/Qwen2.5-7B-Instruct-int4-ov --model_repository_path $m --model_name qwen2.5-7b --task text_generation --pipeline_type LM_CB --target_device CPU
+.\ovms\ovms.exe --pull --source_model OpenVINO/Qwen2.5-VL-7B-Instruct-int4-ov --model_repository_path $m --model_name qwen2.5-vl-7b --task text_generation --pipeline_type VLM_CB --target_device CPU
+.\ovms\ovms.exe --pull --source_model OpenVINO/Qwen3-Embedding-0.6B-int8-ov --model_repository_path $m --model_name qwen3-embedding-0.6b --task embeddings --pooling LAST --target_device CPU
+.\ovms\ovms.exe --add_to_config --config_path "$m\config.json" --model_repository_path $m --model_name qwen2.5-7b --model_path "OpenVINO\Qwen2.5-7B-Instruct-int4-ov"
+.\ovms\ovms.exe --add_to_config --config_path "$m\config.json" --model_repository_path $m --model_name qwen2.5-vl-7b --model_path "OpenVINO\Qwen2.5-VL-7B-Instruct-int4-ov"
+.\ovms\ovms.exe --add_to_config --config_path "$m\config.json" --model_repository_path $m --model_name qwen3-embedding-0.6b --model_path "OpenVINO\Qwen3-Embedding-0.6B-int8-ov"
+```
+
+A pull that stops half-way resumes when run again. The model paths in `config.json` are relative, so the folder can be moved. Each model folder has a `graph.pbtxt` with its settings (e.g. `pooling: LAST` for the embedding model).
+
+**2. Copy to the server.** `ovms\` to `C:\ovms`, the models folder to `C:\models`. Install the Visual C++ x64 runtime on the server if it is missing.
+
+**3. Install the Windows service** (PowerShell as administrator):
+
+```powershell
+C:\ovms\install_ovms_service.bat C:\models
+sc.exe config ovms start= auto            # the installer leaves it on manual start
+sc.exe start ovms
+```
+
+- The service is called **ovms**, listens on port **8000** on **all network interfaces**, runs as **LocalSystem**, reads `C:\models\config.json` and logs to `C:\ovms\ovms_server.log` (also Event Viewer > Windows Logs > System).
+- **Same machine as LT ODM:** make it listen only there. Edit the service command line to add `--rest_bind_address 127.0.0.1`, e.g. `sc.exe config ovms binPath= "\"C:\ovms\ovms.exe\" --rest_port 8000 --rest_bind_address 127.0.0.1 --config_path \"C:\models\config.json\" --log_level INFO --log_path \"C:\ovms\ovms_server.log\""`, then restart it.
+- **Separate machine:** allow port 8000 only from the web server: `New-NetFirewallRule -DisplayName "OVMS from LT ODM" -Direction Inbound -Protocol TCP -LocalPort 8000 -RemoteAddress <web server IP> -Action Allow`. The server has **no sign-in**.
+- **Protect the program and models folders:** Intel warns that whoever can change `config.json` (or `ovms.exe`) can run code as LocalSystem. Only administrators, SYSTEM and the account that looks after the server may write there. Run in PowerShell **as administrator**, with that account's name as `whoami` shows it (e.g. `ltodmsvr\istadmin`):
+
+  ```powershell
+  icacls "C:\ovms" /inheritance:r /grant:r "Administrators:(OI)(CI)F" "SYSTEM:(OI)(CI)F" "ltodmsvr\istadmin:(OI)(CI)F" /T
+  icacls "C:\models" /inheritance:r /grant:r "Administrators:(OI)(CI)F" "SYSTEM:(OI)(CI)F" "ltodmsvr\istadmin:(OI)(CI)F" /T
+  ```
+
+  (With both under one folder, e.g. `E:\LTODM\ai-server`, one command on that folder covers both.) Naming the account avoids User Account Control asking for permission in Explorer; an account left out that is not an administrator loses access. If that happened, an administrator runs `takeown /f <folder> /r /d y` and then the command above. The website's app pool needs no access: it only calls port 8000.
+- Stop / start / remove: `sc.exe stop ovms`, `sc.exe start ovms`, `sc.exe delete ovms`. The service reloads `config.json` when it changes.
+
+**4. Test** (from the web server):
+
+```powershell
+.\tools\test-ai-server.ps1 -Endpoint http://<ai-server>:8000/v1 -TextModel qwen2.5-7b -VisionModel qwen2.5-vl-7b -EmbeddingModel qwen3-embedding-0.6b
+```
+
+The script is in the repository's `tools` folder and in every release (`tools\test-ai-server.ps1` next to `api\`); copy it to the server. Without a vision model on the server (e.g. text + embedding on a 16 GB server), add `-VisionModel ''` to skip that check. If PowerShell refuses to run it, start it with `powershell -ExecutionPolicy Bypass -File <path>\test-ai-server.ps1 ...`.
+
+The server answers on both `/v1` and `/v3`. Use `/v1` in the app. Loading all models takes a minute or two after the service starts; the model list is empty until then. If the server cannot hold all three models, a request fails with *"Failed to allocate ... bytes of memory"* in `ovms_server.log`: remove a model (below).
+
+**5. Point the app at it.** Settings > AI connections > Add connection: OpenAI-compatible, address `http://<ai-server>:8000/v1` (`http://localhost:8000/v1` on the same machine), **Runs on the LT network** ticked, timeout **300** s or more. Jobs: Text = `qwen2.5-7b`, Vision = `qwen2.5-vl-7b`, Embedding = `qwen3-embedding-0.6b`.
+
+### OpenVINO image model (renders)
+
+FLUX.1-schnell (Apache 2.0) draws renders, and with **Use the sketch** turns the style's flat sketch into a product photo (image-to-image through `images/edits`).
+
+```powershell
+.\ovms\ovms.exe --pull --source_model OpenVINO/FLUX.1-schnell-int4-ov --model_repository_path $m --task image_generation
+.\ovms\ovms.exe --add_to_config --config_path "$m\config.json" --model_repository_path $m --model_name flux --model_path "OpenVINO\FLUX.1-schnell-int4-ov"
+```
+
+- **Download** 9.25 GB; about 18 GB of memory while drawing, on top of the text models.
+- **CPU only:** add `device: "CPU"` under `models_path` in the model's `graph.pbtxt`. Without it the server tries Intel integrated graphics and fails with `CL_BUILD_PROGRAM_FAILURE`.
+- **Measured on a laptop CPU** (Core i7-1270P, 32 GB, 2026-10-13): 256x256 renders took 68 s (1 step) to 95 s (2 steps) from a prompt, and 302-580 s from a sketch. 512x512 and larger are impractical on a CPU (estimated 20-40 minutes); **use a GPU server** for renders. Set the Image connection's timeout above the expected time.
+- **How close to the sketch:** `Ai:OpenAiCompatible:ImageSketchStrength` (default 0.85). At 0.85 the dress test kept the neck, sleeves, length and back slit and looked like a photo; at 0.6 it stayed a clean drawing. Lower keeps more of the sketch, higher looks more real but may change the design. The sketch is sent centred on a white canvas of `ImageSize`.
+- Job: Image = `flux` on the OpenVINO connection.
+- **Developer PC:** `ai-server\start-local.ps1 -WithImage` (or `tools\start-dev.ps1 -WithImage`) loads FLUX next to the text models (`models\config-local-image.json`) and adds the CPU setting if it is missing.
+
+**Memory.** Each model in `config.json` is loaded at start and stays loaded. To leave one out (e.g. the vision model when picture descriptions are not used): `C:\ovms\ovms.exe --remove_from_config --config_path C:\models\config.json --model_name qwen2.5-vl-7b`; the service picks the change up by itself.
 
 ## Setting up Ollama (dev server, no GPU)
 
@@ -95,5 +211,5 @@ It checks the model list, a JSON text answer, a picture reading and that the emb
 ## What changes for users
 
 - Nothing in the screens except the banner colour.
-- Answer quality and speed depend on the models chosen; renders lose the sketch guidance.
+- Answer quality and speed depend on the models chosen. Renders keep the sketch guidance on servers with `images/edits` (OpenVINO Model Server), but need a GPU to be quick.
 - Concept Studio, Cost Optimization and Market Trends, which send the most sensitive data (prices and costs), are the first to benefit.
