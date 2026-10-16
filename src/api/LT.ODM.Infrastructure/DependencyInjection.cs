@@ -85,6 +85,11 @@ public static class DependencyInjection
 
         services.AddScoped<IStyleAiRepository, StyleAiRepository>();
         services.AddScoped<StyleAiAssistant>();
+        services.AddSingleton<RenderTimings>();   // render times outlive the request: the next brief's estimate
+        services.AddSingleton<SketchShapeReader>();   // shape words for renders, from the built-in image model
+        services.AddSingleton<ISketchShapeReader>(sp => sp.GetRequiredService<SketchShapeReader>());
+        services.AddHostedService<SketchShapeReader.WarmUp>();   // loads it after start, so the first render page opens quickly
+        services.AddSingleton<ISketchViews, SketchViews>();   // front-and-back sketches drawn one view at a time
         services.AddScoped<ImportCodeAdvisor>();
         services.AddScoped<ConceptMatcher>();
         services.AddScoped<IMaterialSpecRepository, MaterialSpecRepository>();

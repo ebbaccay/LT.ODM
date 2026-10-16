@@ -60,7 +60,7 @@ Settings > AI connections > **Switches**, and the **Off** choice on each job. Th
 | Provider | Text | Image | Notes |
 |---|---|---|---|
 | Gemini | `POST {endpoint}/models/{model}:generateContent` with `responseMimeType: application/json` and `responseSchema` (the answer is forced to the schema) | Same endpoint with `responseModalities: ["IMAGE"]`, aspect ratio 3:4; the sketch is attached as `inlineData` | API key in the `x-goog-api-key` header. Always cloud |
-| OpenAI-compatible | `POST {endpoint}/chat/completions` with `response_format: json_schema` (vLLM, Ollama, LM Studio constrain the answer); `<think>` blocks and code fences are removed | `POST {endpoint}/images/generations`, `response_format: b64_json`, size from `Ai:OpenAiCompatible:ImageSize`. With the sketch: `POST {endpoint}/images/edits` (multipart: the sketch centred on a white `ImageSize` canvas as PNG, `strength` from `ImageSketchStrength`, default 0.85; 0 = never send the sketch) | Optional `Authorization: Bearer` key. "Runs on the LT network" decides the banner |
+| OpenAI-compatible | `POST {endpoint}/chat/completions` with `response_format: json_schema` (vLLM, Ollama, LM Studio constrain the answer); `<think>` blocks and code fences are removed | `POST {endpoint}/images/generations`, `response_format: b64_json`, size from `Ai:OpenAiCompatible:ImageSize`. With the sketch: `POST {endpoint}/images/edits` (multipart: the sketch cut to its garment drawings and centred with a margin on a white `ImageSize` canvas as PNG (portrait or landscape, 1.5x, for clearly tall or wide drawings when `ImageFitShape` is on), `strength` from `ImageSketchStrength`, default 0.85; 0 = never send the sketch) | Optional `Authorization: Bearer` key. "Runs on the LT network" decides the banner |
 | Custom HTTP | - | - | Only stored and tested (for future prediction services) |
 
 **Vision and Embedding** (image search) have no Gemini path and no appsettings default: they must be set in Settings > AI connections to an OpenAI-compatible connection, otherwise the call is refused with a readable message.
@@ -70,14 +70,15 @@ Settings > AI connections > **Switches**, and the **Off** choice on each job. Th
 | Vision | `POST {endpoint}/chat/completions`, user content = text + `image_url` with a `data:` URL (the picture made at most 768 px first), `response_format: json_schema`, temperature 0.1 |
 | Embedding | `POST {endpoint}/embeddings` with `{ model, input }`; the first vector must have exactly 1024 numbers (`style.ImageIndex.Embedding` is `vector(1024)`) |
 
-The API's HTTP clients for AI have no timeout of their own: the connection's **timeout** (5-600 s) applies to every call, so a slow CPU server can be given several minutes.
+The API's HTTP clients for AI have no timeout of their own: the connection's **timeout** (5-3600 s) applies to every call, so a slow CPU server can be given several minutes.
 
-**Reading answers from OpenAI-compatible servers** (Text and Vision jobs; `AiHttp.ChatTextAsync`). The request asks for a streamed answer (`stream: true`) with at most `max_tokens` 4096 (less where the answer is short: Smart search 500, change summary 900, BOM check explanation 1,500), and the app reads it as it arrives:
+**Reading answers from OpenAI-compatible servers** (Text and Vision jobs; `AiHttp.ChatTextAsync`). The request asks for a streamed answer (`stream: true`) with at most `max_tokens` 4096 (less where the answer is short: Smart search 500, render prompt 400, change summary 900, BOM check explanation 1,500), and the app reads it as it arrives:
 
 - It **stops as soon as the first JSON value is complete** and closes the connection, which also stops the server generating. Some servers do not end the answer after the JSON (OpenVINO Model Server 2026.4 with Qwen2.5, October 2026) and would otherwise run to the timeout.
 - It **stops with an error** ("the AI service's answer ran on") when one text value passes 3,000 characters (`OpenAiApi.MaxStringLength`; the app's longest field is 1,000): the model is stuck inside it and the JSON would never close. Seen when an instruction did not name the fields; every app prompt names them.
 - A leading `<think>` block is skipped; text after the JSON and code fences are dropped (`CleanJson`).
 - A server that ignores `stream: true` and answers in one piece is read the usual way.
+- **Progress for the browser:** a request with header `X-Ai-Progress: <random UUID>` (AI Studio sends one for summaries, BOM explanations and render prompt rewrites) gets a progress entry while it runs; the streamed text counts words into it (`AiProgress`, AsyncLocal for the request). The page polls `GET /api/v1/ai/progress/{id}` every 2 s: `{ phase: "waiting" | "writing", words, seconds }`, or 204 before the call starts and after it ends. Entries are per signed-in user and kept only in memory while the request runs.
 
 **Test connection** calls `GET {endpoint}/models` and lists the models, so admins pick a model the service really has.
 

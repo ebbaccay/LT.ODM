@@ -83,6 +83,7 @@ export class CompareSummaryCard {
   summarize(): void {
     const d = this.diff();
     if (this.summarizing()) return;
-    this.tasks.run('compareSummary', `compare:${d.to.styleId}:${d.from.styleId}`, d.to.styleNo, this.svc.summarize(d.to.styleId, d.from.styleId));
+    this.tasks.run('compareSummary', `compare:${d.to.styleId}:${d.from.styleId}`, d.to.styleNo,
+      (progressId) => this.svc.summarize(d.to.styleId, d.from.styleId, progressId), { follow: true });
   }
 }

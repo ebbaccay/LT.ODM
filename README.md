@@ -301,7 +301,7 @@ Two ways to work against the shared dev server instead of your local database:
 | API + Angular, **dev server database** | `dotnet run --project src/api/LT.ODM.Api --launch-profile https-devserver` | `npm start` |
 | Angular only, **API deployed on the dev server** | (nothing) | `npm run start:devserver` |
 
-All in one command: `tools\start-dev.ps1` opens three windows: local AI (OpenVINO, `..\ai-server\start-local.ps1`; skipped if port 8000 is already in use), the API with `https-devserver`, and `npm start`. The dev server database's AI connection points to `http://localhost:8000/v1`, so AI jobs then run on your PC. `-LocalDb` uses the local database (profile `https`), `-NoAi` skips OpenVINO, `-WithImage` also loads the image model for Style render (FLUX.1-schnell: slow on a CPU, about 18 GB more memory), `-AiServer <folder>` if ai-server is elsewhere.
+All in one command: `tools\start-dev.ps1` opens three windows: local AI (OpenVINO, `..\ai-server\start-local.ps1`; skipped if port 8000 is already in use), the API with `https-devserver`, and `npm start`. The dev server database's AI connection points to `http://localhost:8000/v1`, so AI jobs then run on your PC. `-LocalDb` uses the local database (profile `https`), `-NoAi` skips OpenVINO, `-ImageOnly` loads the image model for Style render (FLUX.1-schnell) instead of the text models, which do not fit next to it in 32 GB (text AI is off until you restart without it), `-AiServer <folder>` if ai-server is elsewhere.
 
 `https-devserver` sets `Database__ConnectionName=StyleLibraryDevServer`, so the API reads `ConnectionStrings:StyleLibraryDevServer` instead of `ConnectionStrings:StyleLibrary`. Store it once in user secrets (never in a committed file):
 

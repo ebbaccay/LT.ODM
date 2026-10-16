@@ -265,6 +265,18 @@ public sealed class AiStudioTests(ApiFactory factory) : IClassFixture<ApiFactory
     }
 
     [Fact]
+    public async Task Render_prompt_rewrite_asks_for_a_short_answer()
+    {
+        var text = new FakeAiJsonClient();
+        text.Answers["a render prompt"] = """{ "prompt": "Photorealistic product photo of a men's jacket on a ghost mannequin, plain light-grey background." }""";
+
+        var result = await Assistant(text, new FakeStyleRepository()).WritePromptAsync(1, null);
+
+        Assert.StartsWith("Photorealistic product photo", result.Prompt);
+        Assert.Equal(StyleAiAssistant.PromptMaxTokens, text.LastMaxTokens);   // at most 110 words: a model that runs on stops early
+    }
+
+    [Fact]
     public async Task When_the_ai_reading_finds_nothing_the_phrase_list_result_is_shown()
     {
         var text = new FakeAiJsonClient();

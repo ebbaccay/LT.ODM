@@ -47,10 +47,20 @@ CREATE TABLE ai.Connections
     CONSTRAINT UQ_ai_Connections_Name UNIQUE (Name),
     CONSTRAINT CK_ai_Connections_Kind CHECK (Kind IN ('Gemini', 'OpenAiCompatible', 'Custom')),
     CONSTRAINT CK_ai_Connections_Endpoint CHECK (Endpoint LIKE N'http://%' OR Endpoint LIKE N'https://%'),
-    CONSTRAINT CK_ai_Connections_Timeout CHECK (TimeoutSeconds BETWEEN 5 AND 600),
+    -- Up to an hour: a render on an in-house image server without a GPU takes 5-10 minutes or more.
+    CONSTRAINT CK_ai_Connections_Timeout CHECK (TimeoutSeconds BETWEEN 5 AND 3600),
     -- Gemini is Google's cloud service: never in-house.
     CONSTRAINT CK_ai_Connections_GeminiCloud CHECK (Kind <> 'Gemini' OR InHouse = 0)
 );
+GO
+
+-- Databases made before October 2026 allow at most 600 s: widen to 3600 s.
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_ai_Connections_Timeout'
+           AND parent_object_id = OBJECT_ID(N'ai.Connections') AND definition NOT LIKE N'%3600%')
+BEGIN
+    ALTER TABLE ai.Connections DROP CONSTRAINT CK_ai_Connections_Timeout;
+    ALTER TABLE ai.Connections ADD CONSTRAINT CK_ai_Connections_Timeout CHECK (TimeoutSeconds BETWEEN 5 AND 3600);
+END
 GO
 
 IF OBJECT_ID(N'ai.Purposes', N'U') IS NULL

@@ -75,6 +75,7 @@ builder.Services.AddSingleton<IAiSecretProtector, DataProtectionAiSecretProtecto
 
 // Authentication: short-lived JWT access tokens + rotating refresh tokens (HttpOnly cookie).
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<AiProgressRegistry>();
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
@@ -255,6 +256,17 @@ if (app.Environment.IsDevelopment())
 // After authentication so per-user policies (AI) can see who is calling; per-IP policies are unaffected.
 app.UseAuthentication();
 app.UseRateLimiter();
+
+// A browser following a slow AI call sends X-Ai-Progress: <random id>; the call's progress is then readable at
+// GET api/v1/ai/progress/{id} by the same user while it runs (AiProgressController).
+app.Use(async (context, next) =>
+{
+    var id = context.Request.Headers[AiProgressRegistry.Header].ToString();
+    if (AiProgressRegistry.Owner(context.User) is { } owner && AiProgressRegistry.ValidId(id))
+        await context.RequestServices.GetRequiredService<AiProgressRegistry>().FollowAsync(owner, id, () => next());
+    else
+        await next();
+});
 app.UseAuthorization();
 
 app.MapControllers();

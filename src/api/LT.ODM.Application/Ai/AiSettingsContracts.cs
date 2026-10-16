@@ -195,6 +195,9 @@ public sealed class AiSettingsException(int statusCode, string message) : Except
 
 public static partial class AiSettingsValidation
 {
+    /// <summary>Longest timeout a connection may have: an image server without a GPU takes 5-10 minutes or more per render (db CK_ai_Connections_Timeout).</summary>
+    public const int MaxTimeoutSeconds = 3600;
+
     [GeneratedRegex(@"^https?://[^\s/$.?#][^\s]*$", RegexOptions.IgnoreCase)]
     private static partial Regex UrlRegex();
 
@@ -205,7 +208,7 @@ public static partial class AiSettingsValidation
         if (!AiConnectionKinds.All.Contains(r.Kind)) e["kind"] = ["Choose Gemini, OpenAI-compatible or Custom."];
         Endpoint(e, r.Endpoint);
         if ((r.ApiKey?.Length ?? 0) > 500) e["apiKey"] = ["The API key is too long."];
-        if (r.TimeoutSeconds is < 5 or > 600) e["timeoutSeconds"] = ["Use 5 to 600 seconds."];
+        if (r.TimeoutSeconds is < 5 or > MaxTimeoutSeconds) e["timeoutSeconds"] = [$"Use 5 to {MaxTimeoutSeconds} seconds."];
         if ((r.Notes?.Length ?? 0) > 400) e["notes"] = ["At most 400 characters."];
         return e;
     }

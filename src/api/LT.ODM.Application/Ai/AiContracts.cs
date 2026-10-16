@@ -11,7 +11,7 @@ namespace LT.ODM.Application.Ai;
 /// </summary>
 public sealed record AiProviderInfo(
     string Provider, string Model, bool IsConfigured, bool LeavesNetwork, bool SupportsReferenceImage = false, string? Source = null,
-    string? Blocked = null);
+    string? Blocked = null, bool SketchAsStartImage = false);
 
 /// <summary>A text model that must answer with JSON matching a schema. The service is chosen per call (Settings > AI connections).</summary>
 public interface IAiJsonClient

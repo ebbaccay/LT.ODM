@@ -50,6 +50,12 @@ public sealed class OpenAiCompatibleOptions
     /// without images/edits.
     /// </summary>
     public double ImageSketchStrength { get; set; } = 0.85;
+    /// <summary>
+    /// Sketch renders on a canvas shaped like the drawing: a tall one (a dress) at ImageSize width x 1.5 height, a wide one
+    /// at 1.5 width x height (256x384 / 384x256 for 256x256). The image server must allow those sizes (OpenVINO Model
+    /// Server: in the model's graph.pbtxt "resolution" list). False = always ImageSize.
+    /// </summary>
+    public bool ImageFitShape { get; set; } = true;
     /// <summary>True when the server runs on the company network. Set false if it points at an outside service.</summary>
     public bool InHouse { get; set; } = true;
     public int TimeoutSeconds { get; set; } = 120;
@@ -131,6 +137,7 @@ internal static class AiHttp
                 if (chunk?["choices"] is JsonArray { Count: > 0 } c && c[0]?["delta"]?["content"] is JsonValue d && d.TryGetValue<string>(out var part))
                 {
                     text.Append(part);
+                    AiProgress.Current?.Wrote(part);   // the browser can follow the answer as it is written
                     watch.Feed(part);
                     if (watch.Complete) break;   // the rest would be noise: closing the connection stops the server
                     if (watch.RanOn)
@@ -334,11 +341,11 @@ public static partial class OpenAiApi
     /// server neither stretches nor crops it, and the model redraws it following the prompt.
     /// </summary>
     public static async Task<GeneratedImage> EditImageAsync(HttpClient http, AiConnection c, string size, double strength, ILogger logger, string purpose,
-        string prompt, ReferenceImage sketch, CancellationToken ct)
+        string prompt, ReferenceImage sketch, CancellationToken ct, bool fitShape = false)
     {
         var (width, height) = ParseSize(size);
         byte[] canvas;
-        try { canvas = Files.ImageOptimizer.FitOnCanvas(sketch.Content, width, height); }
+        try { (canvas, width, height) = Files.ImageOptimizer.SketchCanvas(sketch.Content, width, height, fitShape); }
         catch (UnreadableImageException ex) { throw new AiServiceException("The sketch could not be read. Upload it again or render without it.", ex); }
 
         using var form = new MultipartFormDataContent
@@ -518,7 +525,7 @@ public sealed class RoutedAiImageClient(HttpClient http, IAiConnectionResolver r
     {
         var r = await resolver.ExplainAsync(AiPurposes.Image, ct);
         var info = AiConnectionInfo.Of(r);
-        return r.Connection?.Kind == AiConnectionKinds.OpenAiCompatible && SketchStrength > 0 ? info with { SupportsReferenceImage = true } : info;
+        return r.Connection?.Kind == AiConnectionKinds.OpenAiCompatible && SketchStrength > 0 ? info with { SupportsReferenceImage = true, SketchAsStartImage = true } : info;
     }
 
     public async Task<GeneratedImage> GenerateImageAsync(string purpose, string prompt, ReferenceImage? reference, CancellationToken ct = default)
@@ -527,7 +534,7 @@ public sealed class RoutedAiImageClient(HttpClient http, IAiConnectionResolver r
         if (!AiHttp.Info(c).IsConfigured) throw new AiServiceException("Image generation is not set up on this server.");
         if (c!.Kind == AiConnectionKinds.Gemini) return await GeminiApi.GenerateImageAsync(http, c, logger, purpose, prompt, reference, ct);
         return reference is not null && SketchStrength > 0
-            ? await OpenAiApi.EditImageAsync(http, c, openAi.Value.ImageSize, SketchStrength, logger, purpose, prompt, reference, ct)
+            ? await OpenAiApi.EditImageAsync(http, c, openAi.Value.ImageSize, SketchStrength, logger, purpose, prompt, reference, ct, openAi.Value.ImageFitShape)
             : await OpenAiApi.GenerateImageAsync(http, c, openAi.Value.ImageSize, logger, purpose, prompt, ct);
     }
 

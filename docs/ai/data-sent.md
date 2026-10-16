@@ -78,7 +78,7 @@ Sensitivity is LT's view of the data: **Low** (reference lists and generic text)
 | | |
 |---|---|
 | Job / calls | **Rewrite with AI**: Text, 1 call. **Generate render**: Image, 1 call |
-| Sent (Rewrite) | The facts shown on the page: garment type, gender, construction, model name, colorway code and name, up to 3 shortened fabric descriptions, colours, visible trims; whether a sketch exists |
+| Sent (Rewrite) | The facts shown on the page: garment type, gender, construction, model name, colorway code and name, up to 3 shortened fabric descriptions, colours, visible trims, the shape read from the sketch (words such as "long sleeves"; read inside the API, the sketch itself is not sent); whether a sketch exists |
 | Sent (Generate) | The description as shown in the prompt box (brand names such as adidas, Skechers, Parley and Primegreen are removed before sending); **the style's uploaded sketch image** when "Use the sketch" is ticked: to Gemini, or to an in-house image server (`images/edits`, stays on the LT network) |
 | Not sent | Photos, BOM figures, suppliers, costs |
 | Sensitivity | Medium (the sketch is a customer design) |

@@ -64,12 +64,30 @@ public static partial class RenderPrompt
             colorway?.ColorwayCode, colorway?.ColorwayName is { } cn ? Lower(cn) : null, fabrics, colours, details);
     }
 
-    /// <summary>The default prompt (the user can edit it, or have the text AI rewrite it).</summary>
-    public static string Build(RenderFactsDto f, bool withSketch)
+    /// <summary>Added to the description for each view when a front-and-back sketch is drawn one view at a time.</summary>
+    public const string FrontView = "Front side of the garment.";
+    public const string BackView = "Back side of the garment, seen from behind.";
+
+    /// <summary>
+    /// The default prompt (the user can edit it, or have the text AI rewrite it). The shape read from the sketch goes into
+    /// the garment sentence (the BOM says nothing about sleeves, neckline or length). sketchAsStart: the image model
+    /// redraws the sketch itself (in-house image-to-image) and reads no instructions, so the sketch is not mentioned and
+    /// the garment is a flat lay, like the flat drawing it starts from: on mannequins FLUX kept adding heads ("headless"
+    /// does not work: the model does not follow "no" words), and with two views in one picture it merged them or drew the
+    /// same view twice (2026-10-15). A front-and-back sketch is therefore drawn one view at a time (FrontView / BackView
+    /// added) and joined. Instruction-following models (Gemini) are told to follow the attached sketch instead.
+    /// </summary>
+    public static string Build(RenderFactsDto f, bool withSketch, bool sketchAsStart = false)
     {
         var sb = new StringBuilder();
         var who = f.Gender is null ? "" : f.Gender + " ";
-        sb.Append($"Photorealistic e-commerce product photo of a {who}{f.Garment ?? "garment"}");
+        var garment = f.Garment ?? "garment";
+        // The sketch shows the sleeves: a product type's sleeve note ("jersey (sleeveless)") must not contradict it.
+        if (f.Shape?.Any(s => s.Contains("sleeve", StringComparison.OrdinalIgnoreCase)) == true)
+            garment = SleeveNoteRegex().Replace(garment, "").Trim();
+        var startFromSketch = withSketch && sketchAsStart;
+        sb.Append(startFromSketch ? $"Photorealistic flat lay product photo of a {who}{garment}" : $"Photorealistic e-commerce product photo of a {who}{garment}");
+        if (f.Shape is { Count: > 0 } shape) sb.Append(" with ").Append(JoinWords(shape));
         // The fabric names say how it is made; the style's weave code is only a fallback (some styles are coded woven with fleece fabrics).
         if (f.Construction is not null && f.Fabrics.Count == 0) sb.Append($", {f.Construction} construction");
         sb.Append(". ");
@@ -77,11 +95,19 @@ public static partial class RenderPrompt
         if (f.Fabrics.Count > 1) sb.Append($"Also uses {string.Join("; ", f.Fabrics.Skip(1))}. ");
         if (f.Colours.Count > 0) sb.Append($"Colours: {string.Join(", ", f.Colours)}. ");
         if (f.Details.Count > 0) sb.Append($"Visible details: {string.Join(", ", f.Details)}. ");
-        if (withSketch) sb.Append("Follow the attached flat sketch exactly for the silhouette, seams, panels and trim placement, but show a real garment, not a drawing. ");
-        sb.Append("Ghost-mannequin front view, centred, on a plain light-grey studio background, soft even lighting, ");
-        sb.Append("true-to-life fabric texture and drape. No person, no brand names, no logos, no readable text or labels.");
+        if (withSketch && !sketchAsStart)
+            sb.Append("Follow the attached flat sketch exactly for the silhouette, seams, panels and trim placement, but show a real garment, not a drawing. ");
+        if (startFromSketch)
+            sb.Append("A real garment, not a drawing, laid flat on a plain light-grey surface, seen from directly above, soft even lighting, true-to-life fabric texture. ");
+        else
+            sb.Append("Ghost-mannequin front view, centred, on a plain light-grey studio background, soft even lighting, true-to-life fabric texture and drape. ");
+        sb.Append("No person, no brand names, no logos, no readable text or labels.");
         return Strip(sb.ToString());
     }
+
+    /// <summary>"long sleeves", "a high neck", "maxi length" -> "long sleeves, a high neck and maxi length".</summary>
+    private static string JoinWords(IReadOnlyList<string> words)
+        => words.Count == 1 ? words[0] : string.Join(", ", words.Take(words.Count - 1)) + " and " + words[^1];
 
     /// <summary>Brand words out (customer and programme names), so the picture never imitates a brand.</summary>
     public static string Strip(string text)
@@ -137,6 +163,9 @@ public static partial class RenderPrompt
     private static string Lower(string? value) => SpacesRegex().Replace((value ?? "").Trim().ToLowerInvariant(), " ");
 
     private static bool Same(string? a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    [GeneratedRegex(@"\s*\([^)]*sleeve[^)]*\)", RegexOptions.IgnoreCase)]
+    private static partial Regex SleeveNoteRegex();
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex SpacesRegex();

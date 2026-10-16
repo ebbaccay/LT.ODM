@@ -260,7 +260,7 @@
       </label>
       <div class="flex flex-col gap-1">
         <label class="text-sm font-medium" for="ai-timeout">{{ 'aiSettings.timeout' | transloco }}</label>
-        <input hlmInput id="ai-timeout" type="number" min="5" max="600" class="h-11 w-32 lg:h-9" [value]="f.timeoutSeconds" (input)="patch({ timeoutSeconds: +$any($event.target).value })" />
+        <input hlmInput id="ai-timeout" type="number" min="5" max="3600" class="h-11 w-32 lg:h-9" [value]="f.timeoutSeconds" (input)="patch({ timeoutSeconds: +$any($event.target).value })" />
         @if (errs['timeoutSeconds']) { <p class="text-destructive text-xs">{{ errs['timeoutSeconds'] }}</p> }
       </div>
     </div>

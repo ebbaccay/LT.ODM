@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '@env/environment';
 import { Observable, shareReplay } from 'rxjs';
@@ -265,6 +265,10 @@ export interface RenderFacts {
   fabrics: string[];
   colours: string[];
   details: string[];
+  /** Read from the uploaded sketch by the built-in image model: "long sleeves", "a high neck", "maxi length"... */
+  shape: string[] | null;
+  /** The sketch has front and back drawn apart. */
+  frontAndBack: boolean;
 }
 
 export interface StyleRender {
@@ -380,7 +384,25 @@ export interface RenderBrief {
   facts: RenderFacts;
   prompt: string;
   renders: StyleRender[];
+  /** Typical seconds of recent renders with this image model (null: none since the API started). */
+  estimate: { withSketchSeconds: number | null; withoutSketchSeconds: number | null; sketchRenders: number } | null;
+  /** The picture a render starts from: the colorway's own picture when it has one (its print), else the sketch. */
+  guideUrl: string | null;
+  guideIsColorway: boolean;
 }
+
+/**
+ * How far a running AI text call has got (GET progress/{id}): waiting = the model is still reading the request,
+ * writing = the answer is coming in (words so far, field names included). Not a percentage.
+ */
+export interface AiProgress {
+  phase: 'waiting' | 'writing';
+  words: number;
+  seconds: number;
+}
+
+/** Sends the id the API files the call's progress under (followed with AiStudioService.progress). */
+const followed = (progressId?: string) => (progressId ? { headers: new HttpHeaders({ 'X-Ai-Progress': progressId }) } : {});
 
 @Injectable({ providedIn: 'root' })
 export class AiStudioService {
@@ -417,8 +439,8 @@ export class AiStudioService {
     return this.http.get<StyleCompare>(`${this.api}/style-compare`, { params });
   }
 
-  summarize(styleId: number, fromStyleId: number | null): Observable<CompareSummary> {
-    return this.http.post<CompareSummary>(`${this.api}/style-compare/summary`, { styleId, fromStyleId });
+  summarize(styleId: number, fromStyleId: number | null, progressId?: string): Observable<CompareSummary> {
+    return this.http.post<CompareSummary>(`${this.api}/style-compare/summary`, { styleId, fromStyleId }, followed(progressId));
   }
 
   bomCheck(query: BomCheckQuery): Observable<BomCheck> {
@@ -427,8 +449,8 @@ export class AiStudioService {
     return this.http.get<BomCheck>(`${this.api}/bom-check`, { params });
   }
 
-  explain(query: BomCheckQuery): Observable<BomCheckExplanation> {
-    return this.http.post<BomCheckExplanation>(`${this.api}/bom-check/explain`, query);
+  explain(query: BomCheckQuery, progressId?: string): Observable<BomCheckExplanation> {
+    return this.http.post<BomCheckExplanation>(`${this.api}/bom-check/explain`, query, followed(progressId));
   }
 
   renderBrief(styleId: number, colorwayId: number | null): Observable<RenderBrief> {
@@ -436,8 +458,13 @@ export class AiStudioService {
     return this.http.get<RenderBrief>(`${this.api}/style-render/${styleId}`, { params });
   }
 
-  writePrompt(styleId: number, colorwayId: number | null): Observable<{ prompt: string }> {
-    return this.http.post<{ prompt: string }>(`${this.api}/style-render/${styleId}/prompt`, { colorwayId });
+  writePrompt(styleId: number, colorwayId: number | null, progressId?: string): Observable<{ prompt: string }> {
+    return this.http.post<{ prompt: string }>(`${this.api}/style-render/${styleId}/prompt`, { colorwayId }, followed(progressId));
+  }
+
+  /** Progress of a running call sent with this id; null before it starts and after it ends. */
+  progress(progressId: string): Observable<AiProgress | null> {
+    return this.http.get<AiProgress | null>(`${this.api}/progress/${progressId}`);
   }
 
   render(styleId: number, colorwayId: number | null, prompt: string, useSketch: boolean): Observable<StyleRender> {

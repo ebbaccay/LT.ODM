@@ -140,11 +140,23 @@ FLUX.1-schnell (Apache 2.0) draws renders, and with **Use the sketch** turns the
 ```
 
 - **Download** 9.25 GB; about 18 GB of memory while drawing, on top of the text models.
-- **CPU only:** add `device: "CPU"` under `models_path` in the model's `graph.pbtxt`. Without it the server tries Intel integrated graphics and fails with `CL_BUILD_PROGRAM_FAILURE`.
+- **CPU only:** add these lines under `models_path` in the model's `graph.pbtxt` (`start-local.ps1 -WithImage` adds them):
+
+  ```
+  device: "CPU"
+  resolution: "256x256 512x512 256x384 384x256 512x768 768x512"
+  default_resolution: "256x256"
+  default_num_inference_steps: 3
+  max_num_inference_steps: 8
+  ```
+
+  Without `device` the server tries Intel integrated graphics and fails with `CL_BUILD_PROGRAM_FAILURE`. Without `resolution` a 1024x1024 request (the app's default `ImageSize`) ran a 32 GB laptop out of memory and stopped the server (*Failed to allocate ... bytes of memory*); with it, other sizes are refused with a message. The 1.5x taller and wider sizes are for the app's shaped sketch canvases (`ImageFitShape`): a dress is drawn on 256x384, about 1.5 times the time of 256x256 but with room for details such as a back slit. FLUX.1-schnell is made for about 4 steps; 3 looked as good on a shirt test and drew about 40% faster (front and back at 256x384: 344 s and 333 s, 2026-10-16). The app sends no step count. Set `Ai:OpenAiCompatible:ImageSize` to `256x256` (or `512x512`) to match.
+- **Measured:** a 256x256 render from a prompt, first after loading, 4 steps: 406 s. A shirt from its sketch, front and back at 256x384, 3 steps: 344 s + 333 s. Set the Image connection's timeout to 1800 s: it applies to each picture, and a view that passes it is lost (OpenVINO then logs *FATAL send node in loop* when it cannot deliver it; the server keeps running).
 - **Measured on a laptop CPU** (Core i7-1270P, 32 GB, 2026-10-13): 256x256 renders took 68 s (1 step) to 95 s (2 steps) from a prompt, and 302-580 s from a sketch. 512x512 and larger are impractical on a CPU (estimated 20-40 minutes); **use a GPU server** for renders. Set the Image connection's timeout above the expected time.
-- **How close to the sketch:** `Ai:OpenAiCompatible:ImageSketchStrength` (default 0.85). At 0.85 the dress test kept the neck, sleeves, length and back slit and looked like a photo; at 0.6 it stayed a clean drawing. Lower keeps more of the sketch, higher looks more real but may change the design. The sketch is sent centred on a white canvas of `ImageSize`.
-- Job: Image = `flux` on the OpenVINO connection.
-- **Developer PC:** `ai-server\start-local.ps1 -WithImage` (or `tools\start-dev.ps1 -WithImage`) loads FLUX next to the text models (`models\config-local-image.json`) and adds the CPU setting if it is missing.
+- **How close to the sketch:** `Ai:OpenAiCompatible:ImageSketchStrength` (default 0.85). At 0.85 the dress test kept the neck, sleeves, length and back slit and looked like a photo; at 0.6 it stayed a clean drawing. Lower keeps more of the sketch, higher looks more real but may change the design. The sketch is cut to its garment drawings (pins, labels and stray lines left out) and centred on a white canvas of `ImageSize` with a 6% margin all round, not stretched (a drawing touching the edge came back with its hem cut off; a stretched one changes the garment's proportions).
+- Job: Image = `flux` on the OpenVINO connection. With `ImageSize` 256x256 the API enlarges each render 4x (to 1024 px) with the Import pictures upscaler, about 1.3 s.
+- **Developer PC:** `ai-server\start-local.ps1 -ImageOnly` (or `tools\start-dev.ps1 -ImageOnly`) serves FLUX **instead of** the text and embedding models (`models\config-local-image.json`) and adds the CPU settings if they are missing. Both together ran a 32 GB laptop out of memory: FLUX about 18 GB while drawing, the text model 8 GB, the usual programs about 16 GB. While it runs, text AI (Rewrite with AI, summaries, BOM explanations, Smart search AI, Library assistant) fails; the render description built from the BOM still works.
+- **One server for both:** plan for 18 GB (FLUX) + 8 GB (text) + 2 GB (embedding) plus headroom, i.e. 48 GB or more, or a GPU for FLUX.
 
 **Memory.** Each model in `config.json` is loaded at start and stays loaded. To leave one out (e.g. the vision model when picture descriptions are not used): `C:\ovms\ovms.exe --remove_from_config --config_path C:\models\config.json --model_name qwen2.5-vl-7b`; the service picks the change up by itself.
 

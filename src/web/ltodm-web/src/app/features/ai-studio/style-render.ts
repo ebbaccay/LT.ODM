@@ -5,7 +5,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideImage, lucideImagePlus, lucideRefreshCw, lucideSparkles, lucideTrash2, lucideWandSparkles, lucideX } from '@ng-icons/lucide';
+import { lucideImage, lucideImagePlus, lucideRefreshCw, lucideSparkles, lucideTextCursorInput, lucideTrash2, lucideWandSparkles, lucideX } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -42,7 +42,7 @@ const MAX_PROMPT = 2000;
     DatePipe, RouterLink, NgIcon, AuthImgDirective, Modal, AiProviderBanner, AiTaskRunning, StylePicker, HlmBadgeImports, HlmButtonImports, HlmCardImports,
     HlmNativeSelectImports, HlmSkeletonImports, HlmSpinnerImports, HlmTextareaImports, TranslocoPipe,
   ],
-  providers: [provideIcons({ lucideImage, lucideImagePlus, lucideRefreshCw, lucideSparkles, lucideTrash2, lucideWandSparkles, lucideX })],
+  providers: [provideIcons({ lucideImage, lucideImagePlus, lucideRefreshCw, lucideSparkles, lucideTextCursorInput, lucideTrash2, lucideWandSparkles, lucideX })],
   templateUrl: './style-render.html',
 })
 export class StyleRenderPage implements OnInit {
@@ -64,14 +64,27 @@ export class StyleRenderPage implements OnInit {
   readonly notFound = signal(false);
   readonly prompt = signal('');
   readonly useSketch = signal(true);
-  readonly writing = signal(false);
   readonly preview = signal<StyleRender | null>(null);
+
+  /** Rewrite with AI runs as a task too: it can take a while on an in-house server, and its words are followed. */
+  readonly promptTask = this.tasks.watch<{ prompt: string }>(computed(() => (this.styleId() ? `prompt:${this.styleId()}` : null)));
+  readonly writing = computed(() => this.promptTask()?.status === 'running');
+  /** The rewrite already put into the box (so editing it afterwards is not undone). */
+  private appliedPrompt = 0;
 
   /** One render at a time per style, kept by the session while the user is elsewhere. */
   readonly renderTask = this.tasks.watch<StyleRender>(computed(() => (this.styleId() ? `render:${this.styleId()}` : null)));
   readonly rendering = computed(() => this.renderTask()?.status === 'running');
 
   constructor() {
+    // A finished rewrite fills the description box once.
+    effect(() => {
+      const t = this.promptTask();
+      if (t?.status === 'done' && t.result && t.id !== this.appliedPrompt) {
+        this.appliedPrompt = t.id;
+        untracked(() => this.prompt.set(t.result!.prompt));
+      }
+    });
     // A render that finished (here or while away) joins the list unless the list already has it from the server.
     effect(() => {
       const t = this.renderTask();
@@ -100,7 +113,9 @@ export class StyleRenderPage implements OnInit {
     this.svc.renderBrief(id, colorwayId).subscribe({
       next: (b) => {
         this.brief.set(b);
-        this.prompt.set(b.prompt);
+        // Back from elsewhere after a rewrite finished: keep the rewritten description, not the default.
+        const rewritten = this.promptTask();
+        this.prompt.set(rewritten?.status === 'done' && rewritten.result ? rewritten.result.prompt : b.prompt);
         this.useSketch.set(b.sketchUsable);
         this.loading.set(false);
       },
@@ -126,6 +141,10 @@ export class StyleRenderPage implements OnInit {
 
   garmentText = (b: RenderBrief) => [b.facts.gender, b.facts.garment].filter((x) => !!x).join(' ');
 
+  /** Shape words read from the sketch, plus "front and back" when it has both views. */
+  shapeText = (b: RenderBrief) =>
+    [...(b.facts.shape ?? []), ...(b.facts.frontAndBack ? [this.transloco.translate('ai.render.frontAndBack')] : [])].join(', ');
+
   resetPrompt(): void {
     this.prompt.set(this.brief()?.prompt ?? '');
   }
@@ -134,24 +153,23 @@ export class StyleRenderPage implements OnInit {
   rewrite(): void {
     const b = this.brief();
     if (!b || this.writing()) return;
-    this.writing.set(true);
-    this.svc.writePrompt(b.style.styleId, b.colorwayId).subscribe({
-      next: (r) => {
-        this.prompt.set(r.prompt);
-        this.writing.set(false);
-      },
-      error: (e) => {
-        this.writing.set(false);
-        toast.error(this.transloco.translate('ai.failed'), { description: problemMessage(e) });
-      },
-    });
+    this.tasks.run('renderPrompt', `prompt:${b.style.styleId}`, b.style.styleNo,
+      (progressId) => this.svc.writePrompt(b.style.styleId, b.colorwayId, progressId), { follow: true });
   }
 
   generate(): void {
     const b = this.brief();
     if (!b || this.rendering()) return;
+    const useSketch = this.useSketch() && b.sketchUsable;
     this.tasks.run('render', `render:${b.style.styleId}`, b.style.styleNo,
-      this.svc.render(b.style.styleId, b.colorwayId, this.prompt().trim(), this.useSketch() && b.sketchUsable));
+      () => this.svc.render(b.style.styleId, b.colorwayId, this.prompt().trim(), useSketch),
+      { estimateSeconds: useSketch ? b.estimate?.withSketchSeconds : b.estimate?.withoutSketchSeconds });
+  }
+
+  /** Puts a saved render's description back in the box (descriptions typed or rewritten are not kept between visits). */
+  useDescription(r: StyleRender): void {
+    this.prompt.set(r.prompt);
+    toast.success(this.transloco.translate('ai.render.descriptionUsed'));
   }
 
   async remove(r: StyleRender): Promise<void> {

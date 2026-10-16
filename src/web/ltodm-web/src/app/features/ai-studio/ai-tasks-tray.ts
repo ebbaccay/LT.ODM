@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { TranslocoPipe } from '@jsverse/transloco';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCircleAlert, lucideCircleCheck, lucideX } from '@ng-icons/lucide';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
-import { AiTask, AiTasksSession } from './ai-tasks.session';
+import { AiTask, AiTasksSession, taskStatus } from './ai-tasks.session';
 import { LibraryAssistantSession } from './library-assistant.session';
 
 /**
@@ -44,7 +44,7 @@ import { LibraryAssistantSession } from './library-assistant.session';
               <span class="text-muted-foreground shrink-0 text-xs">
                 @switch (t.status) {
                   @case ('running') {
-                    {{ 'ai.tasks.minutes' | transloco: { count: minutes(t) } }}
+                    {{ short(t) }}
                   }
                   @case ('done') {
                     {{ 'ai.tasks.ready' | transloco }}
@@ -73,17 +73,24 @@ import { LibraryAssistantSession } from './library-assistant.session';
 export class AiTasksTray {
   readonly tasks = inject(AiTasksSession);
   private readonly assistant = inject(LibraryAssistantSession);
+  private readonly transloco = inject(TranslocoService);
 
   /** The assistant's bubble takes the corner: the chips sit beside it (above it on phones). */
   readonly bubbleShown = computed(() => !this.assistant.onPage() && this.assistant.turns().length > 0);
 
-  /** Ticks every 15 s so the minutes shown move on. */
+  /** Ticks every 5 s so the figures shown move on. */
   private readonly now = signal(Date.now());
 
   constructor() {
-    const timer = setInterval(() => this.now.set(Date.now()), 15_000);
+    const timer = setInterval(() => this.now.set(Date.now()), 5_000);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
   }
 
-  minutes = (t: AiTask) => Math.max(1, Math.round((this.now() - t.startedAt) / 60_000));
+  /** Chip text while running: the estimated %, the words written, or the minutes so far. */
+  short = (t: AiTask): string => {
+    const s = taskStatus(t, this.now());
+    if (s.percent !== null) return `${s.percent}%`;
+    if (t.progress?.phase === 'writing') return this.transloco.translate('ai.tasks.words', { count: t.progress.words });
+    return this.transloco.translate('ai.tasks.minutes', { count: Math.max(1, Math.round((this.now() - t.startedAt) / 60_000)) });
+  };
 }

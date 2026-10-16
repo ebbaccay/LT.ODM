@@ -63,7 +63,8 @@
               { label: 'ai.render.garment', value: garmentText(b) },
               { label: 'ai.render.fabrics', value: b.facts.fabrics.join(' · ') },
               { label: 'ai.render.colours', value: b.facts.colours.join(', ') },
-              { label: 'ai.render.details', value: b.facts.details.join(', ') }
+              { label: 'ai.render.details', value: b.facts.details.join(', ') },
+              { label: 'ai.render.shape', value: shapeText(b) }
             ]; track row.label) {
               <div class="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2">
                 <dt class="text-muted-foreground text-xs">{{ row.label | transloco }}</dt>
@@ -72,6 +73,9 @@
             }
           </dl>
           <p class="text-muted-foreground mt-2 text-xs">{{ 'ai.render.factsHint' | transloco }}</p>
+          @if (b.facts.shape?.length || b.facts.frontAndBack) {
+            <p class="text-muted-foreground mt-1 text-xs">{{ 'ai.render.shapeHint' | transloco }}</p>
+          }
         </div>
 
         @if (canEdit()) {
@@ -102,6 +106,7 @@
                 <ng-icon name="lucideRefreshCw" />{{ 'ai.render.reset' | transloco }}
               </button>
             </div>
+            <app-ai-task-running [task]="promptTask()" />
           </div>
 
           <label class="flex items-start gap-2 text-sm" [class.opacity-60]="!b.sketchUsable">
@@ -109,7 +114,10 @@
             <span>
               {{ 'ai.render.useSketch' | transloco }}
               <span class="text-muted-foreground block text-xs">
-                {{ (b.sketchUsable ? 'ai.render.useSketchHint' : b.hasSketch ? 'ai.render.sketchNotUsable' : 'ai.render.noSketch') | transloco }}
+                {{ (b.sketchUsable ? (b.guideIsColorway ? 'ai.render.useColorwayPictureHint' : 'ai.render.useSketchHint') : b.hasSketch ? 'ai.render.sketchNotUsable' : 'ai.render.noSketch') | transloco }}
+                @if (b.sketchUsable && b.estimate?.sketchRenders === 2) {
+                  {{ 'ai.render.twoViews' | transloco }}
+                }
               </span>
             </span>
           </label>
@@ -154,6 +162,7 @@
                 @if (canEdit()) {
                   <div class="flex gap-2">
                     <button hlmBtn variant="outline" type="button" class="h-11 flex-1 lg:h-9" [disabled]="b.style.imageUrl === r.imageUrl" (click)="useAsPhoto(r)">{{ 'ai.render.usePhoto' | transloco }}</button>
+                    <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" [title]="'ai.render.useDescription' | transloco" [attr.aria-label]="'ai.render.useDescription' | transloco" (click)="useDescription(r)"><ng-icon name="lucideTextCursorInput" /></button>
                     <button hlmBtn variant="ghost" type="button" class="text-destructive h-11 lg:h-9" [attr.aria-label]="'ai.render.delete' | transloco" (click)="remove(r)"><ng-icon name="lucideTrash2" /></button>
                   </div>
                 }
@@ -177,6 +186,11 @@
     <p class="text-muted-foreground mt-3 text-xs whitespace-pre-line">{{ p.prompt }}</p>
   }
   <ng-container footer>
+    @if (canEdit() && preview(); as p) {
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="useDescription(p); preview.set(null)">
+        <ng-icon name="lucideTextCursorInput" />{{ 'ai.render.useDescription' | transloco }}
+      </button>
+    }
     <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="preview.set(null)">{{ 'styles.detail.close' | transloco }}</button>
   </ng-container>
 </app-modal>

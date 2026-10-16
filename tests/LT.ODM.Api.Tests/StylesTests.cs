@@ -35,10 +35,16 @@ public sealed class FakeStyleRepository : IStyleRepository
         return Task.FromResult(new PagedResult<StyleListItemDto>([], Totals?.Invoke(query) ?? 0));
     }
 
+    /// <summary>The style's sketch address (renders read it through the image store).</summary>
+    public string? SketchUrl { get; set; }
+
+    /// <summary>The style's colorways (none by default).</summary>
+    public IReadOnlyList<ColorwayDto> Colorways { get; set; } = [];
+
     public Task<StyleDetailDto?> GetAsync(int styleId, CancellationToken ct = default)
         => Task.FromResult<StyleDetailDto?>(styleId == 404 ? null : new StyleDetailDto(
             new StyleHeaderDto(styleId, "ADI", "adidas", "2027-SS", "S1_SS27", "S1", null, "M", "Model", null, null, null, null, null, null, null, null,
-                null, null, null, null, "x", DateTime.UtcNow, null, null, CurrentRowVer), [], [], []));
+                SketchUrl, null, null, null, "x", DateTime.UtcNow, null, null, CurrentRowVer), Colorways, [], []));
 
     public Task<StyleDashboardDto> GetDashboardAsync(CancellationToken ct = default)
         => Task.FromResult(new StyleDashboardDto(new StyleDashboardTotalsDto(3, 5, 4, 2, 20, 9, 2, 1, 2, 1, 1, 1, 2, 3),

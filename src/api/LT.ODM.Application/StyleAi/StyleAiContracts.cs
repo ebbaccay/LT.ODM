@@ -120,7 +120,8 @@ public sealed record BomCheckExplanationDto(string Summary, IReadOnlyList<BomChe
 /// <summary>What the render prompt is built from (shown so users can see exactly which data goes to the image model).</summary>
 public sealed record RenderFactsDto(
     string? Garment, string? Gender, string? Construction, string? ModelName, string? ColorwayCode, string? ColorwayName,
-    IReadOnlyList<string> Fabrics, IReadOnlyList<string> Colours, IReadOnlyList<string> Details);
+    IReadOnlyList<string> Fabrics, IReadOnlyList<string> Colours, IReadOnlyList<string> Details,
+    IReadOnlyList<string>? Shape = null, bool FrontAndBack = false);
 
 public sealed record RenderColorwayDto(int ColorwayId, string ColorwayCode, string? ColorwayName, string Status);
 
@@ -131,7 +132,15 @@ public sealed record StyleRenderDto(
 /// <summary>Everything the render screen needs for one style: its colorways, the facts and default prompt, and earlier renders.</summary>
 public sealed record RenderBriefDto(
     StyleRefDto Style, IReadOnlyList<RenderColorwayDto> Colorways, int? ColorwayId, bool HasSketch, bool SketchUsable,
-    RenderFactsDto Facts, string Prompt, IReadOnlyList<StyleRenderDto> Renders);
+    RenderFactsDto Facts, string Prompt, IReadOnlyList<StyleRenderDto> Renders, RenderEstimateDto? Estimate = null,
+    string? GuideUrl = null, bool GuideIsColorway = false);
+
+/// <summary>
+/// Typical seconds of recent renders with the current image model, with and without the sketch (null = none yet).
+/// SketchRenders: pictures a render with the sketch takes (2 when front and back are drawn one at a time; included in
+/// WithSketchSeconds).
+/// </summary>
+public sealed record RenderEstimateDto(int? WithSketchSeconds, int? WithoutSketchSeconds, int SketchRenders = 1);
 
 public sealed record RenderPromptRequest(int? ColorwayId);
 

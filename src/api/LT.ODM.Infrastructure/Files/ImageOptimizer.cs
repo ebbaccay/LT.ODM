@@ -66,10 +66,26 @@ public static class ImageOptimizer
     }
 
     /// <summary>
-    /// The image (turned upright) scaled to fit width x height and centred on white, as PNG: the input of an image-to-image
-    /// model, which draws at the size it is given. Transparent parts become white.
+    /// The image (turned upright, cut to its garment drawings) scaled to fit width x height with a margin, centred on white, as PNG: the
+    /// input of an image-to-image model, which draws at the size it is given. Trimming matters: a wide front-and-back sketch
+    /// with its own margins came out small on the square, and the model filled the empty space above and below with
+    /// mannequin heads and legs while small details (a back slit) were lost (2026-10-15). Not stretched: that changes the
+    /// garment's proportions. Transparent parts become white.
     /// </summary>
-    public static byte[] FitOnCanvas(byte[] content, int width, int height)
+    public static byte[] FitOnCanvas(byte[] content, int width, int height) => SketchCanvas(content, width, height, fitShape: false).Png;
+
+    /// <summary>Share of the canvas left white on each side of the sketch.</summary>
+    public const float CanvasMargin = 0.06f;
+
+    /// <summary>A drawing this much taller than wide (or wider than tall) gets a portrait (landscape) canvas.</summary>
+    public const double ShapedCanvasRatio = 1.25;
+
+    /// <summary>
+    /// As <see cref="FitOnCanvas"/>; with fitShape, a clearly tall drawing (a dress) goes on a portrait canvas of
+    /// width x 1.5 height, a clearly wide one on a landscape canvas, so the garment gets more of the pixels (a 256x256
+    /// square left a dress about 150 px wide). Sides are multiples of 16, as image models need. Returns the size used.
+    /// </summary>
+    public static (byte[] Png, int Width, int Height) SketchCanvas(byte[] content, int width, int height, bool fitShape)
     {
         using var data = SKData.CreateCopy(content);
         using var codec = SKCodec.Create(data) ?? throw new UnreadableImageException();
@@ -81,21 +97,39 @@ public static class ImageOptimizer
 
         var swap = origin is SKEncodedOrigin.LeftTop or SKEncodedOrigin.RightTop or SKEncodedOrigin.RightBottom or SKEncodedOrigin.LeftBottom;
         var (uprightW, uprightH) = swap ? (info.Height, info.Width) : (info.Width, info.Height);
-        var scale = Math.Min((double)width / uprightW, (double)height / uprightH);
+        using var upright = new SKBitmap(new SKImageInfo(uprightW, uprightH, SKColorType.Rgba8888, SKAlphaType.Premul, SKColorSpace.CreateSrgb()));
+        using (var c = new SKCanvas(upright))
+        using (var source = SKImage.FromBitmap(decoded))
+        {
+            c.Clear(SKColors.White);
+            ApplyOrigin(c, origin, info.Width, info.Height);
+            c.DrawImage(source, 0, 0, new SKSamplingOptions(SKFilterMode.Nearest));
+        }
 
+        var box = SketchDrawings.Bounds(upright);   // the garment drawings only: pins, labels and edge lines left out
+        if (fitShape && width == height)
+        {
+            var longer = (int)Math.Round(width * 1.5 / 16) * 16;
+            var ratio = (double)box.Height / box.Width;
+            if (ratio >= ShapedCanvasRatio) height = longer;
+            else if (1 / ratio >= ShapedCanvasRatio) width = longer;
+        }
+        // A margin all round: a drawing touching the edge (a tall dress on a square) came back with its hem cut off.
+        var scale = Math.Min(width * (1 - 2 * CanvasMargin) / box.Width, height * (1 - 2 * CanvasMargin) / box.Height);
         using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul, SKColorSpace.CreateSrgb()))
             ?? throw new UnreadableImageException();
         var canvas = surface.Canvas;
         canvas.Clear(SKColors.White);
-        canvas.Translate((float)((width - uprightW * scale) / 2), (float)((height - uprightH * scale) / 2));
-        canvas.Scale((float)scale);
-        ApplyOrigin(canvas, origin, info.Width, info.Height);
-        using (var source = SKImage.FromBitmap(decoded))
-            canvas.DrawImage(source, 0, 0, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+        var w = (float)(box.Width * scale);
+        var h = (float)(box.Height * scale);
+        // Centred: renders from a sketch are flat lays now (on mannequins FLUX drew heads in any space above the collar).
+        var target = SKRect.Create((width - w) / 2, (height - h) / 2, w, h);
+        using (var image = SKImage.FromBitmap(upright))
+            canvas.DrawImage(image, SKRect.Create(box.Left, box.Top, box.Width, box.Height), target, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
         canvas.Flush();
-        using var image = surface.Snapshot();
-        using var encoded = image.Encode(SKEncodedImageFormat.Png, 100) ?? throw new UnreadableImageException();
-        return encoded.ToArray();
+        using var snapshot = surface.Snapshot();
+        using var encoded = snapshot.Encode(SKEncodedImageFormat.Png, 100) ?? throw new UnreadableImageException();
+        return (encoded.ToArray(), width, height);
     }
 
     /// <summary>JPEG has no transparency: transparent parts become white (a sketch on a clear background stays readable).</summary>

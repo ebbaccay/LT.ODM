@@ -158,7 +158,7 @@ export class BomCheckPage implements OnInit {
     const label = q.styleId
       ? (this.pickedStyle() ?? `#${q.styleId}`)
       : [q.customer, q.season].filter((x) => !!x).join(' ') || this.transloco.translate('ai.tasks.wholeLibrary');
-    this.tasks.run('bomExplain', `bom:${key}`, label, this.svc.explain(q));
+    this.tasks.run('bomExplain', `bom:${key}`, label, (progressId) => this.svc.explain(q, progressId), { follow: true });
   }
 
   toggleRule(rule: BomRule): void {
