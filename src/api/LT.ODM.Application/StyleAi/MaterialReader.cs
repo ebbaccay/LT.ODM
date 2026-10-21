@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using LT.ODM.Application.Ai;
 using LT.ODM.Application.StyleLibrary;
 using static LT.ODM.Application.Ai.AiJson;
@@ -22,7 +23,8 @@ public sealed record MaterialSpecDto(
 
 public sealed record MaterialSpecCountsDto(int Total, int Unread, int Pending, int Accepted, int Rejected, int Outdated);
 
-public sealed record MaterialSpecPageDto(MaterialSpecCountsDto Counts, IReadOnlyList<MaterialSpecDto> Items, int Total);
+/// <summary>BatchSize: materials per AI call on this server (MaterialReader:BatchSize), so the page sends chosen materials in calls of that size.</summary>
+public sealed record MaterialSpecPageDto(MaterialSpecCountsDto Counts, IReadOnlyList<MaterialSpecDto> Items, int Total, int BatchSize = MaterialSpecRules.Batch);
 
 public sealed record MaterialSpecQuery(string? ContentClass, string? MaterialType, string? Status, string? Search, int Skip, int Take);
 
@@ -34,16 +36,28 @@ public sealed record MaterialSpecReading(
     int MaterialId, string? Composition, string? Fibres, decimal? RecycledPct, string? Construction, decimal? WeightGsm, decimal? WidthCm,
     string? SuggestedContentClass, decimal Confidence, string? Notes);
 
-public sealed record ReadMaterialSpecsRequest(string? ContentClass, string? MaterialType);
+/// <summary>MaterialIds: read exactly these (at most 25, one call), read again when already read; otherwise the next in the scope.</summary>
+public sealed record ReadMaterialSpecsRequest(string? ContentClass, string? MaterialType, IReadOnlyList<int>? MaterialIds = null);
 
 /// <summary>Remaining: materials in the scope still to read after this call.</summary>
 public sealed record ReadMaterialSpecsResultDto(int Read, int Remaining);
 
 public sealed record ReviewMaterialSpecsRequest(IReadOnlyList<int>? MaterialIds, string? Status);
 
+/// <summary>
+/// Settings section "MaterialReader". BatchSize: descriptions per AI call, 1-25 (default 25). Lower it for a slow AI
+/// server: on a CPU-only server (LTODMSVR, 7B model) one material takes 1-3 minutes, so 25 in one call can run 20+ minutes
+/// before anything shows; 5 shows results every few minutes. Environment variable MaterialReader__BatchSize.
+/// </summary>
+public sealed class MaterialReaderOptions
+{
+    public const string SectionName = "MaterialReader";
+    public int BatchSize { get; set; } = MaterialSpecRules.Batch;
+}
+
 public static class MaterialSpecRules
 {
-    /// <summary>Descriptions sent per AI call.</summary>
+    /// <summary>The most descriptions sent per AI call (and the default); MaterialReader:BatchSize can lower it.</summary>
     public const int Batch = 25;
     public static readonly string[] States = ["Unread", "Pending", "Accepted", "Rejected", "Outdated"];
     public static readonly string[] ReviewStatuses = ["Accepted", "Rejected", "Pending"];
@@ -54,7 +68,8 @@ public interface IMaterialSpecRepository
 {
     Task<MaterialSpecPageDto> ListAsync(MaterialSpecQuery query, CancellationToken ct = default);
     Task<MaterialSpecDto?> GetAsync(int materialId, CancellationToken ct = default);
-    Task<IReadOnlyList<MaterialToReadDto>> ToReadAsync(string? contentClass, string? materialType, int take, CancellationToken ct = default);
+    Task<IReadOnlyList<MaterialToReadDto>> ToReadAsync(string? contentClass, string? materialType, int take, CancellationToken ct = default,
+        IReadOnlyList<int>? materialIds = null);
     Task<int> SaveAsync(IReadOnlyList<MaterialSpecReading> readings, string provider, string model, string readBy, CancellationToken ct = default);
     Task<int> ReviewAsync(IReadOnlyList<int> materialIds, string status, string reviewedBy, CancellationToken ct = default);
 }
@@ -64,8 +79,11 @@ public interface IMaterialSpecRepository
 /// Every answer is checked: only materials that were sent, fibre percentages that add up (else flagged and confidence
 /// lowered), plausible weight (10-1500 g/m²) and width (20-400 cm), and content classes on the list.
 /// </summary>
-public sealed class MaterialReader(IAiJsonClient ai, IMaterialSpecRepository repo)
+public sealed class MaterialReader(IAiJsonClient ai, IMaterialSpecRepository repo, IOptions<MaterialReaderOptions>? options = null)
 {
+    /// <summary>Descriptions per AI call on this server (MaterialReader:BatchSize, kept between 1 and 25).</summary>
+    public int BatchSize { get; } = Math.Clamp(options?.Value.BatchSize ?? MaterialSpecRules.Batch, 1, MaterialSpecRules.Batch);
+
     private const string Instruction = """
         You read garment material descriptions from bills of materials (sportswear: adidas, Skechers) into structured fields.
         Descriptions are terse and mixed-case, e.g. "70% COTTON 30% RECYCLED POLYESTER,SOLID FLEECE,32s/1 cotton + 75D/36F PET-REC, 320GSM".
@@ -85,7 +103,7 @@ public sealed class MaterialReader(IAiJsonClient ai, IMaterialSpecRepository rep
 
     public async Task<ReadMaterialSpecsResultDto> ReadNextAsync(ReadMaterialSpecsRequest request, string readBy, CancellationToken ct = default)
     {
-        var batch = await repo.ToReadAsync(request.ContentClass, request.MaterialType, MaterialSpecRules.Batch, ct);
+        var batch = await repo.ToReadAsync(request.ContentClass, request.MaterialType, BatchSize, ct, request.MaterialIds);
         if (batch.Count == 0) return new ReadMaterialSpecsResultDto(0, 0);
 
         var readings = await ReadAsync(batch, ct);
@@ -118,7 +136,7 @@ public sealed class MaterialReader(IAiJsonClient ai, IMaterialSpecRepository rep
 
         var ids = batch.Select(b => b.MaterialId).ToHashSet();
         var result = new List<MaterialSpecReading>();
-        foreach (var item in Items(doc.RootElement, "items", MaterialSpecRules.Batch * 2))
+        foreach (var item in Items(doc.RootElement, "items", BatchSize * 2))
         {
             if (Integer(item, "materialId") is not { } id || !ids.Contains(id) || result.Any(r => r.MaterialId == id)) continue;
             result.Add(Check(id, item, classes));

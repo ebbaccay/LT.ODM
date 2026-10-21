@@ -32,8 +32,9 @@ Tabs:
 The Text job reads material descriptions into: fibre composition (with recycled share), construction, weight (g/m²), width (cm), a suggested section, and a confidence.
 
 1. Pick the section (opens on **Fabric**: 716 materials at the time of writing).
-2. **Read next 25** (one AI call) or **Read all** (one call every ~8 seconds; **Stop** any time, what was read is kept).
-3. Review: readings start **To review**. **Accept** or **Reject** per row or for a selection; **Select the sure ones** picks 90%+ confidence without warnings; **Back to review** undoes.
+2. **Read next N** (one AI call; N = `MaterialReader:BatchSize`, 25 unless the server sets fewer, see [Configuration](../installation/04-configuration.md#ai)) or **Read all** (call after call; **Stop** any time, what was read is kept). On an AI server without a GPU each call takes minutes: set a small batch (e.g. 5) there.
+   - **Individual materials:** find one with the **search** box (material code or words in the description), then **Read** on its row (**Read again** on a row already read), or tick any rows and **Read selected (N)**: exactly those materials, a batch per call, in any section or state. The rows being read show **Reading…** (later batches of a selection show **Waiting**), and each row shows its new reading as soon as its call finishes. A material read again gets a new reading that goes back to **To review**, also after it was accepted or rejected.
+3. Review: readings start **To review**. **Accept** or **Reject** per row or for the ticked rows (only ticked rows that are *To review* change); **Select the sure ones** picks 90%+ confidence without warnings; **Back to review** undoes; **Clear** unticks.
 4. If a material's description changes later, its reading shows **Description changed**, and *Read next* reads it again.
 
 Checks before a reading is stored: only materials that were sent; fibre percentages must add up to about 100% (else a warning and confidence capped at 50%); weight 10-1500 g/m² and width 20-400 cm or left out with a note; sections must exist. The material description and master are never changed.

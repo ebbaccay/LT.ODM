@@ -4,10 +4,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideCheck, lucideSparkles, lucideSquare, lucideTriangleAlert, lucideX } from '@ng-icons/lucide';
+import { lucideCheck, lucideSearch, lucideSparkles, lucideSquare, lucideTriangleAlert, lucideX } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
+import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
@@ -24,16 +25,17 @@ const PAUSE_MS = 7000;
 /**
  * Materials > Description reader: the Text job reads material descriptions (25 per call) into fibre composition,
  * construction, weight, width and a suggested section. Readings are Pending until someone accepts them; the description
- * itself never changes. Admins and merchandisers read and review; others look.
+ * itself never changes. Admins and merchandisers read and review; others look. Read the next ones in the scope, all of
+ * them, or just the ticked materials or one row (read again when already read); search finds a material by code or text.
  */
 @Component({
   selector: 'app-material-reader',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DecimalPipe, PercentPipe, RouterLink, NgIcon, AiProviderBanner, HlmButtonImports, HlmCardImports, HlmNativeSelectImports, HlmSkeletonImports,
+    DecimalPipe, PercentPipe, RouterLink, NgIcon, AiProviderBanner, HlmButtonImports, HlmCardImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports,
     HlmSpinnerImports, TranslocoPipe,
   ],
-  providers: [provideIcons({ lucideCheck, lucideSparkles, lucideSquare, lucideTriangleAlert, lucideX })],
+  providers: [provideIcons({ lucideCheck, lucideSearch, lucideSparkles, lucideSquare, lucideTriangleAlert, lucideX })],
   templateUrl: './material-reader.html',
   // Spacing between the AI banner, the hint, the reading card, the review bar and the list.
   host: { class: 'flex flex-col gap-4' },
@@ -51,6 +53,7 @@ export class MaterialReader implements OnInit {
 
   readonly contentClass = signal('');
   readonly status = signal<SpecState | ''>('');
+  readonly search = signal('');
   readonly page = signal<MaterialSpecPage | null>(null);
   readonly items = signal<MaterialSpec[]>([]);
   readonly loading = signal(false);
@@ -61,12 +64,19 @@ export class MaterialReader implements OnInit {
   readonly reading = signal(false);
   readonly readAll = signal(false);
   readonly progress = signal<{ read: number; remaining: number } | null>(null);
+  /** Chosen materials: the ones in the AI call now (row shows "Reading…") and the ones waiting for a later call. */
+  readonly readingNow = signal<ReadonlySet<number>>(new Set());
+  readonly readingQueued = signal<ReadonlySet<number>>(new Set());
   private stopRequested = false;
 
   readonly states: (SpecState | '')[] = ['', 'Pending', 'Unread', 'Accepted', 'Rejected', 'Outdated'];
   readonly toRead = computed(() => (this.page()?.counts.unread ?? 0) + (this.page()?.counts.outdated ?? 0));
   readonly selectable = computed(() => this.items().filter((i) => i.state === 'Pending'));
+  /** Materials per AI call on this server (MaterialReader:BatchSize). */
+  readonly batch = computed(() => this.page()?.batchSize || 25);
   readonly highConfidence = computed(() => this.selectable().filter((i) => (i.confidence ?? 0) >= 0.9 && !i.notes));
+  /** Ticked rows waiting for review (Accept / Reject apply to these only). */
+  readonly selectedPending = computed(() => this.selectable().filter((i) => this.selected().has(i.materialId)).map((i) => i.materialId));
 
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => (this.stopRequested = true));
@@ -78,19 +88,24 @@ export class MaterialReader implements OnInit {
       }
       this.contentClass.set(p.get('contentClass') ?? '');
       this.status.set((p.get('specStatus') as SpecState) ?? '');
+      this.search.set(p.get('specSearch') ?? '');
       this.load();
     });
   }
 
-  setFilter(key: 'contentClass' | 'specStatus', value: string): void {
-    void this.router.navigate([], { queryParams: { [key]: value }, queryParamsHandling: 'merge', replaceUrl: true });
+  setFilter(key: 'contentClass' | 'specStatus' | 'specSearch', value: string): void {
+    const v = key === 'specSearch' ? value.trim() || null : value;
+    void this.router.navigate([], { queryParams: { [key]: v }, queryParamsHandling: 'merge', replaceUrl: true });
   }
 
   load(more = false): void {
     this.loading.set(true);
     if (!more) this.selected.set(new Set());
     this.svc
-      .specs({ contentClass: this.contentClass() || null, status: this.status() || null, skip: more ? this.items().length : 0, take: PAGE })
+      .specs({
+        contentClass: this.contentClass() || null, status: this.status() || null, search: this.search() || undefined,
+        skip: more ? this.items().length : 0, take: PAGE,
+      })
       .subscribe({
         next: (p) => {
           this.page.set(p);
@@ -132,6 +147,67 @@ export class MaterialReader implements OnInit {
     }
   }
 
+  /**
+   * Reads exactly the given materials (the ticked ones, or one row), batch() per call with the same pause as Read all;
+   * materials already read are read again (their reading goes back to Pending).
+   */
+  async readChosen(ids: number[]): Promise<void> {
+    if (this.reading() || !ids.length) return;
+    this.reading.set(true);
+    const size = this.batch();
+    this.readAll.set(ids.length > size);
+    this.stopRequested = false;
+    let total = 0;
+    this.progress.set({ read: 0, remaining: ids.length });
+    this.readingQueued.set(new Set(ids));
+    try {
+      for (let i = 0; i < ids.length && !this.stopRequested; i += size) {
+        if (i > 0) await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
+        if (this.stopRequested) break;
+        const chunk = ids.slice(i, i + size);
+        this.readingNow.set(new Set(chunk));
+        this.readingQueued.set(new Set(ids.slice(i + size)));
+        const r = await firstValueFrom(this.svc.readSpecs(null, null, chunk));
+        total += r.read;
+        this.progress.set({ read: total, remaining: Math.max(0, ids.length - i - size) });
+        // Show the new readings on their rows straight away (the page keeps its place and ticks).
+        this.refreshRows(chunk);
+      }
+      toast.success(this.transloco.translate('materials.reader.readDone', { count: total }));
+    } catch (e) {
+      toast.error(this.transloco.translate('ai.failed'), { description: problemMessage(e) });
+    } finally {
+      this.reading.set(false);
+      this.readAll.set(false);
+      this.readingNow.set(new Set());
+      this.readingQueued.set(new Set());
+      this.selected.set(new Set());
+      this.load();
+    }
+  }
+
+  /** Reloads the given rows' readings in place. */
+  private refreshRows(ids: number[]): void {
+    for (const id of ids)
+      this.svc.spec(id).subscribe({
+        // The reading's fields only: the single-material call does not count styles or look up the BOM's section.
+        next: (s) =>
+          this.items.update((list) =>
+            list.map((m) =>
+              m.materialId === id
+                ? {
+                    ...m, state: s.state, composition: s.composition, fibres: s.fibres, recycledPct: s.recycledPct, construction: s.construction,
+                    weightGsm: s.weightGsm, widthCm: s.widthCm, suggestedContentClass: s.suggestedContentClass, confidence: s.confidence,
+                    notes: s.notes, provider: s.provider, model: s.model, readBy: s.readBy, readUtc: s.readUtc, reviewedBy: s.reviewedBy,
+                    reviewedUtc: s.reviewedUtc,
+                  }
+                : m,
+            ),
+          ),
+        error: () => undefined,
+      });
+  }
+
   stop(): void {
     this.stopRequested = true;
   }
@@ -168,6 +244,7 @@ export class MaterialReader implements OnInit {
   }
 
   selectedIds = () => [...this.selected()];
+  clearSelection = () => this.selected.set(new Set());
   stateClass = (s: SpecState) =>
     ({
       Unread: 'bg-muted text-muted-foreground',

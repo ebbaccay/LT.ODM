@@ -29,6 +29,7 @@ run procedures\usp_Health_Ping.sql
 run tables\style.tables.sql
 run procedures\style.import.procedures.sql     # Settings > Import (incl. New codes)
 run procedures\style.procedures.sql            # Styles screens and home dashboard
+run procedures\style.gaps.procedures.sql       # Fill the gaps, Similar styles (the dashboard calls usp_Gaps_Summary)
 run procedures\ref.procedures.sql              # Settings > Reference lists
 run procedures\mat.procedures.sql              # Materials and its views
 run procedures\mat.spec.procedures.sql         # Materials > Description reader (creates mat.MaterialSpec)

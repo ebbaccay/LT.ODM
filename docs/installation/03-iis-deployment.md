@@ -124,11 +124,14 @@ Then continue with [First start](05-first-start.md).
 
 The same steps apply to a development server, with these differences:
 
-- **HTTPS is still required.** The sign-in refresh cookie is `Secure`, so over plain http users are signed out at every reload. Without a company certificate, use a self-signed one (browsers warn until it is trusted):
+- **HTTPS is still required.** The sign-in refresh cookie is `Secure`, so over plain http users are signed out at every reload. Without a company certificate, use a self-signed one. The IP address must be an **IP address entry** (`IPAddress=`): with `-DnsName "172.16.26.173"` it becomes a DNS name and Chrome / Edge refuse it (`NET::ERR_CERT_COMMON_NAME_INVALID`):
   ```powershell
-  New-SelfSignedCertificate -DnsName "LTODMSVR", "172.16.26.173" -CertStoreLocation Cert:\LocalMachine\My -NotAfter (Get-Date).AddYears(3)
+  $cert = New-SelfSignedCertificate -Subject "CN=LTODMSVR" `
+    -TextExtension @("2.5.29.17={text}DNS=LTODMSVR&IPAddress=172.16.26.173", "2.5.29.37={text}1.3.6.1.5.5.7.3.1") `
+    -KeyUsage DigitalSignature, KeyEncipherment -CertStoreLocation Cert:\LocalMachine\My -NotAfter (Get-Date).AddYears(3)
+  Export-Certificate -Cert $cert -FilePath C:\Temp\ltodmsvr.cer   # public part only, for the PCs
   ```
-  Then bind it on 443 to the site in IIS Manager.
+  Then bind it on 443 to the site in IIS Manager. Browsers warn (`NET::ERR_CERT_AUTHORITY_INVALID`) until each PC trusts it: copy `ltodmsvr.cer` and run, as administrator, `Import-Certificate -FilePath .\ltodmsvr.cer -CertStoreLocation Cert:\LocalMachine\Root` (or push it by Group Policy), then restart the browser. When the certificate is replaced, remove the old one from the PCs first: `Get-ChildItem Cert:\LocalMachine\Root | Where-Object Subject -eq "CN=LTODMSVR" | Remove-Item`.
 - **SQL Server on the same machine:** use the same SQL login as production ([Database §3](02-database.md#3-permissions-for-the-application)), with its own password. Connection string: `Server=localhost;Database=LTODM;User ID=ltodm_app_login;Password=...;Encrypt=True;TrustServerCertificate=True`.
 - Use its own `Jwt:SigningKey`, not the production one.
 - Developers can work against it from their PCs; see "Against the development server" in the repository README.

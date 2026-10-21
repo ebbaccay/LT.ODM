@@ -7,6 +7,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowLeft,
   lucideArrowLeftRight,
+  lucideCalculator,
   lucideCopy,
   lucideDownload,
   lucideFileText,
@@ -41,10 +42,12 @@ import { CopyStyleDialog } from './copy-style-dialog';
 import { ColorwayPicturesDialog } from './colorway-pictures-dialog';
 import { DesignPromptDialog } from './design-prompt-dialog';
 import { HistoryDialog } from './history-dialog';
+import { LcoFillDialog } from './lco-fill-dialog';
+import { SimilarStyles } from './similar-styles';
 import { StyleFormDialog } from './style-form-dialog';
 import { BomLine, Colorway, FamilyMember, GENDERS, StyleDetail as Detail, StyleLibraryService, StyleLookups, styleError } from './style-library.service';
 
-type Tab = 'colorways' | 'bom' | 'history';
+type Tab = 'colorways' | 'bom' | 'history' | 'similar';
 
 interface BomSection {
   code: string;
@@ -63,11 +66,11 @@ interface BomSection {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe, DecimalPipe, RouterLink, NgIcon, AuthImgDirective, Modal, StyleFormDialog, ColorwayDialog, BomLineDialog, CopyStyleDialog,
-    HistoryDialog, DesignPromptDialog, ColorwayPicturesDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, TranslocoPipe,
+    HistoryDialog, DesignPromptDialog, ColorwayPicturesDialog, LcoFillDialog, SimilarStyles, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, TranslocoPipe,
   ],
   providers: [
     provideIcons({
-      lucideArrowLeft, lucideArrowLeftRight, lucideCopy, lucideDownload, lucideFileText, lucideGitBranch, lucideGitCompareArrows, lucideImage, lucideLink, lucidePencil, lucidePlus, lucideImages, lucideSearch, lucideShieldAlert,
+      lucideArrowLeft, lucideArrowLeftRight, lucideCalculator, lucideCopy, lucideDownload, lucideFileText, lucideGitBranch, lucideGitCompareArrows, lucideImage, lucideLink, lucidePencil, lucidePlus, lucideImages, lucideSearch, lucideShieldAlert,
       lucideTrash2, lucideUnlink, lucideWandSparkles,
     }),
   ],
@@ -109,6 +112,7 @@ export class StyleDetail implements OnInit {
   readonly lineOpen = signal(false);
   readonly editingLine = signal<BomLine | null>(null);
   readonly newLineClass = signal('');
+  readonly lcoOpen = signal(false);
 
   readonly style = computed(() => this.detail()?.style ?? null);
   readonly colorways = computed(() => this.detail()?.colorways ?? []);
@@ -132,6 +136,8 @@ export class StyleDetail implements OnInit {
     return [...sections.values()].sort((a, b) => rank(a.code) - rank(b.code));
   });
   readonly bomLineCount = computed(() => this.detail()?.bomLines.length ?? 0);
+  /** BOM lines without LCO consumption (Fill LCO offers figures for them). */
+  readonly lcoMissing = computed(() => (this.detail()?.bomLines ?? []).filter((l) => l.lcoConsumption === null).length);
 
   /** Family by season with "reused from" and the chain's first style (origin) resolved to style numbers. */
   readonly family = computed(() => {
@@ -159,7 +165,7 @@ export class StyleDetail implements OnInit {
 
   ngOnInit(): void {
     const tab = this.route.snapshot.queryParamMap.get('tab');
-    if (tab === 'colorways' || tab === 'bom' || tab === 'history') this.tab.set(tab);
+    if (tab === 'colorways' || tab === 'bom' || tab === 'history' || tab === 'similar') this.tab.set(tab);
     this.svc.lookups().subscribe({ next: (l) => this.lookups.set(l), error: () => undefined });
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((p) => {
       this.styleId.set(Number(p.get('id')));

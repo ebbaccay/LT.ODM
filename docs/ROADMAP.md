@@ -1,6 +1,6 @@
 # LT ODM roadmap and status
 
-Status of every component, open fixes, and planned work. Last updated 2026-10-13.
+Status of every component, open fixes, and planned work. Last updated 2026-10-16.
 
 **Legend:** ✅ Done · 🧪 Done, still to be tested (browser, real data or real AI model) · 🔧 Open fix · ⏳ Waiting on a decision, data or a server · 💡 Planned · ⏸️ Parked or skipped
 
@@ -55,9 +55,13 @@ Status of every component, open fixes, and planned work. Last updated 2026-10-13
 | 3.12 | "Check existing pictures" + swap picture/sketch | ✅ | 42 sketches moved. Still to check by hand: RC2701OW000A_H, RC2702OM001A (+-H), OJS27250477 |
 | 3.13 | "With pictures only" filter on Styles list | ✅ | |
 | 3.14 | Re-point Garment Quotation procedures from iPLEX tables to the new tables | 💡 | Then retire the copied iPLEX tables module by module |
-| 3.15 | Workmanship page | 💡 | Route `/workmanship` shows "Coming soon" |
-| 3.16 | Costing page | 💡 | Route `/costing` shows "Coming soon"; cost tools need a role check |
+| 3.15 | Workmanship page | 💡 | Route `/workmanship` shows "Coming soon". Next after Fill the gaps (your priority, 2026-10-16) |
+| 3.16 | Costing page | 💡 | Route `/costing` shows "Coming soon"; cost tools need a role check. Next after Fill the gaps (your priority, 2026-10-16) |
 | 3.17 | More pictures in the library | ⏳ | Few styles have pictures, which limits image search, tags and the planned AI features |
+| 3.18 | [Fill the gaps](components/fill-the-gaps.md): suggested genders and product types (rules, then AI for the rest), season merges remembered for imports, LCO from brand consumption marked as estimates | 🧪 | Not browser-tested by Claude; SQL checked on the local copy (writes in a rolled-back transaction). Accepting is up to you: 1,033 high-confidence genders ready |
+| 3.19 | Similar styles tab on the style page (shared materials, garment, weave, gender; same brand first, other brands know-how only) | 🧪 | Not browser-tested by Claude; about 0.3 s per style |
+| 3.20 | Dashboard: gender, product type, season and LCO coverage with **Fix** links to Fill the gaps | 🧪 | Not browser-tested by Claude |
+| 3.21 | Lead time 0 on 1,507 styles and SAP supplier missing on 13,684 lines | ⏳ | Not guessed: fill from the source system on the next import |
 
 ## 4. AI
 

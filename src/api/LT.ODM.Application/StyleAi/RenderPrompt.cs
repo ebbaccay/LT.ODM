@@ -40,8 +40,11 @@ public static partial class RenderPrompt
         // Biggest fabric first: the first one is the shell.
         var fabricLines = d.BomLines.Where(l => Same(l.ContentClassCode, "FAB")).OrderByDescending(Eff).ThenBy(l => l.LineSeq).ToList();
         var fabrics = fabricLines.Select(l => ShortFabric(l.MaterialDescription ?? l.MaterialCode)).Where(f => f.Length > 0).Distinct().Take(3).ToList();
-        var colours = fabricLines.Select(ColourOf).OfType<string>().Distinct().Take(4).ToList();
-        if (colours.Count == 0 && colorway?.ColorwayName is { } name && !string.IsNullOrWhiteSpace(name)) colours.Add(Lower(name));
+        // The main (biggest) fabric's colour comes first. When the BOM gives that fabric only a colour code (an adidas shell
+        // with AJ9Q and no name), the colorway's own name stands in for it: taking the next fabric with a name instead
+        // made "RICH BLUE" render black from its lining (2026-10-20). Other fabrics' colours follow.
+        var mainColour = fabricLines.Count > 0 ? ColourOf(fabricLines[0]) ?? NameColour(colorway?.ColorwayName) : NameColour(colorway?.ColorwayName);
+        var colours = new[] { mainColour }.Concat(fabricLines.Skip(1).Select(ColourOf)).OfType<string>().Distinct().Take(4).ToList();
 
         var details = d.BomLines
             .Where(l => Same(l.ContentClassCode, "ACC") || Same(l.ContentClassCode, "ART"))
@@ -93,7 +96,9 @@ public static partial class RenderPrompt
         sb.Append(". ");
         if (f.Fabrics.Count > 0) sb.Append($"Main fabric: {f.Fabrics[0]}. ");
         if (f.Fabrics.Count > 1) sb.Append($"Also uses {string.Join("; ", f.Fabrics.Skip(1))}. ");
-        if (f.Colours.Count > 0) sb.Append($"Colours: {string.Join(", ", f.Colours)}. ");
+        // The first colour is the main fabric's: marked when there are others, so a lining colour does not take over.
+        if (f.Colours.Count == 1) sb.Append($"Colours: {f.Colours[0]}. ");
+        else if (f.Colours.Count > 1) sb.Append($"Colours: {f.Colours[0]} (main), {string.Join(", ", f.Colours.Skip(1))}. ");
         if (f.Details.Count > 0) sb.Append($"Visible details: {string.Join(", ", f.Details)}. ");
         if (withSketch && !sketchAsStart)
             sb.Append("Follow the attached flat sketch exactly for the silhouette, seams, panels and trim placement, but show a real garment, not a drawing. ");
@@ -161,6 +166,18 @@ public static partial class RenderPrompt
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : Strip(value.Trim());
 
     private static string Lower(string? value) => SpacesRegex().Replace((value ?? "").Trim().ToLowerInvariant(), " ");
+
+    /// <summary>
+    /// The colour a colorway name gives: "RICH BLUE F27" -> "rich blue", "EARTH STRATA S23/AURORA COFFEE S26" -> "earth strata",
+    /// "Black 095A" -> "black". The part before the first "/", without words holding digits (season codes, colour codes).
+    /// Null when nothing is left ("18", "095A").
+    /// </summary>
+    public static string? NameColour(string? colorwayName)
+    {
+        var words = (colorwayName ?? "").Split('/')[0].Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => !w.Any(char.IsDigit));
+        var name = Lower(string.Join(' ', words));
+        return name.Length == 0 ? null : name;
+    }
 
     private static bool Same(string? a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 

@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddSingleton<IStyleWorkbookReader, StyleWorkbookReader>();
         services.AddScoped<IStyleImportRepository, StyleImportRepository>();
         services.AddScoped<IStyleRepository, StyleRepository>();
+        services.AddScoped<IStyleGapRepository, StyleGapRepository>();
         services.AddSingleton<StyleDashboardCache>();
         services.AddScoped<IMaterialRepository, MaterialRepository>();
 
@@ -91,8 +92,10 @@ public static class DependencyInjection
         services.AddHostedService<SketchShapeReader.WarmUp>();   // loads it after start, so the first render page opens quickly
         services.AddSingleton<ISketchViews, SketchViews>();   // front-and-back sketches drawn one view at a time
         services.AddScoped<ImportCodeAdvisor>();
+        services.AddScoped<GapAdvisor>();
         services.AddScoped<ConceptMatcher>();
         services.AddScoped<IMaterialSpecRepository, MaterialSpecRepository>();
+        services.Configure<MaterialReaderOptions>(configuration.GetSection(MaterialReaderOptions.SectionName));
         services.AddScoped<MaterialReader>();
         // Library assistant: one ILibraryTool per capability (the AI's instructions are built from this list).
         services.AddScoped<LibraryAssistantService>();

@@ -104,7 +104,8 @@
       @for (t of [
         { id: 'colorways', label: 'styles.detail.tabColorways', count: colorways().length },
         { id: 'bom', label: 'styles.detail.tabBom', count: bomLineCount() },
-        { id: 'history', label: 'styles.detail.tabHistory', count: family().length }
+        { id: 'history', label: 'styles.detail.tabHistory', count: family().length },
+        { id: 'similar', label: 'styles.detail.tabSimilar', count: null }
       ]; track t.id) {
         <button
           type="button"
@@ -114,7 +115,7 @@
           [attr.aria-selected]="tab() === t.id"
           (click)="tab.set($any(t.id))"
         >
-          {{ t.label | transloco }} <span class="text-muted-foreground text-xs tabular-nums">{{ t.count | number }}</span>
+          {{ t.label | transloco }}@if (t.count !== null) { <span class="text-muted-foreground text-xs tabular-nums">{{ t.count | number }}</span> }
         </button>
       }
     </div>
@@ -206,7 +207,14 @@
               </div>
             </div>
             @if (canEdit()) {
-              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="openLine(null)"><ng-icon name="lucidePlus" />{{ 'styles.detail.addBomLine' | transloco }}</button>
+              <div class="flex flex-wrap gap-2">
+                @if (lcoMissing()) {
+                  <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [title]="'gaps.lco.fillHint' | transloco" (click)="lcoOpen.set(true)">
+                    <ng-icon name="lucideCalculator" />{{ 'gaps.lco.fillButton' | transloco: { count: lcoMissing() } }}
+                  </button>
+                }
+                <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="openLine(null)"><ng-icon name="lucidePlus" />{{ 'styles.detail.addBomLine' | transloco }}</button>
+              </div>
             }
           </div>
 
@@ -251,7 +259,7 @@
                         <p class="truncate" [title]="'styles.detail.nominated' | transloco: { name: l.nominatedSupplierName }">{{ 'styles.detail.nominatedShort' | transloco: { name: l.nominatedSupplierName } }}</p>
                       }
                     </div>
-                    <span class="hidden text-right tabular-nums lg:block" [title]="'styles.detail.lcoConsumption' | transloco">{{ consumption(l.lcoConsumption, l.uomCode) }}</span>
+                    <span class="hidden text-right tabular-nums lg:block" [title]="(l.lcoIsEstimate ? 'gaps.lco.estimateHint' : 'styles.detail.lcoConsumption') | transloco">{{ consumption(l.lcoConsumption, l.uomCode) }}@if (l.lcoIsEstimate) { <span class="text-amber-700 dark:text-amber-400 block text-[0.7rem]">{{ 'gaps.lco.estimate' | transloco }}</span> }</span>
                     <span class="hidden text-right tabular-nums lg:block" [title]="'styles.detail.brandConsumption' | transloco">{{ consumption(l.brandConsumption, l.uomCode) }}</span>
                     <div class="col-start-1 min-w-0 text-xs lg:col-start-auto">
                       @if (bomColorway(); as cw) {
@@ -373,12 +381,17 @@
           }
         </section>
       }
+      <!-- Similar styles (loaded when the tab opens) -->
+      @case ('similar') {
+        <app-similar-styles [styleId]="s.styleId" />
+      }
     }
 
     <!-- Dialogs -->
     <app-style-form-dialog [open]="editOpen()" [style]="s" [lookups]="lookups()" (closed)="editOpen.set(false)" (saved)="onStyleSaved()" />
     <app-copy-style-dialog [open]="copyOpen()" [style]="s" [lookups]="lookups()" (closed)="copyOpen.set(false)" (saved)="onCopied($event)" />
     <app-history-dialog [open]="historyOpen()" [style]="s" (closed)="historyOpen.set(false)" (saved)="onHistorySaved()" />
+    <app-lco-fill-dialog [open]="lcoOpen()" [styleId]="s.styleId" [styleNo]="s.styleNo" (closed)="lcoOpen.set(false)" (saved)="lcoOpen.set(false); load()" />
     <app-colorway-dialog [open]="colorwayOpen()" [styleId]="s.styleId" [colorway]="editingColorway()" (closed)="colorwayOpen.set(false)" (saved)="onColorwaySaved()" />
     <app-bom-line-dialog
       [open]="lineOpen()"

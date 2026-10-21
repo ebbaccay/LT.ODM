@@ -104,14 +104,22 @@ BEGIN
 END
 GO
 
-/* The next materials to read in the scope: never read first, then readings whose description changed; most used first. */
+/*
+    The next materials to read in the scope: never read first, then readings whose description changed; most used first.
+    @MaterialIds (JSON array, e.g. [12,40]): exactly those materials instead, whatever their state (read again when already
+    read), section and type ignored. Remaining = all materials found, including the ones returned (the caller subtracts them).
+*/
 CREATE OR ALTER PROCEDURE mat.usp_MaterialSpec_ToRead
-    @ContentClassCode nvarchar(8)  = NULL,
-    @MaterialTypeCode nvarchar(16) = NULL,
-    @Take             int          = 25
+    @ContentClassCode nvarchar(8)   = NULL,
+    @MaterialTypeCode nvarchar(16)  = NULL,
+    @Take             int           = 25,
+    @MaterialIds      nvarchar(max) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
+    DECLARE @ids TABLE (MaterialId int PRIMARY KEY);
+    IF ISJSON(@MaterialIds) = 1
+        INSERT @ids SELECT DISTINCT TRY_CAST([value] AS int) FROM OPENJSON(@MaterialIds) WHERE TRY_CAST([value] AS int) IS NOT NULL;
     ;WITH scope AS (
         SELECT m.MaterialId, m.MaterialCode, m.Description,
                ContentClassCode = COALESCE(m.ContentClassCode, (SELECT TOP 1 b.ContentClassCode FROM style.BomLine b WHERE b.MaterialId = m.MaterialId)),
@@ -120,13 +128,15 @@ BEGIN
                Rank = CASE WHEN s.MaterialId IS NULL THEN 0 WHEN s.SourceDescription <> m.Description THEN 1 ELSE 9 END
         FROM mat.Material m
         LEFT JOIN mat.MaterialSpec s ON s.MaterialId = m.MaterialId
-        WHERE NULLIF(TRIM(m.Description), N'') IS NOT NULL)
+        WHERE NULLIF(TRIM(m.Description), N'') IS NOT NULL
+          AND (@MaterialIds IS NULL OR m.MaterialId IN (SELECT MaterialId FROM @ids)))
     SELECT TOP (@Take) MaterialId, MaterialCode, Description, ContentClassCode, MaterialTypeCode,
            Remaining = COUNT(*) OVER ()
     FROM scope
-    WHERE Rank < 9
-      AND (@ContentClassCode IS NULL OR ContentClassCode = @ContentClassCode)
-      AND (@MaterialTypeCode IS NULL OR MaterialTypeCode = @MaterialTypeCode)
+    WHERE (@MaterialIds IS NOT NULL
+           OR Rank < 9
+              AND (@ContentClassCode IS NULL OR ContentClassCode = @ContentClassCode)
+              AND (@MaterialTypeCode IS NULL OR MaterialTypeCode = @MaterialTypeCode))
     ORDER BY Rank, Styles DESC, MaterialCode;
 END
 GO

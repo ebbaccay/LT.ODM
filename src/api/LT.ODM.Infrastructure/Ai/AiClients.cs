@@ -64,6 +64,17 @@ public sealed class OpenAiCompatibleOptions
 /// <summary>Shared HTTP handling: timeouts and failures become readable AiServiceExceptions; prompts are never logged.</summary>
 internal static class AiHttp
 {
+    /// <summary>
+    /// The message for a refused request. 404 from an in-house server means the job's model is not loaded there (e.g.
+    /// OpenVINO started with -ImageOnly serves only the image model: every Text job got 404, 2026-10-20); retrying
+    /// does not help, so say so. Only the status is used: the body can echo the request.
+    /// </summary>
+    public static AiServiceException Failed(System.Net.HttpStatusCode status)
+        => status == System.Net.HttpStatusCode.NotFound
+            ? new AiServiceException("The AI service does not have this job's model loaded. Check the model in Settings > AI connections, " +
+                "and that the AI server runs it (an OpenVINO server started for images only answers no text jobs).")
+            : new AiServiceException("The AI service could not answer. Try again in a minute.");
+
     public static async Task<JsonNode?> SendAsync(HttpClient http, HttpRequestMessage message, int timeoutSeconds, ILogger logger, string provider, string purpose, CancellationToken ct)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -75,7 +86,7 @@ internal static class AiHttp
             {
                 // Log the status only: the body can echo the request.
                 logger.LogWarning("{Provider} returned {Status} for {Purpose}.", provider, (int)response.StatusCode, purpose);
-                throw new AiServiceException("The AI service could not answer. Try again in a minute.");
+                throw Failed(response.StatusCode);
             }
             return await response.Content.ReadFromJsonAsync<JsonNode>(timeout.Token);
         }
@@ -111,7 +122,7 @@ internal static class AiHttp
             if (!response.IsSuccessStatusCode)
             {
                 logger.LogWarning("{Provider} returned {Status} for {Purpose}.", provider, (int)response.StatusCode, purpose);
-                throw new AiServiceException("The AI service could not answer. Try again in a minute.");
+                throw Failed(response.StatusCode);
             }
             if (response.Content.Headers.ContentType?.MediaType != "text/event-stream")
             {

@@ -31,7 +31,7 @@ Screen ──► API endpoint ──► feature service (builds the data, see "D
 
 | Job | Used by (today) |
 |---|---|
-| **Text** | AI Studio: smart search, Library assistant, change summaries, BOM check explanations, render prompt rewrite, concept-to-style matching. Concept Studio briefs. Cost Optimization ideas. Market Trends analysis. Import new-code suggestions. Material description reader |
+| **Text** | AI Studio: smart search, Library assistant, change summaries, BOM check explanations, render prompt rewrite, concept-to-style matching. Concept Studio briefs. Cost Optimization ideas. Market Trends analysis. Import new-code suggestions. Material description reader. Fill the gaps: *Ask AI for the rest* (genders and garments the rules could not read) |
 | **Image** | AI Studio style renders |
 | **Vision** | AI Studio image search: reads garment pictures into a description. **In-house (OpenAI-compatible) only** |
 | **Embedding** | AI Studio image search: turns descriptions and search words into vectors of **1024 numbers**. **In-house (OpenAI-compatible) only** |
@@ -105,6 +105,7 @@ The API's HTTP clients for AI have no timeout of their own: the connection's **t
 | Image search | Admin, Merchandiser, Costing, Viewer (search by photo, words, more like this) | **Build the index**: Admin, Merchandiser |
 | Concept matching | Admin, Merchandiser, Costing, Viewer (API); Concept Studio itself is Admin, Merchandiser | |
 | Material description reader | Admin, Merchandiser, Costing, Viewer | Read and review: Admin, Merchandiser |
+| Fill the gaps | Admin, Merchandiser, Costing, Viewer (suggestions from rules) | *Ask AI for the rest*, accept, dismiss: Admin, Merchandiser |
 | Import new-code suggestions, AI connections | Admin | Admin |
 | Concept Studio, Cost Optimization, Market Trends | As their pages | Signed-in users of those pages |
 
@@ -129,8 +130,8 @@ The API's HTTP clients for AI have no timeout of their own: the connection's **t
 |---|---|
 | Contracts (jobs, connections, info) | `src/api/LT.ODM.Application/Ai/` |
 | Routed clients, Gemini and OpenAI-compatible calls, resolver, tester | `src/api/LT.ODM.Infrastructure/Ai/AiClients.cs`, `AiSettings.cs` |
-| Feature services | `src/api/LT.ODM.Application/StyleAi/` (assistant, comparer, render prompt, concept matcher, material reader, import code advisor, image search `ImageSearch.cs`); built-in image model `src/api/LT.ODM.Infrastructure/Ai/OnnxImageEmbeddingModel.cs`; picture import `src/api/LT.ODM.Application/StyleLibrary/StyleImageImport.cs` with `src/api/LT.ODM.Infrastructure/Files/GarmentCropFinder.cs` and `GarmentCropper.cs` (upscaler); `src/api/LT.ODM.Infrastructure/Ai/` (concept draft, cost suggestions, trend analysis) |
-| Endpoints | `AiStudioController` (`/api/v1/ai`), `ImageSearchController` (`/api/v1/ai/image-search`: `status`, `index`, `words`, `photo`, `similar/{styleId}`), `AiSettingsController` (`/api/v1/admin/ai`, switches: `PUT /api/v1/admin/ai/policy`), `StyleImportsController` (`.../codes/suggest`), Concept Studio, Cost Optimization, Market Trends controllers |
-| SQL | `db/tables/ai.tables.sql`, `db/procedures/ai.procedures.sql`, `style.ai.procedures.sql` (incl. `style.fn_ImageSlots`, `usp_ImageIndex_*`, `usp_ImageSearch`, `usp_ImageVector_*`, `usp_ImageVectorSearch`; tables `style.ImageIndex`, `style.ImageVector` in `style.tables.sql`), `mat.spec.procedures.sql` |
+| Feature services | `src/api/LT.ODM.Application/StyleAi/` (assistant, comparer, render prompt, concept matcher, material reader, import code advisor, Fill the gaps AI step `GapAdvisor.cs`, image search `ImageSearch.cs`); built-in image model `src/api/LT.ODM.Infrastructure/Ai/OnnxImageEmbeddingModel.cs`; picture import `src/api/LT.ODM.Application/StyleLibrary/StyleImageImport.cs` with `src/api/LT.ODM.Infrastructure/Files/GarmentCropFinder.cs` and `GarmentCropper.cs` (upscaler); `src/api/LT.ODM.Infrastructure/Ai/` (concept draft, cost suggestions, trend analysis) |
+| Endpoints | `AiStudioController` (`/api/v1/ai`), `ImageSearchController` (`/api/v1/ai/image-search`: `status`, `index`, `words`, `photo`, `similar/{styleId}`), `AiSettingsController` (`/api/v1/admin/ai`, switches: `PUT /api/v1/admin/ai/policy`), `StyleImportsController` (`.../codes/suggest`), `StyleGapsController` (`/api/v1/style-gaps/{field}/ask-ai`), Concept Studio, Cost Optimization, Market Trends controllers |
+| SQL | `db/tables/ai.tables.sql`, `db/procedures/ai.procedures.sql`, `style.ai.procedures.sql` (incl. `style.fn_ImageSlots`, `usp_ImageIndex_*`, `usp_ImageSearch`, `usp_ImageVector_*`, `usp_ImageVectorSearch`; tables `style.ImageIndex`, `style.ImageVector` in `style.tables.sql`), `mat.spec.procedures.sql`, `style.gaps.procedures.sql` (Fill the gaps: `style.GapSuggestion` holds AI answers) |
 | Server check | `tools/test-ai-server.ps1` (models, text JSON, vision, 1024-number embedding) |
 | Screens | `src/web/ltodm-web/src/app/features/ai-studio/` |

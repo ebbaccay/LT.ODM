@@ -1,0 +1,292 @@
+<section class="flex flex-col gap-5">
+  <a routerLink="/styles" class="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm">
+    <ng-icon name="lucideArrowLeft" />{{ 'styles.detail.back' | transloco }}
+  </a>
+
+  <header class="flex flex-col gap-1">
+    <h1 class="text-2xl font-semibold tracking-tight">{{ 'gaps.title' | transloco }}</h1>
+    <p class="text-muted-foreground text-sm">{{ 'gaps.subtitle' | transloco }}</p>
+  </header>
+
+  <!-- What is missing: one tile per tab -->
+  <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    @for (tile of [
+      { tab: 'gender', icon: 'lucideUsers', missing: summary()?.genderMissing, ready: summary()?.genderSuggested, high: summary()?.genderHigh },
+      { tab: 'productType', icon: 'lucideShirt', missing: summary()?.productTypeMissing, ready: summary()?.productTypeSuggested, high: summary()?.productTypeHigh },
+      { tab: 'seasons', icon: 'lucideCalendarRange', missing: summary()?.seasonsToMerge, ready: summary()?.stylesInSeasonsToMerge, high: null },
+      { tab: 'lco', icon: 'lucideCalculator', missing: summary()?.lcoMissing, ready: summary()?.lcoFromBrand, high: null }
+    ]; track tile.tab) {
+      <button
+        type="button"
+        hlmCard
+        class="hover:bg-accent/30 flex-row items-start gap-3 p-4 text-left transition-colors"
+        [class.ring-2]="tab() === tile.tab"
+        [class.ring-primary]="tab() === tile.tab"
+        [attr.aria-pressed]="tab() === tile.tab"
+        (click)="openTab($any(tile.tab))"
+      >
+        <span class="bg-muted flex size-10 shrink-0 items-center justify-center rounded-lg"><ng-icon [name]="tile.icon" /></span>
+        <span class="min-w-0">
+          <span class="text-muted-foreground block text-xs font-medium">{{ 'gaps.tiles.' + tile.tab | transloco }}</span>
+          @if (summary()) {
+            <span class="block text-xl font-semibold tabular-nums">{{ tile.missing | number }}</span>
+            <span class="text-muted-foreground block text-xs">{{ 'gaps.tiles.' + tile.tab + 'Hint' | transloco: { ready: (tile.ready ?? 0 | number), high: (tile.high ?? 0 | number) } }}</span>
+          } @else {
+            <hlm-skeleton class="mt-1 h-6 w-20" />
+          }
+        </span>
+      </button>
+    }
+  </div>
+  @if (summary(); as s) {
+    <p class="text-muted-foreground -mt-2 text-xs">
+      {{ 'gaps.alsoMissing' | transloco: { leadTime: (s.leadTimeMissing | number), supplier: (s.supplierMissing | number), estimates: (s.lcoEstimates | number) } }}
+    </p>
+  }
+
+  @if (field(); as f) {
+    <!-- Gender / product type -->
+    <section hlmCard class="gap-0 py-0">
+      <div class="flex flex-col gap-3 border-b px-5 py-3">
+        <div>
+          <h2 class="text-sm font-semibold">{{ 'gaps.tabs.' + f | transloco }}</h2>
+          <p class="text-muted-foreground text-xs">{{ 'gaps.howRules.' + f | transloco }}</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <hlm-native-select selectId="gap-customer" selectClass="h-11 w-full sm:w-56 lg:h-8" [value]="customer()" (valueChange)="setFilter('customer', $event ?? '')">
+            <option hlmNativeSelectOption value="">{{ 'gaps.allCustomers' | transloco }}</option>
+            @for (c of lookups()?.customers ?? []; track c.code) {
+              <option hlmNativeSelectOption [value]="c.code">{{ c.name }}</option>
+            }
+          </hlm-native-select>
+          <hlm-native-select selectId="gap-season" selectClass="h-11 w-full sm:w-40 lg:h-8" [value]="season()" (valueChange)="setFilter('season', $event ?? '')">
+            <option hlmNativeSelectOption value="">{{ 'gaps.allSeasons' | transloco }}</option>
+            @for (s of lookups()?.seasons ?? []; track s.code) {
+              <option hlmNativeSelectOption [value]="s.code">{{ s.code }}</option>
+            }
+          </hlm-native-select>
+          <hlm-native-select selectId="gap-show" selectClass="h-11 w-full sm:w-48 lg:h-8" [value]="show()" (valueChange)="setShow($any($event ?? 'suggested'))">
+            <option hlmNativeSelectOption value="suggested">{{ 'gaps.show.suggested' | transloco }}</option>
+            <option hlmNativeSelectOption value="none">{{ 'gaps.show.none' | transloco: { count: noneInScope() } }}</option>
+            <option hlmNativeSelectOption value="all">{{ 'gaps.show.all' | transloco }}</option>
+          </hlm-native-select>
+          @if (show() === 'suggested') {
+            <hlm-native-select selectId="gap-conf" selectClass="h-11 w-full sm:w-44 lg:h-8" [value]="minConfidence().toString()" (valueChange)="setMinConfidence(+($event ?? 1))">
+              <option hlmNativeSelectOption value="1">{{ 'gaps.minConfidence.any' | transloco }}</option>
+              <option hlmNativeSelectOption value="2">{{ 'gaps.minConfidence.medium' | transloco }}</option>
+              <option hlmNativeSelectOption value="3">{{ 'gaps.minConfidence.high' | transloco }}</option>
+            </hlm-native-select>
+          }
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5 text-xs">
+          @for (c of ['3', '2', '1', '0']; track c) {
+            <span hlmBadge [variant]="$any(confidenceTone(+c))" class="tabular-nums">{{ confidenceKey(+c) | transloco }} · {{ (counts()[c] ?? 0) | number }}</span>
+          }
+        </div>
+        @if (canEdit()) {
+          <div class="flex flex-wrap items-center gap-2">
+            <button hlmBtn type="button" class="h-11 lg:h-8" [disabled]="busy() || asking() || !ticked().size" (click)="acceptTicked()">
+              <ng-icon name="lucideCheck" />{{ 'gaps.acceptTicked' | transloco: { count: ticked().size } }}
+            </button>
+            <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [disabled]="busy() || asking() || !highInScope()" (click)="acceptAllHigh()">
+              {{ 'gaps.acceptAllHigh' | transloco: { count: highInScope() } }}
+            </button>
+            <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-8" [disabled]="busy() || asking() || !ticked().size" (click)="dismissTicked()">
+              <ng-icon name="lucideX" />{{ 'gaps.dismissTicked' | transloco }}
+            </button>
+            <span class="grow"></span>
+            @if (asking()) {
+              <span class="text-muted-foreground flex items-center gap-2 text-xs" role="status">
+                <hlm-spinner class="size-4" />
+                {{ 'gaps.ai.progress' | transloco: { saved: askProgress()?.saved ?? 0, unclear: askProgress()?.unclear ?? 0, remaining: askProgress()?.remaining ?? 0 } }}
+              </span>
+              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="stopAi()"><ng-icon name="lucideSquare" />{{ 'gaps.ai.stop' | transloco }}</button>
+            } @else {
+              <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [disabled]="busy() || !noneInScope()" [title]="'gaps.ai.hint' | transloco" (click)="askAi()">
+                <ng-icon name="lucideSparkles" />{{ 'gaps.ai.ask' | transloco: { count: noneInScope() } }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      @if (loadingPage() && !page()) {
+        <div class="p-5"><hlm-skeleton class="h-60 w-full" /></div>
+      } @else if (!items().length) {
+        <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ (show() === 'suggested' ? 'gaps.emptySuggested' : 'gaps.empty') | transloco }}</p>
+      } @else {
+        <div class="overflow-x-auto" [class.opacity-60]="loadingPage()">
+          <table class="w-full text-sm">
+            <thead class="text-muted-foreground text-left text-xs">
+              <tr class="border-b">
+                @if (canEdit()) {
+                  <th class="w-10 px-5 py-2"><hlm-checkbox inputId="gap-all" [checked]="allTicked()" (checkedChange)="toggleAll()" [attr.aria-label]="'gaps.tickAll' | transloco" /></th>
+                }
+                <th class="px-3 py-2 font-medium">{{ 'gaps.colStyle' | transloco }}</th>
+                <th class="px-3 py-2 font-medium">{{ 'gaps.colDescription' | transloco }}</th>
+                <th class="px-3 py-2 font-medium">{{ 'gaps.colSuggestion' | transloco }}</th>
+                <th class="px-5 py-2 font-medium">{{ 'gaps.colWhy' | transloco }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              @for (i of items(); track i.styleId) {
+                <tr class="hover:bg-accent/20 align-top">
+                  @if (canEdit()) {
+                    <td class="px-5 py-2.5">
+                      <hlm-checkbox [inputId]="'gap-' + i.styleId" [checked]="ticked().has(i.styleId)" [disabled]="!valueFor(i)" (checkedChange)="toggle(i.styleId)" [attr.aria-label]="i.styleNo" />
+                    </td>
+                  }
+                  <td class="px-3 py-2.5">
+                    <a [routerLink]="['/styles', i.styleId]" class="text-primary font-mono text-xs underline-offset-2 hover:underline">{{ i.styleNo }}</a>
+                    <span class="text-muted-foreground block max-w-56 truncate text-xs" [title]="i.account">{{ i.account }} · {{ i.seasonCode }}</span>
+                  </td>
+                  <td class="text-muted-foreground max-w-80 px-3 py-2.5 text-xs">
+                    <span class="line-clamp-2" [title]="i.description ?? ''">{{ i.description || '—' }}</span>
+                    @if (i.modelName) { <span class="block truncate">{{ i.modelName }}</span> }
+                  </td>
+                  <td class="px-3 py-2.5">
+                    @if (canEdit()) {
+                      <hlm-native-select [selectId]="'gap-v-' + i.styleId" selectClass="h-11 w-full min-w-40 lg:h-8" [value]="valueFor(i)" (valueChange)="choose(i, $event ?? '')">
+                        <option hlmNativeSelectOption value="">{{ 'gaps.choose' | transloco }}</option>
+                        @if (f === 'gender') {
+                          @for (g of genders; track g.code) { <option hlmNativeSelectOption [value]="g.code">{{ 'styles.gender.' + g.code | transloco }}</option> }
+                        } @else {
+                          @for (p of productTypeOptions(); track p.code) { <option hlmNativeSelectOption [value]="p.code">{{ p.name }}</option> }
+                        }
+                      </hlm-native-select>
+                    } @else {
+                      <span class="font-medium">{{ i.value ? (f === 'gender' ? (genderLabel(i.value) | transloco) : i.valueName) : '—' }}</span>
+                    }
+                    @if (i.value) {
+                      <span class="mt-1 flex flex-wrap gap-1">
+                        <span hlmBadge [variant]="$any(confidenceTone(i.confidence))" class="text-[0.7rem]">{{ confidenceKey(i.confidence) | transloco }}</span>
+                        @if (i.source === 'AI') { <span hlmBadge variant="outline" class="text-[0.7rem]"><ng-icon name="lucideSparkles" />AI</span> }
+                      </span>
+                    }
+                  </td>
+                  <td class="text-muted-foreground px-5 py-2.5 text-xs">{{ i.reason || (i.value ? '' : ('gaps.noClue' | transloco)) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="flex items-center justify-between gap-2 border-t px-5 py-2 text-xs">
+          <span class="text-muted-foreground tabular-nums">{{ 'gaps.pageOf' | transloco: { from: skip() + 1, to: skip() + items().length, total: (page()?.total ?? 0 | number) } }}</span>
+          <span class="flex gap-1">
+            <button hlmBtn variant="ghost" size="sm" type="button" class="h-11 lg:h-8" [disabled]="!skip() || loadingPage()" (click)="goPage(-1)" [attr.aria-label]="'gaps.prev' | transloco"><ng-icon name="lucideChevronLeft" /></button>
+            <button hlmBtn variant="ghost" size="sm" type="button" class="h-11 lg:h-8" [disabled]="skip() + items().length >= (page()?.total ?? 0) || loadingPage()" (click)="goPage(1)" [attr.aria-label]="'gaps.next' | transloco"><ng-icon name="lucideChevronRight" /></button>
+          </span>
+        </div>
+      }
+    </section>
+  } @else if (tab() === 'seasons') {
+    <!-- Seasons -->
+    <section hlmCard class="gap-0 py-0">
+      <div class="border-b px-5 py-3">
+        <h2 class="text-sm font-semibold">{{ 'gaps.tabs.seasons' | transloco }}</h2>
+        <p class="text-muted-foreground text-xs">{{ 'gaps.seasons.hint' | transloco }}</p>
+      </div>
+      @if (!seasons()) {
+        <div class="p-5"><hlm-skeleton class="h-48 w-full" /></div>
+      } @else if (!seasons()!.length) {
+        <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ 'gaps.seasons.none' | transloco }}</p>
+      } @else {
+        <datalist id="gap-year-terms">
+          @for (s of yearTermSeasons(); track s.code) { <option [value]="s.code"></option> }
+        </datalist>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="text-muted-foreground text-left text-xs">
+              <tr class="border-b">
+                <th class="px-5 py-2 font-medium">{{ 'gaps.seasons.colSeason' | transloco }}</th>
+                <th class="px-3 py-2 text-right font-medium">{{ 'gaps.seasons.colStyles' | transloco }}</th>
+                <th class="px-3 py-2 font-medium">{{ 'gaps.seasons.colInto' | transloco }}</th>
+                <th class="px-5 py-2 font-medium"><span class="sr-only">{{ 'gaps.seasons.merge' | transloco }}</span></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              @for (r of seasons(); track r.seasonCode) {
+                <tr>
+                  <td class="px-5 py-2.5 font-mono">
+                    <a routerLink="/styles" [queryParams]="{ season: r.seasonCode, pictures: 'all' }" class="text-primary underline-offset-2 hover:underline">{{ r.seasonCode }}</a>
+                  </td>
+                  <td class="px-3 py-2.5 text-right tabular-nums">{{ r.styles | number }}</td>
+                  <td class="px-3 py-2.5">
+                    <input hlmInput class="h-11 w-36 font-mono uppercase lg:h-8" list="gap-year-terms" maxlength="16" [placeholder]="'gaps.seasons.placeholder' | transloco"
+                           [value]="targetFor(r.seasonCode)" [disabled]="!canEdit()" (input)="setTarget(r.seasonCode, $any($event.target).value)"
+                           [attr.aria-label]="'gaps.seasons.intoLabel' | transloco: { season: r.seasonCode }" />
+                    @if (!r.suggested) { <span class="text-muted-foreground block text-xs">{{ 'gaps.seasons.chooseHint' | transloco }}</span> }
+                    @else if (r.conflicts) { <span class="block text-xs text-amber-700 dark:text-amber-400">{{ 'gaps.seasons.conflicts' | transloco: { count: r.conflicts } }}</span> }
+                  </td>
+                  <td class="px-5 py-2.5 text-right">
+                    @if (canEdit()) {
+                      <button hlmBtn variant="outline" size="sm" type="button" class="h-11 lg:h-8" [disabled]="busy() || !validTarget(r.seasonCode)" (click)="merge(r)">{{ 'gaps.seasons.merge' | transloco }}</button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  } @else {
+    <!-- LCO consumption -->
+    <section hlmCard class="gap-0 py-0">
+      <div class="flex flex-col gap-3 border-b px-5 py-3">
+        <div>
+          <h2 class="text-sm font-semibold">{{ 'gaps.tabs.lco' | transloco }}</h2>
+          <p class="text-muted-foreground text-xs">{{ 'gaps.lco.hint' | transloco }}</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <label class="flex min-h-11 items-center gap-2 text-sm lg:min-h-0">
+            <hlm-checkbox inputId="gap-allowance" [checked]="withAllowance()" (checkedChange)="toggleAllowance()" />
+            {{ 'gaps.lco.withAllowance' | transloco }}
+          </label>
+          <span class="grow"></span>
+          @if (canEdit() && lcoTotals().suggested) {
+            <button hlmBtn type="button" class="h-11 lg:h-8" [disabled]="busy()" (click)="fillLco(null)">
+              <ng-icon name="lucideCalculator" />{{ 'gaps.lco.fillAll' | transloco: { count: (lcoTotals().suggested | number) } }}
+            </button>
+          }
+        </div>
+      </div>
+      @if (!lcoGroups()) {
+        <div class="p-5"><hlm-skeleton class="h-48 w-full" /></div>
+      } @else if (!lcoGroups()!.length) {
+        <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ 'gaps.lco.none' | transloco }}</p>
+      } @else {
+        <div class="max-h-[60dvh] overflow-auto">
+          <table class="w-full text-sm">
+            <thead class="text-muted-foreground bg-card sticky top-0 text-left text-xs">
+              <tr class="border-b">
+                <th class="px-5 py-2 font-medium">{{ 'gaps.lco.colAccount' | transloco }}</th>
+                <th class="px-3 py-2 font-medium">{{ 'gaps.lco.colSeason' | transloco }}</th>
+                <th class="px-3 py-2 text-right font-medium">{{ 'gaps.lco.colStyles' | transloco }}</th>
+                <th class="px-3 py-2 text-right font-medium">{{ 'gaps.lco.colLines' | transloco }}</th>
+                <th class="px-3 py-2 text-right font-medium">{{ 'gaps.lco.colReady' | transloco }}</th>
+                <th class="px-5 py-2"><span class="sr-only">{{ 'gaps.lco.fillConfirm' | transloco }}</span></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              @for (g of lcoGroups(); track g.customerCode + g.seasonCode) {
+                <tr>
+                  <td class="max-w-72 truncate px-5 py-2.5" [title]="g.account">{{ g.account }}</td>
+                  <td class="px-3 py-2.5 font-mono text-xs">{{ g.seasonCode }}</td>
+                  <td class="px-3 py-2.5 text-right tabular-nums">{{ g.styles | number }}</td>
+                  <td class="px-3 py-2.5 text-right tabular-nums">{{ g.lines | number }}</td>
+                  <td class="px-3 py-2.5 text-right tabular-nums">{{ g.suggested | number }}</td>
+                  <td class="px-5 py-2.5 text-right">
+                    @if (canEdit() && g.suggested) {
+                      <button hlmBtn variant="outline" size="sm" type="button" class="h-11 lg:h-8" [disabled]="busy()" (click)="fillLco(g)">{{ 'gaps.lco.fill' | transloco }}</button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</section>

@@ -5,6 +5,7 @@ import { provideServiceWorker } from '@angular/service-worker';
 import { provideTransloco } from '@jsverse/transloco';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/auth/auth.interceptor';
+import { swBypassInterceptor } from './core/pwa/sw-bypass.interceptor';
 import { TranslatedTitleStrategy } from './core/i18n/translated-title.strategy';
 import { TranslationLoader } from './tms/core/translation-loader';
 
@@ -12,7 +13,8 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes, withInMemoryScrolling({ anchorScrolling: 'enabled', scrollPositionRestoration: 'enabled' })),
-    provideHttpClient(withFetch(), withInterceptors([authInterceptor])),
+    // swBypassInterceptor: slow POSTs (AI) skip the service worker, which Chrome stops after 5 minutes.
+    provideHttpClient(withFetch(), withInterceptors([authInterceptor, swBypassInterceptor])),
     // Page titles are translation keys (titles.*).
     { provide: TitleStrategy, useClass: TranslatedTitleStrategy },
     // UI translations (public/assets/i18n); LanguageService picks the language at start-up.

@@ -176,16 +176,29 @@ export class Home implements OnInit {
     Math.max(1, ...(this.data()?.seasons ?? []).map((s) => s.styles)),
   );
 
-  /** How complete the library is: each row is a share of styles or colorways (label: translation key). */
+  /**
+   * How complete the library is: each row is a share of styles, colorways or BOM lines (label: translation key). Rows with
+   * fix open Style Library > Fill the gaps on that tab (suggestions to accept).
+   */
   protected readonly completeness = computed(() => {
     const t = this.data()?.totals;
     if (!t) return [];
-    return [
+    const g = this.data()?.gaps;
+    const rows: { label: string; done: number; of: number; fix?: string }[] = [
       { label: 'home.withBom', done: t.stylesWithBom, of: t.styles },
       { label: 'home.withColorways', done: t.stylesWithColorways, of: t.styles },
       { label: 'home.colorwaysOnBom', done: t.colorwaysWithBom, of: t.colorways },
       { label: 'home.withImage', done: t.stylesWithImage, of: t.styles },
-    ].map((r) => ({ ...r, pct: r.of ? Math.round((r.done / r.of) * 100) : 0 }));
+    ];
+    if (g) {
+      rows.push(
+        { label: 'home.withGender', done: g.styles - g.genderMissing, of: g.styles, fix: 'gender' },
+        { label: 'home.withProductType', done: g.styles - g.productTypeMissing, of: g.styles, fix: 'productType' },
+        { label: 'home.inNamedSeasons', done: g.styles - g.stylesInSeasonsToMerge, of: g.styles, fix: 'seasons' },
+        { label: 'home.linesWithLco', done: t.bomLines - g.lcoMissing, of: t.bomLines, fix: 'lco' },
+      );
+    }
+    return rows.map((r) => ({ ...r, pct: r.of ? Math.floor((r.done / r.of) * 100) : 0, missing: r.of - r.done }));
   });
 
   protected readonly customers = computed(() =>

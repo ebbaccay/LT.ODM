@@ -4,6 +4,7 @@ import { environment } from '@env/environment';
 import { translate } from '@jsverse/transloco';
 import { Observable, firstValueFrom, map, shareReplay } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
+import type { GapSummary } from './style-gaps.service';
 
 // Style Library: styles, colorways, BOM lines and style history (/api/v1/styles).
 // Reading: Admin, Merchandiser, Costing, Viewer. Changing: Admin, Merchandiser (the API checks both).
@@ -210,7 +211,11 @@ export interface BomLine {
   supplierCode: string | null;
   supplierName: string | null;
   lcoConsumption: number | null;
+  /** The LCO was filled from a suggestion (Fill the gaps), not typed: shown as an estimate. */
+  lcoIsEstimate: boolean;
   brandConsumption: number | null;
+  /** Brand allowance from the import (0.03 = 3%). */
+  consumptionAllowance: number | null;
   uomCode: string | null;
   imageUrl: string | null;
   colorways: BomLineColorway[];
@@ -363,6 +368,8 @@ export interface StyleDashboard {
     finishedBy: string | null;
     finishedUtc: string | null;
   } | null;
+  /** What is missing (suggestion counts are null here; Fill the gaps shows them). */
+  gaps: GapSummary | null;
 }
 
 /** Code is '' when the value is not set on the style or BOM line. */

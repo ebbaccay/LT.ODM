@@ -432,12 +432,20 @@ public sealed class AiStudioTests(ApiFactory factory) : IClassFixture<ApiFactory
             => Task.FromResult(new MaterialSpecPageDto(new MaterialSpecCountsDto(0, 0, 0, 0, 0, 0), [], 0));
         public Task<MaterialSpecDto?> GetAsync(int materialId, CancellationToken ct = default) => Task.FromResult<MaterialSpecDto?>(null);
 
-        public Task<IReadOnlyList<MaterialToReadDto>> ToReadAsync(string? contentClass, string? materialType, int take, CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyList<MaterialToReadDto>>(
+        public IReadOnlyList<int>? AskedIds { get; private set; }
+        public int AskedTake { get; private set; }
+
+        public Task<IReadOnlyList<MaterialToReadDto>> ToReadAsync(string? contentClass, string? materialType, int take, CancellationToken ct = default,
+            IReadOnlyList<int>? materialIds = null)
+        {
+            AskedIds = materialIds;
+            AskedTake = take;
+            return Task.FromResult<IReadOnlyList<MaterialToReadDto>>(
             [
                 new MaterialToReadDto(1, "F1", "70% COTTON 30% RECYCLED POLYESTER,SOLID FLEECE, 320GSM", "FAB", "KNIT", 40),
                 new MaterialToReadDto(2, "F2", "96%REC.POLYESTER 4%SPANDEX ,1X1 RIB", "FAB", "RIBB", 40),
             ]);
+        }
 
         public Task<int> SaveAsync(IReadOnlyList<MaterialSpecReading> readings, string provider, string model, string readBy, CancellationToken ct = default)
         {
@@ -474,6 +482,26 @@ public sealed class AiStudioTests(ApiFactory factory) : IClassFixture<ApiFactory
         Assert.Equal(0.5m, rib.Confidence);                                          // ... so confidence is capped
         Assert.Null(rib.SuggestedContentClass);                                      // not a content class
         Assert.DoesNotContain(specs.Saved, s => s.MaterialId == 77);                 // not sent
+        Assert.Null(specs.AskedIds);                                                 // the next ones in the scope
+
+        await new MaterialReader(text, specs).ReadNextAsync(new ReadMaterialSpecsRequest(null, null, [2, 1]), "tester");
+        Assert.Equal([2, 1], specs.AskedIds);                                        // exactly the chosen materials
+        Assert.Equal(25, specs.AskedTake);                                           // the default batch
+
+        // A slow AI server reads fewer per call (MaterialReader:BatchSize), kept between 1 and 25.
+        var slow = new MaterialReader(text, specs, Microsoft.Extensions.Options.Options.Create(new MaterialReaderOptions { BatchSize = 5 }));
+        await slow.ReadNextAsync(new ReadMaterialSpecsRequest("FAB", null), "tester");
+        Assert.Equal(5, specs.AskedTake);
+        Assert.Equal(25, new MaterialReader(text, specs, Microsoft.Extensions.Options.Options.Create(new MaterialReaderOptions { BatchSize = 500 })).BatchSize);
+        Assert.Equal(1, new MaterialReader(text, specs, Microsoft.Extensions.Options.Options.Create(new MaterialReaderOptions { BatchSize = 0 })).BatchSize);
+    }
+
+    [Fact]
+    public async Task Reading_chosen_materials_is_limited_to_one_call()
+    {
+        var client = await SignInAsync("Merchandiser");
+        var tooMany = await client.PostAsJsonAsync("/api/v1/ai/material-specs/read", new { materialIds = Enumerable.Range(1, 26) });
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
     }
 
     // ----- Rules -----
@@ -541,6 +569,25 @@ public sealed class AiStudioTests(ApiFactory factory) : IClassFixture<ApiFactory
         Assert.StartsWith("Photorealistic e-commerce product photo of a men's jacket. Main fabric: 70% cotton", prompt);
         Assert.Contains("attached flat sketch", prompt);
         Assert.DoesNotContain("adidas", prompt, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Render_colours_start_with_the_main_fabric_and_fall_back_to_the_colorway_name()
+    {
+        // S2608MR0903_FW27 / LJ4782: the shell has only a colour code, the light lining fabrics say BLACK.
+        var d = Detail(1, "S1", [Colorway(1, "LJ4782", "RICH BLUE F27"), Colorway(2, "JZ7782", "BLACK")],
+            Line(1, "FAB", 10, "SHELL", null, 1.6m, desc: "100% REC. PES,STRETCH PLAIN WEAVE",
+                colours: [new BomLineColorwayDto(1, "AJ9Q", null), new BomLineColorwayDto(2, "095A", "BLACK")]),
+            Line(2, "FAB", 20, "LINING", null, 0.4m, desc: "100%POLYESTER(100%RECYCLED); Solid; 38.0 G/SQM",
+                colours: [new BomLineColorwayDto(1, "095A", "BLACK"), new BomLineColorwayDto(2, "095A", "BLACK")]));
+
+        var blue = RenderPrompt.Facts(d, 1);
+        Assert.Equal(["rich blue", "black"], blue.Colours);
+        Assert.Contains("Colours: rich blue (main), black. ", RenderPrompt.Build(blue, withSketch: false));
+        Assert.Equal(["black"], RenderPrompt.Facts(d, 2).Colours);   // shell and lining both black: said once
+
+        Assert.Equal("earth strata", RenderPrompt.NameColour("EARTH STRATA S23/AURORA COFFEE S26/BLACK"));
+        Assert.Null(RenderPrompt.NameColour("095A"));
     }
 
     [Fact]

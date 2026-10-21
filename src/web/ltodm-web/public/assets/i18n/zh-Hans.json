@@ -93,7 +93,8 @@
     "aiLab": "AI 实验室",
     "materials": "物料",
     "aiImageSearch": "图片搜索",
-    "aiAssistant": "款式库助手"
+    "aiAssistant": "款式库助手",
+    "fillGaps": "补齐缺失数据"
   },
   "settings": {
     "nav": {
@@ -2004,7 +2005,8 @@
     "translations": "翻译",
     "aiImageSearch": "图片搜索",
     "aiAssistant": "款式库助手",
-    "imageImport": "导入图片"
+    "imageImport": "导入图片",
+    "fillGaps": "补齐缺失数据"
   },
   "layout": {
     "appSubtitle": "款式库",
@@ -2145,7 +2147,13 @@
     "viewAll": "查看全部",
     "recentCounts": "{{ colorways }} 个配色 · {{ lines }} 条",
     "api": "API {{ status }}",
-    "lowCoverage": "覆盖率偏低"
+    "lowCoverage": "覆盖率偏低",
+    "withGender": "已填性别的款式",
+    "withProductType": "已填产品类型的款式",
+    "inNamedSeasons": "使用“年份-季节”命名季节的款式",
+    "linesWithLco": "已填 LCO 用量的 BOM 行",
+    "fix": "补齐",
+    "fixLabel": "补齐{{ what }}：缺 {{ count }}"
   },
   "styles": {
     "title": "款式",
@@ -2293,7 +2301,8 @@
       "moveToSketch": "移到款式图",
       "moveToPicture": "移到图片",
       "swapPicturesHint": "用于放错位置的图片：图片变为款式图，款式图变为图片。",
-      "picturesSwapped": "已交换图片和款式图。"
+      "picturesSwapped": "已交换图片和款式图。",
+      "tabSimilar": "相似款"
     },
     "form": {
       "newTitle": "新建款式",
@@ -3255,9 +3264,9 @@
     },
     "reader": {
       "hint": "AI 将物料描述解读为纤维成分、再生比例、组织、克重和门幅。解读结果在有人接受之前保持“待审核”；物料描述本身不会被修改。",
-      "readNext": "解读接下来 25 个",
+      "readNext": "解读接下来 {{ count }} 个",
       "readAll": "全部解读（{{ count }}）",
-      "readAllHint": "全部解读约需 {{ calls }} 次 AI 调用，每 8 秒一次（约 {{ minutes }} 分钟）。可随时停止，已解读的结果会保留。",
+      "readAllHint": "全部解读约需 {{ calls }} 次 AI 调用，每次 {{ batch }} 个物料。没有 GPU 的 AI 服务器每次调用可能需要数分钟。可随时停止，已解读的结果会保留。",
       "progress": "已解读 {{ read }} · 剩余 {{ remaining }}",
       "stop": "停止",
       "readDone": "已解读 {{ count }} 个描述。请在下方审核。",
@@ -3287,7 +3296,16 @@
       "notRead": "尚未解读。",
       "specTitle": "规格（AI 解读）",
       "readByLine": "由 {{ user }} 使用 {{ model }} 于 {{ date }} 解读",
-      "openReader": "在描述解读中打开"
+      "openReader": "在描述解读中打开",
+      "searchLabel": "搜索物料",
+      "searchPlaceholder": "物料编号或描述",
+      "readSelected": "读取所选（{{ count }}）",
+      "readSelectedHint": "用 AI 读取已勾选的物料，每次读取几个；已读取的物料会重新读取并回到待审核",
+      "clearSelection": "清除",
+      "readOne": "读取",
+      "readAgain": "重新读取",
+      "readingRow": "读取中…",
+      "queuedRow": "等待中"
     }
   },
   "aiSettings": {
@@ -3421,5 +3439,147 @@
     "footer": "AI 解读了概念，款式库为 {{ count }} 个候选款式评分，AI 选出并解释了最佳款式。沿用前请核实款式。",
     "hint": "查找物料清单已验证的现有款式，作为此概念的起点。",
     "needDraft": "请先生成概念（或添加产品、面料或趋势标签），再查找相似款式。"
+  },
+  "similar": {
+    "title": "相似款式",
+    "hint": "与本款共用物料、品类、织法和性别的款式：以前做过吗？当时用了什么？由款式库数据计算，不使用 AI。",
+    "loadFailed": "无法载入相似款式，请重试。",
+    "none": "未找到相似款式。款式需有 BOM 行或产品类型才能比较。",
+    "sameBrand": "同一客户或品牌",
+    "otherBrands": "其他品牌",
+    "otherBrandsRule": "仅作经验参考：可借鉴其物料、工艺和成本信息，绝不能把其他品牌的款式提案给客户。",
+    "score": "相似度 {{ score }}%",
+    "scoreHint": "共用物料权重最高（面料和少见物料高于唛头和缝线），其次是相同品类、织法和性别。",
+    "shared": "共用 {{ materials }} 种物料（{{ fabrics }} 种面料）",
+    "sameGarmentOnly": "相同品类和织法",
+    "inactive": "停用",
+    "mainFabric": "主面料：{{ fabric }}",
+    "compare": "与此款比较"
+  },
+  "gaps": {
+    "title": "补齐缺失数据",
+    "subtitle": "款式库缺少的数据及建议值。规则读取描述、款号和客户账户名称；AI 只读取规则无法判断的款式。接受之前不会修改任何数据。",
+    "tiles": {
+      "gender": "缺性别的款式",
+      "genderHint": "{{ ready }} 条建议 · {{ high }} 条高置信度",
+      "productType": "缺产品类型的款式",
+      "productTypeHint": "{{ ready }} 条建议 · {{ high }} 条高置信度",
+      "seasons": "待合并的季节名称",
+      "seasonsHint": "{{ ready }} 个款式使用非标准季节",
+      "lco": "缺 LCO 的 BOM 行",
+      "lcoHint": "{{ ready }} 行可采用品牌用量"
+    },
+    "alsoMissing": "其他缺失（请在下次导入时从源系统补齐）：{{ leadTime }} 个款式缺交期，{{ supplier }} 行面料、辅料和配件缺 SAP 供应商。正在使用的 LCO 估算值：{{ estimates }}。",
+    "tabs": {
+      "gender": "性别",
+      "productType": "产品类型",
+      "seasons": "季节",
+      "lco": "LCO 用量"
+    },
+    "howRules": {
+      "gender": "高：描述中写明（“Women's”“Men's”），款号显示（Skechers 的 M / W），或该款其他季节一致。中：客户账户名称（“Dillards Women”）或女装专属品类。待核对：线索相互矛盾。",
+      "productType": "高：该款其他季节的产品类型。中：描述中提到的品类（“WOVENDOWNJACKET”即夹克），换成该客户已使用的对应产品类型。"
+    },
+    "allCustomers": "全部客户",
+    "allSeasons": "全部季节",
+    "show": {
+      "suggested": "有建议",
+      "none": "无建议（{{ count }}）",
+      "all": "全部缺失"
+    },
+    "minConfidence": {
+      "any": "任意置信度",
+      "medium": "中及以上",
+      "high": "仅高"
+    },
+    "confidence": {
+      "high": "高",
+      "medium": "中",
+      "check": "待核对",
+      "none": "无建议"
+    },
+    "acceptTicked": "接受已勾选（{{ count }}）",
+    "acceptAllHigh": "接受全部高置信度（{{ count }}）",
+    "acceptAllHighTitle": "接受所有高置信度建议？",
+    "acceptAllHighMessage": "此视图中 {{ count }} 个款式将填入建议的{{ field }}。这些款式原本缺少该值；之后可在款式页修改。",
+    "acceptAllHighConfirm": "全部接受",
+    "dismissTicked": "忽略已勾选",
+    "tickAll": "勾选所有有值的行",
+    "colStyle": "款式",
+    "colDescription": "描述",
+    "colSuggestion": "值",
+    "colWhy": "依据",
+    "choose": "请选择…",
+    "noClue": "记录中没有线索：请手动选择或询问 AI。",
+    "emptySuggested": "此视图中没有建议。可显示无建议的款式，手动填写或询问 AI。",
+    "empty": "此视图中没有缺失。",
+    "pageOf": "第 {{ from }}–{{ to }} 条，共 {{ total }} 条",
+    "prev": "上一页",
+    "next": "下一页",
+    "accepted": "已更新 {{ count }} 个款式。",
+    "dismissed": "已忽略 {{ count }} 条建议，之后不会再提示。",
+    "ai": {
+      "ask": "其余询问 AI（{{ count }}）",
+      "hint": "发送无建议款式的款号、描述、型号名称和织法（不含客户、供应商和成本），每次 25 个。回答将作为建议供审核。",
+      "progress": "AI：已读 {{ saved }}，无法判断 {{ unclear }}，剩余 {{ remaining }}",
+      "stop": "停止",
+      "finished": "AI 已读取 {{ saved }} 个款式（{{ unclear }} 个无法判断）。接受前请先审核 AI 建议。"
+    },
+    "seasons": {
+      "hint": "这些季节沿用源系统的名称。合并会把其款式移到“年份-季节”季节，并记住该名称，下次导入也会使用。季度（26Q2）、度假季（CR26）和 999 需要您选择。",
+      "none": "所有季节均为“年份-季节”命名。",
+      "colSeason": "季节",
+      "colStyles": "款式",
+      "colInto": "合并到",
+      "merge": "合并",
+      "placeholder": "2026-FW",
+      "intoLabel": "将 {{ season }} 合并到的季节",
+      "chooseHint": "输入“年份-季节”（如 2026-SU）",
+      "conflicts": "{{ count }} 个款式在目标季节已存在，将保留不动",
+      "mergeTitle": "将 {{ from }} 合并到 {{ to }}？",
+      "mergeMessage": "{{ count }} 个款式将从 {{ from }} 移到 {{ to }}，之后导入时 {{ from }} 也会改用 {{ to }}。客户在 {{ to }} 中已有相同款号的款式保持不动。",
+      "merged": "已将 {{ moved }} 个款式移到 {{ to }}。",
+      "mergedWithConflicts": "已将 {{ moved }} 个款式移到 {{ to }}；{{ conflicts }} 个款式因客户在 {{ to }} 中已有而保留。"
+    },
+    "lco": {
+      "hint": "在同时有两种用量的 BOM 行中，LCO 与品牌用量相同的比例为 89% 至 99.9%（按部分），因此以品牌用量作为建议；没有品牌用量的行取使用同一物料的其他款式的中位数。填入的数值标记为估算，直到有人保存其他数值。",
+      "withAllowance": "加上品牌损耗（用量 ×（1 + 损耗））",
+      "fillAll": "全部填入（{{ count }} 行）",
+      "fill": "填入",
+      "none": "所有 BOM 行都已有 LCO 用量。",
+      "colAccount": "客户账户",
+      "colSeason": "季节",
+      "colStyles": "款式",
+      "colLines": "缺 LCO 的行",
+      "colReady": "有建议",
+      "fillTitle": "填入 LCO 用量？",
+      "fillGroupMessage": "{{ account }}、{{ season }} 的 {{ count }} 行将填入{{ how }}，并标记为估算。",
+      "fillAllMessage": "全库 {{ count }} 行将填入{{ how }}，并标记为估算。",
+      "howBrand": "品牌用量",
+      "howAllowance": "品牌用量加损耗",
+      "fillConfirm": "填入",
+      "filledStyles": "已为 {{ styles }} 个款式的 {{ count }} 行填入 LCO（标记为估算）。",
+      "fillButton": "填入 LCO（{{ count }}）",
+      "fillHint": "为缺少 LCO 用量的行给出建议值",
+      "dialogTitle": "填入 LCO 用量 · {{ styleNo }}",
+      "dialogHint": "依据品牌用量，或使用同一物料的其他款式给出建议。填入的数值标记为估算，直到有人在该行保存其他数值。",
+      "noneOnStyle": "此款所有行都已有 LCO 用量。",
+      "tickAll": "勾选所有有建议的行",
+      "colMaterial": "物料",
+      "colBrand": "品牌",
+      "colSuggested": "LCO",
+      "colFrom": "来源",
+      "source": {
+        "Brand": "品牌用量",
+        "BrandAllowance": "品牌用量 + 损耗",
+        "SameProductType": "{{ peers }} 个同产品类型款式的中位数",
+        "SameMaterial": "{{ peers }} 个同物料款式的中位数",
+        "none": "无可参考数据"
+      },
+      "fillN": "填入 {{ count }} 行",
+      "filled": "已为 {{ count }} 行填入 LCO（标记为估算）。",
+      "estimate": "估算",
+      "estimateHint": "LCO 用量由建议填入（估算）：在该行保存实际数值即可确认"
+    }
   }
 }

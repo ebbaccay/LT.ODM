@@ -33,12 +33,14 @@ public sealed class MaterialSpecRepository(IDbConnectionFactory connectionFactor
         return (await conn.QuerySingleOrDefaultAsync<SpecRow>(Proc("mat.usp_MaterialSpec_Get", new { MaterialId = materialId }, ct)))?.ToDto();
     }
 
-    public async Task<IReadOnlyList<MaterialToReadDto>> ToReadAsync(string? contentClass, string? materialType, int take, CancellationToken ct = default)
+    public async Task<IReadOnlyList<MaterialToReadDto>> ToReadAsync(string? contentClass, string? materialType, int take, CancellationToken ct = default,
+        IReadOnlyList<int>? materialIds = null)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
         return (await conn.QueryAsync<MaterialToReadDto>(Proc("mat.usp_MaterialSpec_ToRead", new
         {
             ContentClassCode = contentClass, MaterialTypeCode = materialType, Take = take,
+            MaterialIds = materialIds is { Count: > 0 } ids ? System.Text.Json.JsonSerializer.Serialize(ids) : null,
         }, ct))).ToList();
     }
 

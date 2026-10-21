@@ -226,7 +226,13 @@
               @for (r of completeness(); track r.label) {
                 <div class="flex flex-col gap-1.5">
                   <div class="flex items-baseline justify-between gap-2 text-sm">
-                    <span>{{ r.label | transloco }}</span>
+                    <span>
+                      {{ r.label | transloco }}
+                      @if (r.fix && r.missing > 0) {
+                        <a routerLink="/styles/gaps" [queryParams]="{ tab: r.fix }" class="text-primary ml-1 text-xs font-medium underline-offset-2 hover:underline"
+                           [attr.aria-label]="'home.fixLabel' | transloco: { what: (r.label | transloco), count: (r.missing | number) }">{{ 'home.fix' | transloco }}</a>
+                      }
+                    </span>
                     <span class="flex items-center gap-1 font-medium tabular-nums">
                       @if (r.pct < 50) {
                         <ng-icon

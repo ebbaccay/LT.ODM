@@ -65,6 +65,7 @@ INSERT @items VALUES
     (N'nav.home',             N'nav.quotationDashboard',      'dashboard',            'lucideChartColumn',      20,   N'Admin,Merchandiser,Factory'),
     (N'nav.styleLibrary',     N'nav.styles',                  'styles',               'lucideImages',           10,   N'Admin,Merchandiser,Costing,Viewer'),
     (N'nav.styleLibrary',     N'nav.materials',               'materials',            'lucideListTree',         20,   N'Admin,Merchandiser,Costing,Viewer'),
+    (N'nav.styleLibrary',     N'nav.fillGaps',                'styles/gaps',          'lucideClipboardCheck',   25,   N'Admin,Merchandiser,Costing,Viewer'),
     (N'nav.styleLibrary',     N'nav.workmanship',             'workmanship',          'lucideTimer',            30,   N''),
     (N'nav.styleLibrary',     N'nav.costing',                 'costing',              'lucideCalculator',       40,   N''),
     (N'nav.aiStudio',         N'nav.aiSearch',                'ai/search',            'lucideScanSearch',       10,   N'Admin,Merchandiser,Costing,Viewer'),

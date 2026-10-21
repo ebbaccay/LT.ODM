@@ -10,6 +10,19 @@
         <option hlmNativeSelectOption [value]="o.code" [selected]="o.code === contentClass()">{{ o.name }}</option>
       }
     </hlm-native-select>
+    <div class="relative w-full sm:w-64">
+      <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+      <input
+        hlmInput
+        type="search"
+        class="h-11 w-full pl-9 lg:h-9"
+        [attr.aria-label]="'materials.reader.searchLabel' | transloco"
+        [placeholder]="'materials.reader.searchPlaceholder' | transloco"
+        [value]="search()"
+        (keydown.enter)="setFilter('specSearch', $any($event.target).value)"
+        (change)="setFilter('specSearch', $any($event.target).value)"
+      />
+    </div>
     @if (canEdit()) {
       <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
         @if (reading()) {
@@ -21,14 +34,14 @@
             <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" (click)="stop()"><ng-icon name="lucideSquare" />{{ 'materials.reader.stop' | transloco }}</button>
           }
         } @else {
-          <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="!toRead()" (click)="read(false)"><ng-icon name="lucideSparkles" />{{ 'materials.reader.readNext' | transloco }}</button>
+          <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="!toRead()" (click)="read(false)"><ng-icon name="lucideSparkles" />{{ 'materials.reader.readNext' | transloco: { count: batch() } }}</button>
           <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="!toRead()" (click)="read(true)"><ng-icon name="lucideSparkles" />{{ 'materials.reader.readAll' | transloco: { count: (toRead() | number) } }}</button>
         }
       </div>
     }
   </div>
-  @if (canEdit() && toRead() > 25) {
-    <p class="text-muted-foreground text-xs">{{ 'materials.reader.readAllHint' | transloco: { calls: ((toRead() / 25) | number: '1.0-0'), minutes: ((toRead() / 25 * 8 / 60) | number: '1.0-0') } }}</p>
+  @if (canEdit() && toRead() > batch()) {
+    <p class="text-muted-foreground text-xs">{{ 'materials.reader.readAllHint' | transloco: { calls: ((toRead() / batch()) | number: '1.0-0'), batch: batch() } }}</p>
   }
   <div class="flex flex-wrap gap-2">
     @for (s of states; track s) {
@@ -45,15 +58,21 @@
   </div>
 </section>
 
-<!-- Review bar -->
-@if (canEdit() && selectable().length) {
+<!-- Selection bar: read the ticked materials, review the ticked readings -->
+@if (canEdit() && (selected().size || selectable().length)) {
   <div class="flex flex-wrap items-center gap-2 text-sm">
     <span class="text-muted-foreground">{{ 'materials.reader.selected' | transloco: { count: selected().size } }}</span>
     @if (highConfidence().length) {
       <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-8" (click)="selectHighConfidence()">{{ 'materials.reader.selectSure' | transloco: { count: highConfidence().length } }}</button>
     }
-    <button hlmBtn type="button" class="h-11 lg:h-8" [disabled]="!selected().size || reviewing()" (click)="review(selectedIds(), 'Accepted')"><ng-icon name="lucideCheck" />{{ 'materials.reader.accept' | transloco }}</button>
-    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [disabled]="!selected().size || reviewing()" (click)="review(selectedIds(), 'Rejected')"><ng-icon name="lucideX" />{{ 'materials.reader.reject' | transloco }}</button>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [disabled]="!selected().size || reading()" [title]="'materials.reader.readSelectedHint' | transloco" (click)="readChosen(selectedIds())">
+      <ng-icon name="lucideSparkles" />{{ 'materials.reader.readSelected' | transloco: { count: selected().size } }}
+    </button>
+    <button hlmBtn type="button" class="h-11 lg:h-8" [disabled]="!selectedPending().length || reviewing()" (click)="review(selectedPending(), 'Accepted')"><ng-icon name="lucideCheck" />{{ 'materials.reader.accept' | transloco }}</button>
+    <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [disabled]="!selectedPending().length || reviewing()" (click)="review(selectedPending(), 'Rejected')"><ng-icon name="lucideX" />{{ 'materials.reader.reject' | transloco }}</button>
+    @if (selected().size) {
+      <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-8" (click)="clearSelection()">{{ 'materials.reader.clearSelection' | transloco }}</button>
+    }
   </div>
 }
 
@@ -70,13 +89,13 @@
   } @else {
     <ul class="divide-y" role="list">
       @for (m of items(); track m.materialId) {
-        <li class="flex gap-3 px-4 py-3">
+        <li class="flex gap-3 px-4 py-3 transition-colors" [class.bg-primary/5]="readingNow().has(m.materialId)" [attr.aria-busy]="readingNow().has(m.materialId)">
           @if (canEdit()) {
             <input
               type="checkbox"
               class="mt-1 size-4 shrink-0"
               [attr.aria-label]="m.materialCode"
-              [disabled]="m.state !== 'Pending'"
+              [disabled]="reading()"
               [checked]="selected().has(m.materialId)"
               (change)="toggle(m.materialId)"
             />
@@ -86,6 +105,11 @@
               <p class="flex flex-wrap items-center gap-2">
                 <a [routerLink]="['/materials', m.materialId]" class="text-primary font-mono text-sm font-medium underline-offset-2 hover:underline">{{ m.materialCode }}</a>
                 <span class="rounded px-1.5 py-0.5 text-[11px]" [class]="stateClass(m.state)">{{ 'materials.reader.state.' + m.state | transloco }}</span>
+                @if (readingNow().has(m.materialId)) {
+                  <span class="text-primary flex items-center gap-1 text-xs font-medium" role="status"><hlm-spinner class="size-3" />{{ 'materials.reader.readingRow' | transloco }}</span>
+                } @else if (readingQueued().has(m.materialId)) {
+                  <span class="text-muted-foreground text-xs">{{ 'materials.reader.queuedRow' | transloco }}</span>
+                }
                 <span class="text-muted-foreground text-xs">{{ 'materials.rowStyles' | transloco: { count: m.styles } }}</span>
               </p>
               <p class="text-muted-foreground mt-0.5 line-clamp-2 text-xs" [title]="m.description ?? ''">{{ m.description }}</p>
@@ -115,10 +139,20 @@
                   @if (canEdit() && (m.state === 'Accepted' || m.state === 'Rejected')) {
                     <button type="button" class="hover:underline" [disabled]="reviewing()" (click)="review([m.materialId], 'Pending')">{{ 'materials.reader.undo' | transloco }}</button>
                   }
+                  @if (canEdit()) {
+                    <button type="button" class="text-primary hover:underline" [disabled]="reading()" (click)="readChosen([m.materialId])">{{ 'materials.reader.readAgain' | transloco }}</button>
+                  }
                 </p>
               </div>
             } @else {
-              <p class="text-muted-foreground text-xs">{{ 'materials.reader.notRead' | transloco }}</p>
+              <p class="text-muted-foreground text-xs">
+                {{ 'materials.reader.notRead' | transloco }}
+                @if (canEdit()) {
+                  <button type="button" class="text-primary ml-1 inline-flex min-h-11 items-center gap-1 hover:underline lg:min-h-0" [disabled]="reading()" (click)="readChosen([m.materialId])">
+                    <ng-icon name="lucideSparkles" />{{ 'materials.reader.readOne' | transloco }}
+                  </button>
+                }
+              </p>
             }
           </div>
         </li>

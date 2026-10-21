@@ -22,9 +22,23 @@ Search by style number, model or description, by a colorway (code or name), or b
 
 - Header: sketch and photo, customer, season (an **Inactive** tag when the style is inactive), model, product type, weave, gender, business unit, lead time, who created and changed it.
 - Click a sketch, photo, colorway or BOM line image to see it large; **Download** saves it (named after the style, e.g. `S2808MR0000_sketch.jpg`).
-- **Colorways** tab, **BOM** tab (by section; pick a colorway to see its material colours; search by part, material code or description, material type, section, supplier, material colour or colorway code, every word must match), **History** tab (the style's family: same base number and model, plus linked styles).
+- **Colorways** tab, **BOM** tab (by section; pick a colorway to see its material colours; search by part, material code or description, material type, section, supplier, material colour or colorway code, every word must match; an LCO filled from a suggestion shows *estimate*), **History** tab (the style's family: same base number and model, plus linked styles), **Similar** tab (below).
 - Material codes on the BOM open the material's page ([Materials](materials.md)).
 - AI shortcuts: **What changed** (if reused), **Check BOM**, **AI render** ([AI Studio](ai-studio.md)), **Design prompt** (below).
+
+## Similar styles (Similar tab)
+
+"Have we made this before, and what did we use?" Styles like the one open, worked out from the library when the tab opens (no AI; about 0.3 s). Every reader can use it.
+
+- **Score** (0-100%): shared materials 65 (each material weighted by section, fabric 3, artwork 1.5, trims and accessories 1, labels and packaging 0.2, and by how rare it is: a fabric on 5 styles says more than a sewing thread on 2,000; the overlap of the two BOMs), the same garment 20 (product type read as JACKET, PANTS, TEE...; see [Fill the gaps](fill-the-gaps.md#gender-and-product-type)), the same weave 10, the same gender 5. Styles below 15% are not shown.
+- **Same customer or brand** first (up to 8), then **Other brands** (up to 8) with the rule shown: know-how only, never pitch another brand's style. Customers of one brand count as the same brand (Settings > Import brands, e.g. the Skechers accounts).
+- Each card: picture or sketch, style number, customer, season, product type, *Shares N materials (M fabrics)* or *Same garment and weave*, the **main fabric** (its fabric line with the largest consumption) and **Compare with this style** (the [compare page](#compare-styles-stylesidcomparefrom)).
+- The style's own family (same customer and base number, or linked in History) is left out: it is on the History tab.
+- Styles without BOM lines are matched by garment, weave and gender only.
+
+## BOM tab: Fill LCO
+
+Admins and merchandisers see **Fill LCO (N)** when lines have no LCO consumption. The dialog lists those lines with the suggested figure and where it comes from: the brand consumption (optionally plus the brand allowance), or the median of other styles using the same material. Untick lines to leave them; **Fill** writes the ticked figures marked as estimates. The same fill for many styles at once, and why the brand consumption is the suggestion: [Fill the gaps](fill-the-gaps.md#lco-consumption).
 
 ## Design prompt
 

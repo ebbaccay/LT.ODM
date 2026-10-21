@@ -88,22 +88,24 @@ public sealed class AiStudioController(StyleAiAssistant assistant, IAiJsonClient
 
     /// <summary>Materials with their reading; status = Unread | Pending | Accepted | Rejected | Outdated. Counts cover the scope.</summary>
     [HttpGet("material-specs")]
-    public Task<MaterialSpecPageDto> MaterialSpecs([FromServices] IMaterialSpecRepository specs, string? contentClass, string? materialType, string? status,
-        string? search, int skip = 0, int take = 50, CancellationToken ct = default)
-        => specs.ListAsync(new MaterialSpecQuery(Clean(contentClass, 8), Clean(materialType, 16),
+    public async Task<MaterialSpecPageDto> MaterialSpecs([FromServices] IMaterialSpecRepository specs, [FromServices] MaterialReader reader, string? contentClass,
+        string? materialType, string? status, string? search, int skip = 0, int take = 50, CancellationToken ct = default)
+        => await specs.ListAsync(new MaterialSpecQuery(Clean(contentClass, 8), Clean(materialType, 16),
             MaterialSpecRules.States.FirstOrDefault(s => string.Equals(s, status, StringComparison.OrdinalIgnoreCase)), Clean(search, 100),
-            Math.Max(0, skip), Math.Clamp(take, 1, 200)), ct);
+            Math.Max(0, skip), Math.Clamp(take, 1, 200)), ct) with { BatchSize = reader.BatchSize };
 
     [HttpGet("material-specs/{materialId:int}")]
     public async Task<IActionResult> MaterialSpec([FromServices] IMaterialSpecRepository specs, int materialId, CancellationToken ct)
         => await specs.GetAsync(materialId, ct) is { } spec ? Ok(spec) : NotFound();
 
-    /// <summary>Reads the next 25 unread (or changed) descriptions in the scope with the Text job; stored as Pending.</summary>
+    /// <summary>Reads the next BatchSize (MaterialReader:BatchSize, default 25) unread or changed descriptions in the scope, or the chosen ones (materialIds, read again if read), with the Text job; stored as Pending.</summary>
     [HttpPost("material-specs/read")]
     [Authorize(Roles = StyleAiRoles.Editors)]
     [EnableRateLimiting(RateLimitPolicies.Ai)]
     public Task<IActionResult> ReadMaterialSpecs(ReadMaterialSpecsRequest request, [FromServices] MaterialReader reader, CancellationToken ct)
-        => WithText(async () => Ok(await reader.ReadNextAsync(request with { ContentClass = Clean(request.ContentClass, 8), MaterialType = Clean(request.MaterialType, 16) },
+        => request.MaterialIds is { Count: var n } && n > reader.BatchSize
+            ? Task.FromResult(Invalid("materialIds", $"Read at most {reader.BatchSize} chosen materials per call."))
+            : WithText(async () => Ok(await reader.ReadNextAsync(request with { ContentClass = Clean(request.ContentClass, 8), MaterialType = Clean(request.MaterialType, 16) },
             CurrentUserName, ct)));
 
     /// <summary>Accept or reject readings (only readings of the current description can be accepted).</summary>

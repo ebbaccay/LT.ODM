@@ -44,6 +44,23 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
         => await styles.GetAsync(styleId, ct) is { } style ? Ok(style) : NotFound();
 
     /// <summary>
+    /// Styles like this one (shared materials, garment, weave, gender), for "have we made this before, and what did we use?"
+    /// Same brand first; other brands' styles are know-how only. Rules only, no AI; the style's own family is left out.
+    /// </summary>
+    [HttpGet("{styleId:int}/similar")]
+    public async Task<IActionResult> Similar(int styleId, [FromServices] IStyleGapRepository gaps, int top = 8, CancellationToken ct = default)
+    {
+        try
+        {
+            return Ok(await gaps.SimilarAsync(styleId, Math.Clamp(top, 1, 20), ct));
+        }
+        catch (StyleRuleException ex)
+        {
+            return Problem(statusCode: ex.StatusCode, title: ex.Message);
+        }
+    }
+
+    /// <summary>
     /// A prompt to paste into an outside design tool (StyTrix, Style3D AI, ...), built from the style, BOM and colorway data.
     /// No AI call; nothing is sent anywhere. mode = text (text-to-design) or image (image-to-design with the sketch or photo).
     /// </summary>

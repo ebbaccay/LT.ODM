@@ -83,7 +83,8 @@ public sealed record BomLineDto(
     string? ContentClassCode, string? ContentClassName, string? NominatedSupplierCode, string? NominatedSupplierName,
     string? SupplierCode, string? SupplierName, decimal? LcoConsumption, decimal? BrandConsumption, string? UomCode, string? ImageUrl,
     IReadOnlyList<BomLineColorwayDto> Colorways,
-    string CreatedBy, DateTime CreatedUtc, string? UpdatedBy, DateTime? UpdatedUtc, byte[] RowVer, int MaterialId = 0);
+    string CreatedBy, DateTime CreatedUtc, string? UpdatedBy, DateTime? UpdatedUtc, byte[] RowVer, int MaterialId = 0,
+    bool LcoIsEstimate = false, decimal? ConsumptionAllowance = null);
 
 /// <summary>A style in the same family (same base number + model, or linked by hand), with the link to the style it came from.</summary>
 public sealed record StyleFamilyMemberDto(
@@ -93,7 +94,7 @@ public sealed record StyleFamilyMemberDto(
 public sealed record StyleDetailDto(
     StyleHeaderDto Style, IReadOnlyList<ColorwayDto> Colorways, IReadOnlyList<BomLineDto> BomLines, IReadOnlyList<StyleFamilyMemberDto> Family);
 
-/// <summary>Landing page: what is in the library, where it is concentrated, and what changed last.</summary>
+/// <summary>Landing page: what is in the library, where it is concentrated, what changed last, and what is missing (Gaps).</summary>
 public sealed record StyleDashboardDto(
     StyleDashboardTotalsDto Totals,
     IReadOnlyList<DashboardSeasonDto> Seasons,
@@ -103,7 +104,8 @@ public sealed record StyleDashboardDto(
     IReadOnlyList<DashboardCountDto> Suppliers,
     IReadOnlyList<DashboardCountDto> ProductTypes,
     IReadOnlyList<DashboardRecentStyleDto> RecentStyles,
-    DashboardImportDto? LastImport);
+    DashboardImportDto? LastImport,
+    StyleGapSummaryDto? Gaps = null);
 
 public sealed record StyleDashboardTotalsDto(
     int Styles, int Colorways, int ColorwaysInRange, int ColorwaysWithBom, int BomLines, int Materials, int Suppliers, int Customers,

@@ -432,6 +432,11 @@ GO
 IF COL_LENGTH(N'style.BomLine', N'ConsumptionAllowance') IS NULL
     ALTER TABLE style.BomLine ADD ConsumptionAllowance decimal(18, 6) NULL;
 GO
+/* Added 2026-10-16: 1 = the LCO consumption was filled from a suggestion (Fill the gaps: brand consumption, or other
+   styles' figures), not typed. Shown as an estimate until someone saves the line with another LCO. */
+IF COL_LENGTH(N'style.BomLine', N'LcoIsEstimate') IS NULL
+    ALTER TABLE style.BomLine ADD LcoIsEstimate bit NOT NULL CONSTRAINT DF_style_BomLine_LcoIsEstimate DEFAULT (0);
+GO
 IF INDEXPROPERTY(OBJECT_ID(N'style.BomLine'), N'IX_style_BomLine_Material', 'IndexId') IS NULL
     CREATE INDEX IX_style_BomLine_Material ON style.BomLine (MaterialId) INCLUDE (StyleId);
 IF INDEXPROPERTY(OBJECT_ID(N'style.BomLine'), N'IX_style_BomLine_Supplier', 'IndexId') IS NULL
@@ -610,6 +615,46 @@ RETURN
        OR (v.Source = 'Sketch' AND EXISTS (SELECT 1 FROM style.Style s WHERE s.StyleId = v.StyleId AND s.SketchUrl = v.ImageUrl))
        OR (v.Source = 'Colorway' AND EXISTS (SELECT 1 FROM style.Colorway c WHERE c.ColorwayId = v.ItemId AND c.StyleId = v.StyleId AND c.ImageUrl = v.ImageUrl))
        OR (v.Source = 'Render' AND EXISTS (SELECT 1 FROM style.AiRender r WHERE r.RenderId = v.ItemId AND r.StyleId = v.StyleId AND r.ImageUrl = v.ImageUrl));
+GO
+
+/*
+    Fill the gaps (Style Library > Fill the gaps, style.gaps.procedures.sql). Rule suggestions are worked out when asked
+    for and never stored; these two tables keep what is not a rule:
+      GapSuggestion: the AI's answer for a style the rules could not read (Field gender: MALE/FEMALE/UNISEX/KIDS;
+                     productType: a garment category such as PANTS, turned into the customer's product type when shown).
+      GapDismissed:  a suggestion someone turned down, so the same value is not offered again for that style.
+    Nothing here changes a style: accepting a suggestion writes the style and removes its rows.
+*/
+IF OBJECT_ID(N'style.GapSuggestion', N'U') IS NULL
+CREATE TABLE style.GapSuggestion
+(
+    StyleId     int            NOT NULL,
+    Field       varchar(16)    NOT NULL,
+    Value       nvarchar(40)   NOT NULL,
+    Reason      nvarchar(300)  NULL,
+    Provider    nvarchar(100)  NOT NULL,
+    Model       nvarchar(200)  NOT NULL,
+    CreatedBy   nvarchar(64)   NOT NULL,
+    CreatedUtc  datetime2(3)   NOT NULL CONSTRAINT DF_style_GapSuggestion_CreatedUtc DEFAULT (SYSUTCDATETIME()),
+
+    CONSTRAINT PK_style_GapSuggestion PRIMARY KEY CLUSTERED (StyleId, Field),
+    CONSTRAINT FK_style_GapSuggestion_Style FOREIGN KEY (StyleId) REFERENCES style.Style (StyleId) ON DELETE CASCADE,
+    CONSTRAINT CK_style_GapSuggestion_Field CHECK (Field IN ('gender', 'productType'))
+);
+GO
+IF OBJECT_ID(N'style.GapDismissed', N'U') IS NULL
+CREATE TABLE style.GapDismissed
+(
+    StyleId      int            NOT NULL,
+    Field        varchar(16)    NOT NULL,
+    Value        nvarchar(40)   NOT NULL,
+    DismissedBy  nvarchar(64)   NOT NULL,
+    DismissedUtc datetime2(3)   NOT NULL CONSTRAINT DF_style_GapDismissed_DismissedUtc DEFAULT (SYSUTCDATETIME()),
+
+    CONSTRAINT PK_style_GapDismissed PRIMARY KEY CLUSTERED (StyleId, Field, Value),
+    CONSTRAINT FK_style_GapDismissed_Style FOREIGN KEY (StyleId) REFERENCES style.Style (StyleId) ON DELETE CASCADE,
+    CONSTRAINT CK_style_GapDismissed_Field CHECK (Field IN ('gender', 'productType'))
+);
 GO
 
 /* ================================ staging ================================ */

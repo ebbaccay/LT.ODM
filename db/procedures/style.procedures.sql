@@ -237,7 +237,7 @@ BEGIN
     SELECT bl.BomLineId, bl.MaterialId, bl.LineSeq, bl.PartNo, m.MaterialCode, bl.MaterialDescription, bl.MaterialTypeCode, MaterialTypeName = mt.Name,
            bl.ContentClassCode, ContentClassName = cc.Name, ContentClassSort = cc.SortOrder,
            bl.NominatedSupplierCode, bl.NominatedSupplierName, SupplierCode = p.PartnerCode, SupplierName = p.Name,
-           bl.LcoConsumption, bl.BrandConsumption, bl.UomCode, bl.ImageUrl,
+           bl.LcoConsumption, bl.BrandConsumption, bl.UomCode, bl.ImageUrl, bl.LcoIsEstimate, bl.ConsumptionAllowance,
            bl.CreatedBy, bl.CreatedUtc, bl.UpdatedBy, bl.UpdatedUtc, bl.RowVer
     FROM style.BomLine bl
     JOIN mat.Material m ON m.MaterialId = bl.MaterialId
@@ -279,8 +279,14 @@ GO
 
 /*
     Dashboard (landing page): library totals, styles per season, top customers / material types / materials /
-    suppliers / product types, recently changed styles and the last committed import.
+    suppliers / product types, recently changed styles, the last committed import and the gaps to fill
+    (style.usp_Gaps_Summary in style.gaps.procedures.sql, deployed after this file).
 */
+-- Placeholder on a new database so the dashboard compiles without a "missing object" warning; the real procedure
+-- comes with style.gaps.procedures.sql (CREATE OR ALTER replaces it).
+IF OBJECT_ID(N'style.usp_Gaps_Summary', N'P') IS NULL
+    EXEC (N'CREATE PROCEDURE style.usp_Gaps_Summary @WithSuggestions bit = 0 AS SET NOCOUNT ON;');
+GO
 CREATE OR ALTER PROCEDURE style.usp_Dashboard_Get
     @Top     int = 8,
     @Seasons int = 8
@@ -372,6 +378,9 @@ BEGIN
     FROM staging.ImportBatch
     WHERE Status = 'Committed'
     ORDER BY FinishedUtc DESC, BatchId DESC;
+
+    /* 10. Gaps to fill (style.gaps.procedures.sql). */
+    EXEC style.usp_Gaps_Summary;
 END
 GO
 
@@ -617,9 +626,11 @@ BEGIN
     SELECT @newId, SortOrder, ColorwayCode, ColorwayName, Status, ImageUrl, @ChangedBy FROM style.Colorway WHERE StyleId = @StyleId;
 
     INSERT style.BomLine (StyleId, LineSeq, PartNo, MaterialId, MaterialDescription, MaterialTypeCode, ContentClassCode, NominatedSupplierCode,
-                          NominatedSupplierName, SupplierId, LcoConsumption, BrandConsumption, UomCode, ImageUrl, CreatedBy)
+                          NominatedSupplierName, SupplierId, LcoConsumption, BrandConsumption, UomCode, ImageUrl, ConsumptionAllowance,
+                          LcoIsEstimate, CreatedBy)
     SELECT @newId, LineSeq, PartNo, MaterialId, MaterialDescription, MaterialTypeCode, ContentClassCode, NominatedSupplierCode,
-           NominatedSupplierName, SupplierId, LcoConsumption, BrandConsumption, UomCode, ImageUrl, @ChangedBy
+           NominatedSupplierName, SupplierId, LcoConsumption, BrandConsumption, UomCode, ImageUrl, ConsumptionAllowance,
+           LcoIsEstimate, @ChangedBy
     FROM style.BomLine WHERE StyleId = @StyleId;
 
     INSERT style.BomLineColorway (BomLineId, ColorwayId, MaterialColorCode, MaterialColorDescription)
@@ -822,6 +833,8 @@ BEGIN
             PartNo = @PartNo, MaterialId = @materialId, MaterialDescription = @MaterialDescription, MaterialTypeCode = @MaterialTypeCode,
             ContentClassCode = @ContentClassCode, NominatedSupplierCode = @NominatedSupplierCode, NominatedSupplierName = @NominatedSupplierName,
             SupplierId = @supplierId, LcoConsumption = @LcoConsumption, BrandConsumption = @BrandConsumption, UomCode = @UomCode,
+            -- a filled-in (estimated) LCO stays an estimate until someone saves another figure
+            LcoIsEstimate = IIF(LcoIsEstimate = 1 AND LcoConsumption = @LcoConsumption, 1, 0),
             ImageUrl = @ImageUrl, UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
         WHERE BomLineId = @BomLineId;
 

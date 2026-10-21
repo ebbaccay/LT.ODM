@@ -99,6 +99,7 @@ The AI service for each job is normally chosen **in the app** (Settings > AI con
 | `Ai:Gemini:TimeoutSeconds` | 60 | |
 | `Ai:OpenAiCompatible:Endpoint` | (empty) | e.g. `http://ai-server.lt.local:8000/v1` |
 | `Ai:OpenAiCompatible:Model`, `ImageModel`, `ImageEndpoint`, `ImageSize` (1024x1024), `ImageSketchStrength` (0.85), `ImageFitShape` (true), `ApiKey`, `TimeoutSeconds` (120), `InHouse` (true) | | `ImageSize` and `ImageSketchStrength` are also used for in-house image connections set in the app. `ImageSketchStrength`: how far a render may move away from the sketch (0-1); **0 = never send the sketch**, for image servers without `images/edits`. `ImageFitShape`: a clearly tall drawing (a dress) is sent on a portrait canvas (`ImageSize` width x 1.5 height, e.g. 256x384), a clearly wide one on a landscape canvas; the image server must allow those sizes (false = always `ImageSize`). On a CPU-only server use `512x512` or smaller |
+| `MaterialReader:BatchSize` | 25 | Material descriptions per AI call in Materials > Description reader (1-25). Lower it for a slow AI server: on a CPU-only server one material takes 1-3 minutes, so 25 per call shows nothing for 20+ minutes; **5** shows results every few minutes. Environment variable `MaterialReader__BatchSize`. The page reads it from the API (button *Read next N*, chosen materials sent N at a time) |
 
 See [AI overview](../ai/overview.md).
 

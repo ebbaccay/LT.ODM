@@ -93,7 +93,8 @@
     "aiLab": "AI Lab",
     "materials": "Materials",
     "aiImageSearch": "Image search",
-    "aiAssistant": "Library assistant"
+    "aiAssistant": "Library assistant",
+    "fillGaps": "Fill the gaps"
   },
   "settings": {
     "nav": {
@@ -2004,7 +2005,8 @@
     "translations": "Translations",
     "aiImageSearch": "Image search",
     "aiAssistant": "Library assistant",
-    "imageImport": "Import pictures"
+    "imageImport": "Import pictures",
+    "fillGaps": "Fill the gaps"
   },
   "layout": {
     "appSubtitle": "Style Library",
@@ -2145,7 +2147,13 @@
     "viewAll": "View all",
     "recentCounts": "{{ colorways }} cw · {{ lines }} lines",
     "api": "API {{ status }}",
-    "lowCoverage": "Low coverage"
+    "lowCoverage": "Low coverage",
+    "withGender": "Styles with a gender",
+    "withProductType": "Styles with a product type",
+    "inNamedSeasons": "Styles in year-term seasons",
+    "linesWithLco": "BOM lines with LCO consumption",
+    "fix": "Fix",
+    "fixLabel": "Fix {{ what }}: {{ count }} missing"
   },
   "styles": {
     "title": "Styles",
@@ -2293,7 +2301,8 @@
       "moveToSketch": "Move to sketch",
       "moveToPicture": "Move to picture",
       "swapPicturesHint": "For a picture saved in the wrong place: the picture becomes the sketch and the sketch the picture.",
-      "picturesSwapped": "Picture and sketch swapped."
+      "picturesSwapped": "Picture and sketch swapped.",
+      "tabSimilar": "Similar"
     },
     "form": {
       "newTitle": "New style",
@@ -3255,9 +3264,9 @@
     },
     "reader": {
       "hint": "AI reads material descriptions into fibre composition, recycled share, construction, weight and width. Readings stay Pending until someone accepts them; the description itself is never changed.",
-      "readNext": "Read next 25",
+      "readNext": "Read next {{ count }}",
       "readAll": "Read all ({{ count }})",
-      "readAllHint": "Reading all takes about {{ calls }} AI calls, one every 8 seconds (about {{ minutes }} min). You can stop at any time; what was read is kept.",
+      "readAllHint": "Reading all takes about {{ calls }} AI calls of {{ batch }} materials each. On an AI server without a GPU each call can take several minutes. You can stop at any time; what was read is kept.",
       "progress": "Read {{ read }} · {{ remaining }} to go",
       "stop": "Stop",
       "readDone": "{{ count }} descriptions read. Review them below.",
@@ -3287,7 +3296,16 @@
       "notRead": "Not read yet.",
       "specTitle": "Specification (AI reading)",
       "readByLine": "Read by {{ user }} with {{ model }} on {{ date }}",
-      "openReader": "Open in Description reader"
+      "openReader": "Open in Description reader",
+      "searchLabel": "Search materials",
+      "searchPlaceholder": "Material code or description",
+      "readSelected": "Read selected ({{ count }})",
+      "readSelectedHint": "Read the ticked materials with AI, a few per call; materials already read are read again and go back to review",
+      "clearSelection": "Clear",
+      "readOne": "Read",
+      "readAgain": "Read again",
+      "readingRow": "Reading…",
+      "queuedRow": "Waiting"
     }
   },
   "aiSettings": {
@@ -3421,5 +3439,147 @@
     "footer": "AI read the concept, the library scored {{ count }} candidates, AI picked and explained the best. Check the styles before reusing them.",
     "hint": "Find existing styles with a proven BOM to start this concept from.",
     "needDraft": "Draft the concept first (or add products, fabrics or trend tags) to find similar styles."
+  },
+  "similar": {
+    "title": "Similar styles",
+    "hint": "Styles that share this one's materials, garment, weave and gender: have we made this before, and what did we use? Worked out from the library, no AI.",
+    "loadFailed": "Similar styles could not be loaded. Try again.",
+    "none": "No similar styles found. Styles need BOM lines or a product type to be compared.",
+    "sameBrand": "Same customer or brand",
+    "otherBrands": "Other brands",
+    "otherBrandsRule": "Know-how only: use what they show about materials, construction and costs, never pitch another brand's style.",
+    "score": "{{ score }}% alike",
+    "scoreHint": "Shared materials count most (fabrics and rare materials above labels and thread), then the same garment, weave and gender.",
+    "shared": "Shares {{ materials }} materials ({{ fabrics }} fabrics)",
+    "sameGarmentOnly": "Same garment and weave",
+    "inactive": "Inactive",
+    "mainFabric": "Main fabric: {{ fabric }}",
+    "compare": "Compare with this style"
+  },
+  "gaps": {
+    "title": "Fill the gaps",
+    "subtitle": "What the library is missing, with suggestions to accept. Rules read the descriptions, style numbers and account names; AI reads only the styles the rules cannot. Nothing changes until you accept.",
+    "tiles": {
+      "gender": "Styles without a gender",
+      "genderHint": "{{ ready }} suggested · {{ high }} high confidence",
+      "productType": "Styles without a product type",
+      "productTypeHint": "{{ ready }} suggested · {{ high }} high confidence",
+      "seasons": "Season names to merge",
+      "seasonsHint": "{{ ready }} styles in free-form seasons",
+      "lco": "BOM lines without LCO",
+      "lcoHint": "{{ ready }} can take the brand consumption"
+    },
+    "alsoMissing": "Also missing (fill from the source system on the next import): lead time on {{ leadTime }} styles, SAP supplier on {{ supplier }} fabric, trim and accessory lines. LCO estimates in use: {{ estimates }}.",
+    "tabs": {
+      "gender": "Gender",
+      "productType": "Product type",
+      "seasons": "Seasons",
+      "lco": "LCO consumption"
+    },
+    "howRules": {
+      "gender": "High: the description says it (\"Women's\", \"Men's\"), the style number shows it (Skechers M / W), or other seasons of the style agree. Medium: the customer account's name (\"Dillards Women\") or a women-only garment. Check: clues disagree.",
+      "productType": "High: other seasons of the style. Medium: the garment the description names (\"WOVENDOWNJACKET\" is a jacket), as the product type this customer already uses for it."
+    },
+    "allCustomers": "All customers",
+    "allSeasons": "All seasons",
+    "show": {
+      "suggested": "With a suggestion",
+      "none": "No suggestion ({{ count }})",
+      "all": "All missing"
+    },
+    "minConfidence": {
+      "any": "Any confidence",
+      "medium": "Medium and high",
+      "high": "High only"
+    },
+    "confidence": {
+      "high": "High",
+      "medium": "Medium",
+      "check": "Check",
+      "none": "No suggestion"
+    },
+    "acceptTicked": "Accept ticked ({{ count }})",
+    "acceptAllHigh": "Accept all high ({{ count }})",
+    "acceptAllHighTitle": "Accept every high-confidence suggestion?",
+    "acceptAllHighMessage": "{{ count }} styles in this view get the suggested {{ field }}. Each one is a style that was missing it; you can change it later on the style.",
+    "acceptAllHighConfirm": "Accept all",
+    "dismissTicked": "Dismiss ticked",
+    "tickAll": "Tick all rows with a value",
+    "colStyle": "Style",
+    "colDescription": "Description",
+    "colSuggestion": "Value",
+    "colWhy": "Why",
+    "choose": "Choose…",
+    "noClue": "Nothing in the record shows it: choose by hand or ask AI.",
+    "emptySuggested": "No suggestions in this view. Show the styles without one to fill them by hand or ask AI.",
+    "empty": "Nothing missing in this view.",
+    "pageOf": "{{ from }}–{{ to }} of {{ total }}",
+    "prev": "Previous page",
+    "next": "Next page",
+    "accepted": "{{ count }} styles updated.",
+    "dismissed": "{{ count }} suggestions dismissed; they will not be offered again.",
+    "ai": {
+      "ask": "Ask AI for the rest ({{ count }})",
+      "hint": "Sends the style number, description, model name and weave of the styles without a suggestion (no customer, supplier or cost), 25 at a time. The answers become suggestions to review.",
+      "progress": "AI: {{ saved }} read, {{ unclear }} unclear, {{ remaining }} left",
+      "stop": "Stop",
+      "finished": "AI read {{ saved }} styles ({{ unclear }} unclear). Review the AI suggestions before accepting."
+    },
+    "seasons": {
+      "hint": "Seasons imported with the source system's names. Merging moves their styles into the year-term season and remembers the name, so the next import uses it too. Quarters (26Q2), cruise (CR26) and 999 need you to choose.",
+      "none": "Every season is named year-term.",
+      "colSeason": "Season",
+      "colStyles": "Styles",
+      "colInto": "Merge into",
+      "merge": "Merge",
+      "placeholder": "2026-FW",
+      "intoLabel": "Season to merge {{ season }} into",
+      "chooseHint": "Type a year-term season (e.g. 2026-SU)",
+      "conflicts": "{{ count }} styles already exist there and will stay",
+      "mergeTitle": "Merge {{ from }} into {{ to }}?",
+      "mergeMessage": "{{ count }} styles move from {{ from }} to {{ to }}, and later imports will use {{ to }} for {{ from }}. Styles whose number the customer already has in {{ to }} stay where they are.",
+      "merged": "{{ moved }} styles moved to {{ to }}.",
+      "mergedWithConflicts": "{{ moved }} styles moved to {{ to }}; {{ conflicts }} stayed because the customer already has them in {{ to }}."
+    },
+    "lco": {
+      "hint": "Where a BOM line has both, LCO equals the brand consumption on 89 to 99.9% of lines (by section), so the brand consumption is the suggestion; lines without one take the median of other styles using the same material. Filled figures are marked as estimates until someone saves another figure.",
+      "withAllowance": "Add the brand allowance (consumption × (1 + allowance))",
+      "fillAll": "Fill all ({{ count }} lines)",
+      "fill": "Fill",
+      "none": "Every BOM line has an LCO consumption.",
+      "colAccount": "Customer account",
+      "colSeason": "Season",
+      "colStyles": "Styles",
+      "colLines": "Lines without LCO",
+      "colReady": "With a suggestion",
+      "fillTitle": "Fill LCO consumption?",
+      "fillGroupMessage": "{{ count }} lines of {{ account }}, {{ season }} get {{ how }}, marked as estimates.",
+      "fillAllMessage": "{{ count }} lines across the library get {{ how }}, marked as estimates.",
+      "howBrand": "the brand consumption",
+      "howAllowance": "the brand consumption plus the allowance",
+      "fillConfirm": "Fill",
+      "filledStyles": "LCO filled on {{ count }} lines of {{ styles }} styles (marked as estimates).",
+      "fillButton": "Fill LCO ({{ count }})",
+      "fillHint": "Suggest LCO consumption for the lines without one",
+      "dialogTitle": "Fill LCO consumption · {{ styleNo }}",
+      "dialogHint": "Suggested from the brand consumption, or from other styles using the same material. Filled figures are marked as estimates until someone saves another figure on the line.",
+      "noneOnStyle": "Every line on this style has an LCO consumption.",
+      "tickAll": "Tick all lines with a suggestion",
+      "colMaterial": "Material",
+      "colBrand": "Brand",
+      "colSuggested": "LCO",
+      "colFrom": "From",
+      "source": {
+        "Brand": "Brand consumption",
+        "BrandAllowance": "Brand + allowance",
+        "SameProductType": "Median of {{ peers }} styles, same product type",
+        "SameMaterial": "Median of {{ peers }} styles, same material",
+        "none": "Nothing to go by"
+      },
+      "fillN": "Fill {{ count }} lines",
+      "filled": "LCO filled on {{ count }} lines (marked as estimates).",
+      "estimate": "estimate",
+      "estimateHint": "LCO consumption, filled from a suggestion (estimate): save the line with the real figure to confirm it"
+    }
   }
 }

@@ -45,6 +45,7 @@ $scripts = @(
     'tables\style.tables.sql',                         # Style Library tables (ref, partner, mat, style, staging)
     'procedures\style.import.procedures.sql',          # Settings > Import
     'procedures\style.procedures.sql',                 # Styles screens and home dashboard
+    'procedures\style.gaps.procedures.sql',            # Fill the gaps, Similar styles
     'procedures\ref.procedures.sql',                   # Settings > Reference lists
     'procedures\mat.procedures.sql',                   # Materials
     'procedures\mat.spec.procedures.sql',              # Materials > Description reader

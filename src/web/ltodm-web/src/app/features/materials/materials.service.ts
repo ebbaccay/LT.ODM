@@ -196,6 +196,8 @@ export interface MaterialSpecPage {
   counts: { total: number; unread: number; pending: number; accepted: number; rejected: number; outdated: number };
   items: MaterialSpec[];
   total: number;
+  /** Materials per AI call on this server (MaterialReader:BatchSize, 1-25). */
+  batchSize: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -248,9 +250,9 @@ export class MaterialsService {
     return this.http.get<MaterialSpec>(`${this.specsApi}/${materialId}`);
   }
 
-  /** Reads the next 25 unread or changed descriptions in the scope (one AI call). */
-  readSpecs(contentClass: string | null, materialType: string | null): Observable<{ read: number; remaining: number }> {
-    return this.http.post<{ read: number; remaining: number }>(`${this.specsApi}/read`, { contentClass, materialType });
+  /** Reads the next batch (batchSize) of unread or changed descriptions in the scope, or the chosen materials (at most batchSize; read again if read). One AI call. */
+  readSpecs(contentClass: string | null, materialType: string | null, materialIds?: number[]): Observable<{ read: number; remaining: number }> {
+    return this.http.post<{ read: number; remaining: number }>(`${this.specsApi}/read`, { contentClass, materialType, materialIds: materialIds ?? null });
   }
 
   reviewSpecs(materialIds: number[], status: 'Accepted' | 'Rejected' | 'Pending'): Observable<{ updated: number }> {

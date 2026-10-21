@@ -133,10 +133,21 @@ Sensitivity is LT's view of the data: **Low** (reference lists and generic text)
 
 | | |
 |---|---|
-| Job / calls | Text, 1 call per 25 materials ("Read all" on fabrics: about 29 calls) |
+| Job / calls | Text, 1 call per batch of materials (25, or fewer with `MaterialReader:BatchSize`; "Read all" on fabrics at 25: about 29 calls); reading one row or the ticked rows: 1 call per batch of chosen materials |
 | Sent | For each material: id, material code, description (first 600 characters), section |
 | Not sent | Which styles use it, consumption, suppliers, costs |
 | Sensitivity | Medium (descriptions name the customer's materials and programmes) |
+
+### Style Library > Fill the gaps ("Ask AI for the rest")
+
+| | |
+|---|---|
+| Job / calls | Text, 1 per 25 styles, only for styles **no rule could read** (no word, style number, account name or other season shows the gender; no garment word in the description). Repeats until none are left or Stop; a style is asked once |
+| Sent | Per style: style id and number, description (first 300 characters), model name (first 100), weave code, and the product type name (gender) or the gender (product type); the list of allowed answers (MALE / FEMALE / UNISEX / KIDS, or garment categories such as JACKET, PANTS) |
+| Not sent | Customer and account names, BOM, suppliers, costs, pictures |
+| Checked | Answers are kept only for styles that were sent and only with a value on the list; anything else is dropped. They are stored as suggestions (`style.GapSuggestion`) and change nothing until a person accepts |
+| Sensitivity | Low to medium (style numbers and short garment descriptions) |
+| Everything else on the page | Rules in the database: **nothing is sent** (suggestions from words, style numbers and account names, season merges, LCO figures, and Similar styles on the style page) |
 
 ### Settings > Import pictures
 

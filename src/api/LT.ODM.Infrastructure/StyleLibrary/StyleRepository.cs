@@ -77,7 +77,7 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory, Styl
                 l.ContentClassCode, l.ContentClassName, l.NominatedSupplierCode, l.NominatedSupplierName, l.SupplierCode, l.SupplierName,
                 l.LcoConsumption, l.BrandConsumption, l.UomCode, l.ImageUrl,
                 lineColors[l.BomLineId].Select(x => new BomLineColorwayDto(x.ColorwayId, x.MaterialColorCode, x.MaterialColorDescription)).ToList(),
-                l.CreatedBy, Utc(l.CreatedUtc), l.UpdatedBy, Utc(l.UpdatedUtc), l.RowVer, l.MaterialId)).ToList(),
+                l.CreatedBy, Utc(l.CreatedUtc), l.UpdatedBy, Utc(l.UpdatedUtc), l.RowVer, l.MaterialId, l.LcoIsEstimate, l.ConsumptionAllowance)).ToList(),
             family.Select(f => new StyleFamilyMemberDto(f.StyleId, f.StyleNo, f.SeasonCode, f.ModelName, f.ImageUrl, f.SourceStyleId, f.Relation,
                 f.Suffix, f.LinkSource, f.Note, f.LinkedBy, f.IsCurrent)).ToList());
     }
@@ -99,8 +99,9 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory, Styl
         var recent = (await grid.ReadAsync<RecentRow>()).Select(r => new DashboardRecentStyleDto(r.StyleId, r.StyleNo, r.ModelName, r.CustomerCode,
             r.SeasonCode, r.ImageUrl, r.SketchUrl, r.ColorwayCount, r.BomLineCount, r.LastChangedBy, Utc(r.LastChangedUtc))).ToList();
         var import = await grid.ReadSingleOrDefaultAsync<ImportRow>();
+        var gaps = await grid.ReadSingleAsync<StyleGapSummaryDto>();
         return new StyleDashboardDto(totals, seasons, customers, materialTypes, materials, suppliers, productTypes, recent,
-            import is null ? null : new DashboardImportDto(import.BatchId, import.FileName, import.FinishedBy, Utc(import.FinishedUtc)));
+            import is null ? null : new DashboardImportDto(import.BatchId, import.FileName, import.FinishedBy, Utc(import.FinishedUtc)), gaps);
     }
 
     // ----- Writes -----
@@ -357,6 +358,8 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory, Styl
         public decimal? BrandConsumption { get; init; }
         public string? UomCode { get; init; }
         public string? ImageUrl { get; init; }
+        public bool LcoIsEstimate { get; init; }
+        public decimal? ConsumptionAllowance { get; init; }
         public string CreatedBy { get; init; } = "";
         public DateTime CreatedUtc { get; init; }
         public string? UpdatedBy { get; init; }

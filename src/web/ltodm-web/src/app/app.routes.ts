@@ -22,6 +22,8 @@ export const routes: Routes = [
         canActivate: [roleGuard('Admin', 'Merchandiser', 'Costing', 'Viewer')],
         children: [
           { path: '', loadComponent: () => import('./features/style-library/styles-list').then((m) => m.StylesList), title: 'titles.styles' },
+          // Fill the gaps: suggested genders, product types, season merges and LCO figures to accept (before ':id').
+          { path: 'gaps', loadComponent: () => import('./features/style-library/gaps-page').then((m) => m.GapsPage), title: 'titles.fillGaps' },
           {
             path: ':id',
             loadComponent: () => import('./features/style-library/style-detail').then((m) => m.StyleDetail),
