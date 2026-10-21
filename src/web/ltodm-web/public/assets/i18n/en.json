@@ -2386,7 +2386,9 @@
       "moveToPicture": "Move to picture",
       "swapPicturesHint": "For a picture saved in the wrong place: the picture becomes the sketch and the sketch the picture.",
       "picturesSwapped": "Picture and sketch swapped.",
-      "tabSimilar": "Similar"
+      "tabSimilar": "Similar",
+      "techPack": "Tech pack (PDF)",
+      "techPackFailed": "The tech pack could not be made. Try again."
     },
     "form": {
       "newTitle": "New style",
@@ -2578,6 +2580,118 @@
       "save": "Save {{count}} picture(s)",
       "saved": "{{count}} colorway picture(s) saved.",
       "someFailed": "{{done}} saved, {{failed}} not saved."
+    },
+    "suggest": {
+      "button": "Suggest BOM",
+      "buttonHint": "Build BOM lines from similar library styles and the fabric in the description",
+      "emptyHint": "Start from a suggested BOM: lines from similar styles in the library (earlier versions first) and fabrics that match the description. You review every line before it is added.",
+      "title": "Suggested BOM for {{ styleNo }}",
+      "hint": "Built by rules from similar styles in the library: earlier versions of this style first, then the same product type, weave, gender and customer, the fabric the description names and, when the style has a picture, how alike the pictures look. Labels, packaging and artwork come only from this customer's styles. Nothing is saved until you add the ticked lines.",
+      "fabricRead": "Description says: ",
+      "fibresUnknown": "fibres not stated",
+      "noFabricRead": "no fabric found in the description",
+      "weave": {
+        "Knit": "knit",
+        "Woven": "woven"
+      },
+      "pictureUsed": "The style's picture was compared with the library's pictures.",
+      "picture": {
+        "noPicture": "No sketch or photo: built without comparing pictures.",
+        "pictureModelOff": "The built-in image model is off: built without comparing pictures.",
+        "pictureMissing": "The picture file is missing: built without comparing pictures.",
+        "pictureUnreadable": "The picture could not be read: built without comparing pictures."
+      },
+      "references": "Built from {{ count }} similar styles",
+      "otherBrand": "other brand",
+      "reason": {
+        "family": "earlier version",
+        "productType": "same product type",
+        "garment": "same garment",
+        "weave": "same weave",
+        "gender": "same gender",
+        "customer": "same customer",
+        "brand": "same brand",
+        "fabric": "similar fabric",
+        "look": "looks alike"
+      },
+      "note": {
+        "noReferences": "No similar style with a BOM was found. Set the product type, weave and gender on the style, then try again.",
+        "noSameBrandReferences": "No similar style of this customer or brand: labels, packaging and artwork are left out (they carry the brand).",
+        "descriptionWithoutFabric": "The description names no fibres or weight, so fabrics were not matched to it."
+      },
+      "nothing": "Nothing to suggest for this style.",
+      "tickAll": "Tick all",
+      "tickedHint": "Ticked: confidence 60% or more. Another brand's materials are never ticked.",
+      "pickMaterial": "Material",
+      "alternative": "alternative",
+      "onBom": "Already on the BOM",
+      "otherBrandMaterial": "Used only by another brand: know-how, check before using",
+      "part": "Part",
+      "usedBy": "on {{ used }} of {{ of }} similar styles",
+      "fabricMatch": "{{ match }}% match with the description",
+      "addN": "Add {{ count }} lines",
+      "added": "{{ count }} lines added to the BOM. Set the material colours per colorway.",
+      "unclassified": "Unclassified"
+    },
+    "picture": {
+      "hint": "Read the photo (or sketch) for a draft of the garment, product type and description. Nothing changes until you use a suggestion.",
+      "button": "Suggest from picture",
+      "again": "Read again",
+      "garment": "Garment",
+      "unsure": "not sure",
+      "garments": {
+        "TEE": "T-shirt",
+        "POLO": "Polo shirt",
+        "TANK": "Tank top",
+        "SHIRT": "Shirt",
+        "HOODIE": "Hoodie",
+        "PULLOVER": "Sweatshirt",
+        "JACKET": "Jacket",
+        "VEST": "Vest",
+        "PANTS": "Pants",
+        "SHORTS": "Shorts",
+        "TIGHTS": "Tights",
+        "SKIRT": "Skirt",
+        "DRESS": "Dress",
+        "BRA": "Sports bra",
+        "TOP": "Top"
+      },
+      "pickType": "Pick the product type: the picture cannot tell, for example, 1/2 from 1/4 shorts.",
+      "description": "Description draft",
+      "use": "Use",
+      "addToDescription": "Add to description",
+      "nothingSure": "Nothing could be read with confidence.",
+      "weave": "Knit / woven",
+      "weaves": {
+        "KNT": "knit",
+        "WVN": "woven"
+      },
+      "weaveHint": "{{ votes }} of {{ of }} similar-looking styles are {{ weave }}",
+      "fabric": "Usual fabric",
+      "fabricHint": "{{ votes }} of {{ of }} similar-looking styles: {{ fabric }}",
+      "gender": "Gender",
+      "genderNote": "Not read from the picture (it cannot be told reliably): set it yourself.",
+      "similar": "Similar-looking styles",
+      "hintsNote": "Knit / woven and fabric come from similar-looking library styles, not from the picture itself: check them.",
+      "failed": "The picture could not be read."
+    },
+    "colours": {
+      "button": "Suggest colours",
+      "buttonHint": "Fill empty material colours per colorway from what other styles used",
+      "title": "Suggested material colours for {{ styleNo }}",
+      "hint": "For each BOM line and colorway without a colour: the colour other styles used for the same material in a colorway of the same name (this customer's first), or the one colour the material always comes in. Only empty cells are filled; colours already set are never changed.",
+      "summary": "{{ empty }} of {{ cells }} cells have no colour; suggestions for {{ found }}.",
+      "nothing": "No colour could be suggested: no other style used these materials in colorways of these names.",
+      "allFilled": "Every cell already has a colour.",
+      "tickAll": "Tick all",
+      "material": "Material",
+      "basisColorway": "{{ lines }} of {{ of }} lines with this material in colorways of this name had this colour",
+      "basisMaterial": "{{ lines }} of {{ of }} lines with this material had this colour (any colorway)",
+      "legend": "Green: 80%+ (99% right when tested on library styles), ticked. Amber: 40-79% (about 80% right), check before ticking.",
+      "fillN": "Fill {{ count }} colours",
+      "filled": "{{ count }} colours filled.",
+      "noColorways": "This style has no colorways yet. Material colours are set per colorway: add the colorways first (each one joins the BOM lines used by all colorways), then suggest colours.",
+      "addColorways": "Add colorways"
     }
   },
   "ai": {

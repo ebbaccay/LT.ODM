@@ -27,6 +27,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public FakeStyleImportRepository StyleImports { get; } = new();
     public FakeStyleRepository Styles { get; } = new();
     public FakeStyleGapRepository StyleGaps { get; } = new();
+    public FakeBomSuggestionRepository BomSuggestions { get; } = new();
+    public FakeColourSuggestionRepository ColourSuggestions { get; } = new();
     public FakeAiJsonClient TextAi { get; } = new();
     public FakeAiImageClient ImageAi { get; } = new();
     public FakeStyleAiRepository StyleAi { get; } = new();
@@ -81,6 +83,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<ITrendAnalysisAi>(TrendAi);
             services.RemoveAll<IStyleGapRepository>();
             services.AddSingleton<IStyleGapRepository>(StyleGaps);
+            services.RemoveAll<IBomSuggestionRepository>();
+            services.AddSingleton<IBomSuggestionRepository>(BomSuggestions);
+            services.RemoveAll<IColourSuggestionRepository>();
+            services.AddSingleton<IColourSuggestionRepository>(ColourSuggestions);
             services.RemoveAll<IStyleImportRepository>();
             services.AddSingleton<IStyleImportRepository>(StyleImports);
             services.RemoveAll<IStyleRepository>();

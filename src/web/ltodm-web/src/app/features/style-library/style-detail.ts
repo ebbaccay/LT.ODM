@@ -15,6 +15,7 @@ import {
   lucideGitCompareArrows,
   lucideImage,
   lucideLink,
+  lucidePalette,
   lucidePencil,
   lucidePlus,
   lucideImages,
@@ -32,11 +33,14 @@ import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
+import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { ConfirmDialogService } from '@tms/shared/confirm-dialog/confirm-dialog.service';
 import { AuthImgDirective } from '@tms/shared/ui/auth-img';
 import { Modal } from '@tms/shared/ui/modal';
 import { toneBadge } from '@tms/shared/ui/tones';
 import { BomLineDialog } from './bom-line-dialog';
+import { BomSuggestDialog } from './bom-suggest-dialog';
+import { ColourSuggestDialog } from './colour-suggest-dialog';
 import { ColorwayDialog } from './colorway-dialog';
 import { CopyStyleDialog } from './copy-style-dialog';
 import { ColorwayPicturesDialog } from './colorway-pictures-dialog';
@@ -65,12 +69,12 @@ interface BomSection {
   selector: 'app-style-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe, DecimalPipe, RouterLink, NgIcon, AuthImgDirective, Modal, StyleFormDialog, ColorwayDialog, BomLineDialog, CopyStyleDialog,
-    HistoryDialog, DesignPromptDialog, ColorwayPicturesDialog, LcoFillDialog, SimilarStyles, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, TranslocoPipe,
+    DatePipe, DecimalPipe, RouterLink, NgIcon, AuthImgDirective, Modal, StyleFormDialog, ColorwayDialog, BomLineDialog, BomSuggestDialog, ColourSuggestDialog, CopyStyleDialog,
+    HistoryDialog, DesignPromptDialog, ColorwayPicturesDialog, LcoFillDialog, SimilarStyles, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe,
   ],
   providers: [
     provideIcons({
-      lucideArrowLeft, lucideArrowLeftRight, lucideCalculator, lucideCopy, lucideDownload, lucideFileText, lucideGitBranch, lucideGitCompareArrows, lucideImage, lucideLink, lucidePencil, lucidePlus, lucideImages, lucideSearch, lucideShieldAlert,
+      lucideArrowLeft, lucideArrowLeftRight, lucideCalculator, lucideCopy, lucideDownload, lucideFileText, lucideGitBranch, lucideGitCompareArrows, lucideImage, lucideLink, lucidePalette, lucidePencil, lucidePlus, lucideImages, lucideSearch, lucideShieldAlert,
       lucideTrash2, lucideUnlink, lucideWandSparkles,
     }),
   ],
@@ -100,6 +104,7 @@ export class StyleDetail implements OnInit {
   /** Image shown large; fileName (without extension) is used when it is downloaded. */
   readonly preview = signal<{ url: string; title: string; fileName?: string } | null>(null);
   readonly downloading = signal(false);
+  readonly techPackBusy = signal(false);
 
   // Dialogs
   readonly editOpen = signal(false);
@@ -113,9 +118,12 @@ export class StyleDetail implements OnInit {
   readonly editingLine = signal<BomLine | null>(null);
   readonly newLineClass = signal('');
   readonly lcoOpen = signal(false);
+  readonly suggestOpen = signal(false);
+  readonly coloursOpen = signal(false);
 
   readonly style = computed(() => this.detail()?.style ?? null);
   readonly colorways = computed(() => this.detail()?.colorways ?? []);
+  readonly colorwayIds = computed(() => this.colorways().map((c) => c.colorwayId));
   readonly colorwayById = computed(() => new Map(this.colorways().map((c) => [c.colorwayId, c])));
 
   /** BOM lines by content class (sections in the class order, unclassified last), filtered to the chosen colorway and search text. */
@@ -216,6 +224,19 @@ export class StyleDetail implements OnInit {
   }
 
   // ── Style ──────────────────────────────────────────────────
+
+  async downloadTechPack(): Promise<void> {
+    const s = this.style();
+    if (!s || this.techPackBusy()) return;
+    this.techPackBusy.set(true);
+    try {
+      await this.svc.downloadTechPack(s.styleId, s.styleNo, s.seasonCode);
+    } catch {
+      toast.error(this.t('styles.detail.techPackFailed'));
+    } finally {
+      this.techPackBusy.set(false);
+    }
+  }
 
   async downloadPreview(): Promise<void> {
     const p = this.preview();

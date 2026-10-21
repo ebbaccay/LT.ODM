@@ -24,6 +24,7 @@ Search by style number, model or description, by a colorway (code or name), or b
 - Click a sketch, photo, colorway or BOM line image to see it large; **Download** saves it (named after the style, e.g. `S2808MR0000_sketch.jpg`).
 - **Colorways** tab, **BOM** tab (by section; pick a colorway to see its material colours; search by part, material code or description, material type, section, supplier, material colour or colorway code, every word must match; an LCO filled from a suggestion shows *estimate*), **History** tab (the style's family: same base number and model, plus linked styles), **Similar** tab (below).
 - Material codes on the BOM open the material's page ([Materials](materials.md)).
+- **Tech pack (PDF)** (everyone who can read the style) downloads `<style>_<season>_techpack.pdf`, A4 landscape: style facts with the sketch and photo, the colorways (with their pictures when there are any), the BOM by section (part, material code and description, type, nominated and SAP supplier, LCO and brand consumption, colorways used), and each BOM line's material colour per colorway (4 colorways per table; more colorways repeat the table). Every page shows the style, who made the file and when, and page x of y. Labels are in English. Text is searchable; text the main font cannot show (e.g. Chinese) is drawn as outlines to keep the file small (about 1.3 MB plus pictures).
 - AI shortcuts: **What changed** (if reused), **Check BOM**, **AI render** ([AI Studio](ai-studio.md)), **Design prompt** (below).
 
 ## Similar styles (Similar tab)
@@ -60,8 +61,51 @@ What changed between a style and an earlier one, opened from the **History** tab
 - On the page, pick another family member or any style to compare with, or **Swap** the two.
 - The differences are worked out by rules from the style data (header fields, colorways, BOM lines), the same as AI Studio's [Change summary](ai-studio.md#change-summary-aicomparestyleid), so it **works without an AI service**. The **AI summary** card appears only when the Text job is set up in Settings > AI connections.
 
+## Suggest from picture (Admin, Merchandiser)
+
+In the style form, once a sketch or photo is uploaded, **Suggest from picture** reads it (the photo when there is one) with the image model built into the API (Marqo-FashionSigLIP; well under a second, nothing sent anywhere; `POST /api/v1/styles/describe-picture`). Nothing changes until a suggestion is used:
+
+- **Garment** and up to 3 **product types** for it, the ones this customer uses most first, to pick from (it never sets one alone).
+- A **description draft** in the library's form, only from what it reads with confidence: garment, sleeve length, hood, closure, pattern, colours (*SHORTS; NAVY*, *JACKET; LONG SLEEVE; HOODED; FULL ZIP*). **Use** (empty description) or **Add to description**.
+- **Knit / woven** and the **usual fabric** of the 5 closest-looking library styles, as hints with their votes (not read from the picture itself), and links to those styles.
+- **Gender is not suggested**: a picture does not show it.
+
+What it was measured on (2026-10-21, the library's 135 indexed pictures, 124 of them sketches; in brackets, always giving the most common answer):
+
+| Field | Right | Used as |
+|---|---|---|
+| Garment | 70%; 77% of the 79% read with confidence (18%) | suggested |
+| Sleeve length (tops) | 82%; 94% when confident (42%) | in the draft |
+| Product type | the real one among the 3 offered for 85% of 40 sketches (first one only 45%: 1/2 vs 1/4 shorts, track top vs jacket) | picked by the user |
+| Gender | 55-60% (74%: always women's) | not suggested |
+| Knit / woven | from the picture 56% (59%); closest-looking styles 71% | hint |
+| Main fibre | closest-looking styles 76% (68%) | hint |
+
+Needs the built-in image model and its text part (AI Studio > Image search); otherwise the button explains it cannot run. The thresholds should be checked again once more pictures are indexed.
+
+## Suggest BOM (Admin, Merchandiser)
+
+For a new style (or one with a partial BOM): **Suggest BOM** on the BOM tab (also offered on an empty BOM) builds BOM lines from the library, by rules, in about a second, with nothing sent to an AI service (`GET /api/v1/styles/{id}/bom-suggestion`). Set the product type, weave, gender and description first: they decide what counts as similar.
+
+1. **Reference styles** (up to 12, each with its reasons): earlier versions of the style (same customer and base number, or linked by history) first, then styles of the same product type (or garment), weave, gender and customer or brand, plus how close the fabric in their description is to this one's (fibres, recycled, weight), plus how alike their pictures look when the style has a sketch or photo and the built-in image model is on. Styles without a product type count only as earlier versions.
+2. **Lines**: for each section and material type most reference styles have, the materials they use most, weighted by how close each reference is, with the usual part number, nominated and SAP supplier, consumption and unit; the rest are alternatives in the line's list. Variants of a material (`80020552_VN`, `80020552_BOWKER`) count as one; the variant used most is offered.
+3. **Fabric**: the description is read for fibres, recycled share, weight (g/m²) and knit/woven (e.g. *100%POLYESTER(100%RECYCLED); 101.0 G/SQM*); fabric lines are ranked by it too, and library fabrics that match it well (70%+) are offered even when no reference uses them. Accepted Description reader readings are used when there are any.
+4. **Brand guardrail**: labels, packaging and artwork come only from the same customer or brand. Another brand's fabrics, trims and accessories are know-how: offered, marked *other brand*, never ticked.
+
+Lines with confidence 60% or more start ticked; materials already on the BOM are shown but cannot be ticked. **Add N lines** saves the ticked lines (with the option picked) as ordinary BOM lines for every colorway, colours empty, to be filled per colorway. Checked on 60 library styles that already have a BOM (2026-10-21): 59% of their materials were among the suggestion's options (fabrics 38%; new styles often get a new fabric), and 54% of the lines that would start ticked were really on the BOM, so every line needs a look before it is added.
+
+## Suggest colours (Admin, Merchandiser)
+
+On the BOM tab of a style with BOM lines, **Suggest colours** (without colorways it says to add them first, with a button to the Colorways tab) fills the material colour grid (`GET /api/v1/styles/{id}/colour-suggestion`), by rules, in about a second. For each line x colorway **without** a colour:
+
+1. the colour other styles used for the same material (variants of a code count as one) in colorways of the **same name** (ignoring case, spaces and punctuation: *Collegiate Navy* = *COLLEGIATE-NAVY*), this customer's history first; at least 2 lines seen;
+2. else, when the material has always come in one colour (90%+ of at least 3 lines, e.g. a white care label), that colour.
+
+Confidence is the share of the lines seen that had the colour, lowered below 5 lines. Checked on 80 library styles without earlier versions, their 10,263 filled colours hidden (2026-10-21): a colour was suggested for 80% of the cells and was right for 93%. From confidence 80 (55% of cells) 99% were right: these start ticked; 40-79 (about 80% right) are shown unticked; below 40 is not shown. **Fill N colours** writes only cells that are still empty; colours already set are never changed.
+
 ## Editing (Admin, Merchandiser)
 
+- A new colorway joins every BOM line that all the style's other colorways use (every line when it is the first colorway), colours empty; lines kept to some colorways stay as they are.
 - Create, edit and delete styles, colorways and BOM lines; upload sketches, photos and images (JPEG, PNG, GIF, WebP up to 10 MB) with the upload button or by **dropping the file on the image box**. Images are made smaller on the server (at most 1600 px, JPEG for photos, PNG for sketches; see [Compression](../installation/08-file-storage.md#compression)) and stored as files on the server under `style-library` ([File storage](../installation/08-file-storage.md)).
 - **Swap picture and sketch** (under the two image boxes) fixes a picture saved in the wrong place: the picture becomes the sketch and the sketch the picture. With only one of them, the button says **Move to sketch** or **Move to picture**. It changes the style like an edit (someone else's newer change stops it: reload and try again).
 - **Pictures from sketch** (Colorways tab) gives each colorway its own picture, cut from the style's sketch (or picture, when both exist a switch picks which). The server splits the sketch into its colourways: whatever is enclosed by an outline is garment, and the sketch is cut left to right wherever the main colour changes. It then matches each colorway by the colour in its name: the part before the first `/`, season and colour codes such as F27 or 095A dropped, about 140 colour words and short forms such as GREFOU or UTIBLK known. Each colorway shows its suggested box on the sketch (drag to change, or click one of the colours found). Clear matches start ticked; **Check** means a close call; names without a colour (`multicolor 095A`) and colours not in the sketch get no box. **Save** cuts each ticked box, makes small ones sharper (as in [Import pictures](settings.md#import-pictures-settingsimage-import)) and sets it as the colorway's picture. Rules only, nothing is sent anywhere. Tested on 27 stored sketches: solid colourways drawn side by side or fanned (e.g. RC2620OW000: 5 of 5 right) work well; prints and stripes, sketches that show only one colourway, and two colours very close together (night brown and black) need a hand.

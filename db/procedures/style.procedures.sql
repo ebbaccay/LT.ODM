@@ -663,7 +663,11 @@ GO
 
 /* ---------- Colorways ---------- */
 
-/* Creates (@ColorwayId NULL) or updates a colorway. Returns ColorwayId. */
+/*
+    Creates (@ColorwayId NULL) or updates a colorway. Returns ColorwayId. A new colorway joins every BOM line all the
+    style's other colorways use (every line when it is the style's first colorway), colours empty: such a line is for
+    all colorways. Lines kept to some colorways are left as they are.
+*/
 CREATE OR ALTER PROCEDURE style.usp_Colorway_Save
     @ColorwayId   int           = NULL,
     @StyleId      int,
@@ -693,9 +697,15 @@ BEGIN
 
     IF @ColorwayId IS NULL
     BEGIN
+        DECLARE @others int = (SELECT COUNT(*) FROM style.Colorway WHERE StyleId = @StyleId);
         INSERT style.Colorway (StyleId, SortOrder, ColorwayCode, ColorwayName, Status, ImageUrl, CreatedBy)
         VALUES (@StyleId, @SortOrder, @ColorwayCode, @ColorwayName, @Status, @ImageUrl, @ChangedBy);
         SET @ColorwayId = CAST(SCOPE_IDENTITY() AS int);
+        INSERT style.BomLineColorway (BomLineId, ColorwayId)
+        SELECT b.BomLineId, @ColorwayId
+        FROM style.BomLine b
+        WHERE b.StyleId = @StyleId
+          AND (SELECT COUNT(*) FROM style.BomLineColorway x WHERE x.BomLineId = b.BomLineId AND x.ColorwayId <> @ColorwayId) = @others;
     END
     ELSE
         UPDATE style.Colorway SET ColorwayCode = @ColorwayCode, ColorwayName = @ColorwayName, Status = @Status, SortOrder = @SortOrder,

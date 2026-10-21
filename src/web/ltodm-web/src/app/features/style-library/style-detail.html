@@ -55,13 +55,22 @@
               }
             </div>
           </div>
-          @if (canEdit()) {
-            <div class="flex w-full flex-wrap gap-2 sm:w-auto">
+          <div class="flex w-full flex-wrap gap-2 sm:w-auto">
+            <!-- Everyone who can read the style can download its tech pack -->
+            <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" [disabled]="techPackBusy()" (click)="downloadTechPack()">
+              @if (techPackBusy()) {
+                <hlm-spinner class="size-4" />
+              } @else {
+                <ng-icon name="lucideDownload" />
+              }
+              {{ 'styles.detail.techPack' | transloco }}
+            </button>
+            @if (canEdit()) {
               <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" (click)="editOpen.set(true)"><ng-icon name="lucidePencil" />{{ 'styles.detail.edit' | transloco }}</button>
               <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" (click)="copyOpen.set(true)"><ng-icon name="lucideCopy" />{{ 'styles.detail.reuse' | transloco }}</button>
               <button hlmBtn variant="ghost" type="button" class="text-destructive h-11 lg:h-9" [attr.aria-label]="'styles.detail.deleteStyle' | transloco" (click)="deleteStyle()"><ng-icon name="lucideTrash2" /></button>
-            </div>
-          }
+            }
+          </div>
         </div>
 
         <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 xl:grid-cols-4">
@@ -213,13 +222,27 @@
                     <ng-icon name="lucideCalculator" />{{ 'gaps.lco.fillButton' | transloco: { count: lcoMissing() } }}
                   </button>
                 }
+                @if (bomLineCount()) {
+                  <!-- Shown without colorways too: the dialog then says to add them first (a hidden button left people searching) -->
+                  <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [title]="'styles.colours.buttonHint' | transloco" (click)="coloursOpen.set(true)">
+                    <ng-icon name="lucidePalette" />{{ 'styles.colours.button' | transloco }}
+                  </button>
+                }
+                <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" [title]="'styles.suggest.buttonHint' | transloco" (click)="suggestOpen.set(true)"><ng-icon name="lucideWandSparkles" />{{ 'styles.suggest.button' | transloco }}</button>
                 <button hlmBtn variant="outline" type="button" class="h-11 lg:h-8" (click)="openLine(null)"><ng-icon name="lucidePlus" />{{ 'styles.detail.addBomLine' | transloco }}</button>
               </div>
             }
           </div>
 
           @if (!bomSections().length) {
-            <p class="text-muted-foreground px-5 py-10 text-center text-sm">{{ (bomSearch().trim() ? 'styles.detail.noLinesForSearch' : bomColorway() ? 'styles.detail.noLinesForColorway' : 'styles.detail.noLines') | transloco }}</p>
+            <div class="flex flex-col items-center gap-3 px-5 py-10 text-center">
+              <p class="text-muted-foreground text-sm">{{ (bomSearch().trim() ? 'styles.detail.noLinesForSearch' : bomColorway() ? 'styles.detail.noLinesForColorway' : 'styles.detail.noLines') | transloco }}</p>
+              @if (canEdit() && !bomLineCount()) {
+                <!-- A new style: build its BOM from similar styles -->
+                <p class="text-muted-foreground max-w-md text-xs leading-relaxed">{{ 'styles.suggest.emptyHint' | transloco }}</p>
+                <button hlmBtn type="button" class="h-11 lg:h-9" (click)="suggestOpen.set(true)"><ng-icon name="lucideWandSparkles" />{{ 'styles.suggest.button' | transloco }}</button>
+              }
+            </div>
           } @else {
             <!-- Column names (wide screens; on narrow ones each line labels its own values) -->
             <div
@@ -392,6 +415,11 @@
     <app-copy-style-dialog [open]="copyOpen()" [style]="s" [lookups]="lookups()" (closed)="copyOpen.set(false)" (saved)="onCopied($event)" />
     <app-history-dialog [open]="historyOpen()" [style]="s" (closed)="historyOpen.set(false)" (saved)="onHistorySaved()" />
     <app-lco-fill-dialog [open]="lcoOpen()" [styleId]="s.styleId" [styleNo]="s.styleNo" (closed)="lcoOpen.set(false)" (saved)="lcoOpen.set(false); load()" />
+    <app-bom-suggest-dialog [open]="suggestOpen()" [styleId]="s.styleId" [styleNo]="s.styleNo" [colorwayIds]="colorwayIds()"
+                            (closed)="suggestOpen.set(false)" (saved)="suggestOpen.set(false); load()" />
+    <app-colour-suggest-dialog [open]="coloursOpen()" [styleId]="s.styleId" [styleNo]="s.styleNo" [lines]="detail()?.bomLines ?? []" [colorways]="colorways()"
+                               (closed)="coloursOpen.set(false)" (saved)="coloursOpen.set(false); load()"
+                               (addColorways)="coloursOpen.set(false); tab.set('colorways')" />
     <app-colorway-dialog [open]="colorwayOpen()" [styleId]="s.styleId" [colorway]="editingColorway()" (closed)="colorwayOpen.set(false)" (saved)="onColorwaySaved()" />
     <app-bom-line-dialog
       [open]="lineOpen()"

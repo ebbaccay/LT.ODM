@@ -60,6 +60,7 @@ public static class DependencyInjection
         services.AddSingleton<IConceptImageStore, FileSystemConceptImageStore>();
         services.AddSingleton<IProductImageStore, FileSystemProductImageStore>();
         services.AddSingleton<IStyleImageStore, FileSystemStyleImageStore>();
+        services.AddSingleton<ITechPackWriter, StyleLibrary.TechPackPdfWriter>();
         services.AddSingleton<ISignInImageStore, FileSystemSignInImageStore>();
         services.AddSingleton<ISignInAppearanceStore, FileSignInAppearanceStore>();
         services.AddSingleton<IImportFileStore, FileSystemImportFileStore>();
@@ -121,6 +122,15 @@ public static class DependencyInjection
         services.AddSingleton<IImageEmbeddingModel, OnnxImageEmbeddingModel>();
         services.AddScoped<IImageSearchRepository, ImageSearchRepository>();
         services.AddScoped<ImageSearchService>();
+        // Style page > BOM > Suggest BOM: reference styles + library fabrics (rules; the picture through the model above).
+        services.AddSingleton<StyleLibrary.BomSuggestFabricCache>();
+        services.AddScoped<IBomSuggestionRepository, StyleLibrary.BomSuggestionRepository>();
+        services.AddScoped<BomSuggestionService>();
+        services.AddScoped<IColourSuggestionRepository, StyleLibrary.ColourSuggestionRepository>();
+        services.AddScoped<ColourSuggestionService>();
+        // New style form > Suggest from picture (the look-alike model above, its text part and the picture tags).
+        services.AddScoped<IPictureDescribeRepository, StyleLibrary.PictureDescribeRepository>();
+        services.AddScoped<PictureDescriber>();
         services.AddScoped<IPictureTagRepository, PictureTagRepository>();
         services.AddScoped<PictureTagger>();
         services.AddScoped<LookSearch>();

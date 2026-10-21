@@ -1,4 +1,5 @@
 using LT.ODM.Application.Abstractions;
+using LT.ODM.Application.StyleAi;
 using LT.ODM.Application.StyleLibrary;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -42,6 +43,17 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
     [HttpGet("{styleId:int}")]
     public async Task<IActionResult> Get(int styleId, CancellationToken ct)
         => await styles.GetAsync(styleId, ct) is { } style ? Ok(style) : NotFound();
+
+    /// <summary>The style's tech pack as a PDF download: header, sketch and photo, colorways, BOM and material colours by colorway.</summary>
+    [HttpGet("{styleId:int}/tech-pack")]
+    public async Task<IActionResult> TechPack(int styleId, [FromServices] ITechPackWriter writer, CancellationToken ct)
+    {
+        if (await styles.GetAsync(styleId, ct) is not { } style) return NotFound();
+        var pdf = await writer.WriteAsync(style, CurrentUserName, DateTime.UtcNow, ct);
+        return File(pdf, "application/pdf", $"{FileNameSafe(style.Style.StyleNo)}_{FileNameSafe(style.Style.SeasonCode)}_techpack.pdf");
+    }
+
+    private static string FileNameSafe(string text) => string.Concat(text.Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '_'));
 
     /// <summary>
     /// Styles like this one (shared materials, garment, weave, gender), for "have we made this before, and what did we use?"
@@ -170,6 +182,79 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
         });
 
     // ----- BOM lines -----
+
+    /// <summary>
+    /// Material colours for the style's empty BOM line x colorway cells, from what other styles used for the same material
+    /// in colorways of the same name (or the one colour a material always comes in). Rules, nothing saved.
+    /// </summary>
+    [HttpGet("{styleId:int}/colour-suggestion")]
+    [Authorize(Roles = StyleRoles.Editors)]
+    public async Task<IActionResult> SuggestColours(int styleId, [FromServices] ColourSuggestionService colours, CancellationToken ct)
+        => await colours.SuggestAsync(styleId, ct) is { } suggestion ? Ok(suggestion) : NotFound();
+
+    /// <summary>Fills the picked colours into cells that are still empty (never overwrites a colour).</summary>
+    [HttpPost("{styleId:int}/colour-suggestion/apply")]
+    [Authorize(Roles = StyleRoles.Editors)]
+    public async Task<IActionResult> ApplyColours(int styleId, ApplyColoursRequest request, [FromServices] IColourSuggestionRepository colours, CancellationToken ct)
+    {
+        if (request.Cells is not { Count: > 0 and <= 5000 } cells)
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["cells"] = ["Pick between 1 and 5,000 colours."] }));
+        if (cells.Any(c => c.MaterialColorCode?.Length > 80 || c.MaterialColorDescription?.Length > 150))
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["cells"] = ["A colour code has at most 80 characters, a description 150."] }));
+        return Ok(new { filled = await colours.ApplyAsync(styleId, cells, CurrentUserName, ct) });
+    }
+
+    /// <summary>
+    /// Suggest from picture: a draft of a new style's garment, product type, sleeve, look tags and description from its
+    /// uploaded sketch or photo, plus knit / woven and fabric hints from the closest-looking library styles (built-in image
+    /// model, in the API). 409 when the model cannot run or the picture cannot be read.
+    /// </summary>
+    [HttpPost("describe-picture")]
+    [Authorize(Roles = StyleRoles.Editors)]
+    public async Task<IActionResult> DescribePicture(DescribePictureRequest request, [FromServices] PictureDescriber describer, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.ImageUrl) || request.ImageUrl.Length > 500)
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["imageUrl"] = ["Upload a sketch or photo first."] }));
+        try
+        {
+            return Ok(await describer.DescribeAsync(request with { CustomerCode = Clean(request.CustomerCode, 32) }, ct));
+        }
+        catch (LT.ODM.Application.Ai.AiServiceException ex)
+        {
+            return Problem(ex.Message, statusCode: StatusCodes.Status409Conflict, title: ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// A suggested BOM for the style, built from similar library styles and the fabric its description names (rules, about
+    /// a second, no AI service). Nothing is saved: the picked lines are added with bom-suggestion/apply.
+    /// </summary>
+    [HttpGet("{styleId:int}/bom-suggestion")]
+    [Authorize(Roles = StyleRoles.Editors)]
+    public async Task<IActionResult> SuggestBom(int styleId, [FromServices] BomSuggestionService suggestions, CancellationToken ct)
+        => await suggestions.SuggestAsync(styleId, ct) is { } suggestion ? Ok(suggestion) : NotFound();
+
+    /// <summary>Adds the picked suggestion lines as ordinary BOM lines (checked like any line first; all or none is checked, then each is saved).</summary>
+    [HttpPost("{styleId:int}/bom-suggestion/apply")]
+    [Authorize(Roles = StyleRoles.Editors)]
+    public async Task<IActionResult> ApplyBomSuggestion(int styleId, ApplyBomSuggestionRequest request, CancellationToken ct)
+    {
+        if (request.Lines is not { Count: > 0 and <= 200 } lines)
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["lines"] = ["Pick between 1 and 200 lines."] }));
+        foreach (var line in lines)
+            if (StyleValidation.BomLine(line) is { Count: > 0 } errors)
+                return ValidationProblem(new ValidationProblemDetails(errors.ToDictionary(e => $"{line.MaterialCode}: {e.Key}", e => e.Value)));
+        return await Run(new Dictionary<string, string[]>(), async () =>
+        {
+            var added = 0;
+            foreach (var line in lines)
+            {
+                await styles.SaveBomLineAsync(styleId, null, line, CurrentUserName, ct);
+                added++;
+            }
+            return Ok(new { added });
+        });
+    }
 
     [HttpPost("{styleId:int}/bom-lines")]
     [Authorize(Roles = StyleRoles.Editors)]

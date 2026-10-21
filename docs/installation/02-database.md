@@ -33,6 +33,7 @@ run procedures\style.gaps.procedures.sql       # Fill the gaps, Similar styles (
 run procedures\ref.procedures.sql              # Settings > Reference lists
 run procedures\mat.procedures.sql              # Materials and its views
 run procedures\mat.spec.procedures.sql         # Materials > Description reader (creates mat.MaterialSpec)
+run procedures\style.bom-suggest.procedures.sql  # Style page > Suggest BOM (after style.gaps and mat.spec)
 run procedures\style.ai.procedures.sql         # AI Studio: BOM check, renders, concept matching, image search
 run procedures\style.tags.procedures.sql       # Picture tags (look filters; tables in tables\style.tables.sql)
 run procedures\style.assistant.procedures.sql  # AI Studio > Library assistant (style counts)

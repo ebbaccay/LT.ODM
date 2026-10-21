@@ -2386,7 +2386,9 @@
       "moveToPicture": "移到图片",
       "swapPicturesHint": "用于放错位置的图片：图片变为款式图，款式图变为图片。",
       "picturesSwapped": "已交换图片和款式图。",
-      "tabSimilar": "相似款"
+      "tabSimilar": "相似款",
+      "techPack": "技术包 (PDF)",
+      "techPackFailed": "无法生成技术包，请重试。"
     },
     "form": {
       "newTitle": "新建款式",
@@ -2578,6 +2580,118 @@
       "save": "保存 {{count}} 张图片",
       "saved": "已保存 {{count}} 张配色图片。",
       "someFailed": "已保存 {{done}} 张，{{failed}} 张未保存。"
+    },
+    "suggest": {
+      "button": "建议物料清单",
+      "buttonHint": "根据库中相似款式和描述中的面料生成物料行",
+      "emptyHint": "从建议的物料清单开始：取自库中相似款式（优先本款以往版本）的物料行，以及与描述相符的面料。每一行都由您确认后才添加。",
+      "title": "{{ styleNo }} 的建议物料清单",
+      "hint": "按规则从库中相似款式生成：先是本款以往版本，再按相同产品类型、织法、性别和客户，描述中的面料，以及款式有图片时的外观相似度。标签、包装和印花只取自该客户的款式。勾选的行添加后才会保存。",
+      "fabricRead": "描述中的面料：",
+      "fibresUnknown": "未写明纤维",
+      "noFabricRead": "描述中未找到面料",
+      "weave": {
+        "Knit": "针织",
+        "Woven": "梭织"
+      },
+      "pictureUsed": "已将款式图片与库中图片进行比较。",
+      "picture": {
+        "noPicture": "没有款式图或照片：未比较图片。",
+        "pictureModelOff": "内置图像模型已关闭：未比较图片。",
+        "pictureMissing": "图片文件缺失：未比较图片。",
+        "pictureUnreadable": "无法读取图片：未比较图片。"
+      },
+      "references": "基于 {{ count }} 个相似款式",
+      "otherBrand": "其他品牌",
+      "reason": {
+        "family": "以往版本",
+        "productType": "相同产品类型",
+        "garment": "相同服装",
+        "weave": "相同织法",
+        "gender": "相同性别",
+        "customer": "相同客户",
+        "brand": "相同品牌",
+        "fabric": "面料相似",
+        "look": "外观相似"
+      },
+      "note": {
+        "noReferences": "未找到有物料清单的相似款式。请先设置款式的产品类型、织法和性别再试。",
+        "noSameBrandReferences": "没有该客户或品牌的相似款式：不建议标签、包装和印花（它们带有品牌）。",
+        "descriptionWithoutFabric": "描述中没有纤维或克重，因此未按描述匹配面料。"
+      },
+      "nothing": "该款式没有可建议的内容。",
+      "tickAll": "全选",
+      "tickedHint": "已勾选：可信度 60% 以上。其他品牌的物料不会自动勾选。",
+      "pickMaterial": "物料",
+      "alternative": "备选",
+      "onBom": "已在物料清单中",
+      "otherBrandMaterial": "仅其他品牌使用过：仅供参考，使用前请确认",
+      "part": "部位",
+      "usedBy": "{{ of }} 个相似款式中有 {{ used }} 个使用",
+      "fabricMatch": "与描述匹配 {{ match }}%",
+      "addN": "添加 {{ count }} 行",
+      "added": "已向物料清单添加 {{ count }} 行。请按配色设置物料颜色。",
+      "unclassified": "未分类"
+    },
+    "picture": {
+      "hint": "读取照片（或款式图）生成服装、产品类型和描述的草稿。使用建议前不会更改任何内容。",
+      "button": "根据图片建议",
+      "again": "重新读取",
+      "garment": "服装",
+      "unsure": "不确定",
+      "garments": {
+        "TEE": "T恤",
+        "POLO": "Polo 衫",
+        "TANK": "背心",
+        "SHIRT": "衬衫",
+        "HOODIE": "连帽卫衣",
+        "PULLOVER": "卫衣",
+        "JACKET": "夹克",
+        "VEST": "马甲",
+        "PANTS": "长裤",
+        "SHORTS": "短裤",
+        "TIGHTS": "紧身裤",
+        "SKIRT": "半身裙",
+        "DRESS": "连衣裙",
+        "BRA": "运动文胸",
+        "TOP": "上衣"
+      },
+      "pickType": "请选择产品类型：图片无法区分例如 1/2 与 1/4 短裤。",
+      "description": "描述草稿",
+      "use": "使用",
+      "addToDescription": "添加到描述",
+      "nothingSure": "没有可确定的内容。",
+      "weave": "针织 / 梭织",
+      "weaves": {
+        "KNT": "针织",
+        "WVN": "梭织"
+      },
+      "weaveHint": "{{ of }} 个外观相似的款式中有 {{ votes }} 个为{{ weave }}",
+      "fabric": "常用面料",
+      "fabricHint": "{{ of }} 个外观相似的款式中有 {{ votes }} 个：{{ fabric }}",
+      "gender": "性别",
+      "genderNote": "不根据图片判断（无法可靠识别）：请自行设置。",
+      "similar": "外观相似的款式",
+      "hintsNote": "针织 / 梭织和面料来自外观相似的库中款式，而非图片本身：请核对。",
+      "failed": "无法读取图片。"
+    },
+    "colours": {
+      "button": "建议颜色",
+      "buttonHint": "根据其他款式的用法填写各配色的空白物料颜色",
+      "title": "{{ styleNo }} 的建议物料颜色",
+      "hint": "对每个没有颜色的物料行与配色：取其他款式在同名配色中对同一物料使用的颜色（优先该客户），或该物料一向使用的唯一颜色。只填写空白格，已设置的颜色不会更改。",
+      "summary": "{{ cells }} 个格中有 {{ empty }} 个没有颜色；建议了 {{ found }} 个。",
+      "nothing": "无法建议颜色：没有其他款式在同名配色中使用这些物料。",
+      "allFilled": "所有格都已有颜色。",
+      "tickAll": "全选",
+      "material": "物料",
+      "basisColorway": "同名配色中使用该物料的 {{ of }} 行中有 {{ lines }} 行为此颜色",
+      "basisMaterial": "使用该物料的 {{ of }} 行中有 {{ lines }} 行为此颜色（任意配色）",
+      "legend": "绿色：80% 以上（在库中款式测试时 99% 正确），已勾选。琥珀色：40-79%（约 80% 正确），勾选前请核对。",
+      "fillN": "填写 {{ count }} 个颜色",
+      "filled": "已填写 {{ count }} 个颜色。",
+      "noColorways": "该款式还没有配色。物料颜色按配色设置：请先添加配色（每个新配色会加入所有配色共用的物料行），再建议颜色。",
+      "addColorways": "添加配色"
     }
   },
   "ai": {

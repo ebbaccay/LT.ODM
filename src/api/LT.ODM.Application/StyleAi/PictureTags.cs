@@ -160,13 +160,16 @@ public sealed class PictureTagger(IImageEmbeddingModel model, IPictureTagReposit
         return tagged;
     }
 
+    /// <summary>The tag values' text vectors for the installed model (also used by Suggest from picture).</summary>
+    public IReadOnlyDictionary<string, float[]> Prompts() => Prompts(model.Info.Name);
+
     /// <summary>Each value's descriptions averaged into one normalised text vector (computed once per model and vocabulary).</summary>
     private IReadOnlyDictionary<string, float[]> Prompts(string modelName)
         => PromptCache.GetOrAdd(modelName + "|" + PictureTagVocabulary.Version, _ =>
             PictureTagVocabulary.Attributes.SelectMany(a => a.Values.Select(v => (Key: $"{a.Name}:{v.Value}", Vector: Average(v.Prompts.Select(model.EmbedText).ToList()))))
                 .ToDictionary(x => x.Key, x => x.Vector));
 
-    private static float[] Average(List<float[]> vectors)
+    internal static float[] Average(List<float[]> vectors)
     {
         var sum = new float[vectors[0].Length];
         foreach (var v in vectors)

@@ -27,7 +27,7 @@ let nextId = 0;
         <div
           #panel
           class="bg-card text-card-foreground ring-foreground/10 animate-in fade-in-0 zoom-in-95 flex max-h-[100dvh] w-full flex-col rounded-t-xl shadow-2xl ring-1 sm:max-h-[90dvh] sm:rounded-xl"
-          [class]="size() === 'lg' ? 'sm:max-w-2xl' : 'sm:max-w-lg'"
+          [class]="size() === 'xl' ? 'sm:max-w-5xl' : size() === 'lg' ? 'sm:max-w-2xl' : 'sm:max-w-lg'"
           role="dialog"
           aria-modal="true"
           [attr.aria-labelledby]="titleId"
@@ -60,7 +60,8 @@ let nextId = 0;
 export class Modal {
   readonly open = input(false);
   readonly heading = input('');
-  readonly size = input<'md' | 'lg'>('md');
+  /** xl: wide review tables (e.g. a suggested BOM). */
+  readonly size = input<'md' | 'lg' | 'xl'>('md');
   readonly closed = output<void>();
 
   protected readonly titleId = `modal-title-${nextId++}`;

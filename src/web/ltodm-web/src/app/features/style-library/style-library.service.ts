@@ -296,6 +296,116 @@ export interface SaveBomLineRequest {
   colorways: BomLineColorway[];
 }
 
+/** A suggested BOM for a style (Suggest BOM): built from similar library styles and the fabric its description names. */
+export interface BomSuggestion {
+  styleId: number;
+  fabric: { fibres: string | null; recycled: boolean | null; weightGsm: number | null; weave: string | null } | null;
+  usedPicture: boolean;
+  /** Why the picture was not used: noPicture, pictureModelOff, pictureMissing, pictureUnreadable. */
+  pictureNote: string | null;
+  references: BomReference[];
+  lines: SuggestedBomLine[];
+  /** noReferences, noSameBrandReferences, descriptionWithoutFabric. */
+  notes: string[];
+}
+
+export interface BomReference {
+  styleId: number;
+  styleNo: string;
+  seasonCode: string;
+  customerCode: string;
+  modelName: string | null;
+  /** Know-how only: never its labels, packaging or artwork. */
+  otherBrand: boolean;
+  score: number;
+  /** family, productType, garment, weave, gender, customer, brand, fabric, look. */
+  reasons: string[];
+  lookSimilarity: number | null;
+}
+
+export interface SuggestedBomLine {
+  key: string;
+  contentClassCode: string | null;
+  contentClassName: string | null;
+  materialTypeCode: string | null;
+  materialTypeName: string | null;
+  confidence: number;
+  recommended: boolean;
+  /** references: shared by the reference styles; description: a library fabric matching the description. */
+  basis: 'references' | 'description';
+  alreadyOnBom: boolean;
+  /** The first is the suggestion, the rest alternatives. */
+  options: BomOption[];
+}
+
+export interface BomOption {
+  materialId: number;
+  materialCode: string;
+  description: string | null;
+  partNo: number | null;
+  nominatedSupplierCode: string | null;
+  nominatedSupplierName: string | null;
+  supplierCode: string | null;
+  supplierName: string | null;
+  lcoConsumption: number | null;
+  brandConsumption: number | null;
+  uomCode: string | null;
+  usedBy: number;
+  ofReferences: number;
+  fabricMatch: number | null;
+  otherBrand: boolean;
+}
+
+/** Suggest from picture: a draft of a new style's fields from its sketch or photo (built-in image model). */
+export interface PictureDescription {
+  /** Garment code (TEE, PANTS...); confident when it clearly leads the others. */
+  garment: PictureGuess | null;
+  /** Product types for the garment this customer uses most: to pick from (the picture cannot tell 1/2 from 1/4 shorts). */
+  productTypes: { productTypeCode: string; name: string; customerStyles: number }[];
+  sleeve: PictureGuess | null;
+  tags: { attribute: string; value: string; score: number; margin: number }[];
+  /** Draft in the library's form ("T-SHIRT; SHORT SLEEVE; SOLID; NAVY"). */
+  description: string | null;
+  /** From the closest-looking library styles, not the picture: weave KNT / WVN, main fibre text. */
+  weave: PictureHint | null;
+  fabric: PictureHint | null;
+  similarStyles: { styleId: number; styleNo: string; customerCode: string; seasonCode: string; productTypeName: string | null; similarity: number }[];
+}
+
+export interface PictureGuess {
+  value: string;
+  margin: number;
+  confident: boolean;
+}
+
+export interface PictureHint {
+  value: string;
+  votes: number;
+  of: number;
+}
+
+/** Suggested material colours for empty BOM line x colorway cells (rules over the library). */
+export interface ColourSuggestion {
+  styleId: number;
+  cells: number;
+  empty: number;
+  suggestions: SuggestedColour[];
+}
+
+export interface SuggestedColour {
+  bomLineId: number;
+  colorwayId: number;
+  materialColorCode: string | null;
+  materialColorDescription: string | null;
+  /** colorway: same material in colorways of the same name; material: the one colour the material always comes in. */
+  basis: 'colorway' | 'material';
+  confidence: number;
+  lines: number;
+  of: number;
+  sameCustomer: boolean;
+  recommended: boolean;
+}
+
 export type DesignPromptMode = 'text' | 'image';
 
 /** Prompt for outside design tools (GET /api/v1/styles/:id/design-prompt). Built from the style's data; no AI call. */
@@ -508,6 +618,30 @@ export class StyleLibraryService {
       : this.http.put(`${this.api}/${styleId}/bom-lines/${bomLineId}`, request);
   }
 
+  /** Suggest from picture for an uploaded sketch or photo (409 with a message when the image model cannot run). */
+  describePicture(imageUrl: string, isSketch: boolean, customerCode: string | null): Observable<PictureDescription> {
+    return this.http.post<PictureDescription>(`${this.api}/describe-picture`, { imageUrl, isSketch, customerCode });
+  }
+
+  suggestColours(styleId: number): Observable<ColourSuggestion> {
+    return this.http.get<ColourSuggestion>(`${this.api}/${styleId}/colour-suggestion`);
+  }
+
+  /** Fills the picked colours into cells that are still empty. */
+  applyColours(styleId: number, cells: Pick<SuggestedColour, 'bomLineId' | 'colorwayId' | 'materialColorCode' | 'materialColorDescription'>[]): Observable<{ filled: number }> {
+    return this.http.post<{ filled: number }>(`${this.api}/${styleId}/colour-suggestion/apply`, { cells });
+  }
+
+  /** A suggested BOM (rules over the library, about a second). Nothing is saved. */
+  suggestBom(styleId: number): Observable<BomSuggestion> {
+    return this.http.get<BomSuggestion>(`${this.api}/${styleId}/bom-suggestion`);
+  }
+
+  /** Adds the picked suggestion lines as ordinary BOM lines. */
+  applyBomSuggestion(styleId: number, lines: SaveBomLineRequest[]): Observable<{ added: number }> {
+    return this.http.post<{ added: number }>(`${this.api}/${styleId}/bom-suggestion/apply`, { lines });
+  }
+
   deleteBomLine(styleId: number, line: BomLine): Observable<unknown> {
     return this.http.delete(
       `${this.api}/${styleId}/bom-lines/${line.bomLineId}?rowVer=${encodeURIComponent(line.rowVer)}`,
@@ -545,6 +679,12 @@ export class StyleLibraryService {
     const blob = await firstValueFrom(this.http.get(`${environment.apiBaseUrl}${url}`, { responseType: 'blob' }));
     const ext = { 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }[blob.type] ?? 'jpg';
     saveBlob(blob, `${safeFileName(baseName)}.${ext}`);
+  }
+
+  /** Downloads the style's tech pack (PDF: header, sketch and photo, colorways, BOM, material colours by colorway). */
+  async downloadTechPack(styleId: number, styleNo: string, seasonCode: string): Promise<void> {
+    const blob = await firstValueFrom(this.http.get(`${this.api}/${styleId}/tech-pack`, { responseType: 'blob' }));
+    saveBlob(blob, `${safeFileName(styleNo)}_${safeFileName(seasonCode)}_techpack.pdf`);
   }
 
   /** Uploads an image (already compressed) and returns its URL to save with the style, colorway or BOM line. */

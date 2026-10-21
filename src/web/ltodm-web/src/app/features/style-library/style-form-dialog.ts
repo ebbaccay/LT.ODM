@@ -10,6 +10,7 @@ import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { HlmTextareaImports } from '@spartan-ng/helm/textarea';
 import { Modal } from '@tms/shared/ui/modal';
 import { ImageField } from './image-field';
+import { PictureSuggest } from './picture-suggest';
 import { GENDERS, SaveStyleRequest, StyleHeader, StyleLibraryService, StyleLookups, styleError, toNumber } from './style-library.service';
 
 type Form = Omit<SaveStyleRequest, 'rowVer' | 'garmentLeadTimeDays'> & { garmentLeadTimeDays: string };
@@ -26,7 +27,7 @@ const EMPTY: Form = {
 @Component({
   selector: 'app-style-form-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Modal, ImageField, HlmButtonImports, HlmCheckboxImports, HlmInputImports, HlmLabelImports, HlmNativeSelectImports, HlmSpinnerImports, HlmTextareaImports, TranslocoPipe],
+  imports: [Modal, ImageField, PictureSuggest, HlmButtonImports, HlmCheckboxImports, HlmInputImports, HlmLabelImports, HlmNativeSelectImports, HlmSpinnerImports, HlmTextareaImports, TranslocoPipe],
   template: `
     <app-modal [open]="open()" [heading]="style() ? ('styles.form.editTitle' | transloco: { styleNo: style()!.styleNo }) : ('styles.form.newTitle' | transloco)" size="lg" (closed)="closed.emit()">
       @let f = form();
@@ -123,6 +124,10 @@ const EMPTY: Form = {
           <app-image-field [label]="'styles.form.sketch' | transloco" [url]="f.sketchUrl" [editable]="true" [downloadName]="(f.styleNo || 'style') + '_sketch'" (changed)="set('sketchUrl', $event)" />
           <app-image-field [label]="'styles.form.photo' | transloco" [url]="f.imageUrl" [editable]="true" [downloadName]="(f.styleNo || 'style') + '_photo'" (changed)="set('imageUrl', $event)" />
         </div>
+        <!-- A draft of the fields above from the photo or sketch (built-in image model) -->
+        <app-picture-suggest [sketchUrl]="f.sketchUrl" [imageUrl]="f.imageUrl" [customerCode]="f.customerCode" [productTypeCode]="f.productTypeCode"
+                             [currentDescription]="f.description" (productType)="set('productTypeCode', $event)" (description)="set('description', $event)"
+                             (weave)="set('weaveTypeCode', $event)" />
         <label class="flex w-fit cursor-pointer items-start gap-3">
           <hlm-checkbox class="mt-0.5" [checked]="f.isActive" (checkedChange)="set('isActive', $event)" />
           <span class="flex flex-col">
