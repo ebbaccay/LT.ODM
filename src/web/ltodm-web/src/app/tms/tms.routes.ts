@@ -117,6 +117,11 @@ export const TMS_ROUTES: Routes = [
         title: 'titles.aiConnections',
       },
       {
+        path: 'sign-in-page',
+        loadComponent: () => import('./modules/settings/sign-in-page/sign-in-page').then((m) => m.SignInPageSettings),
+        title: 'titles.signInPage',
+      },
+      {
         path: 'translations',
         loadComponent: () => import('./modules/settings/translations/translations').then((m) => m.Translations),
         title: 'titles.translations',

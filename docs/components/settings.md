@@ -103,6 +103,22 @@ Corrects the screen texts (English and Chinese) without a new release. The texts
 - New keys still need a release: the screens refer to keys, so this page changes the wording of existing keys only.
 - Corrections are a file on the server (`Translations:OverridesFolder`, see [Configuration](../installation/04-configuration.md#files)); export now and then and copy the texts into `src/web/ltodm-web/public/assets/i18n` so the repository catches up.
 
+## Sign-in page (`/settings/sign-in-page`)
+
+Changes the look and the texts of the sign-in, forgot-password and reset-password pages, with a live preview (wide-screen layout, in the current language and light/dark mode). Nothing changes for users until **Save**; **Discard changes** goes back to what is saved, **Default look** to the original look (texts are not touched).
+
+- **Background**: upload a picture (JPEG, PNG, GIF or WebP, up to 10 MB; stored at most 2560 px on the longest side, metadata removed). A landscape picture at least 1920 px wide looks best. **Keep in view** chooses the part that stays visible when the picture is cropped (centre, top, bottom, left, right); **Blur the picture** 0-24 px. The picture is shown **before sign-in**, so anyone who can reach the site can see it: do not use confidential pictures.
+- **Light mode / Dark mode**: the switch above the picture chooses which mode is edited and previewed. Dark mode uses the light-mode look until **Separate look in dark mode** is ticked; then dark mode has its own picture (or none), focus, blur, tint, headline text colour and card opacity, starting from a copy of the light-mode ones. The colour glow, frosting and headline-panel options are shared. The sign-in page shows the look of the mode the visitor uses (the moon/sun button, or the device setting).
+  - Why it matters for the texts: the **headline panel** text colour depends on the picture (dark text on a light picture, light text on a dark one), so it is set per mode. The **card** text follows the mode: in dark mode the card is dark glass with light text, so over a light picture it turns grey and red error messages and links lose contrast. Use a darker picture for dark mode, or raise the dark-mode card opacity.
+  - The preview can show dark mode while the app is light, not the other way round: with the app in dark mode the light-mode look is previewed with dark-mode card colours, and **Switch to light mode** changes the app's mode.
+- **Tint**: none, dark, light or the brand colour, with a strength of 0-90 %, so the headline and card stay readable over a busy picture. **Colour glow**: the soft moving colour blobs and faint grid of the original look (also over a picture).
+- **Glass card**: **Card opacity** 10-95 % (lower = more of the background shows through) and **Frosting** 0-40 px (blur of what shows through). Without blur support in the browser, with *reduce transparency* or high contrast turned on, the card is shown nearly solid.
+- **Headline panel** (left of the card on wide screens): show or hide it and the four feature tiles. With a picture, **Text colour on the picture** is light (for dark pictures), dark (for light ones) or automatic (follows light/dark mode).
+- **Texts**: the badge, headline, introduction, feature tiles, card title and subtitle and the note under the form, per language. They are saved as corrections in [Translations](#translations-settingstranslations) (same file, same history and restore), so the sign-in page follows the language the user picks; the arrow puts back the released text. Other sign-in texts (field labels, messages) are changed in Translations.
+- The first picture uploaded also sets a dark 35 % tint, light headline text, card opacity at least 70 % and turns the glow off; adjust them after.
+- Storage: the look is `sign-in-page.json` and the picture is in `sign-in-images` under `Files:Root` (see [Configuration](../installation/04-configuration.md#files)); no database change. Pictures uploaded but not saved, and the one replaced, are removed at the next save.
+- API: `GET /api/v1/sign-in-page` and `GET /api/v1/sign-in-page/images/{file}` are open without sign-in (the page shows before it); `POST /api/v1/sign-in-page/images` and `PUT /api/v1/sign-in-page` need the Admin role.
+
 ## AI connections (`/settings/ai`)
 
 Which AI service each job uses. See [AI overview](../ai/overview.md) for how it works and [Data sent to AI services](../ai/data-sent.md) before connecting a cloud service.

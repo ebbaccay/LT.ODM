@@ -64,6 +64,33 @@ const parseJson = (buf) => {
   }
 };
 
+const translationOverrides = {};
+const flatten = (obj, prefix = '', out = {}) => {
+  for (const [k, v] of Object.entries(obj)) {
+    if (v && typeof v === 'object') flatten(v, `${prefix}${k}.`, out);
+    else out[`${prefix}${k}`] = v;
+  }
+  return out;
+};
+const translationTable = () => {
+  const languages = [{ code: 'en', label: 'English' }, { code: 'zh-Hans', label: '中文' }];
+  const files = Object.fromEntries(
+    languages.map((l) => [l.code, flatten(JSON.parse(fs.readFileSync(new URL(`../public/assets/i18n/${l.code}.json`, import.meta.url), 'utf8')))]),
+  );
+  const rows = Object.keys(files.en).map((key) => ({
+    key,
+    base: Object.fromEntries(languages.map((l) => [l.code, files[l.code][key] ?? null])),
+    overrides: Object.fromEntries(languages.filter((l) => translationOverrides[l.code]?.[key] != null).map((l) => [l.code, translationOverrides[l.code][key]])),
+    baseChanged: [],
+  }));
+  return { languages, rows, updatedBy: null, updatedUtc: null };
+};
+
+let signInLook = {
+  backgroundImage: null, backgroundUrl: null, focus: 'center', backgroundBlur: 0, overlay: 'none', overlayStrength: 30, showGlow: true,
+  glassOpacity: 55, glassBlur: 40, showIntro: true, showFeatures: true, introText: 'auto', dark: null, updatedBy: null, updatedUtc: null,
+};
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${host}`);
   const p = url.pathname;
@@ -91,11 +118,44 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/v1/auth/reset-password/validate') return json(200, { valid: true });
   if (p === '/api/v1/auth/reset-password' || p === '/api/v1/auth/change-password') return json(204);
   // Translation corrections (Settings > Translations): none in the mock, the deployed texts are used.
-  if (/^\/api\/v1\/translations\/[^/]+\/overrides$/.test(p)) return json(200, {});
+  if (/^\/api\/v1\/translations\/[^/]+\/overrides$/.test(p)) return json(200, translationOverrides[decodeURIComponent(p.split('/')[4])] ?? {});
+  // Sign-in page look (Settings > Sign-in page): read without sign-in, kept in memory by the mock.
+  if (p === '/api/v1/sign-in-page' && req.method === 'GET') return json(200, signInLook);
+  if (p.startsWith('/api/v1/sign-in-page/images/')) {
+    // Light and dark test pictures: a name starting with "d" stands for the dark-mode one.
+    const seed = p.split('/').pop().startsWith('d') ? 'ltodm-night' : 'ltodm';
+    res.writeHead(302, { location: `https://picsum.photos/seed/${seed}/1920/1200` });
+    return void res.end();
+  }
 
   if (!signedIn && p.startsWith('/api/')) return json(401, { title: 'Unauthorized' });
 
   // ── App ────────────────────────────────────────────────────
+  // Settings > Translations: the deployed language files as the table; corrections kept in memory.
+  if (p === '/api/v1/translations' && req.method === 'GET') return json(200, translationTable());
+  if (p === '/api/v1/translations/entries' && req.method === 'PUT') {
+    const { lang, key, value } = parseJson(raw);
+    translationOverrides[lang] ??= {};
+    if (value == null) delete translationOverrides[lang][key];
+    else translationOverrides[lang][key] = value;
+    return json(200, translationTable().rows.find((r) => r.key === key));
+  }
+  if (p === '/api/v1/sign-in-page' && req.method === 'PUT') {
+    const body = parseJson(raw);
+    const url = (name) => (name ? `/api/v1/sign-in-page/images/${name}` : null);
+    signInLook = {
+      ...body,
+      backgroundUrl: url(body.backgroundImage),
+      dark: body.dark ? { ...body.dark, backgroundUrl: url(body.dark.backgroundImage) } : null,
+      updatedBy: 'mock',
+      updatedUtc: new Date().toISOString(),
+    };
+    return json(200, signInLook);
+  }
+  if (p === '/api/v1/sign-in-page/images' && req.method === 'POST') {
+    const name = `${Date.now().toString(16).padStart(32, '0')}.jpg`;
+    return json(200, { backgroundImage: name, backgroundUrl: `/api/v1/sign-in-page/images/${name}` });
+  }
   if (p === '/api/v1/client-config') return json(200, { agGridLicenseKey: process.env.MOCK_AGGRID_KEY ?? '' });
   if (p === '/health') return json(200, { status: 'Healthy', checks: [{ name: 'sqlserver', status: 'Healthy' }] });
   if (p.startsWith('/api/v1/navigation') || p.startsWith('/api/v1/admin/')) return void handleAdmin(req, url, parseJson(raw), json, user.roles);

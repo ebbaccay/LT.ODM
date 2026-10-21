@@ -7,6 +7,7 @@
 - After 5 wrong passwords the account is locked for 15 minutes.
 - Changing or resetting a password signs the user out on every device.
 - The language button (top bar and sign-in pages) switches between English and Simplified Chinese; the choice is kept per browser.
+- The background picture, glass card and headline texts of the sign-in pages are set by an Admin in [Settings > Sign-in page](settings.md#sign-in-page-settingssign-in-page).
 
 ## Password rules
 

@@ -105,6 +105,7 @@
       "refLists": "参考列表",
       "aiConnections": "AI 连接",
       "translations": "翻译",
+      "signInPage": "登录页面",
       "imageImport": "导入图片"
     },
     "navConfig": {
@@ -221,6 +222,88 @@
       "setTempPasswordHint": "用户无法接收邮件时使用。其当前密码和未使用的链接将失效，用户会被登出，下次登录时必须设置新密码。",
       "tempPasswordSet": "已为 {{ name }} 设置临时密码",
       "tempPasswordGiveHint": "请当面或通过电话告知，不要通过邮件或聊天发送。用户首次登录时必须修改。"
+    },
+    "signInPage": {
+      "title": "登录页面",
+      "subtitle": "登录页面的背景图片、玻璃效果和文字。所有人下次打开时即可看到更改。",
+      "lastSaved": "最后由 {{ by }} 保存，{{ at }}",
+      "resetLook": "默认外观",
+      "discard": "放弃更改",
+      "saved": "登录页面已保存",
+      "savedHint": "下次打开登录页面时生效。",
+      "background": "背景",
+      "uploadPicture": "上传图片",
+      "replacePicture": "更换图片",
+      "removePicture": "移除图片",
+      "pictureHint": "JPEG、PNG 或 WebP，最大 10 MB。宽度至少 1920 px 的横向图片效果最佳。任何打开登录页面的人都能看到，请勿使用机密图片。",
+      "onlyImages": "只能使用 JPEG、PNG、GIF 和 WebP 图片。",
+      "tooLarge": "图片不能超过 10 MB。",
+      "focus": "保持可见",
+      "focusHint": "图片会被裁剪以适应屏幕，此部分始终可见。",
+      "focuses": {
+        "center": "居中",
+        "top": "顶部",
+        "bottom": "底部",
+        "left": "左侧",
+        "right": "右侧"
+      },
+      "backgroundBlur": "模糊图片",
+      "overlay": "色调",
+      "overlays": {
+        "none": "无",
+        "dark": "深色",
+        "light": "浅色",
+        "brand": "品牌色"
+      },
+      "overlayStrength": "色调强度",
+      "overlayHint": "在图片上加一层色调，使标题和卡片更易阅读。",
+      "showGlow": "彩色光晕",
+      "showGlowHint": "柔和移动的彩色光斑和淡网格（默认外观）。",
+      "glass": "玻璃卡片",
+      "glassOpacity": "卡片不透明度",
+      "glassOpacityHint": "数值越低，透过卡片看到的背景越多。请保持足够高，以确保表单清晰可读。",
+      "glassBlur": "磨砂程度",
+      "intro": "标题面板",
+      "showIntro": "显示标题面板",
+      "showIntroHint": "宽屏时显示在卡片左侧。不显示时卡片居中。",
+      "showFeatures": "显示功能卡片",
+      "introText": "图片上的文字颜色",
+      "introTexts": {
+        "auto": "自动",
+        "light": "浅色",
+        "dark": "深色"
+      },
+      "introTextHint": "深色图片用浅色文字，浅色图片用深色文字。自动则跟随浅色/深色模式。",
+      "texts": "文字",
+      "textsHint": "按语言保存为翻译修正，页面会跟随所选语言。箭头按钮可恢复原文。",
+      "allTexts": "所有文字请见 设置 > 翻译",
+      "resetText": "恢复原文",
+      "textLabels": {
+        "auth_shell_subtitle": "LT ODM 后的名称",
+        "auth_shell_badge": "徽标",
+        "auth_shell_headline": "标题",
+        "auth_shell_headlineAccent": "标题（彩色部分）",
+        "auth_shell_intro": "简介",
+        "auth_shell_featureStyles": "功能卡片 1",
+        "auth_shell_featureMaterials": "功能卡片 2",
+        "auth_shell_featureWorkmanship": "功能卡片 3",
+        "auth_shell_featureCosting": "功能卡片 4",
+        "auth_login_title": "卡片标题",
+        "auth_login_subtitle": "卡片副标题",
+        "auth_login_noAccount": "表单下方的提示"
+      },
+      "preview": "预览",
+      "previewHint": "上方所选模式的宽屏布局，使用当前语言。手机上只显示卡片。",
+      "mode": "模式",
+      "modes": {
+        "light": "浅色模式",
+        "dark": "深色模式"
+      },
+      "separateDark": "深色模式使用单独的外观",
+      "separateDarkOn": "深色模式有自己的图片、焦点、模糊、色调、标题文字颜色和卡片不透明度。光晕、磨砂和面板选项两种模式共用。",
+      "separateDarkOff": "深色模式使用浅色模式的图片和设置，此处的更改对两种模式都有效。勾选后可为深色模式单独设置，例如较暗的图片配浅色文字。",
+      "previewLightInDark": "应用当前为深色模式，因此卡片以深色模式的颜色预览。",
+      "switchToLight": "切换到浅色模式"
     },
     "import": {
       "title": "导入",
@@ -2006,7 +2089,8 @@
     "aiImageSearch": "图片搜索",
     "aiAssistant": "款式库助手",
     "imageImport": "导入图片",
-    "fillGaps": "补齐缺失数据"
+    "fillGaps": "补齐缺失数据",
+    "signInPage": "登录页面"
   },
   "layout": {
     "appSubtitle": "款式库",

@@ -5,6 +5,7 @@ using LT.ODM.Application.Ai;
 using LT.ODM.Application.LibraryAssistant;
 using LT.ODM.Application.LibraryAssistant.Tools;
 using LT.ODM.Application.MarketTrends;
+using LT.ODM.Application.SignInPage;
 using LT.ODM.Application.StyleAi;
 using LT.ODM.Application.StyleLibrary;
 using LT.ODM.Application.Translations;
@@ -59,6 +60,8 @@ public static class DependencyInjection
         services.AddSingleton<IConceptImageStore, FileSystemConceptImageStore>();
         services.AddSingleton<IProductImageStore, FileSystemProductImageStore>();
         services.AddSingleton<IStyleImageStore, FileSystemStyleImageStore>();
+        services.AddSingleton<ISignInImageStore, FileSystemSignInImageStore>();
+        services.AddSingleton<ISignInAppearanceStore, FileSignInAppearanceStore>();
         services.AddSingleton<IImportFileStore, FileSystemImportFileStore>();
         return services;
     }

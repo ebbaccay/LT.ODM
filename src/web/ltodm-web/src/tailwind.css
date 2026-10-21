@@ -62,7 +62,9 @@
   --sidebar-ring: #3b6ab3;
 }
 
-:root.dark {
+/* .auth-preview.dark: the Settings > Sign-in page preview showing dark mode while the app is light. */
+:root.dark,
+.auth-preview.dark {
   color-scheme: dark;
 
   --chart-1: oklch(0.488 0.243 264.376);
@@ -144,6 +146,65 @@
       transform: translate(-2.5rem, 2rem) scale(0.95);
     }
   }
+}
+
+/*
+  Sign-in card and headline panel (Settings > Sign-in page sets --glass-alpha and --glass-blur, see auth-backdrop.ts).
+  Without blur support, with reduced transparency or high contrast the card turns nearly solid so it stays readable.
+*/
+.auth-glass {
+  /* Secondary text a little stronger than elsewhere: over a busy or dark picture a see-through card turns grey. */
+  --muted-foreground: color-mix(in oklch, var(--foreground) 74%, transparent);
+  background-color: rgb(255 255 255 / var(--glass-alpha, 0.55));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 40px)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur, 40px)) saturate(150%);
+}
+.dark .auth-glass {
+  background-color: rgb(15 23 42 / var(--glass-alpha, 0.55));
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .auth-glass {
+    background-color: rgb(255 255 255 / max(var(--glass-alpha, 0.55), 0.9));
+  }
+  .dark .auth-glass {
+    background-color: rgb(15 23 42 / max(var(--glass-alpha, 0.55), 0.92));
+  }
+}
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .auth-glass {
+    background-color: var(--card);
+  }
+}
+/* Headline panel text over a picture: light (on dark pictures) or dark (on light pictures). */
+.auth-intro-light {
+  color: #fff;
+  text-shadow: 0 1px 14px rgb(0 0 0 / 0.35);
+}
+.auth-intro-light .text-muted-foreground {
+  color: rgb(255 255 255 / 0.82);
+}
+.auth-intro-light .auth-badge {
+  color: #fff;
+  border-color: rgb(255 255 255 / 0.3);
+  background-color: rgb(255 255 255 / 0.15);
+}
+.auth-intro-light .auth-accent {
+  background-image: linear-gradient(to right, #bfdbfe, #ddd6fe);
+  text-shadow: none;
+}
+.auth-intro-light .auth-tile {
+  border-color: rgb(255 255 255 / 0.25);
+  background-color: rgb(255 255 255 / 0.12);
+}
+.auth-intro-light .auth-tile-icon {
+  color: #fff;
+  background-color: rgb(255 255 255 / 0.18);
+}
+.auth-intro-dark {
+  color: rgb(15 23 42);
+}
+.auth-intro-dark .text-muted-foreground {
+  color: rgb(15 23 42 / 0.75);
 }
 
 /*

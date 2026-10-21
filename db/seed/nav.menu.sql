@@ -94,7 +94,8 @@ INSERT @items VALUES
     (N'nav.settings',         N'settings.nav.imageImport',    'settings/image-import', 'lucideImageUp',         45,   N'Admin'),
     (N'nav.settings',         N'settings.nav.refLists',       'settings/reference-lists', 'lucideListChecks',   50,   N'Admin'),
     (N'nav.settings',         N'settings.nav.aiConnections',  'settings/ai',          'lucidePlug',             60,   N'Admin'),
-    (N'nav.settings',         N'settings.nav.translations',   'settings/translations', 'lucideLanguages',       70,   N'Admin');
+    (N'nav.settings',         N'settings.nav.translations',   'settings/translations', 'lucideLanguages',       70,   N'Admin'),
+    (N'nav.settings',         N'settings.nav.signInPage',     'settings/sign-in-page', 'lucideImageUp',         80,   N'Admin');
 
 BEGIN TRANSACTION;
 

@@ -60,7 +60,7 @@ Without SMTP, new users cannot receive their set-password link; an Admin can sen
 
 | Setting | Default | Notes |
 |---|---|---|
-| `Files:Root` | `<API folder>\App_Data\uploads` | Style sketches and photos, AI renders (`style-library`), concept images (`concept-inspiration`), SBU product photos (`sbu-products`). Set to a folder outside the site, e.g. `D:\LTODM\uploads`. **Back up** |
+| `Files:Root` | `<API folder>\App_Data\uploads` | Style sketches and photos, AI renders (`style-library`), concept images (`concept-inspiration`), SBU product photos (`sbu-products`), the sign-in page look (`sign-in-page.json`) and its background picture (`sign-in-images`, served without sign-in). Set to a folder outside the site, e.g. `D:\LTODM\uploads`. **Back up** |
 | `Translations:OverridesFolder` | `<API folder>\App_Data\i18n` | Corrections made in Settings > Translations (`overrides.json`) and their history (`history\`). Set to a folder outside the site, e.g. `D:\LTODM\i18n`, so a release does not wipe them. App-pool account needs **Modify**. **Back up** |
 | `Translations:BaseFolder` | `<API folder>\wwwrootssets\i18n` | The translation files that come with the release (the base the corrections are layered on). Leave empty on servers. Development points it at `src/web/ltodm-web/public/assets/i18n` |
 | `Translations:HistoryCount` | 30 | Earlier versions of the corrections kept for Restore |

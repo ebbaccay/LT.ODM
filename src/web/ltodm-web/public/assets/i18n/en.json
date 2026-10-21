@@ -105,6 +105,7 @@
       "refLists": "Reference lists",
       "aiConnections": "AI connections",
       "translations": "Translations",
+      "signInPage": "Sign-in page",
       "imageImport": "Import pictures"
     },
     "navConfig": {
@@ -221,6 +222,88 @@
       "setTempPasswordHint": "Use this when the user cannot receive email. Their current password and open links stop working, they are signed out, and they must choose a new password at their next sign-in.",
       "tempPasswordSet": "Temporary password set for {{ name }}",
       "tempPasswordGiveHint": "Give it to them in person or by phone, not by email or chat. They must change it at first sign-in."
+    },
+    "signInPage": {
+      "title": "Sign-in page",
+      "subtitle": "Background picture, glass effect and texts of the sign-in pages. Everyone sees the change at their next visit.",
+      "lastSaved": "Last saved by {{ by }}, {{ at }}",
+      "resetLook": "Default look",
+      "discard": "Discard changes",
+      "saved": "Sign-in page saved",
+      "savedHint": "It shows the next time the sign-in page is opened.",
+      "background": "Background",
+      "uploadPicture": "Upload picture",
+      "replacePicture": "Replace picture",
+      "removePicture": "Remove picture",
+      "pictureHint": "JPEG, PNG or WebP up to 10 MB. A landscape picture at least 1920 px wide looks best. Anyone who opens the sign-in page can see it, so do not use confidential pictures.",
+      "onlyImages": "Only JPEG, PNG, GIF and WebP pictures can be used.",
+      "tooLarge": "Pictures must be 10 MB or smaller.",
+      "focus": "Keep in view",
+      "focusHint": "The picture is cropped to fit the screen; this part stays visible.",
+      "focuses": {
+        "center": "Centre",
+        "top": "Top",
+        "bottom": "Bottom",
+        "left": "Left",
+        "right": "Right"
+      },
+      "backgroundBlur": "Blur the picture",
+      "overlay": "Tint",
+      "overlays": {
+        "none": "None",
+        "dark": "Dark",
+        "light": "Light",
+        "brand": "Brand colour"
+      },
+      "overlayStrength": "Tint strength",
+      "overlayHint": "A tint over the picture keeps the headline and the card easy to read.",
+      "showGlow": "Colour glow",
+      "showGlowHint": "The soft moving colour blobs and faint grid (the default look).",
+      "glass": "Glass card",
+      "glassOpacity": "Card opacity",
+      "glassOpacityHint": "Lower lets more of the background show through the card. Keep it high enough for the form to stay readable.",
+      "glassBlur": "Frosting",
+      "intro": "Headline panel",
+      "showIntro": "Show the headline panel",
+      "showIntroHint": "Shown left of the card on wide screens. Without it the card sits in the middle.",
+      "showFeatures": "Show the feature tiles",
+      "introText": "Text colour on the picture",
+      "introTexts": {
+        "auto": "Automatic",
+        "light": "Light",
+        "dark": "Dark"
+      },
+      "introTextHint": "Light text for dark pictures, dark text for light ones. Automatic follows light and dark mode.",
+      "texts": "Texts",
+      "textsHint": "Saved as translation corrections per language, so the page follows the language chosen. The arrow puts back the original text.",
+      "allTexts": "All texts in Settings > Translations",
+      "resetText": "Back to the original text",
+      "textLabels": {
+        "auth_shell_subtitle": "Name after LT ODM",
+        "auth_shell_badge": "Badge",
+        "auth_shell_headline": "Headline",
+        "auth_shell_headlineAccent": "Headline, coloured part",
+        "auth_shell_intro": "Introduction",
+        "auth_shell_featureStyles": "Feature tile 1",
+        "auth_shell_featureMaterials": "Feature tile 2",
+        "auth_shell_featureWorkmanship": "Feature tile 3",
+        "auth_shell_featureCosting": "Feature tile 4",
+        "auth_login_title": "Card title",
+        "auth_login_subtitle": "Card subtitle",
+        "auth_login_noAccount": "Note under the form"
+      },
+      "preview": "Preview",
+      "previewHint": "Wide-screen layout of the mode chosen above, in the current language. On phones only the card shows.",
+      "mode": "Mode",
+      "modes": {
+        "light": "Light mode",
+        "dark": "Dark mode"
+      },
+      "separateDark": "Separate look in dark mode",
+      "separateDarkOn": "Dark mode has its own picture, focus, blur, tint, headline text colour and card opacity. The glow, frosting and panel options are shared.",
+      "separateDarkOff": "Dark mode uses the light-mode picture and settings; changes here apply to both. Tick to give dark mode its own, e.g. a darker picture with light text.",
+      "previewLightInDark": "The app is in dark mode, so the card is previewed with dark-mode colours.",
+      "switchToLight": "Switch to light mode"
     },
     "import": {
       "title": "Import",
@@ -2006,7 +2089,8 @@
     "aiImageSearch": "Image search",
     "aiAssistant": "Library assistant",
     "imageImport": "Import pictures",
-    "fillGaps": "Fill the gaps"
+    "fillGaps": "Fill the gaps",
+    "signInPage": "Sign-in page"
   },
   "layout": {
     "appSubtitle": "Style Library",

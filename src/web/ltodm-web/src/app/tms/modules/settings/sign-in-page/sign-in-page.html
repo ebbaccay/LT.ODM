@@ -1,0 +1,358 @@
+@let l = look();
+@let e = edited();
+<section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">{{ 'settings.signInPage.title' | transloco }}</h1>
+      <p class="text-muted-foreground mt-1 text-sm">{{ 'settings.signInPage.subtitle' | transloco }}</p>
+      @if (saved().updatedBy) {
+        <p class="text-muted-foreground mt-1 text-xs">
+          {{ 'settings.signInPage.lastSaved' | transloco: { by: saved().updatedBy, at: (saved().updatedUtc | date: 'medium') } }}
+        </p>
+      }
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" [disabled]="loading() || isDefaultLook()" (click)="resetLook()">
+        <ng-icon name="lucideRotateCcw" />
+        {{ 'settings.signInPage.resetLook' | transloco }}
+      </button>
+      <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="!dirty() || saving()" (click)="discard()">
+        {{ 'settings.signInPage.discard' | transloco }}
+      </button>
+      <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="!dirty() || saving()" (click)="save()">
+        @if (saving()) {
+          <hlm-spinner class="size-4" />
+          {{ 'common.saving' | transloco }}
+        } @else {
+          <ng-icon name="lucideSave" />
+          {{ 'actions.save' | transloco }}
+        }
+      </button>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div hlmSkeleton class="h-96 w-full"></div>
+      <div hlmSkeleton class="aspect-[16/10] w-full"></div>
+    </div>
+  } @else {
+    <div class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <!-- Settings -->
+      <div class="flex flex-col gap-5">
+        <!-- Background picture -->
+        <section hlmCard class="gap-4 p-5">
+          <h2 class="font-semibold">{{ 'settings.signInPage.background' | transloco }}</h2>
+
+          <!-- Light / dark mode: each can have its own picture look -->
+          <div class="flex flex-col gap-2">
+            <div class="bg-muted inline-flex w-fit rounded-lg p-1" role="radiogroup" [attr.aria-label]="'settings.signInPage.mode' | transloco">
+              @for (m of ['light', 'dark']; track m) {
+                <button
+                  type="button"
+                  role="radio"
+                  class="flex min-h-11 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors lg:min-h-8"
+                  [class]="editMode() === m ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                  [attr.aria-checked]="editMode() === m"
+                  (click)="editMode.set($any(m))"
+                >
+                  <ng-icon [name]="m === 'dark' ? 'lucideMoon' : 'lucideSun'" />
+                  {{ 'settings.signInPage.modes.' + m | transloco }}
+                </button>
+              }
+            </div>
+            @if (editMode() === 'dark') {
+              <div class="flex items-start gap-3">
+                <hlm-checkbox inputId="separate-dark" class="mt-0.5" [checked]="!!l.dark" (checkedChange)="setSeparateDark($event)" />
+                <label for="separate-dark" class="flex flex-col text-sm">
+                  <span class="font-medium">{{ 'settings.signInPage.separateDark' | transloco }}</span>
+                  <span class="text-muted-foreground text-xs">
+                    {{ (l.dark ? 'settings.signInPage.separateDarkOn' : 'settings.signInPage.separateDarkOff') | transloco }}
+                  </span>
+                </label>
+              </div>
+            }
+          </div>
+
+          <div class="flex flex-wrap items-center gap-4">
+            <div class="bg-muted flex aspect-video w-40 shrink-0 items-center justify-center overflow-hidden rounded-lg border">
+              @if (e.backgroundUrl) {
+                <img [src]="e.backgroundUrl + '?w=320'" alt="" class="size-full object-cover" [style.object-position]="e.focus" />
+              } @else {
+                <ng-icon name="lucideImage" class="text-muted-foreground text-3xl" />
+              }
+            </div>
+            <div class="flex flex-col gap-2">
+              <div class="flex flex-wrap gap-2">
+                <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [disabled]="uploading()" (click)="fileInput.click()">
+                  @if (uploading()) {
+                    <hlm-spinner class="size-4" />
+                  } @else {
+                    <ng-icon name="lucideImageUp" />
+                  }
+                  {{ (e.backgroundUrl ? 'settings.signInPage.replacePicture' : 'settings.signInPage.uploadPicture') | transloco }}
+                </button>
+                @if (e.backgroundUrl) {
+                  <button hlmBtn variant="ghost" type="button" class="text-destructive hover:text-destructive h-11 lg:h-9" (click)="removePicture()">
+                    <ng-icon name="lucideTrash2" />
+                    {{ 'settings.signInPage.removePicture' | transloco }}
+                  </button>
+                }
+              </div>
+              <input #fileInput type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" (change)="onFile($event)" />
+              <p class="text-muted-foreground max-w-md text-xs">{{ 'settings.signInPage.pictureHint' | transloco }}</p>
+            </div>
+          </div>
+
+          @if (e.backgroundUrl) {
+            <fieldset class="flex flex-col gap-2">
+              <legend class="mb-1 text-sm font-medium">{{ 'settings.signInPage.focus' | transloco }}</legend>
+              <div class="flex flex-wrap gap-1.5" role="radiogroup" [attr.aria-label]="'settings.signInPage.focus' | transloco">
+                @for (f of focuses; track f) {
+                  <button
+                    type="button"
+                    role="radio"
+                    class="min-h-11 rounded-md border px-3 text-sm transition-colors lg:min-h-9"
+                    [class]="e.focus === f ? 'border-primary bg-primary/12 text-primary' : 'hover:bg-accent'"
+                    [attr.aria-checked]="e.focus === f"
+                    (click)="patchPicture({ focus: f })"
+                  >
+                    {{ 'settings.signInPage.focuses.' + f | transloco }}
+                  </button>
+                }
+              </div>
+              <p class="text-muted-foreground text-xs">{{ 'settings.signInPage.focusHint' | transloco }}</p>
+            </fieldset>
+
+            <div class="flex flex-col gap-1.5">
+              <label hlmLabel for="bg-blur" class="flex justify-between">
+                {{ 'settings.signInPage.backgroundBlur' | transloco }}
+                <span class="text-muted-foreground tabular-nums">{{ e.backgroundBlur }} px</span>
+              </label>
+              <input id="bg-blur" type="range" min="0" max="24" step="1" class="accent-primary h-11 lg:h-6" [value]="e.backgroundBlur" (input)="patchPicture({ backgroundBlur: rangeValue($event) })" />
+            </div>
+          }
+
+          <fieldset class="flex flex-col gap-2">
+            <legend class="mb-1 text-sm font-medium">{{ 'settings.signInPage.overlay' | transloco }}</legend>
+            <div class="flex flex-wrap gap-1.5" role="radiogroup" [attr.aria-label]="'settings.signInPage.overlay' | transloco">
+              @for (o of overlays; track o) {
+                <button
+                  type="button"
+                  role="radio"
+                  class="min-h-11 rounded-md border px-3 text-sm transition-colors lg:min-h-9"
+                  [class]="e.overlay === o ? 'border-primary bg-primary/12 text-primary' : 'hover:bg-accent'"
+                  [attr.aria-checked]="e.overlay === o"
+                  (click)="patchPicture({ overlay: o })"
+                >
+                  {{ 'settings.signInPage.overlays.' + o | transloco }}
+                </button>
+              }
+            </div>
+            @if (e.overlay !== 'none') {
+              <label hlmLabel for="overlay-strength" class="mt-1 flex justify-between">
+                {{ 'settings.signInPage.overlayStrength' | transloco }}
+                <span class="text-muted-foreground tabular-nums">{{ e.overlayStrength }} %</span>
+              </label>
+              <input id="overlay-strength" type="range" min="0" max="90" step="5" class="accent-primary h-11 lg:h-6" [value]="e.overlayStrength" (input)="patchPicture({ overlayStrength: rangeValue($event) })" />
+            }
+            <p class="text-muted-foreground text-xs">{{ 'settings.signInPage.overlayHint' | transloco }}</p>
+          </fieldset>
+
+          <div class="flex items-start gap-3">
+            <hlm-checkbox inputId="show-glow" class="mt-0.5" [checked]="l.showGlow" (checkedChange)="patch({ showGlow: $event })" />
+            <label for="show-glow" class="flex flex-col text-sm">
+              <span class="font-medium">{{ 'settings.signInPage.showGlow' | transloco }}</span>
+              <span class="text-muted-foreground text-xs">{{ 'settings.signInPage.showGlowHint' | transloco }}</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Glass card -->
+        <section hlmCard class="gap-4 p-5">
+          <h2 class="font-semibold">{{ 'settings.signInPage.glass' | transloco }}</h2>
+          <div class="flex flex-col gap-1.5">
+            <label hlmLabel for="glass-opacity" class="flex justify-between">
+              <span>
+                {{ 'settings.signInPage.glassOpacity' | transloco }}
+                @if (l.dark) {
+                  <span class="text-muted-foreground font-normal">· {{ 'settings.signInPage.modes.' + editMode() | transloco }}</span>
+                }
+              </span>
+              <span class="text-muted-foreground tabular-nums">{{ e.glassOpacity }} %</span>
+            </label>
+            <input id="glass-opacity" type="range" min="10" max="95" step="5" class="accent-primary h-11 lg:h-6" [value]="e.glassOpacity" (input)="patchPicture({ glassOpacity: rangeValue($event) })" />
+            <p class="text-muted-foreground text-xs">{{ 'settings.signInPage.glassOpacityHint' | transloco }}</p>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label hlmLabel for="glass-blur" class="flex justify-between">
+              {{ 'settings.signInPage.glassBlur' | transloco }}
+              <span class="text-muted-foreground tabular-nums">{{ l.glassBlur }} px</span>
+            </label>
+            <input id="glass-blur" type="range" min="0" max="40" step="2" class="accent-primary h-11 lg:h-6" [value]="l.glassBlur" (input)="patch({ glassBlur: rangeValue($event) })" />
+          </div>
+        </section>
+
+        <!-- Headline panel -->
+        <section hlmCard class="gap-4 p-5">
+          <h2 class="font-semibold">{{ 'settings.signInPage.intro' | transloco }}</h2>
+          <div class="flex items-start gap-3">
+            <hlm-checkbox inputId="show-intro" class="mt-0.5" [checked]="l.showIntro" (checkedChange)="patch({ showIntro: $event })" />
+            <label for="show-intro" class="flex flex-col text-sm">
+              <span class="font-medium">{{ 'settings.signInPage.showIntro' | transloco }}</span>
+              <span class="text-muted-foreground text-xs">{{ 'settings.signInPage.showIntroHint' | transloco }}</span>
+            </label>
+          </div>
+          <div class="flex items-start gap-3">
+            <hlm-checkbox inputId="show-features" class="mt-0.5" [checked]="l.showFeatures" [disabled]="!l.showIntro" (checkedChange)="patch({ showFeatures: $event })" />
+            <label for="show-features" class="text-sm font-medium">{{ 'settings.signInPage.showFeatures' | transloco }}</label>
+          </div>
+          @if (e.backgroundUrl) {
+            <fieldset class="flex flex-col gap-2">
+              <legend class="mb-1 text-sm font-medium">{{ 'settings.signInPage.introText' | transloco }}</legend>
+              <div class="flex flex-wrap gap-1.5" role="radiogroup" [attr.aria-label]="'settings.signInPage.introText' | transloco">
+                @for (c of introTexts; track c) {
+                  <button
+                    type="button"
+                    role="radio"
+                    class="min-h-11 rounded-md border px-3 text-sm transition-colors lg:min-h-9"
+                    [class]="e.introText === c ? 'border-primary bg-primary/12 text-primary' : 'hover:bg-accent'"
+                    [attr.aria-checked]="e.introText === c"
+                    (click)="patchPicture({ introText: c })"
+                  >
+                    {{ 'settings.signInPage.introTexts.' + c | transloco }}
+                  </button>
+                }
+              </div>
+              <p class="text-muted-foreground text-xs">{{ 'settings.signInPage.introTextHint' | transloco }}</p>
+            </fieldset>
+          }
+        </section>
+
+        <!-- Texts -->
+        <section hlmCard class="gap-4 p-5">
+          <div>
+            <h2 class="font-semibold">{{ 'settings.signInPage.texts' | transloco }}</h2>
+            <p class="text-muted-foreground mt-1 text-xs">
+              {{ 'settings.signInPage.textsHint' | transloco }}
+              <a routerLink="/settings/translations" class="text-primary font-medium hover:underline">{{ 'settings.signInPage.allTexts' | transloco }}</a>
+            </p>
+          </div>
+          @for (tk of textKeys; track tk.key) {
+            @if (hasText(tk.key)) {
+              <fieldset class="flex flex-col gap-2 border-t pt-3 first-of-type:border-t-0 first-of-type:pt-0">
+                <legend class="text-sm font-medium">{{ 'settings.signInPage.textLabels.' + tk.key.replaceAll('.', '_') | transloco }}</legend>
+                @for (lang of languages(); track lang.code) {
+                  <div class="flex items-start gap-2">
+                    <span class="text-muted-foreground mt-2.5 w-14 shrink-0 text-xs">{{ lang.label }}</span>
+                    @if (tk.multiline) {
+                      <textarea
+                        hlmTextarea
+                        rows="3"
+                        class="min-w-0 flex-1"
+                        [attr.aria-label]="('settings.signInPage.textLabels.' + tk.key.replaceAll('.', '_') | transloco) + ' (' + lang.label + ')'"
+                        [value]="text(tk.key, lang.code)"
+                        (input)="setText(tk.key, lang.code, $any($event.target).value)"
+                      ></textarea>
+                    } @else {
+                      <input
+                        hlmInput
+                        class="h-11 min-w-0 flex-1 lg:h-9"
+                        [attr.aria-label]="('settings.signInPage.textLabels.' + tk.key.replaceAll('.', '_') | transloco) + ' (' + lang.label + ')'"
+                        [value]="text(tk.key, lang.code)"
+                        (input)="setText(tk.key, lang.code, $any($event.target).value)"
+                      />
+                    }
+                    @if (isCorrected(tk.key, lang.code)) {
+                      <button
+                        hlmBtn
+                        variant="ghost"
+                        size="icon"
+                        type="button"
+                        class="size-11 shrink-0 lg:size-9"
+                        [title]="'settings.signInPage.resetText' | transloco"
+                        [attr.aria-label]="'settings.signInPage.resetText' | transloco"
+                        (click)="resetText(tk.key, lang.code)"
+                      >
+                        <ng-icon name="lucideRotateCcw" />
+                      </button>
+                    }
+                  </div>
+                }
+              </fieldset>
+            }
+          }
+        </section>
+      </div>
+
+      <!-- Live preview -->
+      <section class="flex flex-col gap-2 lg:sticky lg:top-20">
+        @let p = previewLook();
+        <h2 class="text-sm font-medium">{{ 'settings.signInPage.preview' | transloco }}</h2>
+        <div #previewFrame class="relative aspect-[16/10] w-full overflow-hidden rounded-xl border shadow-sm" aria-hidden="true">
+          <div
+            class="auth-preview text-foreground absolute top-0 left-0 isolate h-[800px] w-[1280px] origin-top-left select-none"
+            [class.dark]="editMode() === 'dark'"
+            [style.transform]="'scale(' + previewScale() + ')'"
+          >
+            <app-auth-backdrop [appearance]="p" />
+            <div class="flex items-center justify-between px-8 py-6" [class]="introClass()">
+              <div class="flex items-center gap-2.5 font-semibold">
+                <img src="icons/icon-72x72.png" alt="" width="36" height="36" class="size-9 rounded-xl" />
+                <span class="text-lg">LT ODM <span class="text-muted-foreground font-normal">{{ t('auth.shell.subtitle') }}</span></span>
+              </div>
+            </div>
+            <div class="mx-auto grid h-[calc(800px-6rem)] w-full max-w-6xl items-center gap-12 px-8 pb-12" [class]="p.showIntro ? 'grid-cols-[1.1fr_1fr]' : ''">
+              @if (p.showIntro) {
+                <div [class]="introClass()">
+                  <span class="auth-badge border-primary/20 bg-primary/10 text-primary mb-6 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium">
+                    <ng-icon name="lucideSparkles" />
+                    {{ t('auth.shell.badge') }}
+                  </span>
+                  <p class="mb-4 text-5xl leading-tight font-semibold tracking-tight">
+                    {{ t('auth.shell.headline') }}
+                    <span class="auth-accent from-primary bg-gradient-to-r to-violet-500 bg-clip-text text-transparent">{{ t('auth.shell.headlineAccent') }}</span>
+                  </p>
+                  <p class="text-muted-foreground mb-10 max-w-lg text-lg">{{ t('auth.shell.intro') }}</p>
+                  @if (p.showFeatures) {
+                    <div class="grid max-w-lg grid-cols-2 gap-3">
+                      @for (f of features; track f.label) {
+                        <div class="auth-tile flex items-center gap-3 rounded-xl border border-white/50 bg-white/35 p-3 text-sm font-medium shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/5">
+                          <span class="auth-tile-icon bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg"><ng-icon [name]="f.icon" class="text-lg" /></span>
+                          {{ t(f.label) }}
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+              <div
+                class="auth-glass w-full max-w-md justify-self-center rounded-3xl border border-white/60 p-9 shadow-[0_8px_40px_rgba(15,23,42,0.18)] ring-1 ring-white/40 ring-inset dark:border-white/10 dark:shadow-[0_8px_40px_rgba(0,0,0,0.5)] dark:ring-white/5"
+                [style]="glass()"
+              >
+                <p class="text-2xl font-semibold tracking-tight">{{ t('auth.login.title') }}</p>
+                <p class="text-muted-foreground mt-1 mb-7 text-sm">{{ t('auth.login.subtitle') }}</p>
+                <p class="mb-2 text-sm font-medium">{{ 'auth.login.login' | transloco }}</p>
+                <div class="mb-5 h-10 rounded-md border bg-white/70 dark:bg-white/5"></div>
+                <p class="mb-2 text-sm font-medium">{{ 'auth.login.password' | transloco }}</p>
+                <div class="mb-5 h-10 rounded-md border bg-white/70 dark:bg-white/5"></div>
+                <div class="bg-primary text-primary-foreground flex h-11 items-center justify-center rounded-md text-base font-medium">{{ 'auth.login.signIn' | transloco }}</div>
+                <p class="text-muted-foreground mt-7 text-center text-xs">{{ t('auth.login.noAccount') }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="text-muted-foreground text-xs">{{ 'settings.signInPage.previewHint' | transloco }}</p>
+        @if (previewModeMismatch()) {
+          <p class="flex flex-wrap items-center gap-2 rounded-md bg-amber-500/12 px-3 py-2 text-xs text-amber-800 dark:text-amber-300" role="status">
+            {{ 'settings.signInPage.previewLightInDark' | transloco }}
+            <button hlmBtn variant="outline" size="sm" type="button" (click)="layout.toggleDarkMode()">
+              <ng-icon name="lucideSun" />
+              {{ 'settings.signInPage.switchToLight' | transloco }}
+            </button>
+          </p>
+        }
+      </section>
+    </div>
+  }
+</section>

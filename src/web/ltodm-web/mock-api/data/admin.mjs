@@ -29,6 +29,7 @@ const I = [
   ['nav.settings', 'settings.nav.userRoles', 'settings/user-roles', 'lucideUsers', 30, 'Admin'],
   ['nav.settings', 'settings.nav.refLists', 'settings/reference-lists', 'lucideListChecks', 50, 'Admin'], ['nav.settings', 'settings.nav.aiConnections', 'settings/ai', 'lucidePlug', 60, 'Admin'],
   ['nav.settings', 'settings.nav.translations', 'settings/translations', 'lucideLanguages', 70, 'Admin'],
+  ['nav.settings', 'settings.nav.signInPage', 'settings/sign-in-page', 'lucideImageUp', 80, 'Admin'],
 ];
 let id = 1;
 const groups = G.map(([text, icon, slot, sortOrder]) => ({ groupId: id++, text, icon, slot, sortOrder, isVisible: true, items: [] }));
