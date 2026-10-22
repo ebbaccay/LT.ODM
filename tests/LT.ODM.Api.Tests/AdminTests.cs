@@ -227,8 +227,11 @@ public sealed class AdminTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Contains("\"code\"", body);
         Assert.Contains("\"name\"", body);
         Assert.Contains("\"sortOrder\"", body);
-        var badSeason = await admin.PostAsJsonAsync("/api/v1/admin/ref-lists/seasons", new { isNew = true, code = "SS27", name = "" });
-        Assert.Contains("2027-SS", await badSeason.Content.ReadAsStringAsync());
+        // Seasons take any name (ALL-SEASON, 26Q2), only '|' is refused.
+        var badSeason = await admin.PostAsJsonAsync("/api/v1/admin/ref-lists/seasons", new { isNew = true, code = "SS|27", name = "" });
+        Assert.Equal(HttpStatusCode.BadRequest, badSeason.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/v1/admin/ref-lists/seasons", new { isNew = true, code = "all-season", name = "All Season" })).StatusCode);
+        Assert.Equal("ALL-SEASON", factory.RefData.Saved.Last().Request.Code);
 
         // Case rules per list; SortOrder / IsActive dropped where the list has none.
         Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/v1/admin/ref-lists/contentClasses", new { isNew = true, code = " pkg ", name = " Packaging ", sortOrder = 6, isActive = false })).StatusCode);

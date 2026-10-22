@@ -89,6 +89,8 @@ export class StyleDetail implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly canEdit = this.svc.canEdit;
+  /** The Styles list's last filters, for the back link. */
+  readonly listParams = this.svc.listParams;
   readonly toneBadge = toneBadge;
 
   readonly styleId = signal(0);

@@ -21,8 +21,9 @@ import { GENDERS, StyleLibraryService, StyleListFilter, StyleListItem, StyleLook
 const PAGE = 50;
 // status: '' = active styles (the default), 'inactive', or 'all'.
 // pictures: '' = styles with a picture or sketch (the default), or 'all'.
+// versions: '' = parent styles only, versions folded under them (the default), or 'all'.
 // weaveType and material have no select here; AI Studio's smart search sets them (and several seasons / product types).
-const FILTER_KEYS = ['search', 'customer', 'season', 'businessUnit', 'productType', 'gender', 'status', 'weaveType', 'material', 'looks', 'pictures'] as const;
+const FILTER_KEYS = ['search', 'customer', 'season', 'businessUnit', 'productType', 'gender', 'status', 'weaveType', 'material', 'looks', 'pictures', 'versions'] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 
 /**
@@ -50,7 +51,7 @@ export class StylesList implements OnInit {
   readonly genders = GENDERS;
   readonly lookups = signal<StyleLookups | null>(null);
   readonly filter = signal<Record<FilterKey, string>>({
-    search: '', customer: '', season: '', businessUnit: '', productType: '', gender: '', status: '', weaveType: '', material: '', looks: '', pictures: '',
+    search: '', customer: '', season: '', businessUnit: '', productType: '', gender: '', status: '', weaveType: '', material: '', looks: '', pictures: '', versions: '',
   });
   readonly styles = signal<StyleListItem[]>([]);
   readonly total = signal(0);
@@ -59,9 +60,10 @@ export class StylesList implements OnInit {
   /** Image URLs that failed to load (the row falls back to the sketch, then the placeholder). */
   readonly brokenImages = signal<ReadonlySet<string>>(new Set());
 
-  // "With pictures only" is a view setting (on by default), not a filter to count or clear.
-  readonly activeFilters = computed(() => FILTER_KEYS.filter((k) => k !== 'search' && k !== 'pictures' && this.filter()[k]).length);
+  // "With pictures only" and "Parent styles only" are view settings (on by default), not filters to count or clear.
+  readonly activeFilters = computed(() => FILTER_KEYS.filter((k) => k !== 'search' && k !== 'pictures' && k !== 'versions' && this.filter()[k]).length);
   readonly picturesOnly = computed(() => this.filter().pictures !== 'all');
+  readonly parentsOnly = computed(() => this.filter().versions !== 'all');
 
   /** The search's words as one pattern, to highlight them in the colorways and BOM lines it was found on. */
   private readonly searchPattern = computed(() => {
@@ -88,6 +90,8 @@ export class StylesList implements OnInit {
       const next = { ...this.filter() };
       for (const k of FILTER_KEYS) next[k] = params.get(k) ?? '';
       this.filter.set(next);
+      // for "back to Styles" on a style's page
+      this.svc.rememberListParams(Object.fromEntries(FILTER_KEYS.filter((k) => next[k]).map((k) => [k, next[k]])));
       this.load();
     });
     this.searchInput.pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef)).subscribe((value) => this.setFilter('search', value));
@@ -131,9 +135,14 @@ export class StylesList implements OnInit {
     void this.router.navigate([], { queryParams, queryParamsHandling: 'merge', replaceUrl: true });
   }
 
-  /** Keeps "With pictures only" as it is; clears everything else. */
+  /** Keeps "With pictures only" and "Parent styles only" as they are; clears everything else. */
   clearFilters(): void {
-    void this.router.navigate([], { queryParams: { pictures: this.filter().pictures || null }, replaceUrl: true });
+    const f = this.filter();
+    void this.router.navigate([], { queryParams: { pictures: f.pictures || null, versions: f.versions || null }, replaceUrl: true });
+  }
+
+  toggleParentsOnly(): void {
+    this.setFilter('versions', this.parentsOnly() ? 'all' : '');
   }
 
   togglePicturesOnly(): void {
@@ -144,7 +153,9 @@ export class StylesList implements OnInit {
     const f = this.filter();
     const status = f.status === 'all' ? undefined : (f.status || 'active');
     const pictures = f.pictures === 'all' ? undefined : 'with';
-    const query: StyleListFilter = { ...f, status, pictures, skip: more ? this.styles().length : 0, take: PAGE };
+    const { versions, ...filters } = f;
+    const parentsOnly = versions === 'all' ? undefined : true;
+    const query: StyleListFilter = { ...filters, status, pictures, parentsOnly, skip: more ? this.styles().length : 0, take: PAGE };
     this.loading.set(true);
     this.svc.list(query).subscribe({
       next: (page) => {

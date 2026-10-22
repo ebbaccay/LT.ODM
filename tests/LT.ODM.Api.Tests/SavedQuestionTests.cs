@@ -16,12 +16,23 @@ public sealed class FakeSavedQuestionRepository : ISavedQuestionRepository
     public List<SavedQuestionDto> Rows { get; } = [];
     private readonly Dictionary<int, string> keys = [];
 
-    public Task<SavedRuleDto?> UseRuleAsync(string questionKey, CancellationToken ct = default)
+    public Task<SavedRuleDto?> UseRuleAsync(string questionKey, string? patternKey = null, string? patternKey2 = null, CancellationToken ct = default)
     {
         var i = Rows.FindIndex(r => keys[r.SavedQuestionId] == questionKey && r.Status == SavedQuestionStatuses.Rule);
+        foreach (var p in new[] { patternKey, patternKey2 })
+            if (i < 0 && p is not null) i = Rows.FindIndex(r => keys[r.SavedQuestionId] == p && r.Status == SavedQuestionStatuses.Rule && r.IsPattern);
         if (i < 0) return Task.FromResult<SavedRuleDto?>(null);
         Rows[i] = Rows[i] with { RuleHits = Rows[i].RuleHits + 1 };
-        return Task.FromResult<SavedRuleDto?>(new SavedRuleDto(Rows[i].SavedQuestionId, Rows[i].Question, Rows[i].Tool, Rows[i].Arguments));
+        return Task.FromResult<SavedRuleDto?>(new SavedRuleDto(Rows[i].SavedQuestionId, Rows[i].Question, Rows[i].Tool, Rows[i].Arguments,
+            Rows[i].IsPattern, keys[Rows[i].SavedQuestionId]));
+    }
+
+    /// <summary>A seeded pattern, as db/seed/ai.saved-questions.sql adds it.</summary>
+    public void Seed(string patternKey, string question, string tool, IReadOnlyDictionary<string, string> arguments)
+    {
+        var id = Rows.Count + 1;
+        keys[id] = patternKey;
+        Rows.Add(new SavedQuestionDto(id, question, tool, arguments, SavedQuestionStatuses.Rule, 0, 0, DateTime.UtcNow, DateTime.UtcNow, "Seed", DateTime.UtcNow, "Seed", true));
     }
 
     public Task<int> RecordAsync(string questionKey, string question, string tool, IReadOnlyDictionary<string, string> arguments, CancellationToken ct = default)
@@ -42,7 +53,8 @@ public sealed class FakeSavedQuestionRepository : ISavedQuestionRepository
     public Task FeedbackAsync(int savedQuestionId, bool helpful, string tool, IReadOnlyDictionary<string, string> arguments, string changedBy, CancellationToken ct = default)
     {
         var i = Find(savedQuestionId);
-        Rows[i] = helpful
+        Rows[i] = helpful && Rows[i].IsPattern ? Rows[i] with { Status = SavedQuestionStatuses.Rule, ChangedBy = changedBy, ChangedHow = "Feedback" }
+            : helpful
             ? Rows[i] with { Status = SavedQuestionStatuses.Rule, Tool = tool, Arguments = arguments, ChangedBy = changedBy, ChangedHow = "Feedback" }
             : Rows[i] with { Status = SavedQuestionStatuses.Removed, ChangedBy = changedBy, ChangedHow = "Feedback" };
         return Task.CompletedTask;

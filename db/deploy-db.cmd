@@ -49,6 +49,7 @@ $scripts = @(
     'procedures\ref.procedures.sql',                   # Settings > Reference lists
     'procedures\mat.procedures.sql',                   # Materials
     'procedures\mat.spec.procedures.sql',              # Materials > Description reader
+    'procedures\style.bom-suggest.procedures.sql',     # Suggest BOM / colours / from picture (after style.gaps and mat.spec)
     'procedures\style.ai.procedures.sql',              # AI Studio: BOM check, renders, concept matching, image search
     'procedures\style.tags.procedures.sql',            # picture tags (look filters)
     'procedures\style.assistant.procedures.sql',       # Library assistant
@@ -56,6 +57,7 @@ $scripts = @(
     'tables\ai.tables.sql',                            # AI connections
     'procedures\ai.procedures.sql',
     'procedures\ai.assistant.procedures.sql',          # Library assistant saved questions
+    'seed\ai.saved-questions.sql',                     # Library assistant question patterns
     'seed\nav.menu.sql'                                # menu again: pages added by the scripts above
 )
 

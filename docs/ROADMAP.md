@@ -74,6 +74,7 @@ Status of every component, open fixes, and planned work. Last updated 2026-10-16
 | 4.5 | Image search with built-in Marqo-FashionSigLIP model (photo, words, more-like-this) | ✅ | Tuned on only 8 pictures |
 | 4.6 | Picture tags (hood, colour, …) and `looks` filter | ✅ | Thresholds set on 8 pictures; re-check when more pictures arrive |
 | 4.7 | Library assistant (tools, saved questions, chat bubble) | ✅ | Tested on laptop Ollama; slow on CPU |
+| 4.7a | Library assistant question patterns (137 seeded wordings over 11 look-ups, filters and codes as slots) | 🧪 | 2026-10-22; unit-tested and seeded on the laptop DB, not browser-tested; dev server needs the 3 SQL scripts |
 | 4.8 | Concept to existing styles, material description reader | ✅ | |
 | 4.9 | AI Lab demo page | ✅ | Remove the "importFix" sample card once you confirm |
 | 4.10 | In-house AI server LTODMSVR (OpenVINO Model Server, text + embedding) | ⏳ | Running, but text answers take ~115 s. Measure the warm time; if still slow, add CPU/RAM or keep the Text job off |

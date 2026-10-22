@@ -56,7 +56,10 @@ export interface LibraryAnswer {
 
 export type SavedQuestionStatus = 'Recorded' | 'Rule' | 'Removed';
 
-/** askCount: answered by the AI; ruleHits: answered from the saved look-up. changedHow: Feedback or Admin. */
+/**
+ * askCount: answered by the AI; ruleHits: answered from the saved look-up. changedHow: Feedback, Admin or Seed.
+ * isPattern: a seeded pattern, matched with the filter words taken out.
+ */
 export interface SavedQuestion {
   savedQuestionId: number;
   question: string;
@@ -70,6 +73,7 @@ export interface SavedQuestion {
   changedBy: string | null;
   changedUtc: string | null;
   changedHow: string | null;
+  isPattern: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

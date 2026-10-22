@@ -87,7 +87,7 @@ END
 GO
 
 /*
-    One page of styles. @Search: every word in one place of the style (style number / model / description, a
+    One page of styles (@ParentsOnly: each family once, see below). @Search: every word in one place of the style (style number / model / description, a
     colorway, or a BOM line; see style.fn_SearchPlaces). Newest season first, then style number.
     Second result: for a search, up to 3 colorways and 3 BOM lines per style on the page where it was found.
 */
@@ -103,6 +103,7 @@ CREATE OR ALTER PROCEDURE style.usp_Style_List
     @Looks            nvarchar(400) = NULL,   -- picture tags 'attribute:value' separated by commas (hood:hooded,colour:navy); a style needs all
     @IsActive         bit           = NULL,   -- NULL = active and inactive
     @HasPicture       bit           = NULL,   -- 1 = has a picture or sketch, 0 = has neither, NULL = all
+    @ParentsOnly      bit           = NULL,   -- 1 = only styles not reused from another (versions counted on their first style)
     @Skip             int           = 0,
     @Take             int           = 50
 AS
@@ -158,7 +159,31 @@ BEGIN
       AND (@Search IS NULL OR s.StyleId IN (SELECT StyleId FROM @found))
     OPTION (RECOMPILE);
 
-    DECLARE @total int = @@ROWCOUNT;
+    /* Parents only: only styles that were not reused from another (no history link of their own). A version that matches
+       is counted on its family's first style ("+N versions") when that style is in the results; otherwise it is simply
+       not listed (untick to see versions). */
+    DECLARE @folded TABLE (StyleId int NOT NULL PRIMARY KEY, TopId int NOT NULL);
+    IF @ParentsOnly = 1
+    BEGIN
+        WITH up AS
+        (
+            SELECT m.StyleId, AncestorId = h.SourceStyleId, Depth = 1
+            FROM @match m JOIN style.StyleHistory h ON h.StyleId = m.StyleId
+            UNION ALL
+            SELECT u.StyleId, h.SourceStyleId, u.Depth + 1
+            FROM up u JOIN style.StyleHistory h ON h.StyleId = u.AncestorId
+            WHERE u.Depth < 20   -- a looped history cannot run away
+        ),
+        root AS
+        (
+            SELECT StyleId, AncestorId, Rn = ROW_NUMBER() OVER (PARTITION BY StyleId ORDER BY Depth DESC) FROM up
+        )
+        INSERT @folded SELECT StyleId, AncestorId FROM root WHERE Rn = 1 AND AncestorId <> StyleId
+        OPTION (MAXRECURSION 30);
+        DELETE @match WHERE StyleId IN (SELECT StyleId FROM @folded);
+    END
+
+    DECLARE @total int = (SELECT COUNT(*) FROM @match);
 
     DECLARE @page TABLE (StyleId int NOT NULL PRIMARY KEY, SeasonYear smallint NULL, TermOrder smallint NULL, StyleNo nvarchar(100) NOT NULL);
     INSERT @page
@@ -178,6 +203,8 @@ BEGIN
            FoundInStyle      = CAST(IIF(EXISTS (SELECT 1 FROM @found f WHERE f.StyleId = s.StyleId AND f.Kind = 'S'), 1, 0) AS bit),
            ColorwayMatches   = (SELECT COUNT(*) FROM @found f WHERE f.StyleId = s.StyleId AND f.Kind = 'C'),
            BomLineMatches    = (SELECT COUNT(*) FROM @found f WHERE f.StyleId = s.StyleId AND f.Kind = 'B'),
+           -- Parents only: versions folded under this style
+           Versions          = (SELECT COUNT(*) FROM @folded f WHERE f.TopId = s.StyleId),
            TotalCount = @total
     FROM @page p
     JOIN style.Style s ON s.StyleId = p.StyleId

@@ -15,7 +15,7 @@ Describe the styles you need in your own words, e.g. *"men's woven jackets for 2
 | Product type | Any product type name in Settings > Reference lists, singular or plural, matched on the end of the name; plus tee, hoodie, sweatshirt (also the HOODED SWEAT types), sweater, leggings | *jackets* → JACKET, JACKETS, JACKET (MIDWEIGHT), TRACKSUIT JACKET |
 | Detail | long sleeve, short sleeve, sleeveless, midweight, 1/2, 3/4, 7/8 (narrows the product types) | *long sleeve t-shirts* → T-SHIRT (LONG SLEEVE) |
 | Weave | knit, woven | |
-| Business unit | Code, full name, or the name's first word | *running* → RUA, RUB, RUX |
+| Business unit | Code, full name, or the name's first word; a code that is also a filler word (TO) only by its name (*tomwell*) | *running* → RUA, RUB, RUX |
 | Customer | Code or name; a longer word starting with the code | *adidas* → ADI |
 | Material | recycled, fleece, polyester, elastane, zipper, drawcord, ... (several words must all be on one BOM line) | *recycled fleece* |
 | Look (pictures) | hooded, full zip, half zip, striped, printed, graphic, solid, colour names ([picture tags](#picture-tags-look-filters)); only styles with tagged pictures | *navy hooded jackets* |

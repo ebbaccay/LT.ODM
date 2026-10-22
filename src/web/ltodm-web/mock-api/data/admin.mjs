@@ -53,7 +53,7 @@ const users = [
 const refInfo = (key, codeMaxLength, codeCase, codePattern, nameMaxLength, nameRequired, hasSortOrder, hasIsActive) =>
   ({ key, codeMaxLength, codeCase, codePattern, nameMaxLength, nameRequired, hasSortOrder, hasIsActive });
 const refLists = [
-  refInfo('customers', 32, '', null, 150, true, false, true), refInfo('seasons', 16, 'upper', '^[0-9]{4}-[A-Z]{2,4}$', 64, false, false, true),
+  refInfo('customers', 32, '', null, 150, true, false, true), refInfo('seasons', 16, 'upper', '^[^|]+$', 64, false, false, true),
   refInfo('seasonTerms', 8, 'upper', '^[A-Z]{2,4}$', 32, true, true, false), refInfo('businessUnits', 16, '', null, 100, true, false, true),
   refInfo('productTypes', 40, '', null, 100, true, false, true), refInfo('weaveTypes', 8, 'upper', null, 50, true, false, false),
   refInfo('contentClasses', 8, 'upper', '^[A-Z0-9_]{1,8}$', 50, true, true, false), refInfo('materialTypes', 16, 'upper', null, 100, true, false, false),

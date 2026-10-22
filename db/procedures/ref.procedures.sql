@@ -10,7 +10,7 @@
       weaveTypes      ref.WeaveType                  upper-case           Name                            styles
       productTypes    ref.ProductType                as typed             Name           IsActive         styles
       businessUnits   ref.BusinessUnit               as typed             Name           IsActive         styles
-      seasons         ref.Season                     '2027-SS'            Description    IsActive         styles
+      seasons         ref.Season                     upper-case, any      Description    IsActive         styles
       seasonTerms     ref.SeasonTerm                 2-4 letters          Name           SortOrder        seasons
       customers       partner.Partner (Customer)     as typed             Name           IsActive         styles
       brands          ref.Brand                      upper-case           Name           IsActive         customers
@@ -128,10 +128,6 @@ BEGIN
     IF @IsNew = 1 AND @exists = 1 THROW 50071, 'This code already exists in the list.', 1;
     IF @IsNew = 0 AND @exists = 0 THROW 50072, 'This code was not found. It may have been deleted; reload the list.', 1;
 
-    -- New seasons are typed as year-term; imported ones may have other names (kept until normalised).
-    IF @List = 'seasons' AND @IsNew = 1
-       AND NOT EXISTS (SELECT 1 FROM ref.SeasonTerm WHERE Term = SUBSTRING(@Code, 6, 8))
-        THROW 50073, 'The season term after the year is not in the Season terms list. Add the term first.', 1;
     IF @List = 'seasonTerms'
        AND EXISTS (SELECT 1 FROM ref.SeasonTerm WHERE SortOrder = @SortOrder AND Term <> @Code)
         THROW 50074, 'Another season term already has this sort order.', 1;
@@ -169,8 +165,9 @@ BEGIN
     ELSE IF @List = 'seasons'
     BEGIN
         IF @IsNew = 1
+            -- Any name; year and term are filled where the name shows them ('2027-SS', 'FA26'), else NULL (sorts last).
             INSERT ref.Season (SeasonCode, SeasonYear, Term, Description, IsActive)
-            VALUES (@Code, CAST(LEFT(@Code, 4) AS smallint), SUBSTRING(@Code, 6, 8), NULLIF(@Name, N''), @IsActive);
+            SELECT @Code, p.SeasonYear, p.Term, NULLIF(@Name, N''), @IsActive FROM ref.fn_SeasonParts(@Code) p;
         ELSE UPDATE ref.Season SET Description = NULLIF(@Name, N''), IsActive = @IsActive WHERE SeasonCode = @Code;
     END
     ELSE IF @List = 'seasonTerms'

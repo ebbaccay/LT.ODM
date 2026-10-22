@@ -1,5 +1,5 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
-import { Injectable, computed, inject } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { environment } from '@env/environment';
 import { translate } from '@jsverse/transloco';
 import { Observable, firstValueFrom, map, shareReplay } from 'rxjs';
@@ -50,6 +50,8 @@ export interface StyleListItem {
   hasHistory: boolean;
   lastChangedUtc: string;
   isActive: boolean;
+  /** Parents only: versions of this style folded under it. */
+  versions: number;
   /** Where the list search was found (null without a search). */
   found: StyleSearchFound | null;
 }
@@ -86,6 +88,8 @@ export interface StyleListFilter {
   status?: string;
   /** 'with' (a picture or sketch), 'without', or empty for both. */
   pictures?: string;
+  /** Fold a version under the style it came from when that style is in the results too (item.versions counts them). */
+  parentsOnly?: boolean;
   skip?: number;
   take?: number;
 }
@@ -508,6 +512,31 @@ export class StyleLibraryService {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly api = `${environment.apiBaseUrl}/api/v1/styles`;
+  private static readonly ListKey = 'ltodm.styles.list';
+
+  /**
+   * The Styles list's last filters (its address), so "back to Styles" returns to the same list. Kept for the browser tab
+   * (session storage, best effort: blocked storage just means the plain list).
+   */
+  readonly listParams = signal<Record<string, string>>(StyleLibraryService.readListParams());
+
+  rememberListParams(params: Record<string, string>): void {
+    this.listParams.set(params);
+    try {
+      sessionStorage.setItem(StyleLibraryService.ListKey, JSON.stringify(params));
+    } catch {
+      /* storage blocked: kept in memory only */
+    }
+  }
+
+  private static readListParams(): Record<string, string> {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(StyleLibraryService.ListKey) ?? '{}');
+      return saved && typeof saved === 'object' ? saved : {};
+    } catch {
+      return {};
+    }
+  }
 
   /** Admins, merchandisers, costing and viewers can see the library (the API enforces it). */
   readonly canRead = computed(() =>

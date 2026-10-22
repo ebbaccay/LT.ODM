@@ -1,7 +1,8 @@
 /*
     LT ODM - Library assistant saved questions (ai.SavedQuestion; AI Studio > Library assistant, /api/v1/ai/library-assistant).
 
-    usp_SavedQuestion_UseRule   a Rule for this question key: its tool and arguments (counts the hit), or nothing
+    usp_SavedQuestion_UseRule   a Rule for this question key, else a pattern Rule (IsPattern) for one of the pattern keys:
+                                its tool and arguments (counts the hit), or nothing
     usp_SavedQuestion_Record    after the AI answered: insert, or update the tool / arguments and count (a Rule is only counted)
     usp_SavedQuestion_Feedback  thumbs up = Rule with the arguments shown; thumbs down = Removed
     usp_SavedQuestion_List      Admin list (status, search), most used first
@@ -17,15 +18,27 @@
 SET NOCOUNT ON;
 GO
 
+/*
+    @PatternKey: the question with its filter words taken out; @PatternKey2: the same with product type words kept
+    ("top suppliers"). The question's own key wins over a pattern.
+*/
 CREATE OR ALTER PROCEDURE ai.usp_SavedQuestion_UseRule
-    @QuestionKey nvarchar(300)
+    @QuestionKey nvarchar(300),
+    @PatternKey  nvarchar(300) = NULL,
+    @PatternKey2 nvarchar(300) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
+    DECLARE @id int = (SELECT SavedQuestionId FROM ai.SavedQuestion WHERE QuestionKey = @QuestionKey AND Status = 'Rule');
+    IF @id IS NULL
+        SET @id = (SELECT TOP (1) SavedQuestionId FROM ai.SavedQuestion
+                   WHERE QuestionKey IN (@PatternKey, @PatternKey2) AND Status = 'Rule' AND IsPattern = 1
+                   ORDER BY IIF(QuestionKey = @PatternKey, 0, 1));
+    IF @id IS NULL RETURN;
     UPDATE ai.SavedQuestion
     SET RuleHits = RuleHits + 1, LastAskedUtc = SYSUTCDATETIME()
-    OUTPUT inserted.SavedQuestionId, inserted.Question, inserted.Tool, inserted.Arguments
-    WHERE QuestionKey = @QuestionKey AND Status = 'Rule';
+    OUTPUT inserted.SavedQuestionId, inserted.Question, inserted.Tool, inserted.Arguments, inserted.IsPattern, inserted.QuestionKey
+    WHERE SavedQuestionId = @id;
 END
 GO
 
@@ -65,9 +78,10 @@ CREATE OR ALTER PROCEDURE ai.usp_SavedQuestion_Feedback
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- A pattern keeps its own arguments: the ones shown hold this question's filters (customer, season).
     UPDATE ai.SavedQuestion
     SET Status = IIF(@Helpful = 1, 'Rule', 'Removed'),
-        Tool = IIF(@Helpful = 1, @Tool, Tool), Arguments = IIF(@Helpful = 1, @Arguments, Arguments),
+        Tool = IIF(@Helpful = 1 AND IsPattern = 0, @Tool, Tool), Arguments = IIF(@Helpful = 1 AND IsPattern = 0, @Arguments, Arguments),
         ChangedBy = @ChangedBy, ChangedUtc = SYSUTCDATETIME(), ChangedHow = 'Feedback'
     WHERE SavedQuestionId = @SavedQuestionId;
     IF @@ROWCOUNT = 0 THROW 50404, N'The saved question was not found. It may have been deleted.', 1;
@@ -84,7 +98,7 @@ BEGIN
     SET NOCOUNT ON;
     DECLARE @like nvarchar(110) = N'%' + REPLACE(REPLACE(REPLACE(@Search, N'[', N'[[]'), N'%', N'[%]'), N'_', N'[_]') + N'%';
     SELECT SavedQuestionId, Question, Tool, Arguments, Status, AskCount, RuleHits, LastAskedUtc, CreatedUtc, ChangedBy, ChangedUtc, ChangedHow,
-           TotalCount = COUNT(*) OVER ()
+           IsPattern, TotalCount = COUNT(*) OVER ()
     FROM ai.SavedQuestion
     WHERE (@Status IS NULL OR Status = @Status)
       AND (@Search IS NULL OR Question LIKE @like OR QuestionKey LIKE @like)
@@ -98,7 +112,10 @@ CREATE OR ALTER PROCEDURE ai.usp_SavedQuestion_Popular
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT TOP (@Take) Question FROM ai.SavedQuestion WHERE Status = 'Rule' ORDER BY AskCount + RuleHits DESC, LastAskedUtc DESC;
+    -- Seeded patterns only once someone asked them, and never one written with a slot ("{styleNo}").
+    SELECT TOP (@Take) Question FROM ai.SavedQuestion
+    WHERE Status = 'Rule' AND (IsPattern = 0 OR RuleHits > 0 AND Question NOT LIKE N'%{%')
+    ORDER BY AskCount + RuleHits DESC, LastAskedUtc DESC;
 END
 GO
 

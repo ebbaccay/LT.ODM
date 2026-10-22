@@ -6,6 +6,7 @@ import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { Modal } from '@tms/shared/ui/modal';
+import { SuggestSteps } from './suggest-steps';
 import { BomLine, Colorway, ColourSuggestion, StyleLibraryService, SuggestedColour, styleError } from './style-library.service';
 
 const key = (c: { bomLineId: number; colorwayId: number }) => `${c.bomLineId}|${c.colorwayId}`;
@@ -18,7 +19,7 @@ const key = (c: { bomLineId: number; colorwayId: number }) => `${c.bomLineId}|${
 @Component({
   selector: 'app-colour-suggest-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Modal, HlmButtonImports, HlmCheckboxImports, HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe],
+  imports: [Modal, SuggestSteps, HlmButtonImports, HlmCheckboxImports, HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe],
   template: `
     <app-modal [open]="open()" size="xl" [heading]="'styles.colours.title' | transloco: { styleNo: styleNo() }" (closed)="closed.emit()">
       <div class="flex flex-col gap-3">
@@ -30,7 +31,9 @@ const key = (c: { bomLineId: number; colorwayId: number }) => `${c.bomLineId}|${
             <button hlmBtn type="button" class="h-11 lg:h-9" (click)="addColorways.emit()">{{ 'styles.colours.addColorways' | transloco }}</button>
           </div>
         } @else if (loading()) {
-          <div hlmSkeleton class="h-64 w-full"></div>
+          <!-- Progress: the steps the server works through (about 0.9 s in all) -->
+          <app-suggest-steps [steps]="steps" labelPrefix="styles.colours.step." [stepMs]="300" />
+          <div hlmSkeleton class="h-40 w-full"></div>
         } @else if (result(); as r) {
           <p class="text-sm">{{ 'styles.colours.summary' | transloco: { empty: r.empty, cells: r.cells, found: r.suggestions.length } }}</p>
           @if (!rows().length) {
@@ -119,6 +122,7 @@ export class ColourSuggestDialog {
 
   readonly result = signal<ColourSuggestion | null>(null);
   readonly loading = signal(false);
+  readonly steps = ['cells', 'history', 'pick'] as const;
   readonly saving = signal(false);
   readonly ticked = signal<ReadonlySet<string>>(new Set());
 

@@ -544,7 +544,7 @@
       "hints": {
         "customers": "款式表头上的客户。\"使用数\"为款式数量。",
         "brands": "将保持为独立客户的客户账户归组（例如 11 个 POLO 账户）。由导入设置（Customer_Brand 或“问题”面板）。“使用次数”统计客户数。",
-        "seasons": "款式表头上的季节（年份-季节类型，例如 2027-SS）。\"使用数\"为款式数量。",
+        "seasons": "款式表头上的季节，可使用任意名称（例如 2027-SS、ALL-SEASON）。有描述时，下拉列表显示描述。\"使用数\"为款式数量。",
         "seasonTerms": "季节代码中的季节类型部分，按一年内的时间顺序排列。\"使用数\"为季节数量。",
         "businessUnits": "款式表头上的业务单元。\"使用数\"为款式数量。",
         "productTypes": "款式表头上的产品类型。\"使用数\"为款式数量。",
@@ -557,7 +557,7 @@
       "codeRules": {
         "customers": "最多 {{ max }} 个字符。",
         "brands": "最多 {{ max }} 个字符，不含 |。",
-        "seasons": "年份、短横线和季节类型列表中的类型（例如 2027-SS）。",
+        "seasons": "任意名称，最多 {{ max }} 个字符，不能包含 |，以大写存储。2027-SS 或 FA26 这类名称还会填入用于排序的年份和季节类型。",
         "seasonTerms": "2-4 个字母（例如 SS）。",
         "businessUnits": "最多 {{ max }} 个字符。",
         "productTypes": "最多 {{ max }} 个字符。",
@@ -2631,7 +2631,14 @@
       "fabricMatch": "与描述匹配 {{ match }}%",
       "addN": "添加 {{ count }} 行",
       "added": "已向物料清单添加 {{ count }} 行。请按配色设置物料颜色。",
-      "unclassified": "未分类"
+      "unclassified": "未分类",
+      "step": {
+        "references": "查找相似款式（以往版本、产品类型、织法、性别、客户）",
+        "picture": "将图片与库中图片比较（如有图片）",
+        "lines": "收集这些款式使用的物料",
+        "fabric": "按描述匹配面料",
+        "build": "生成建议的物料行"
+      }
     },
     "picture": {
       "hint": "读取照片（或款式图）生成服装、产品类型和描述的草稿。使用建议前不会更改任何内容。",
@@ -2691,8 +2698,18 @@
       "fillN": "填写 {{ count }} 个颜色",
       "filled": "已填写 {{ count }} 个颜色。",
       "noColorways": "该款式还没有配色。物料颜色按配色设置：请先添加配色（每个新配色会加入所有配色共用的物料行），再建议颜色。",
-      "addColorways": "添加配色"
-    }
+      "addColorways": "添加配色",
+      "step": {
+        "cells": "读取没有颜色的物料行和配色",
+        "history": "查找其他款式对这些物料使用的颜色",
+        "pick": "为每个物料行和配色选择颜色"
+      }
+    },
+    "parentsOnly": "仅显示原始款式",
+    "parentsOnlyHint": "只显示不是从其他款式沿用的款式：沿用款和变体被隐藏，并计入其原始款式（另有 N 个版本；见其“历史”标签）。取消勾选可列出所有版本。",
+    "versionsFolded": "另有 {{ count }} 个版本",
+    "versionsHiddenHint": "“仅显示原始款式”隐藏了版本（沿用款、变体），其中可能有符合条件的款式。",
+    "showVersions": "同时显示版本"
   },
   "ai": {
     "tasks": {
@@ -3310,8 +3327,11 @@
         "usage": "AI 回答：{{ ai }} · 即时回答：{{ instant }} · 最近提问 {{ last }}",
         "changed": {
           "Feedback": "由 {{ user }} 于 {{ date }} 评价",
-          "Admin": "由 {{ user }} 于 {{ date }} 修改"
+          "Admin": "由 {{ user }} 于 {{ date }} 修改",
+          "Seed": "随应用的问题模式添加"
         },
+        "pattern": "模式",
+        "patternHint": "适用于任何客户、季节、产品类型、性别、业务单元或织法：匹配前会去掉这些词。{styleNo} 和 {materialCode} 代表库中的任意款号或物料编码。",
         "makeRule": "设为规则",
         "removeRule": "移除规则",
         "editFilters": "修正筛选条件",

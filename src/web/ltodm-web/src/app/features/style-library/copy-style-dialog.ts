@@ -35,7 +35,7 @@ export function seasonSuffix(seasonCode: string): string {
             <input hlmInput id="cp-season" list="cp-seasons" class="h-11 lg:h-9" maxlength="16" placeholder="2028-SS" autocomplete="off"
               [value]="season()" (input)="onSeason($any($event.target).value)" [attr.aria-invalid]="!!e['seasonCode']" />
             <datalist id="cp-seasons">
-              @for (s of lookups()?.seasons ?? []; track s.code) { <option [value]="s.code"></option> }
+              @for (s of lookups()?.seasons ?? []; track s.code) { <option [value]="s.code">{{ s.code === s.name ? '' : s.name }}</option> }
             </datalist>
             @if (e['seasonCode']) { <p class="text-destructive text-xs">{{ e['seasonCode'] }}</p> }
           </div>

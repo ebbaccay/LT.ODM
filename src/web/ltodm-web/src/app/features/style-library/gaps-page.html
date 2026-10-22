@@ -1,5 +1,5 @@
 <section class="flex flex-col gap-5">
-  <a routerLink="/styles" class="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm">
+  <a routerLink="/styles" [queryParams]="listParams()" class="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm">
     <ng-icon name="lucideArrowLeft" />{{ 'styles.detail.back' | transloco }}
   </a>
 
@@ -62,7 +62,7 @@
           <hlm-native-select selectId="gap-season" selectClass="h-11 w-full sm:w-40 lg:h-8" [value]="season()" (valueChange)="setFilter('season', $event ?? '')">
             <option hlmNativeSelectOption value="">{{ 'gaps.allSeasons' | transloco }}</option>
             @for (s of lookups()?.seasons ?? []; track s.code) {
-              <option hlmNativeSelectOption [value]="s.code">{{ s.code }}</option>
+              <option hlmNativeSelectOption [value]="s.code">{{ s.code === s.name ? s.code : s.name }}</option>
             }
           </hlm-native-select>
           <hlm-native-select selectId="gap-show" selectClass="h-11 w-full sm:w-48 lg:h-8" [value]="show()" (valueChange)="setShow($any($event ?? 'suggested'))">

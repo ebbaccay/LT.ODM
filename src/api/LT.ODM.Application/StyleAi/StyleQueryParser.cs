@@ -95,14 +95,33 @@ public static partial class StyleQueryParser
     [GeneratedRegex(@"\([^)]*\)", RegexOptions.CultureInvariant)]
     private static partial Regex BracketRx();
 
-    public static Result Parse(string query, StyleLookupsDto lookups)
+    /// <summary>What a word of the request was read as (<see cref="ParseWords"/>).</summary>
+    public static class WordKinds
+    {
+        public const string Season = "season", BusinessUnit = "businessUnit", ProductType = "productType", Look = "look", Gender = "gender",
+            Weave = "weave", Material = "material", Customer = "customer", Filler = "filler", StyleNo = "styleNo", Unmatched = "unmatched";
+    }
+
+    /// <summary>A word of the request (lower case, possessive removed) and what it was read as.</summary>
+    public sealed record Word(string Text, string Kind);
+
+    public static Result Parse(string query, StyleLookupsDto lookups) => ParseWords(query, lookups).Result;
+
+    /// <summary>Parse, plus every word with what it was read as (saved question patterns take the filter words out).</summary>
+    public static (Result Result, IReadOnlyList<Word> Words) ParseWords(string query, StyleLookupsDto lookups)
     {
         var tokens = Tokens(query);
         var used = new bool[tokens.Count];
+        var kinds = new string?[tokens.Count];
         var unmatched = new List<string>();
+        void Took(string kind)
+        {
+            for (var k = 0; k < tokens.Count; k++) if (used[k] && kinds[k] is null) kinds[k] = kind;
+        }
 
         // Seasons first: "ss27" would otherwise look like a style number.
         var seasons = ReadSeasons(tokens, used, lookups);
+        Took(WordKinds.Season);
 
         // Business units by their full name ("alo yoga", "football licensed"), before single words are taken.
         var businessUnits = new List<string>();
@@ -115,8 +134,10 @@ public static partial class StyleQueryParser
                 businessUnits.Add(bu.Code);
             }
         }
+        Took(WordKinds.BusinessUnit);
 
         var productTypes = ReadProductTypes(tokens, used, lookups.ProductTypes, unmatched);
+        Took(WordKinds.ProductType);
 
         // Picture looks ("hooded", "full zip", "striped", "navy"), after product types so "hooded sweat" stays a product type.
         var looks = new List<string>();
@@ -126,6 +147,7 @@ public static partial class StyleQueryParser
                 Mark(used, at, words.Length);
                 looks.Add(tag);
             }
+        Took(WordKinds.Look);
 
         string? gender = null, weave = null, customer = null, search = null;
         var materials = new List<string>();
@@ -133,14 +155,17 @@ public static partial class StyleQueryParser
         {
             if (used[i]) continue;
             var t = tokens[i];
-            if (GenderWords.TryGetValue(t, out var g)) gender = One(gender, g, t, unmatched);
-            else if (WeaveWords.TryGetValue(t, out var w)) weave = One(weave, w, t, unmatched);
-            else if (MaterialWords.Contains(t) || MaterialWords.Contains(Singular(t))) materials.Add(MaterialWords.Contains(t) ? t : Singular(t));
-            else if (CustomerFor(t, lookups.Customers) is { } c) customer = One(customer, c, t, unmatched);   // before units: "adidas" is the customer
-            else if (BusinessUnitsFor(t, lookups.BusinessUnits) is { Count: > 0 } bus) businessUnits.AddRange(bus);
-            else if (Fillers.Contains(t)) { }
-            else if (LooksLikeStyleNumber(t) && search is null) search = t.ToUpperInvariant();
-            else unmatched.Add(t);
+            var before = unmatched.Count;
+            string kind;
+            if (GenderWords.TryGetValue(t, out var g)) { gender = One(gender, g, t, unmatched); kind = WordKinds.Gender; }
+            else if (WeaveWords.TryGetValue(t, out var w)) { weave = One(weave, w, t, unmatched); kind = WordKinds.Weave; }
+            else if (MaterialWords.Contains(t) || MaterialWords.Contains(Singular(t))) { materials.Add(MaterialWords.Contains(t) ? t : Singular(t)); kind = WordKinds.Material; }
+            else if (CustomerFor(t, lookups.Customers) is { } c) { customer = One(customer, c, t, unmatched); kind = WordKinds.Customer; }   // before units: "adidas" is the customer
+            else if (BusinessUnitsFor(t, lookups.BusinessUnits) is { Count: > 0 } bus) { businessUnits.AddRange(bus); kind = WordKinds.BusinessUnit; }
+            else if (Fillers.Contains(t)) kind = WordKinds.Filler;
+            else if (LooksLikeStyleNumber(t) && search is null) { search = t.ToUpperInvariant(); kind = WordKinds.StyleNo; }
+            else { unmatched.Add(t); kind = WordKinds.Unmatched; }
+            kinds[i] = unmatched.Count > before ? WordKinds.Unmatched : kind;   // a second gender, weave or customer is left to AI
             used[i] = true;
         }
 
@@ -154,7 +179,8 @@ public static partial class StyleQueryParser
             WeaveType: weave is not null && lookups.WeaveTypes.Count > 0 && !lookups.WeaveTypes.Any(x => x.Code == weave) ? null : weave,
             Gender: gender,
             Looks: looks.Distinct().ToList());
-        return new Result(filters, unmatched.Distinct().ToList());
+        return (new Result(filters, unmatched.Distinct().ToList()),
+            tokens.Select((t, k) => new Word(t, kinds[k] ?? WordKinds.Unmatched)).ToList());
     }
 
     /// <summary>A second different value for a single-value criterion ("men and women") is left to AI.</summary>
@@ -265,11 +291,15 @@ public static partial class StyleQueryParser
 
     // ----- Business units and customers -----
 
-    /// <summary>"running" = every business unit whose name starts with Running (RUA, RUB, RUX); a code matches itself.</summary>
+    /// <summary>
+    /// "running" = every business unit whose name starts with Running (RUA, RUB, RUX); a code matches itself, unless it is a
+    /// filler word (unit TO: "changes to ..." is not that unit; "tomwell" still finds it by name).
+    /// </summary>
     private static List<string> BusinessUnitsFor(string word, IReadOnlyList<LookupItem> units)
     {
+        if (Fillers.Contains(word)) return [];
         var byCode = units.Where(u => string.Equals(u.Code, word, StringComparison.OrdinalIgnoreCase)).Select(u => u.Code).ToList();
-        if (byCode.Count > 0 || word.Length < 4 || Fillers.Contains(word)) return byCode;
+        if (byCode.Count > 0 || word.Length < 4) return byCode;
         return units.Where(u => Words(u.Name) is { Length: > 0 } w && (w[0] == word || Singular(w[0]) == Singular(word))).Select(u => u.Code).ToList();
     }
 

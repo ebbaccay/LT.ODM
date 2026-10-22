@@ -55,6 +55,9 @@ const PAGE = 50;
             <li hlmCard class="gap-2 p-4">
               <div class="flex flex-wrap items-start justify-between gap-2">
                 <p class="min-w-0 flex-1 font-medium">“{{ q.question }}”</p>
+                @if (q.isPattern) {
+                  <span hlmBadge variant="outline" [title]="'ai.assistant.saved.patternHint' | transloco">{{ 'ai.assistant.saved.pattern' | transloco }}</span>
+                }
                 <span hlmBadge [variant]="q.status === 'Rule' ? 'default' : q.status === 'Removed' ? 'destructive' : 'secondary'">
                   {{ 'ai.assistant.saved.statusName.' + q.status | transloco }}
                 </span>

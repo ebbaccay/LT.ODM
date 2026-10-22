@@ -23,12 +23,17 @@ public static class SavedQuestionRoles
     public const string Admins = "Admin";
 }
 
-public sealed record SavedRuleDto(int SavedQuestionId, string Question, string Tool, IReadOnlyDictionary<string, string> Arguments);
+/// <summary>IsPattern: a seeded pattern (QuestionPatterns); QuestionKey: the key it matched.</summary>
+public sealed record SavedRuleDto(int SavedQuestionId, string Question, string Tool, IReadOnlyDictionary<string, string> Arguments,
+    bool IsPattern = false, string? QuestionKey = null);
 
-/// <summary>AskCount: answered by the AI; RuleHits: answered from the saved look-up. ChangedHow: Feedback or Admin.</summary>
+/// <summary>
+/// AskCount: answered by the AI; RuleHits: answered from the saved look-up. ChangedHow: Feedback, Admin or Seed. IsPattern: a
+/// seeded pattern, matched with the filter words taken out (QuestionPatterns).
+/// </summary>
 public sealed record SavedQuestionDto(
     int SavedQuestionId, string Question, string Tool, IReadOnlyDictionary<string, string> Arguments, string Status, int AskCount, int RuleHits,
-    DateTime LastAskedUtc, DateTime CreatedUtc, string? ChangedBy, DateTime? ChangedUtc, string? ChangedHow);
+    DateTime LastAskedUtc, DateTime CreatedUtc, string? ChangedBy, DateTime? ChangedUtc, string? ChangedHow, bool IsPattern = false);
 
 /// <summary>Helpful: thumbs up (make it a Rule with the tool and arguments shown) or down (remove it).</summary>
 public sealed record LibraryFeedbackRequest(int SavedQuestionId, bool Helpful, string? Tool, IReadOnlyDictionary<string, string>? Arguments);
@@ -39,8 +44,10 @@ public sealed record SaveSavedQuestionRequest(string? Status, IReadOnlyDictionar
 /// <summary>ai.usp_SavedQuestion_* (db/procedures/ai.assistant.procedures.sql). 50400 / 50404 -> StyleRuleException.</summary>
 public interface ISavedQuestionRepository
 {
-    /// <summary>The Rule for this question key (counts the hit), or null.</summary>
-    Task<SavedRuleDto?> UseRuleAsync(string questionKey, CancellationToken ct = default);
+    /// <summary>
+    /// The Rule for this question key, else the pattern Rule for patternKey, then patternKey2 (counts the hit), or null.
+    /// </summary>
+    Task<SavedRuleDto?> UseRuleAsync(string questionKey, string? patternKey = null, string? patternKey2 = null, CancellationToken ct = default);
 
     /// <summary>After the AI answered: records or counts the question; returns its id.</summary>
     Task<int> RecordAsync(string questionKey, string question, string tool, IReadOnlyDictionary<string, string> arguments, CancellationToken ct = default);

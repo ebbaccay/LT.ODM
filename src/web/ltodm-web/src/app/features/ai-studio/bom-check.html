@@ -41,7 +41,7 @@
         <hlm-native-select selectId="bom-season" selectClass="h-11 w-full lg:h-9 sm:w-44" [attr.aria-label]="'styles.allSeasons' | transloco" [value]="query().season ?? ''" (valueChange)="setGroup('season', $event ?? '')">
           <option hlmNativeSelectOption value="">{{ 'styles.allSeasons' | transloco }}</option>
           @for (o of l?.seasons ?? []; track o.code) {
-            <option hlmNativeSelectOption [value]="o.code">{{ o.code }}</option>
+            <option hlmNativeSelectOption [value]="o.code">{{ o.code === o.name ? o.code : o.name }}</option>
           }
         </hlm-native-select>
         <button hlmBtn type="button" class="h-11 lg:h-9" [disabled]="loading()" (click)="runGroup()">

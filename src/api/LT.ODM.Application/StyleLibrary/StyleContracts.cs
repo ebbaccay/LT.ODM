@@ -40,7 +40,7 @@ public sealed record StyleLookupsDto(
 /// </summary>
 public sealed record StyleListQuery(
     string? Search, string? Customer, string? Season, string? BusinessUnit, string? ProductType, string? WeaveType, string? Gender,
-    int Skip, int Take, string? Material = null, bool? IsActive = null, string? Looks = null, bool? HasPicture = null);
+    int Skip, int Take, string? Material = null, bool? IsActive = null, string? Looks = null, bool? HasPicture = null, bool? ParentsOnly = null);
 
 /// <summary>Key: the season, customer, product type, business unit, gender or weave code (null = not set).</summary>
 public sealed record StyleCountDto(string? Key, string? Name, int Styles);
@@ -54,7 +54,8 @@ public sealed record StyleListItemDto(
     int StyleId, string StyleNo, string BaseStyleNo, string? Description, string? ModelCode, string? ModelName,
     string CustomerCode, string CustomerName, string SeasonCode, string? BusinessUnitCode, string? BusinessUnitName,
     string? ProductTypeCode, string? ProductTypeName, string? WeaveTypeCode, string? Gender, string? ImageUrl, string? SketchUrl,
-    int ColorwayCount, int BomLineCount, bool HasHistory, DateTime LastChangedUtc, bool IsActive = true, StyleSearchFoundDto? Found = null);
+    int ColorwayCount, int BomLineCount, bool HasHistory, DateTime LastChangedUtc, bool IsActive = true, StyleSearchFoundDto? Found = null,
+    int Versions = 0);
 
 /// <summary>
 /// Where a list search was found on a style (null without a search): in the style's own number, model or description,

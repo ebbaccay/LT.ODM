@@ -75,6 +75,8 @@ export class GapsPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly canEdit = this.styles.canEdit;
+  /** The Styles list's last filters, for the back link. */
+  readonly listParams = this.styles.listParams;
   readonly genders = GENDERS;
   readonly tabs = TABS;
 

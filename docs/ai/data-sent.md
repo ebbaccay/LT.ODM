@@ -51,8 +51,8 @@ Sensitivity is LT's view of the data: **Low** (reference lists and generic text)
 | Job / calls | Text, **2 per question** (pick the look-up, word the answer); **none** when the phrase list understands the question |
 | Sent (call 1) | The question; the last 4 questions of the conversation with the look-up and arguments used; the library's code lists (customers, season codes, business units, product types, weaves with names); today's date; the list of look-ups |
 | Sent (call 2) | The question and the look-up's result: depending on the look-up, style numbers, models, customers, seasons, product types, BOM lines (material codes and descriptions, suppliers, consumption), colorway codes, material where-used and supplier shares, recycled shares, colour counts, BOM check findings, change lists between two styles. At most 10-25 rows |
-| Not sent | Costs and prices (no cost look-up today), pictures, user names. Questions answered from the phrase list, a saved question or "looks like" send nothing (the look-alike search runs inside the API) |
-| Stored (inside LT) | Questions the AI answered, with the look-up and filters chosen (`ai.SavedQuestion`, no user names, no answers); see [Saved questions](../components/library-assistant.md#saved-questions-common-questions-answered-at-once) |
+| Not sent | Costs and prices (no cost look-up today), pictures, user names. Questions answered from the phrase list, a saved question or question pattern, or "looks like" send nothing (the look-alike search runs inside the API) |
+| Stored (inside LT) | Questions the AI answered, with the look-up and filters chosen, and the seeded question patterns (`ai.SavedQuestion`, no user names, no answers); see [Saved questions](../components/library-assistant.md#saved-questions-common-questions-answered-at-once) |
 | Sensitivity | Medium (customer style details and suppliers). Keep **Allow cloud AI services** off to keep it on the in-house server; when cost look-ups are added this becomes High |
 
 ### AI Studio > Change summary and Styles > Compare styles ("Summarize with AI")

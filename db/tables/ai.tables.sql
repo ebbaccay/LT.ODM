@@ -14,6 +14,7 @@
     ai.SavedQuestion: Library assistant questions the AI answered, by normalised text, with the look-up (tool) and
                     arguments it chose - never the answer. Status Rule = answered from here without AI (set by a thumbs up
                     or an Admin); Recorded = AI is used; Removed = a thumbs down or an Admin took it out. No asker names.
+                    IsPattern = 1: a seeded pattern (seedi.saved-questions.sql), matched with the filter words taken out.
     Idempotent.
 
       sqlcmd -S YOUR_SERVER -d YOUR_DATABASE -E -b -I -i tables\ai.tables.sql
@@ -127,13 +128,17 @@ CREATE TABLE ai.SavedQuestion
     CreatedUtc      datetime2(3)   NOT NULL CONSTRAINT DF_ai_SavedQuestion_Created DEFAULT (SYSUTCDATETIME()),
     ChangedBy       nvarchar(64)   NULL,       -- who made it a rule or removed it
     ChangedUtc      datetime2(3)   NULL,
-    ChangedHow      varchar(16)    NULL,       -- Feedback | Admin
+    ChangedHow      varchar(16)    NULL,       -- Feedback | Admin | Seed
+    IsPattern       bit            NOT NULL CONSTRAINT DF_ai_SavedQuestion_IsPattern DEFAULT (0),   -- key without filter words, {styleno} slots
 
     CONSTRAINT PK_ai_SavedQuestion PRIMARY KEY CLUSTERED (SavedQuestionId),
     CONSTRAINT UQ_ai_SavedQuestion_Key UNIQUE (QuestionKey),
     CONSTRAINT CK_ai_SavedQuestion_Status CHECK (Status IN ('Recorded', 'Rule', 'Removed')),
     CONSTRAINT CK_ai_SavedQuestion_Arguments CHECK (ISJSON(Arguments) = 1)
 );
+GO
+IF COL_LENGTH(N'ai.SavedQuestion', N'IsPattern') IS NULL
+    ALTER TABLE ai.SavedQuestion ADD IsPattern bit NOT NULL CONSTRAINT DF_ai_SavedQuestion_IsPattern DEFAULT (0);
 GO
 
 PRINT 'AI connection tables ready.';

@@ -8,7 +8,10 @@ import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { Modal } from '@tms/shared/ui/modal';
+import { SuggestSteps } from './suggest-steps';
 import { BomOption, BomSuggestion, SaveBomLineRequest, StyleLibraryService, SuggestedBomLine, styleError } from './style-library.service';
+
+const STEPS = ['references', 'picture', 'lines', 'fabric', 'build'] as const;
 
 interface Section {
   code: string;
@@ -25,15 +28,16 @@ interface Section {
 @Component({
   selector: 'app-bom-suggest-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DecimalPipe, Modal, HlmButtonImports, HlmCheckboxImports, HlmNativeSelectImports, HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe],
+  imports: [DecimalPipe, Modal, SuggestSteps, HlmButtonImports, HlmCheckboxImports, HlmNativeSelectImports, HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe],
   template: `
     <app-modal [open]="open()" size="xl" [heading]="'styles.suggest.title' | transloco: { styleNo: styleNo() }" (closed)="closed.emit()">
       <div class="flex flex-col gap-4">
         <p class="text-muted-foreground text-sm leading-relaxed">{{ 'styles.suggest.hint' | transloco }}</p>
 
         @if (loading()) {
-          <div hlmSkeleton class="h-16 w-full"></div>
-          <div hlmSkeleton class="h-64 w-full"></div>
+          <!-- Progress: the steps the server works through (about 0.6 s references, 0.2 s their lines, up to 0.6 s library fabrics) -->
+          <app-suggest-steps [steps]="steps" labelPrefix="styles.suggest.step." />
+          <div hlmSkeleton class="h-40 w-full"></div>
         } @else if (suggestion(); as s) {
           <!-- What it was built from -->
           <div class="bg-muted/40 flex flex-col gap-2 rounded-md border p-3 text-sm">
@@ -169,6 +173,7 @@ export class BomSuggestDialog {
   readonly saved = output<number>();
 
   readonly suggestion = signal<BomSuggestion | null>(null);
+  readonly steps = STEPS;
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly ticked = signal<ReadonlySet<string>>(new Set());

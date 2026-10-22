@@ -1,5 +1,6 @@
 <section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
-  <a routerLink="/styles" class="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm">
+  <!-- Back to the list as it was left (its filters) -->
+  <a routerLink="/styles" [queryParams]="listParams()" class="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm">
     <ng-icon name="lucideArrowLeft" />{{ 'styles.detail.back' | transloco }}
   </a>
 
@@ -9,7 +10,7 @@
   } @else if (notFound()) {
     <section hlmCard class="items-center gap-2 px-5 py-14 text-center">
       <p class="font-medium">{{ 'styles.detail.notFound' | transloco }}</p>
-      <p class="text-muted-foreground text-sm">{{ 'styles.detail.notFoundHint' | transloco }} <a routerLink="/styles" class="text-primary underline-offset-2 hover:underline">{{ 'styles.detail.backToStyles' | transloco }}</a></p>
+      <p class="text-muted-foreground text-sm">{{ 'styles.detail.notFoundHint' | transloco }} <a routerLink="/styles" [queryParams]="listParams()" class="text-primary underline-offset-2 hover:underline">{{ 'styles.detail.backToStyles' | transloco }}</a></p>
     </section>
   } @else if (style(); as s) {
     <!-- Header -->

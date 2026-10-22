@@ -11,11 +11,12 @@ namespace LT.ODM.Infrastructure.StyleLibrary;
 /// <summary>Library assistant saved questions: ai.usp_SavedQuestion_* (db/procedures/ai.assistant.procedures.sql).</summary>
 public sealed class SavedQuestionRepository(IDbConnectionFactory connectionFactory) : ISavedQuestionRepository
 {
-    public async Task<SavedRuleDto?> UseRuleAsync(string questionKey, CancellationToken ct = default)
+    public async Task<SavedRuleDto?> UseRuleAsync(string questionKey, string? patternKey = null, string? patternKey2 = null, CancellationToken ct = default)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
-        var r = await conn.QuerySingleOrDefaultAsync<Row>(Proc("ai.usp_SavedQuestion_UseRule", new { QuestionKey = questionKey }, ct));
-        return r is null ? null : new SavedRuleDto(r.SavedQuestionId, r.Question, r.Tool, Args(r.Arguments));
+        var r = await conn.QuerySingleOrDefaultAsync<Row>(Proc("ai.usp_SavedQuestion_UseRule",
+            new { QuestionKey = questionKey, PatternKey = patternKey, PatternKey2 = patternKey2 }, ct));
+        return r is null ? null : new SavedRuleDto(r.SavedQuestionId, r.Question, r.Tool, Args(r.Arguments), r.IsPattern, r.QuestionKey);
     }
 
     public async Task<int> RecordAsync(string questionKey, string question, string tool, IReadOnlyDictionary<string, string> arguments, CancellationToken ct = default)
@@ -38,7 +39,7 @@ public sealed class SavedQuestionRepository(IDbConnectionFactory connectionFacto
         await using var conn = await connectionFactory.OpenAsync(ct);
         var rows = (await conn.QueryAsync<Row>(Proc("ai.usp_SavedQuestion_List", new { Status = status, Search = search, Skip = skip, Take = take }, ct))).ToList();
         return new PagedResult<SavedQuestionDto>(rows.Select(r => new SavedQuestionDto(r.SavedQuestionId, r.Question, r.Tool, Args(r.Arguments), r.Status, r.AskCount,
-            r.RuleHits, Utc(r.LastAskedUtc), Utc(r.CreatedUtc), r.ChangedBy, r.ChangedUtc is { } c ? Utc(c) : null, r.ChangedHow)).ToList(),
+            r.RuleHits, Utc(r.LastAskedUtc), Utc(r.CreatedUtc), r.ChangedBy, r.ChangedUtc is { } c ? Utc(c) : null, r.ChangedHow, r.IsPattern)).ToList(),
             rows.FirstOrDefault()?.TotalCount ?? 0);
     }
 
@@ -102,6 +103,8 @@ public sealed class SavedQuestionRepository(IDbConnectionFactory connectionFacto
         public string? ChangedBy { get; init; }
         public DateTime? ChangedUtc { get; init; }
         public string? ChangedHow { get; init; }
+        public bool IsPattern { get; init; }
+        public string? QuestionKey { get; init; }
         public int TotalCount { get; init; }
     }
 }

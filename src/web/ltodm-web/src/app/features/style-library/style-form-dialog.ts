@@ -48,7 +48,7 @@ const EMPTY: Form = {
             <input hlmInput id="sf-season" list="sf-seasons" class="h-11 lg:h-9" maxlength="16" placeholder="2027-SS" autocomplete="off"
               [value]="f.seasonCode" (input)="set('seasonCode', $any($event.target).value)" [attr.aria-invalid]="!!e['seasonCode']" />
             <datalist id="sf-seasons">
-              @for (s of lookups()?.seasons ?? []; track s.code) { <option [value]="s.code"></option> }
+              @for (s of lookups()?.seasons ?? []; track s.code) { <option [value]="s.code">{{ s.code === s.name ? '' : s.name }}</option> }
             </datalist>
             @if (e['seasonCode']) { <p class="text-destructive text-xs">{{ e['seasonCode'] }}</p> }
           </div>

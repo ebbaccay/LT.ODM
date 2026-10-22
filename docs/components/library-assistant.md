@@ -7,11 +7,13 @@ Ask questions about the library in your own words: *"How many jackets per season
 ## How a question is answered
 
 ```
-question ──► 1. phrase list (StyleQueryParser) ── understood every word? ──► style search, no AI
+question ──► 1. saved question (Rule) for the same question, or a question pattern it fits? ──► its look-up on today's data, no AI
                     │ no
                     ▼
-             1b. "... look(s) like X"? ──► look_alike: X searched against the pictures by the built-in image model, no AI
-             1c. saved question (Rule) for the same question? ──► its look-up on today's data, no AI
+             1b. phrase list (StyleQueryParser) ── understood every word? ──► style search, no AI
+                    │ no
+                    ▼
+             1c. "... look(s) like X"? ──► look_alike: X searched against the pictures by the built-in image model, no AI
                     │ no
                     ▼
              1d. one style picture clearly stands out for the question (same gate as Smart search)? ──► look-alikes, no AI
@@ -43,8 +45,24 @@ Questions the AI answered are kept (table `ai.SavedQuestion`) with the **look-up
 - **Same question** = same text after normalising: case, punctuation, possessives and plurals are ignored (*"Men's jackets per season?"* = *"mens jacket per season"*). Different words are a different question (*men's* ≠ *women's*).
 - **Thumbs up** under an AI answer (*Right*) makes it a Rule, with exactly the look-up and filters shown with the answer. **Thumbs down** (*Wrong*) on any answer, including one from a Rule, removes it: the AI answers it next time (*Ask the AI now* asks again at once).
 - **Never saved:** follow-ups (*"and for women?"*, which depend on the earlier question) and questions with relative dates (*this year, next season, latest*), whose meaning changes.
-- The most used Rules are shown as **Answered at once** suggestions on the empty page.
+- The most used Rules are shown as **Answered at once** suggestions on the empty page (question patterns only once someone has asked them, and never one written with `{styleNo}`).
 - No user names are stored with questions; only who confirmed or removed a Rule (*rated by* / *changed by*).
+- Saved questions are looked up **before** the phrase list, so a pattern such as *show {styleNo}* gives the style's details instead of a one-row style search.
+
+### Question patterns (seeded)
+
+The app comes with **137 question patterns** for 11 look-ups (`db/seed/ai.saved-questions.sql`, reviewed 2026-10-22): different wordings of the common questions, such as *main suppliers*, *who are our main suppliers*, *how many styles per season*, *BOM problems*, *what fabric does {styleNo} use*. *Find styles* and *Styles that look like…* are not seeded: the phrase list and the "looks like" rule already answer them without AI.
+
+A pattern is a question with its **filter words taken out**, so one pattern answers every customer and season:
+
+1. **Codes first.** Words as typed with a digit and 5+ characters (not a season or a year) are checked against the library: a style number (exact, or the only match) fills `{styleNo}`, a second one `{fromStyleNo}`, a material code (exact) `{materialCode}`. This happens before the phrase list, which would split *26FA_M_JK01* and read *26fa* as a season. Codes the library does not have stay ordinary words.
+2. **Filters out.** The words the phrase list reads as a customer, season, product type, gender, business unit or weave are taken out, with the words that join them (*for, in, of, on, from, at, with, by, our, we, do, the*). The rest, normalised as above, is the pattern: *"Who are our main suppliers for ADI in 2027-SS?"* → *who are main supplier*.
+3. **Product type words** are also tried as ordinary words (*top suppliers*: TOP is a product type too), when the first reading finds no pattern.
+4. **The look-up runs** with the pattern's own arguments (slots filled in) and the filters taken out, but only those it takes. A filter it does not take means a different question, so the AI answers it: *main suppliers for women* (suppliers have no gender). Counting *by* a dimension ignores a filter on it: *men vs women styles* counts every gender.
+
+Material words (*recycled, zipper*) and picture looks (*navy, hooded*) stay part of the pattern: *how much recycled fabric do we use* is its own pattern. A pattern is listed with a **Pattern** badge on the Admin page. A thumbs down removes it (it then goes to the AI); a thumbs up keeps its own arguments, not the customer or season of that one question. The seed adds only patterns that are missing, so one an Admin removed or changed stays as it is.
+
+**Adding or changing a pattern:** the `QuestionKey` must be the key `QuestionPatterns` computes for the wording (typed with sample codes, `jackets` for `{productType}`). `LibraryAssistantSeedTests` checks every row, its tool and its arguments.
 
 **Admins: AI Studio > Library assistant > Saved questions.** Each question with its look-up, filters, status (*Rule (instant)*, *Recorded (AI)*, *Removed*), how often the AI answered it, how often it was answered at once, and who rated or changed it. Admins can make or remove a Rule, **correct the filters** (codes not on the library's lists are dropped), and delete a question.
 
@@ -124,5 +142,5 @@ Good candidates once the data exists:
 | Tools | `LibraryAssistant/Tools/StyleTools.cs`, `MaterialTools.cs`, `LookTools.cs` |
 | Endpoint | `LibraryAssistantController` (`GET /api/v1/ai/library-assistant/tools`, `POST /api/v1/ai/library-assistant/ask`, AI rate limit) |
 | SQL | `db/procedures/style.assistant.procedures.sql` (`style.usp_Style_Counts`); `db/tables/ai.tables.sql` (`ai.SavedQuestion`) and `db/procedures/ai.assistant.procedures.sql` (saved questions); the rest are the Styles, Materials and BOM check procedures |
-| Saved questions | `SavedQuestions.cs` (contracts), `src/api/LT.ODM.Infrastructure/StyleLibrary/SavedQuestionRepository.cs`; endpoints `GET popular`, `POST feedback` (readers), `GET/PUT/DELETE saved` (Admin) |
+| Saved questions | `SavedQuestions.cs` (contracts), `QuestionPatterns.cs` (pattern keys, slots, arguments), seed `db/seed/ai.saved-questions.sql`, `src/api/LT.ODM.Infrastructure/StyleLibrary/SavedQuestionRepository.cs`; endpoints `GET popular`, `POST feedback` (readers), `GET/PUT/DELETE saved` (Admin) |
 | Screen | `src/web/ltodm-web/src/app/features/ai-studio/library-assistant.ts` (page), `library-assistant.session.ts` (the conversation, app-wide), `library-turn.ts` (one question and answer), `library-assistant-bubble.ts` (chat bubble, in the layout), `library-saved-questions.ts` (Admin list) |
