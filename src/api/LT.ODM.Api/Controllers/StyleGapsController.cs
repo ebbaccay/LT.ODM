@@ -1,3 +1,4 @@
+using LT.ODM.Api.Jobs;
 using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.Ai;
 using LT.ODM.Application.StyleAi;
@@ -62,24 +63,19 @@ public sealed class StyleGapsController(IStyleGapRepository gaps) : ControllerBa
         return Run(async () => Ok(new { dismissed = await gaps.DismissAsync(f, items, CurrentUserName, ct) }));
     }
 
-    /// <summary>Asks the Text job about the next 25 styles the rules could not read; their answers become suggestions.</summary>
+    /// <summary>Asks the Text job about the next 25 styles the rules could not read; their answers become suggestions. An AI job: 202 with its id.</summary>
     [HttpPost("{field}/ask-ai")]
     [Authorize(Roles = StyleRoles.Editors)]
     [EnableRateLimiting(RateLimitPolicies.Ai)]
-    public async Task<IActionResult> AskAi(string field, AskAiGapsRequest request, [FromServices] GapAdvisor advisor, [FromServices] IAiJsonClient text,
+    public async Task<IActionResult> AskAi(string field, AskAiGapsRequest request, [FromServices] AiJobQueue jobs, [FromServices] IAiJsonClient text,
         CancellationToken ct)
     {
         if (GapFields.Parse(field) is not { } f) return NotFound();
         var info = await text.GetInfoAsync(ct);
         if (!info.IsConfigured) return Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: AiUnavailable.Message("This AI feature", info));
-        try
-        {
-            return Ok(await advisor.AskNextAsync(f, Clean(request.Customer, 32), Clean(request.Season, 16), CurrentUserName, ct));
-        }
-        catch (AiServiceException ex)
-        {
-            return Problem(statusCode: StatusCodes.Status502BadGateway, title: ex.Message);
-        }
+        var (customer, season, user) = (Clean(request.Customer, 32), Clean(request.Season, 16), CurrentUserName);
+        return await this.QueueAiJobAsync(jobs, AiJobKinds.GapsAskAi, AiJobLanes.Text, new { field = f, customer, season },
+            async (sp, jct) => await sp.GetRequiredService<GapAdvisor>().AskNextAsync(f, customer, season, user, jct), ct);
     }
 
     // ----- Seasons -----

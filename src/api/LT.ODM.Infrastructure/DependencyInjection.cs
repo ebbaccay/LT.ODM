@@ -82,6 +82,7 @@ public static class DependencyInjection
         // The connection's own timeout (AiHttp, Settings > AI connections) applies; HttpClient's 100 s default would cut
         // longer ones short (CPU servers can need several minutes).
         static void NoClientTimeout(HttpClient http) => http.Timeout = Timeout.InfiniteTimeSpan;
+        services.AddSingleton<AiCallLimiter>();   // AI call limits: places at each AI server, shared by every request and AI task
         services.AddHttpClient<IAiJsonClient, RoutedAiJsonClient>(NoClientTimeout);
         services.AddHttpClient<IAiImageClient, RoutedAiImageClient>(NoClientTimeout);
         services.AddHttpClient<IAiVisionClient, RoutedAiVisionClient>(NoClientTimeout);
@@ -104,6 +105,7 @@ public static class DependencyInjection
         // Library assistant: one ILibraryTool per capability (the AI's instructions are built from this list).
         services.AddScoped<LibraryAssistantService>();
         services.AddScoped<ISavedQuestionRepository, SavedQuestionRepository>();
+        services.AddScoped<IAiJobRepository, AiJobRepository>();
         services.AddScoped<ILibraryTool, StyleSearchTool>();
         services.AddScoped<ILibraryTool, StyleCountsTool>();
         services.AddScoped<ILibraryTool, StyleDetailTool>();

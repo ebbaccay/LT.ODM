@@ -39,6 +39,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public FakeImageSearchRepository ImageSearch { get; } = new();
     public FakeImageEmbeddingModel ImageModel { get; } = new();
     public FakeSavedQuestionRepository SavedQuestions { get; } = new();
+    public FakeAiJobRepository AiJobs { get; } = new();
     public FakePictureTagRepository PictureTags { get; } = new();
     public FakeStyleImageImportRepository ImageImports { get; } = new();
     /// <summary>Uploaded images go to a temp folder that is deleted with the factory.</summary>
@@ -111,6 +112,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<IImageEmbeddingModel>(ImageModel);
             services.RemoveAll<ISavedQuestionRepository>();
             services.AddSingleton<ISavedQuestionRepository>(SavedQuestions);
+            services.RemoveAll<IAiJobRepository>();
+            services.AddSingleton<IAiJobRepository>(AiJobs);
             services.RemoveAll<IPictureTagRepository>();
             services.AddSingleton<IPictureTagRepository>(PictureTags);
             services.RemoveAll<IStyleImageImportRepository>();

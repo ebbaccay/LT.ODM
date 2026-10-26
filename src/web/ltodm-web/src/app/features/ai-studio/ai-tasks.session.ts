@@ -3,14 +3,18 @@ import { DestroyRef, Injectable, Signal, computed, effect, inject, signal } from
 import { Router } from '@angular/router';
 import { TranslocoService } from '@jsverse/transloco';
 import { toast } from '@spartan-ng/brain/sonner';
-import { Observable, Subscription, catchError, of, switchMap, timer } from 'rxjs';
+import { Observable, Subscription } from 'rxjs';
+import { AiJob, AiJobsService, isActive } from '../../core/ai/ai-jobs.service';
 import { AuthService, problemMessage } from '../../core/auth/auth.service';
-import { AiProgress, AiStudioService } from './ai-studio.service';
+import { AiProgress } from './ai-studio.service';
 
 export type AiTaskKind = 'render' | 'renderPrompt' | 'bomExplain' | 'compareSummary';
+const KINDS: readonly string[] = ['render', 'renderPrompt', 'bomExplain', 'compareSummary'];
 
 export interface AiTask<T = unknown> {
   id: number;
+  /** The API's AI job, once the request has queued it. */
+  jobId: number | null;
   kind: AiTaskKind;
   /** What the task is for (e.g. "render:123"): one task per key; a page shows the task with its key. */
   key: string;
@@ -24,14 +28,14 @@ export interface AiTask<T = unknown> {
   startedAt: number;
   /** The answer has been shown on its page (it then leaves the tray). */
   seen: boolean;
-  /** Text jobs: how far the answer has got, polled from the API while it runs. */
+  /** Text jobs: how far the answer has got, read from the job while it runs. */
   progress: AiProgress | null;
   /** Renders: typical seconds of recent renders (an estimated bar; image servers report no progress). */
   estimateSeconds: number | null;
 }
 
 export interface AiTaskOptions {
-  /** Poll the API for the answer's progress (text jobs; the request must send the progress id). */
+  /** Kept for callers; every job reports its progress (text answers only). */
   follow?: boolean;
   estimateSeconds?: number | null;
   url?: string;
@@ -52,6 +56,7 @@ export interface AiTaskStatus {
 export function taskStatus(t: AiTask, now: number): AiTaskStatus {
   const seconds = Math.max(0, (now - t.startedAt) / 1000);
   const minutes = Math.max(1, Math.round(seconds / 60));
+  if (t.progress?.phase === 'queued') return { key: 'ai.tasks.queued', params: { ahead: (t.progress.ahead ?? 0) + 1 }, percent: null };
   if (t.estimateSeconds) {
     if (seconds >= t.estimateSeconds) return { key: 'ai.tasks.longerThanUsual', params: { minutes }, percent: 95 };
     const left = Math.max(1, Math.round((t.estimateSeconds - seconds) / 60));
@@ -62,17 +67,15 @@ export function taskStatus(t: AiTask, now: number): AiTaskStatus {
   return { key: 'ai.tasks.working', params: { count: minutes }, percent: null };
 }
 
-/** Seconds between progress polls: often enough to look alive, far below the rate limit. */
-const POLL_MS = 2000;
-
 /** Answers kept for pages to show again after a visit elsewhere (newest first). */
 const KEEP_FINISHED = 10;
 
 /**
- * Slow AI jobs (style renders, BOM check explanations, change summaries) for this browser tab, kept outside their pages
- * like the Library assistant conversation: leaving the page (or Minimise) does not stop or lose them. The tray
- * (ai-tasks-tray.ts) shows what is running and what is ready, and leads back to the page. Memory only: a reload or
- * sign-out ends them. Cancel drops the request; the API then stops waiting for the AI server.
+ * Slow AI jobs (style renders, BOM check explanations, change summaries) shown outside their pages, like the Library
+ * assistant conversation: leaving the page (or Minimise) does not stop or lose them. They run on the server as AI jobs
+ * (AiJobsService), so a reload, a dropped connection or signing in elsewhere loses nothing either: on sign-in the tray
+ * shows again the jobs still running and the answers not yet seen. Cancel stops the job on the server; signing out only
+ * stops following it here. The tray (ai-tasks-tray.ts) shows what is running and what is ready, and leads back to the page.
  */
 @Injectable({ providedIn: 'root' })
 export class AiTasksSession {
@@ -80,7 +83,7 @@ export class AiTasksSession {
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly transloco = inject(TranslocoService);
-  private readonly svc = inject(AiStudioService);
+  private readonly jobs = inject(AiJobsService);
 
   readonly tasks = signal<AiTask[]>([]);
   /** Keys of the tasks a page is showing now (their answers are seen as they arrive). */
@@ -90,43 +93,42 @@ export class AiTasksSession {
 
   private nextId = 1;
   private readonly subs = new Map<number, Subscription>();
-  private readonly polls = new Map<number, Subscription>();
+  private restoring?: Subscription;
 
   constructor() {
-    // Signing out (or another user signing in) ends everything.
+    // Signing out (or another user signing in) stops following here; the jobs carry on and come back at the next sign-in.
     let userName: string | null = null;
     effect(() => {
       const name = this.auth.user()?.userName ?? null;
       if (name !== userName) {
         userName = name;
         this.clear();
+        if (name) this.restore();
       }
     });
   }
 
   /**
    * Starts the job unless the same key is already running. The answer stays here until the page shows it.
-   * start gets a random progress id to send with the request (X-Ai-Progress), so the answer can be followed.
+   * start gets the run's id to pass to the service method (AiJobsService.describe): the request then tells the API the
+   * tray's key, label and page, and the job's id and progress come back here.
    */
-  run<T>(kind: AiTaskKind, key: string, label: string, start: (progressId: string) => Observable<T>, options: AiTaskOptions = {}): void {
+  run<T>(kind: AiTaskKind, key: string, label: string, start: (taskId: string) => Observable<T>, options: AiTaskOptions = {}): void {
     if (this.tasks().some((t) => t.key === key && t.status === 'running')) return;
     const id = this.nextId++;
-    const progressId = crypto.randomUUID();
+    const taskId = crypto.randomUUID();
+    const url = options.url ?? this.router.url;
     const task: AiTask = {
-      id, kind, key, label, url: options.url ?? this.router.url, status: 'running', result: null, error: null, startedAt: Date.now(), seen: false,
+      id, jobId: null, kind, key, label, url, status: 'running', result: null, error: null, startedAt: Date.now(), seen: false,
       progress: null, estimateSeconds: options.estimateSeconds ?? null,
     };
     this.tasks.update((list) => [task, ...list.filter((t) => t.key !== key)]);
-    const sub = start(progressId).subscribe({
-      next: (result) => this.finish(id, { status: 'done', result }),
-      error: (e) => this.finish(id, { status: 'failed', error: problemMessage(e) || this.transloco.translate('ai.failed') }),
+    this.jobs.describe(taskId, {
+      task: { key, label, url },
+      started: (jobId) => this.patch(id, { jobId }),
+      progress: (progress: AiProgress) => this.patch(id, { progress }),
     });
-    if (!this.tasks().some((t) => t.id === id && t.status === 'running')) return;
-    this.subs.set(id, sub);
-    if (options.follow)
-      this.polls.set(id, timer(POLL_MS, POLL_MS)
-        .pipe(switchMap(() => this.svc.progress(progressId).pipe(catchError(() => of(null)))))
-        .subscribe((progress) => progress && this.patch(id, { progress })));
+    this.follow(id, start(taskId));
   }
 
   /**
@@ -149,24 +151,28 @@ export class AiTasksSession {
     const task = computed(() => (this.tasks().find((t) => t.key === key()) as AiTask<T> | undefined) ?? null);
     effect(() => {
       const t = task();
-      if (t && t.status !== 'running' && !t.seen) this.patch(t.id, { seen: true });
+      if (t && t.status !== 'running' && !t.seen) this.markSeen(t);
     });
     return task;
   }
 
+  /** Stops the job on the server (and following it here). */
   cancel(id: number): void {
     const sub = this.subs.get(id);
     if (!sub) return;
     sub.unsubscribe();
     this.subs.delete(id);
-    this.stopPolling(id);
+    const jobId = this.tasks().find((t) => t.id === id)?.jobId;
+    if (jobId) this.jobs.cancel(jobId).subscribe({ error: () => undefined });   // already finished: nothing to stop
     this.patch(id, { status: 'cancelled', seen: true });
   }
 
-  /** Out of the tray (and forgotten when finished). */
+  /** Out of the tray (and forgotten when finished; not offered again after a reload). */
   dismiss(id: number): void {
+    const t = this.tasks().find((x) => x.id === id);
     if (this.subs.has(id)) this.cancel(id);
-    this.tasks.update((list) => list.filter((t) => t.id !== id));
+    else if (t?.jobId && !t.seen) this.jobs.seen(t.jobId).subscribe({ error: () => undefined });
+    this.tasks.update((list) => list.filter((x) => x.id !== id));
   }
 
   open(t: AiTask): void {
@@ -179,20 +185,58 @@ export class AiTasksSession {
     else void this.router.navigateByUrl('/');
   }
 
+  private follow<T>(id: number, answer: Observable<T>): void {
+    const sub = answer.subscribe({
+      next: (result) => this.finish(id, { status: 'done', result }),
+      error: (e) => this.finish(id, { status: 'failed', error: problemMessage(e) || this.transloco.translate('ai.failed') }),
+    });
+    if (this.tasks().some((t) => t.id === id && t.status === 'running')) this.subs.set(id, sub);
+  }
+
+  /** After sign-in or a reload: the jobs still running and the answers not yet seen, from the server. */
+  private restore(): void {
+    this.restoring = this.jobs.mine().subscribe({
+      next: (found) => {
+        for (const job of [...found].reverse()) this.restoreOne(job);
+      },
+      error: () => undefined,   // an older server without jobs: nothing to show again
+    });
+  }
+
+  private restoreOne(job: AiJob): void {
+    if (!KINDS.includes(job.kind) || !job.taskKey || this.tasks().some((t) => t.jobId === job.jobId || t.key === job.taskKey)) return;
+    const id = this.nextId++;
+    const running = isActive(job.status);
+    const task: AiTask = {
+      id, jobId: job.jobId, kind: job.kind as AiTaskKind, key: job.taskKey, label: job.label ?? '', url: job.url ?? '/', result: job.result,
+      status: running ? 'running' : job.status === 'Done' ? 'done' : 'failed',
+      error: running || job.status === 'Done' ? null : problemMessage(AiJobsService.failure(job)),
+      startedAt: Date.parse(job.startedUtc ?? job.createdUtc), seen: false, progress: job.progress, estimateSeconds: null,
+    };
+    this.tasks.update((list) => [task, ...list]);
+    if (running) this.follow(id, this.jobs.follow(job.jobId, (progress) => this.patch(id, { progress })));
+  }
+
   private clear(): void {
-    for (const sub of [...this.subs.values(), ...this.polls.values()]) sub.unsubscribe();
+    this.restoring?.unsubscribe();
+    for (const sub of this.subs.values()) sub.unsubscribe();
     this.subs.clear();
-    this.polls.clear();
     this.tasks.set([]);
+  }
+
+  /** The page showed the answer: not offered again after a reload. */
+  private markSeen(t: AiTask): void {
+    this.patch(t.id, { seen: true });
+    if (t.jobId) this.jobs.seen(t.jobId).subscribe({ error: () => undefined });
   }
 
   private finish(id: number, change: Partial<AiTask>): void {
     this.subs.delete(id);
-    this.stopPolling(id);
     const t = this.tasks().find((x) => x.id === id);
     if (!t) return;
     const watched = this.viewing().has(t.key);
-    this.patch(id, { ...change, seen: watched });
+    this.patch(id, { ...change, seen: false });
+    if (watched) this.markSeen({ ...t, ...change });
     // Keep a few finished answers for pages to show again; running ones always stay.
     const finished = this.tasks().filter((x) => x.status !== 'running');
     if (finished.length > KEEP_FINISHED) {
@@ -205,11 +249,6 @@ export class AiTasksSession {
     if (change.status === 'done') {
       if (!watched) toast.success(this.transloco.translate('ai.tasks.readyToast', { name }), { action });
     } else toast.error(this.transloco.translate('ai.tasks.failedToast', { name }), { description: change.error ?? undefined, action });
-  }
-
-  private stopPolling(id: number): void {
-    this.polls.get(id)?.unsubscribe();
-    this.polls.delete(id);
   }
 
   private patch(id: number, change: Partial<AiTask>): void {

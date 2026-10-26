@@ -51,7 +51,7 @@ public sealed class SketchRenderTests
     }
 
     private static RoutedAiImageClient Client(Server server, double strength, string size = "512x512", bool fitShape = false)
-        => new(new HttpClient(server), new Resolver(InHouse),
+        => new(new HttpClient(server), new Resolver(InHouse), new AiCallLimiter(),
             Options.Create(new OpenAiCompatibleOptions { ImageSize = size, ImageSketchStrength = strength, ImageFitShape = fitShape }),
             NullLogger<RoutedAiImageClient>.Instance);
 

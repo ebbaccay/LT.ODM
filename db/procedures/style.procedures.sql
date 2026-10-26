@@ -88,7 +88,7 @@ GO
 
 /*
     One page of styles (@ParentsOnly: each family once, see below). @Search: every word in one place of the style (style number / model / description, a
-    colorway, or a BOM line; see style.fn_SearchPlaces). Newest season first, then style number.
+    colorway, or a BOM line; see style.fn_SearchPlaces). Newest season first, then style number, unless @Sort says otherwise.
     Second result: for a search, up to 3 colorways and 3 BOM lines per style on the page where it was found.
 */
 CREATE OR ALTER PROCEDURE style.usp_Style_List
@@ -103,7 +103,9 @@ CREATE OR ALTER PROCEDURE style.usp_Style_List
     @Looks            nvarchar(400) = NULL,   -- picture tags 'attribute:value' separated by commas (hood:hooded,colour:navy); a style needs all
     @IsActive         bit           = NULL,   -- NULL = active and inactive
     @HasPicture       bit           = NULL,   -- 1 = has a picture or sketch, 0 = has neither, NULL = all
-    @ParentsOnly      bit           = NULL,   -- 1 = only styles not reused from another (versions counted on their first style)
+    @ParentsOnly      bit           = NULL,
+    @Sort             varchar(16)   = NULL,   -- style | customer | season | businessUnit | productType | colorways | bomLines | changed; NULL = newest season first
+    @Desc             bit           = NULL,   -- 1 = descending   -- 1 = only styles not reused from another (versions counted on their first style)
     @Skip             int           = 0,
     @Take             int           = 50
 AS
@@ -134,12 +136,19 @@ BEGIN
     DECLARE @customerId int = (SELECT PartnerId FROM partner.Partner WHERE PartnerType = 'Customer' AND PartnerCode = @CustomerCode);
     IF @CustomerCode IS NOT NULL AND @customerId IS NULL SET @customerId = -1;
 
-    DECLARE @match TABLE (StyleId int NOT NULL PRIMARY KEY, SeasonYear smallint NULL, TermOrder smallint NULL, StyleNo nvarchar(100) NOT NULL);
-    INSERT @match (StyleId, SeasonYear, TermOrder, StyleNo)
-    SELECT s.StyleId, se.SeasonYear, t.SortOrder, s.StyleNo
+    SET @Desc = ISNULL(@Desc, 0);
+    -- the sort columns travel with the ids (counts only when sorted by them, below)
+    DECLARE @match TABLE (StyleId int NOT NULL PRIMARY KEY, SeasonYear smallint NULL, TermOrder smallint NULL, StyleNo nvarchar(100) NOT NULL,
+                          CustomerCode nvarchar(32) NULL, BusinessUnit nvarchar(150) NULL, ProductType nvarchar(150) NULL, Changed datetime2(3) NULL,
+                          Colorways int NULL, BomLines int NULL);
+    INSERT @match (StyleId, SeasonYear, TermOrder, StyleNo, CustomerCode, BusinessUnit, ProductType, Changed)
+    SELECT s.StyleId, se.SeasonYear, t.SortOrder, s.StyleNo, cu.PartnerCode, bu.Name, ptn.Name, ISNULL(s.UpdatedUtc, s.CreatedUtc)
     FROM style.Style s
     JOIN ref.Season se ON se.SeasonCode = s.SeasonCode
     LEFT JOIN ref.SeasonTerm t ON t.Term = se.Term
+    JOIN partner.Partner cu ON cu.PartnerId = s.CustomerId
+    LEFT JOIN ref.BusinessUnit bu ON bu.BusinessUnitCode = s.BusinessUnitCode
+    LEFT JOIN ref.ProductType ptn ON ptn.ProductTypeCode = s.ProductTypeCode
     WHERE (@customerId IS NULL OR s.CustomerId = @customerId)
       AND (@SeasonCode IS NULL OR s.SeasonCode IN (SELECT Code FROM @seasons))
       AND (@BusinessUnitCode IS NULL OR s.BusinessUnitCode IN (SELECT Code FROM @businessUnits))
@@ -185,10 +194,33 @@ BEGIN
 
     DECLARE @total int = (SELECT COUNT(*) FROM @match);
 
-    DECLARE @page TABLE (StyleId int NOT NULL PRIMARY KEY, SeasonYear smallint NULL, TermOrder smallint NULL, StyleNo nvarchar(100) NOT NULL);
+    IF @Sort = 'colorways' UPDATE m SET Colorways = (SELECT COUNT(*) FROM style.Colorway k WHERE k.StyleId = m.StyleId) FROM @match m;
+    IF @Sort = 'bomLines' UPDATE m SET BomLines = (SELECT COUNT(*) FROM style.BomLine b WHERE b.StyleId = m.StyleId) FROM @match m;
+
+    /* The page in the chosen order: the sort column (missing values last either way), then newest season first and the
+       style number, so the order is stable from page to page. */
+    DECLARE @page TABLE (StyleId int NOT NULL PRIMARY KEY, Rn int NOT NULL);
+    WITH ranked AS
+    (
+        SELECT StyleId, Rn = ROW_NUMBER() OVER (ORDER BY
+            CASE @Sort WHEN 'customer' THEN IIF(CustomerCode IS NULL, 1, 0) WHEN 'businessUnit' THEN IIF(BusinessUnit IS NULL, 1, 0)
+                       WHEN 'productType' THEN IIF(ProductType IS NULL, 1, 0) WHEN 'season' THEN IIF(SeasonYear IS NULL, 1, 0) END,
+            CASE WHEN @Desc = 0 THEN CASE @Sort WHEN 'style' THEN StyleNo WHEN 'customer' THEN CustomerCode
+                                                WHEN 'businessUnit' THEN BusinessUnit WHEN 'productType' THEN ProductType END END,
+            CASE WHEN @Desc = 1 THEN CASE @Sort WHEN 'style' THEN StyleNo WHEN 'customer' THEN CustomerCode
+                                                WHEN 'businessUnit' THEN BusinessUnit WHEN 'productType' THEN ProductType END END DESC,
+            CASE WHEN @Desc = 0 THEN CASE @Sort WHEN 'colorways' THEN Colorways WHEN 'bomLines' THEN BomLines
+                                                WHEN 'season' THEN SeasonYear * 100 + ISNULL(TermOrder, 0) END END,
+            CASE WHEN @Desc = 1 THEN CASE @Sort WHEN 'colorways' THEN Colorways WHEN 'bomLines' THEN BomLines
+                                                WHEN 'season' THEN SeasonYear * 100 + ISNULL(TermOrder, 0) END END DESC,
+            CASE WHEN @Sort = 'changed' AND @Desc = 0 THEN Changed END,
+            CASE WHEN @Sort = 'changed' AND @Desc = 1 THEN Changed END DESC,
+            SeasonYear DESC, TermOrder DESC, StyleNo)
+        FROM @match
+    )
     INSERT @page
-    SELECT StyleId, SeasonYear, TermOrder, StyleNo FROM @match
-    ORDER BY SeasonYear DESC, TermOrder DESC, StyleNo
+    SELECT StyleId, Rn FROM ranked
+    ORDER BY Rn
     OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;
 
     SELECT s.StyleId, s.StyleNo, s.BaseStyleNo, s.Description, s.ModelCode, s.ModelName,
@@ -211,7 +243,7 @@ BEGIN
     JOIN partner.Partner c ON c.PartnerId = s.CustomerId
     LEFT JOIN ref.BusinessUnit bu ON bu.BusinessUnitCode = s.BusinessUnitCode
     LEFT JOIN ref.ProductType pt ON pt.ProductTypeCode = s.ProductTypeCode
-    ORDER BY p.SeasonYear DESC, p.TermOrder DESC, p.StyleNo;
+    ORDER BY p.Rn;
 
     /* The colorways and BOM lines the search was found on, for the page: up to 3 of each per style, in page order. */
     WITH f AS
@@ -232,7 +264,7 @@ BEGIN
     SELECT f.StyleId, Kind = IIF(f.Kind = 'C', 'Colorway', 'BomLine'), f.Code, f.Text, f.Section
     FROM f JOIN @page p ON p.StyleId = f.StyleId
     WHERE f.Rn <= 3
-    ORDER BY p.SeasonYear DESC, p.TermOrder DESC, p.StyleNo, f.Kind DESC, f.Rn;
+    ORDER BY p.Rn, f.Kind DESC, f.Rn;
 END
 GO
 

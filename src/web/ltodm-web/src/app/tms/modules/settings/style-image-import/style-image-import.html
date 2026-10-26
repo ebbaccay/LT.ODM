@@ -150,9 +150,13 @@
         <hlm-checkbox inputId="library-only" [checked]="libraryOnly()" (checkedChange)="libraryOnly.set(!libraryOnly()); shown.set(40)" />
         {{ 'settings.imageImport.libraryOnly' | transloco: { count: c.noStyle } }}
       </label>
+      <label class="flex items-center gap-2 text-sm" for="no-image-only">
+        <hlm-checkbox inputId="no-image-only" [checked]="noImageOnly()" (checkedChange)="noImageOnly.set(!noImageOnly()); shown.set(40)" />
+        {{ 'settings.imageImport.noImageOnly' | transloco: { count: c.withImage } }}
+      </label>
       @if (analysing()) {
         <span class="text-muted-foreground flex items-center gap-2 text-sm" aria-live="polite">
-          <hlm-spinner class="size-4" />{{ 'settings.imageImport.analysing' | transloco: { done: c.analysed, total: c.all } }}
+          <hlm-spinner class="size-4" />{{ 'settings.imageImport.analysing' | transloco: { done: c.analysed, total: c.total } }}
         </span>
       }
     </div>
@@ -292,7 +296,9 @@
                         </label>
                         <span class="flex shrink-0 flex-col items-end gap-1 text-xs">
                           <span class="rounded px-1.5 py-0.5" [class]="toneBadge(matchTone(m.match))">{{ 'settings.imageImport.match' + m.match | transloco }}</span>
-                          @if (hasExisting(r, m) && r.status !== 'saved') {
+                          @if (noImageOnly() && hasImage(m) && r.status !== 'saved') {
+                            <span class="text-muted-foreground">{{ 'settings.imageImport.skipHasImage' | transloco }}</span>
+                          } @else if (hasExisting(r, m) && r.status !== 'saved') {
                             <span class="text-muted-foreground">{{ (overwrite() ? 'settings.imageImport.willReplace' : 'settings.imageImport.willKeep') | transloco }}</span>
                           }
                           @if (r.result?.skipped?.includes(m.styleId)) {

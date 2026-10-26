@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '@env/environment';
 import { Observable } from 'rxjs';
+import { AiJobsService } from '../../core/ai/ai-jobs.service';
 
 // Fill the gaps (/api/v1/style-gaps) and Similar styles (/api/v1/styles/{id}/similar).
 // Reading: Style Library readers. Accepting, dismissing, merging, filling and asking AI: Admin, Merchandiser (the API checks).
@@ -148,6 +149,7 @@ export interface SimilarStyle {
 @Injectable({ providedIn: 'root' })
 export class StyleGapsService {
   private readonly http = inject(HttpClient);
+  private readonly jobs = inject(AiJobsService);
   private readonly api = `${environment.apiBaseUrl}/api/v1/style-gaps`;
 
   summary(): Observable<GapSummary> {
@@ -170,9 +172,9 @@ export class StyleGapsService {
     return this.http.post<{ dismissed: number }>(`${this.api}/${field}/dismiss`, { items });
   }
 
-  /** Asks the AI about the next 25 styles the rules could not read (one Text-job call). */
+  /** Asks the AI about the next 25 styles the rules could not read (one Text-job call, as an AI job: answers are kept even if the page is left). */
   askAi(field: GapField, customer?: string, season?: string): Observable<AskAiResult> {
-    return this.http.post<AskAiResult>(`${this.api}/${field}/ask-ai`, { customer: customer || null, season: season || null });
+    return this.jobs.run(this.http.post<{ jobId: number }>(`${this.api}/${field}/ask-ai`, { customer: customer || null, season: season || null }));
   }
 
   seasons(): Observable<GapSeason[]> {

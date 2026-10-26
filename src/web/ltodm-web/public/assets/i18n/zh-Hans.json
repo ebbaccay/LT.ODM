@@ -726,7 +726,9 @@
       "existingMoved": "已修正 {{moved}} 个款式。",
       "existingSkipped": "{{count}} 个在检查后被更改，未移动：请重新检查。",
       "libraryOnly": "仅显示款式库中已有的款式（已隐藏 {{count}} 个）",
-      "savingProgress": "正在保存 {{done}} / {{total}}"
+      "savingProgress": "正在保存 {{done}} / {{total}}",
+      "noImageOnly": "仅显示没有图片的款式（已隐藏 {{count}} 个）",
+      "skipHasImage": "已有图片：跳过"
     }
   },
   "shell": {
@@ -2709,7 +2711,21 @@
     "parentsOnlyHint": "只显示不是从其他款式沿用的款式：沿用款和变体被隐藏，并计入其原始款式（另有 N 个版本；见其“历史”标签）。取消勾选可列出所有版本。",
     "versionsFolded": "另有 {{ count }} 个版本",
     "versionsHiddenHint": "“仅显示原始款式”隐藏了版本（沿用款、变体），其中可能有符合条件的款式。",
-    "showVersions": "同时显示版本"
+    "showVersions": "同时显示版本",
+    "searching": "正在搜索…",
+    "sort": {
+      "label": "排序方式",
+      "by": "按{{ column }}排序",
+      "default": "最新季节优先",
+      "style": "款号 / 型号",
+      "customer": "客户",
+      "season": "季节",
+      "businessUnit": "业务单元",
+      "productType": "产品类型",
+      "colorways": "配色",
+      "bomLines": "物料行",
+      "changed": "最后修改"
+    }
   },
   "ai": {
     "tasks": {
@@ -2727,6 +2743,7 @@
       "failedToast": "{{ name }} 未能完成。",
       "wholeLibrary": "整个款式库",
       "reading": "正在读取请求… 已用 {{ minutes }} 分钟",
+      "queued": "等待 AI 服务器：排在第 {{ ahead }} 位",
       "writing": "正在撰写… 已写 {{ words }} 个词",
       "words": "{{ count }} 个词",
       "minutesLeft": "大约还需 {{ left }} 分钟",
@@ -3596,6 +3613,42 @@
     "usedBy": "使用任务",
     "unused": "无任务",
     "changedBy": "由 {{ user }} 于 {{ date }} 修改",
+    "tasks": {
+      "title": "AI 任务",
+      "hint": "所有用户启动的耗时 AI 工作（效果图、变更摘要、解释、物料描述读取、补全缺失、导入代码建议）。在服务器上运行，每台 AI 服务器一次一个，因此离开页面或连接中断都不会丢失。服务器重启时仍在运行的任务会标记为“已中断”，需要重新开始。",
+      "status": "状态",
+      "statusName": {
+        "all": "全部",
+        "Active": "排队或运行中",
+        "Queued": "排队中",
+        "Running": "运行中",
+        "Done": "已完成",
+        "Failed": "失败",
+        "Cancelled": "已停止",
+        "Interrupted": "已中断"
+      },
+      "kind": {
+        "render": "款式效果图",
+        "renderPrompt": "重写效果图描述",
+        "bomExplain": "BOM 检查解释",
+        "compareSummary": "变更摘要",
+        "materialRead": "读取物料描述",
+        "gapsAskAi": "补全缺失：询问 AI",
+        "importCodes": "导入代码建议"
+      },
+      "load": "运行 {{ running }} / {{ limit }}，等待 {{ waiting }}",
+      "refresh": "刷新",
+      "none": "没有此状态的 AI 任务。",
+      "took": "{{ seconds }} 秒",
+      "cancelledBy": "由 {{ user }} 停止",
+      "stop": "停止",
+      "stopTitle": "停止此 AI 任务？",
+      "stopMessage": "{{ user }} 的{{ task }}将立即停止。尚未完成的内容不会保存。",
+      "more": "显示更多（{{ shown }} / {{ total }}）",
+      "keepDays": "已完成任务保留",
+      "days": "天（1-365）；更早的任务及其结果会被删除",
+      "keepSaved": "已完成的 AI 任务将保留 {{ days }} 天。"
+    },
     "securityNote": "API 密钥在保存前会加密，之后不再显示，只显示最后 4 个字符。请将服务器的 App_Data/keys 文件夹与数据库一起备份，否则恢复后需要重新输入已保存的密钥。",
     "name": "名称",
     "namePlaceholder": "例如 LT AI 服务器、Gemini（云）",
@@ -3608,6 +3661,8 @@
     "inHouseHint": "如果此地址是外部服务请取消勾选；AI 页面将提示数据会离开 LT。",
     "geminiCloud": "Gemini 始终是云服务。",
     "timeout": "超时（秒）",
+    "maxConcurrent": "同时调用数",
+    "maxConcurrentHint": "在开启 AI 调用限制时生效。无 GPU 的服务器设为 1；使用 vLLM 的 GPU 服务器或云服务设为 4-16。地址相同的连接共用其中最低的设置。",
     "notes": "备注",
     "notesPlaceholder": "例如 金边机房的 GPU 服务器；联系 IT",
     "active": "启用（任务可以使用）",
@@ -3619,6 +3674,16 @@
       "aiOff": "未运行：所有 AI 已关闭",
       "jobOff": "未运行：此任务已关闭",
       "cloudBlocked": "已阻止：其服务在云端，且不允许使用云 AI"
+    },
+    "limits": {
+      "title": "限制 AI 调用",
+      "on": "开启：每台 AI 服务器同时最多处理其连接设定的调用数；其余调用排队等候，快速问题（助手、搜索）优先，用户轮流。每位用户同时等待或运行的 AI 任务数有限。",
+      "off": "关闭：所有 AI 调用立即发送到服务器，用户可启动任意数量的 AI 任务。适用于能同时处理大量调用的服务器（GPU、云服务）。",
+      "perUser": "每位用户的 AI 任务数",
+      "perUserHint": "同时等待或运行（1-50）",
+      "perUserRange": "每位用户允许 1 到 50 个 AI 任务。",
+      "none": "不限制",
+      "saved": "AI 调用限制已保存。"
     },
     "switches": {
       "title": "开关",

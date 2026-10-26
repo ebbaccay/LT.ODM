@@ -74,6 +74,8 @@ Status of every component, open fixes, and planned work. Last updated 2026-10-16
 | 4.5 | Image search with built-in Marqo-FashionSigLIP model (photo, words, more-like-this) | ✅ | Tuned on only 8 pictures |
 | 4.6 | Picture tags (hood, colour, …) and `looks` filter | ✅ | Thresholds set on 8 pictures; re-check when more pictures arrive |
 | 4.7 | Library assistant (tools, saved questions, chat bubble) | ✅ | Tested on laptop Ollama; slow on CPU |
+| 4.7c | AI call limits: calls at once per AI server (per connection, shared by address), quick questions first, users in turn, AI tasks per user, on/off switch | 🧪 | 2026-10-22; unit-tested, SQL on the laptop DB, not browser-tested; dev server needs `ai.tables.sql` + `ai.procedures.sql` and a release |
+| 4.7b | AI tasks: slow AI work in the background (ai.Job, AiJobQueue, tray restored after reload, Admin list and Stop, keep 7 days) | 🧪 | 2026-10-22; unit-tested, SQL smoke-tested on the laptop DB, not browser-tested; dev server needs `ai.tables.sql` + `ai.jobs.procedures.sql` and a release |
 | 4.7a | Library assistant question patterns (137 seeded wordings over 11 look-ups, filters and codes as slots) | 🧪 | 2026-10-22; unit-tested and seeded on the laptop DB, not browser-tested; dev server needs the 3 SQL scripts |
 | 4.8 | Concept to existing styles, material description reader | ✅ | |
 | 4.9 | AI Lab demo page | ✅ | Remove the "importFix" sample card once you confirm |

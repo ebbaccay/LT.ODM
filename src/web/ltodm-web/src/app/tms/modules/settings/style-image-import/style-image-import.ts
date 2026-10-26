@@ -102,6 +102,8 @@ export class StyleImageImport implements OnInit {
   readonly filter = signal<Filter>('all');
   /** Hides files whose style number is not in the library (still listed under "No style found"). */
   readonly libraryOnly = signal(true);
+  /** Only files for styles with neither a picture nor a sketch yet; saving then skips styles that have one. */
+  readonly noImageOnly = signal(false);
   readonly shown = signal(PAGE);
 
   // Options for every picture saved.
@@ -126,8 +128,11 @@ export class StyleImageImport implements OnInit {
   readonly counts = computed(() => {
     const rows = this.rows();
     return {
-      all: this.libraryOnly() ? rows.filter((r) => !this.noStyle(r)).length : rows.length,
+      all: rows.filter((r) => !this.hidden(r)).length,
+      // Progress counts every file (hidden ones are analysed too).
+      total: rows.length,
       analysed: rows.filter((r) => r.status !== 'waiting' && r.status !== 'analysing').length,
+      withImage: rows.filter((r) => !!r.analysis && r.analysis.matches.length > 0 && !this.hasStyleWithoutImage(r)).length,
       check: rows.filter((r) => this.needsCheck(r)).length,
       noStyle: rows.filter((r) => this.noStyle(r)).length,
       ready: rows.filter((r) => this.isReady(r)).length,
@@ -137,8 +142,7 @@ export class StyleImageImport implements OnInit {
   readonly analysing = computed(() => this.rows().some((r) => r.status === 'waiting' || r.status === 'analysing'));
   readonly filtered = computed(() => {
     const f = this.filter();
-    const hideNoStyle = this.libraryOnly() && f !== 'noStyle';
-    return this.rows().filter((r) => hideNoStyle && this.noStyle(r) ? false :
+    return this.rows().filter((r) => f !== 'noStyle' && this.hidden(r) ? false :
       f === 'all' ? true : f === 'check' ? this.needsCheck(r) : f === 'noStyle' ? this.noStyle(r) : f === 'ready' ? this.isReady(r) : r.status === 'saved');
   });
   readonly visible = computed(() => this.filtered().slice(0, this.shown()));
@@ -252,7 +256,10 @@ export class StyleImageImport implements OnInit {
     }));
     this.rows.update((list) => [...list, ...rows]);
     this.queue.push(...rows.map((r) => r.id));
-    while (this.workers < PARALLEL) void this.work();
+    // Start only as many workers as there is work for: running workers take new files from the queue too. (A
+    // "while workers < PARALLEL" loop never ends when the queue is shorter: an idle worker stops at once.)
+    const start = Math.min(PARALLEL - this.workers, this.queue.length);
+    for (let i = 0; i < start; i++) void this.work();
   }
 
   private async work(): Promise<void> {
@@ -360,7 +367,7 @@ export class StyleImageImport implements OnInit {
       this.patch(id, { status: 'saving', error: null });
       try {
         const result = await firstValueFrom(this.svc.save(r.file, {
-          box: r.box, enhance: this.enhance(), field: r.field, overwrite: this.overwrite(), styleIds: [...r.ticked],
+          box: r.box, enhance: this.enhance(), field: r.field, overwrite: this.overwrite(), styleIds: this.targets(r),
         }));
         this.patch(id, { status: 'saved', result, error: null });
         pictures++;
@@ -389,7 +396,30 @@ export class StyleImageImport implements OnInit {
   }
 
   isReady(r: Row): boolean {
-    return r.status === 'ready' && r.ticked.size > 0;
+    return r.status === 'ready' && this.targets(r).length > 0;
+  }
+
+  /** Styles the file is saved to: the ticked ones, without those that already have an image when "no image only" is on. */
+  targets(r: Row): number[] {
+    const ticked = [...r.ticked];
+    if (!this.noImageOnly() || !r.analysis) return ticked;
+    const without = new Set(r.analysis.matches.filter((m) => !this.hasImage(m)).map((m) => m.styleId));
+    return ticked.filter((id) => without.has(id));
+  }
+
+  /** The style has a picture or a sketch already. */
+  hasImage(m: StyleImageMatch): boolean {
+    return !!(m.imageUrl || m.sketchUrl);
+  }
+
+  private hasStyleWithoutImage(r: Row): boolean {
+    return !!r.analysis && r.analysis.matches.some((m) => !this.hasImage(m));
+  }
+
+  /** Left out of the list by the tickboxes (still analysed; "No style found" lists those files anyway). */
+  private hidden(r: Row): boolean {
+    if (this.libraryOnly() && this.noStyle(r)) return true;
+    return this.noImageOnly() && !!r.analysis && r.analysis.matches.length > 0 && !this.hasStyleWithoutImage(r);
   }
 
   /** Detected kind is clear (a sure Sketch or Photo). */

@@ -6,6 +6,7 @@
     usp_Connection_Delete  refused while a job uses the connection
     usp_Purpose_Save       a job's connection and model (NULL connection = app default), or turns the job off
     usp_Policy_Save        the central switches: AI on/off, cloud services allowed or not
+    usp_Policy_SaveLimits  AI call limits on/off, and AI tasks per user
 
     Rule errors are THROWn as 50400 / 50404 / 50409 with a message for the user. Requires tables\ai.tables.sql. Idempotent.
 
@@ -18,14 +19,15 @@ CREATE OR ALTER PROCEDURE ai.usp_Settings_Get
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT ConnectionId, Name, Kind, Endpoint, ApiKeyProtected, ApiKeyHint, InHouse, TimeoutSeconds, Notes, IsActive, UpdatedBy, UpdatedUtc, RowVer
+    SELECT ConnectionId, Name, Kind, Endpoint, ApiKeyProtected, ApiKeyHint, InHouse, TimeoutSeconds, Notes, IsActive, UpdatedBy, UpdatedUtc, RowVer,
+           MaxConcurrent
     FROM ai.Connections
     ORDER BY Name;
 
     SELECT Purpose, ConnectionId, Model, UpdatedBy, UpdatedUtc, Disabled
     FROM ai.Purposes;
 
-    SELECT AiEnabled, AllowCloud, UpdatedBy, UpdatedUtc
+    SELECT AiEnabled, AllowCloud, UpdatedBy, UpdatedUtc, LimitCalls, MaxTasksPerUser = CAST(MaxTasksPerUser AS int)
     FROM ai.Policy WHERE PolicyId = 1;
 END
 GO
@@ -43,7 +45,8 @@ CREATE OR ALTER PROCEDURE ai.usp_Connection_Save
     @TimeoutSeconds  int,
     @Notes           nvarchar(400)  = NULL,
     @IsActive        bit,
-    @ChangedBy       nvarchar(64)
+    @ChangedBy       nvarchar(64),
+    @MaxConcurrent   smallint       = 1    -- calls this server gets at once while AI call limits are on
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -53,9 +56,9 @@ BEGIN
 
     IF @ConnectionId IS NULL
     BEGIN
-        INSERT ai.Connections (Name, Kind, Endpoint, ApiKeyProtected, ApiKeyHint, InHouse, TimeoutSeconds, Notes, IsActive, CreatedBy, UpdatedBy)
+        INSERT ai.Connections (Name, Kind, Endpoint, ApiKeyProtected, ApiKeyHint, InHouse, TimeoutSeconds, Notes, IsActive, CreatedBy, UpdatedBy, MaxConcurrent)
         VALUES (@Name, @Kind, @Endpoint, IIF(@KeyAction = 'set', @ApiKeyProtected, NULL), IIF(@KeyAction = 'set', @ApiKeyHint, NULL),
-                @InHouse, @TimeoutSeconds, @Notes, @IsActive, @ChangedBy, @ChangedBy);
+                @InHouse, @TimeoutSeconds, @Notes, @IsActive, @ChangedBy, @ChangedBy, @MaxConcurrent);
         SELECT CAST(SCOPE_IDENTITY() AS int);
         RETURN;
     END
@@ -69,7 +72,7 @@ BEGIN
     SET Name = @Name, Kind = @Kind, Endpoint = @Endpoint,
         ApiKeyProtected = CASE @KeyAction WHEN 'set' THEN @ApiKeyProtected WHEN 'clear' THEN NULL ELSE ApiKeyProtected END,
         ApiKeyHint = CASE @KeyAction WHEN 'set' THEN @ApiKeyHint WHEN 'clear' THEN NULL ELSE ApiKeyHint END,
-        InHouse = @InHouse, TimeoutSeconds = @TimeoutSeconds, Notes = @Notes, IsActive = @IsActive,
+        InHouse = @InHouse, TimeoutSeconds = @TimeoutSeconds, Notes = @Notes, IsActive = @IsActive, MaxConcurrent = @MaxConcurrent,
         UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
     WHERE ConnectionId = @ConnectionId AND RowVer = @RowVer;
     IF @@ROWCOUNT = 0 THROW 50409, N'Someone else changed this connection after you opened it. Reload and try again.', 1;
@@ -122,6 +125,20 @@ BEGIN
     SET ConnectionId = @ConnectionId, Model = IIF(@ConnectionId IS NULL, NULL, TRIM(@Model)), Disabled = 0,
         UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
     WHERE Purpose = @Purpose;
+END
+GO
+
+CREATE OR ALTER PROCEDURE ai.usp_Policy_SaveLimits
+    @LimitCalls      bit,
+    @MaxTasksPerUser smallint,
+    @ChangedBy       nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF @MaxTasksPerUser NOT BETWEEN 1 AND 50 THROW 50400, N'Allow 1 to 50 AI tasks per user.', 1;
+    UPDATE ai.Policy SET LimitCalls = @LimitCalls, MaxTasksPerUser = @MaxTasksPerUser, UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
+    WHERE PolicyId = 1;
+    IF @@ROWCOUNT = 0 THROW 50404, N'The AI switches are not set up yet (run tables\ai.tables.sql).', 1;
 END
 GO
 

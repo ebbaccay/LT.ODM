@@ -27,6 +27,36 @@ Screen ──► API endpoint ──► feature service (builds the data, see "D
                answer (JSON) ──► checked ──► screen / Pending record
 ```
 
+## AI tasks: slow AI work in the background
+
+The slow AI calls do not run inside the web request. The endpoint checks the request and the AI switches as before (so "AI is not set up" still answers 503 at once), records an **AI task** (`ai.Job`) and answers **202** with its id; a background worker in the API (`AiJobQueue`) runs the same feature code and stores the answer. The page follows the task (`GET /api/v1/ai/jobs/{id}` every 2 s) and shows the answer when it is done. Browser limits (Chrome stops a request after 5 minutes), a dropped connection, a reload or leaving the page therefore lose nothing.
+
+| Runs as an AI task | Lane |
+|---|---|
+| Style render | image |
+| Render description rewrite, BOM check *Explain with AI*, change summary *Summarize with AI*, Materials *Description reader*, Fill the gaps *Ask AI for the rest*, Import *Suggest with AI* | text |
+
+Smart search, image search, the Library assistant, Concept Studio, Cost Optimization and Market Trends still answer within the request. Image search *Build the index* already works in calls of about 45 s that the page repeats.
+
+- **Taking turns at the AI server:** up to 4 tasks per lane are in progress at once (`AiJobs:TextWorkers`, `AiJobs:ImageWorkers`, see [Configuration](../installation/04-configuration.md#ai)); how many of them reach each AI server at once is set by the [AI call limits](#ai-call-limits-taking-turns-at-the-ai-server). The tray shows a task waiting there as *Waiting for the AI server: number N in line*.
+- **Statuses:** Queued, Running, Done, Failed (with the message and the HTTP status the request would have answered with, e.g. 502 for an AI failure), Cancelled, Interrupted.
+- **Restart:** the work is held in the API's memory. A task still queued or running when the API stops (an app pool recycle, a release) is marked **Interrupted** at the next start and is **not re-run** (an AI call takes minutes and may have been stopped on purpose); the user starts it again.
+- **Who sees what:** a user sees and cancels their own tasks; an **Admin** sees and stops everyone's on Settings > AI connections > **AI tasks**. Someone else's task answers 404.
+- **AI task tray:** the render, rewrite, explanation and summary tasks also show in the tray (bottom-right). The tray asks the API for the user's tasks at sign-in, so tasks still running and answers not yet seen come back after a reload or on another PC; signing out only stops following them. Showing an answer on its page (or dismissing it) marks it seen.
+- **Kept:** finished tasks, with their input and answer (JSON), are deleted after **7 days** (Admin: *Keep finished tasks for*, 1-365 days, `ai.Policy.JobKeepDays`); the check runs at API start and every 6 hours. What they hold: [Data sent to AI services](data-sent.md#stored-while-ai-tasks-run).
+- **One API server** for now: tasks are claimed in memory. Several servers behind a load balancer would need tasks claimed through the database (planned when needed).
+
+## AI call limits: taking turns at the AI server
+
+A CPU AI server answers one question at a time; asked several things at once, it answers all of them slowly and they time out together. **Limit AI calls** (Settings > AI connections > Switches, on by default) makes every AI call wait for a place at its server, whether it comes from an AI task or from a page (Library assistant, Smart search, image search, Concept Studio, Cost Optimization, Market Trends):
+
+- **Calls at once** is set on each connection (1-64; 1 on new in-house connections, 4 on cloud ones). Servers are told apart by **address**: jobs pointing at the same server (text and images on one machine, or two connections to it) share one limit, the lowest of their connections.
+- **Who goes next** when a place frees up: a call someone is waiting for on the screen (any page) before an AI task; then users take turns (the user served longest ago first); each user's calls in the order they came. One person starting ten renders does not hold everyone else up.
+- **AI tasks per user** (default 3, 1-50): a user may have that many AI tasks waiting or running; one more answers *You already have 3 AI tasks waiting or running* (HTTP 429).
+- **Off:** every call goes to the server at once and users may start any number of tasks. Use it for a server that handles many calls well (a GPU server with vLLM, a cloud service), or set a higher *Calls at once* on its connection instead.
+- The **AI tasks** card shows each AI server's load: *N of M running, K waiting*.
+- In memory (`AiCallLimiter`), for one API server: a call waiting when the API restarts is lost like any request; an AI task becomes *Interrupted*.
+
 ## Jobs and connections
 
 | Job | Used by (today) |
@@ -48,6 +78,7 @@ Settings > AI connections > **Switches**, and the **Off** choice on each job. Th
 | Switch | Where stored | Effect |
 |---|---|---|
 | **AI features** (on/off) | `ai.Policy.AiEnabled` | Off: no AI call anywhere. AI pages show a red banner; rule-based parts (comparisons, BOM check findings, matching candidates) still work |
+| **Limit AI calls** | `ai.Policy.LimitCalls`, `MaxTasksPerUser`; `ai.Connections.MaxConcurrent` | On: each AI server gets its connection's *Calls at once*, the rest wait their turn, and each user may have *AI tasks per user* tasks waiting or running. Off: no limits. See [AI call limits](#ai-call-limits-taking-turns-at-the-ai-server) |
 | **Allow cloud AI services** | `ai.Policy.AllowCloud` | Off: a job whose service is Gemini, or a connection not marked "runs on the LT network", is **blocked**; in-house jobs still run. This is the switch that guarantees no data leaves LT |
 | Job **Off** | `ai.Purposes.Disabled` | That job makes no calls, not even through the app default. Shown only for jobs that have an app default (otherwise "Not set" already means off) |
 
@@ -78,7 +109,7 @@ The API's HTTP clients for AI have no timeout of their own: the connection's **t
 - It **stops with an error** ("the AI service's answer ran on") when one text value passes 3,000 characters (`OpenAiApi.MaxStringLength`; the app's longest field is 1,000): the model is stuck inside it and the JSON would never close. Seen when an instruction did not name the fields; every app prompt names them.
 - A leading `<think>` block is skipped; text after the JSON and code fences are dropped (`CleanJson`).
 - A server that ignores `stream: true` and answers in one piece is read the usual way.
-- **Progress for the browser:** a request with header `X-Ai-Progress: <random UUID>` (AI Studio sends one for summaries, BOM explanations and render prompt rewrites) gets a progress entry while it runs; the streamed text counts words into it (`AiProgress`, AsyncLocal for the request). The page polls `GET /api/v1/ai/progress/{id}` every 2 s: `{ phase: "waiting" | "writing", words, seconds }`, or 204 before the call starts and after it ends. Entries are per signed-in user and kept only in memory while the request runs.
+- **Progress for the browser:** while an [AI task](#ai-tasks-slow-ai-work-in-the-background) runs, the streamed text counts words into its progress entry (`AiProgress`, AsyncLocal for the task). `GET /api/v1/ai/jobs/{id}` returns it with the task: `{ phase: "waiting" | "writing", words, seconds }`, or none for images and before any text arrives. Kept in memory only while the task runs.
 
 **Test connection** calls `GET {endpoint}/models` and lists the models, so admins pick a model the service really has.
 
@@ -120,7 +151,7 @@ The API's HTTP clients for AI have no timeout of their own: the connection's **t
 | "The AI service could not answer" (502) | The provider returned an error: key, model, quota, or (images) no image access |
 | "took too long" (502) | Timeout (connection setting) |
 | "could not be reached" (502) | Network or firewall |
-| HTTP 429 | The per-user AI limit; wait a minute |
+| HTTP 429 | The per-user AI limit (10 calls a minute; wait a minute), or "You already have N AI tasks waiting or running" (wait for one to finish or cancel one) |
 | "... runs only on an OpenAI-compatible server" (502) | Vision or Embedding points at a Gemini connection; use the in-house server |
 | "The embedding model returns N numbers per text; image search needs a model with 1024" (502) | Pick a 1024-dimension embedding model (e.g. `qwen3-embedding:0.6b`, `bge-m3`) |
 
@@ -131,6 +162,8 @@ The API's HTTP clients for AI have no timeout of their own: the connection's **t
 | Contracts (jobs, connections, info) | `src/api/LT.ODM.Application/Ai/` |
 | Routed clients, Gemini and OpenAI-compatible calls, resolver, tester | `src/api/LT.ODM.Infrastructure/Ai/AiClients.cs`, `AiSettings.cs` |
 | Feature services | `src/api/LT.ODM.Application/StyleAi/` (assistant, comparer, render prompt, concept matcher, material reader, import code advisor, Fill the gaps AI step `GapAdvisor.cs`, image search `ImageSearch.cs`); built-in image model `src/api/LT.ODM.Infrastructure/Ai/OnnxImageEmbeddingModel.cs`; picture import `src/api/LT.ODM.Application/StyleLibrary/StyleImageImport.cs` with `src/api/LT.ODM.Infrastructure/Files/GarmentCropFinder.cs` and `GarmentCropper.cs` (upscaler); `src/api/LT.ODM.Infrastructure/Ai/` (concept draft, cost suggestions, trend analysis) |
+| AI call limits | `src/api/LT.ODM.Infrastructure/Ai/AiCallLimiter.cs` (places per server, turns), `src/api/LT.ODM.Application/Ai/AiCallContext.cs` (who calls: set per request in `Program.cs`, per task in `AiJobQueue`); `PUT /api/v1/admin/ai/limits`; `ai.usp_Policy_SaveLimits` |
+| AI tasks | `AiJobQueue.cs` and `AiJobEndpoints.cs` in `src/api/LT.ODM.Api/Jobs/` (queue, worker, 202 helper), `AiJobsController` (`/api/v1/ai/jobs`: mine, `{id}`, `{id}/cancel`, `{id}/seen`; Admin `/api/v1/admin/ai/jobs`, `keep-days`), contracts `src/api/LT.ODM.Application/Ai/AiJobs.cs`, `AiJobRepository.cs`; SQL `ai.Job` in `db/tables/ai.tables.sql`, `db/procedures/ai.jobs.procedures.sql`; browser `src/web/ltodm-web/src/app/core/ai/ai-jobs.service.ts` |
 | Endpoints | `AiStudioController` (`/api/v1/ai`), `ImageSearchController` (`/api/v1/ai/image-search`: `status`, `index`, `words`, `photo`, `similar/{styleId}`), `AiSettingsController` (`/api/v1/admin/ai`, switches: `PUT /api/v1/admin/ai/policy`), `StyleImportsController` (`.../codes/suggest`), `StyleGapsController` (`/api/v1/style-gaps/{field}/ask-ai`), Concept Studio, Cost Optimization, Market Trends controllers |
 | SQL | `db/tables/ai.tables.sql`, `db/procedures/ai.procedures.sql`, `style.ai.procedures.sql` (incl. `style.fn_ImageSlots`, `usp_ImageIndex_*`, `usp_ImageSearch`, `usp_ImageVector_*`, `usp_ImageVectorSearch`; tables `style.ImageIndex`, `style.ImageVector` in `style.tables.sql`), `mat.spec.procedures.sql`, `style.gaps.procedures.sql` (Fill the gaps: `style.GapSuggestion` holds AI answers) |
 | Server check | `tools/test-ai-server.ps1` (models, text JSON, vision, 1024-number embedding) |

@@ -726,7 +726,9 @@
       "existingMoved": "{{moved}} style(s) fixed.",
       "existingSkipped": "{{count}} changed since the check and were left alone: check again.",
       "libraryOnly": "Only styles in the library ({{count}} hidden)",
-      "savingProgress": "Saving {{done}} of {{total}}"
+      "savingProgress": "Saving {{done}} of {{total}}",
+      "noImageOnly": "Only styles without a picture ({{count}} hidden)",
+      "skipHasImage": "Has a picture: skipped"
     }
   },
   "shell": {
@@ -2709,7 +2711,21 @@
     "parentsOnlyHint": "Only styles that were not reused from another: carry-overs and variants are hidden and counted on their first style (+N versions; see its History tab). Untick to list every version.",
     "versionsFolded": "+{{ count }} versions",
     "versionsHiddenHint": "Versions (carry-overs, variants) are hidden by \"Parent styles only\". One of them may match.",
-    "showVersions": "Show versions too"
+    "showVersions": "Show versions too",
+    "searching": "Searching…",
+    "sort": {
+      "label": "Sort by",
+      "by": "Sort by {{ column }}",
+      "default": "Newest season first",
+      "style": "Style / model",
+      "customer": "Customer",
+      "season": "Season",
+      "businessUnit": "Business unit",
+      "productType": "Product type",
+      "colorways": "Colorways",
+      "bomLines": "BOM lines",
+      "changed": "Last changed"
+    }
   },
   "ai": {
     "tasks": {
@@ -2727,6 +2743,7 @@
       "failedToast": "{{ name }} did not finish.",
       "wholeLibrary": "whole library",
       "reading": "Reading the request… {{ minutes }} min so far",
+      "queued": "Waiting for the AI server: number {{ ahead }} in line",
       "writing": "Writing… {{ words }} words so far",
       "words": "{{ count }} words",
       "minutesLeft": "About {{ left }} min left",
@@ -3596,6 +3613,42 @@
     "usedBy": "Used by",
     "unused": "no job",
     "changedBy": "Changed by {{ user }} on {{ date }}",
+    "tasks": {
+      "title": "AI tasks",
+      "hint": "Slow AI work every user started (renders, summaries, explanations, material readings, Fill the gaps, import suggestions). It runs on the server one at a time per AI server, so leaving a page or a dropped connection loses nothing. Tasks still running when the server restarts are marked Interrupted and must be started again.",
+      "status": "Status",
+      "statusName": {
+        "all": "All",
+        "Active": "Queued or running",
+        "Queued": "Queued",
+        "Running": "Running",
+        "Done": "Done",
+        "Failed": "Failed",
+        "Cancelled": "Stopped",
+        "Interrupted": "Interrupted"
+      },
+      "kind": {
+        "render": "Style render",
+        "renderPrompt": "Render description rewrite",
+        "bomExplain": "BOM check explanation",
+        "compareSummary": "Change summary",
+        "materialRead": "Material description reading",
+        "gapsAskAi": "Fill the gaps: Ask AI",
+        "importCodes": "Import code suggestions"
+      },
+      "load": "{{ running }} of {{ limit }} running, {{ waiting }} waiting",
+      "refresh": "Refresh",
+      "none": "No AI tasks with this status.",
+      "took": "{{ seconds }} s",
+      "cancelledBy": "stopped by {{ user }}",
+      "stop": "Stop",
+      "stopTitle": "Stop this AI task?",
+      "stopMessage": "{{ user }}'s {{ task }} stops now. Nothing it has not finished is saved.",
+      "more": "Show more ({{ shown }} of {{ total }})",
+      "keepDays": "Keep finished tasks for",
+      "days": "days (1-365); older ones are deleted with their answers",
+      "keepSaved": "Finished AI tasks are kept for {{ days }} days."
+    },
     "securityNote": "API keys are encrypted before they are saved and never shown again; only their last 4 characters are displayed. Back up the server's App_Data/keys folder with the database, or saved keys must be entered again after a restore.",
     "name": "Name",
     "namePlaceholder": "e.g. LT AI server, Gemini (cloud)",
@@ -3608,6 +3661,8 @@
     "inHouseHint": "Untick if this address is an outside service; AI pages then warn that data leaves LT.",
     "geminiCloud": "Gemini is always a cloud service.",
     "timeout": "Timeout (seconds)",
+    "maxConcurrent": "Calls at once",
+    "maxConcurrentHint": "While AI call limits are on. 1 for a server without a GPU; 4-16 for a GPU server with vLLM or a cloud service. Connections with the same address share the lowest.",
     "notes": "Notes",
     "notesPlaceholder": "e.g. GPU server in the Phnom Penh data room; contact IT",
     "active": "Active (jobs can use it)",
@@ -3619,6 +3674,16 @@
       "aiOff": "Not running: all AI is turned off",
       "jobOff": "Not running: this job is turned off",
       "cloudBlocked": "Blocked: its service is in the cloud and cloud AI is not allowed"
+    },
+    "limits": {
+      "title": "Limit AI calls",
+      "on": "On: each AI server gets at most its connection's calls at once; the others wait their turn, quick questions (assistant, search) first and users taking turns. Each user may have a limited number of AI tasks waiting or running.",
+      "off": "Off: every AI call goes to the server at once, and users may start any number of AI tasks. Use it for a server that handles many calls (GPU, cloud).",
+      "perUser": "AI tasks per user",
+      "perUserHint": "Waiting or running at once (1-50)",
+      "perUserRange": "Allow 1 to 50 AI tasks per user.",
+      "none": "No limit",
+      "saved": "AI call limits saved."
     },
     "switches": {
       "title": "Switches",

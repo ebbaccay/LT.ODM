@@ -40,7 +40,7 @@ public sealed class AiSettingsController(
         return new AiSettingsDto(
             connections.Select(c => new AiConnectionDto(c.ConnectionId, c.Name, c.Kind, c.Endpoint, c.ApiKeyProtected is not null, c.ApiKeyHint, c.InHouse,
                 c.TimeoutSeconds, c.Notes, c.IsActive, purposes.Where(p => p.ConnectionId == c.ConnectionId).Select(p => p.Purpose).ToList(), c.UpdatedBy,
-                c.UpdatedUtc, c.RowVer)).ToList(),
+                c.UpdatedUtc, c.RowVer, c.MaxConcurrent)).ToList(),
             AiPurposes.All.Select(p => purposes.FirstOrDefault(x => x.Purpose == p) is { } x
                 ? new AiPurposeDto(p, AiPurposes.InUse.Contains(p), x.ConnectionId, x.ConnectionId is { } id ? names.GetValueOrDefault(id) : null, x.Model,
                     x.UpdatedBy, x.UpdatedUtc, x.Disabled, blocked[p])
@@ -96,6 +96,25 @@ public sealed class AiSettingsController(
             await settings.SavePolicyAsync(request.AiEnabled, request.AllowCloud, CurrentUserName, ct);
             return NoContent();
         });
+
+    /// <summary>
+    /// AI call limits on or off (calls at once per AI server, set on each connection) and how many AI tasks one user may
+    /// have queued or running. Applies to the next call (within a minute).
+    /// </summary>
+    [HttpPut("limits")]
+    public Task<IActionResult> SaveLimits(SaveAiLimitsRequest request, CancellationToken ct)
+    {
+        if (request.MaxTasksPerUser is < 1 or > 50)
+            return Task.FromResult<IActionResult>(ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["maxTasksPerUser"] = ["Allow 1 to 50 AI tasks per user."],
+            })));
+        return Run(async () =>
+        {
+            await settings.SaveLimitsAsync(request.LimitCalls, request.MaxTasksPerUser, CurrentUserName, ct);
+            return NoContent();
+        });
+    }
 
     /// <summary>
     /// One harmless call (the model list) to a saved connection or the form's draft. A blank API key uses the saved one.

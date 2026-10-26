@@ -90,6 +90,9 @@ export interface StyleListFilter {
   pictures?: string;
   /** Fold a version under the style it came from when that style is in the results too (item.versions counts them). */
   parentsOnly?: boolean;
+  /** style, customer, season, businessUnit, productType, colorways, bomLines or changed; empty = newest season first. */
+  sort?: string;
+  desc?: boolean;
   skip?: number;
   take?: number;
 }

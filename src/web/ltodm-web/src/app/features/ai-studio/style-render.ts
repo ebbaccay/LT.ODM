@@ -162,7 +162,7 @@ export class StyleRenderPage implements OnInit {
     if (!b || this.rendering()) return;
     const useSketch = this.useSketch() && b.sketchUsable;
     this.tasks.run('render', `render:${b.style.styleId}`, b.style.styleNo,
-      () => this.svc.render(b.style.styleId, b.colorwayId, this.prompt().trim(), useSketch),
+      (taskId) => this.svc.render(b.style.styleId, b.colorwayId, this.prompt().trim(), useSketch, taskId),
       { estimateSeconds: useSketch ? b.estimate?.withSketchSeconds : b.estimate?.withoutSketchSeconds });
   }
 

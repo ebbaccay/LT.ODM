@@ -1,7 +1,8 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '@env/environment';
 import { Observable, shareReplay } from 'rxjs';
+import { AiJobsService } from '../../core/ai/ai-jobs.service';
 import { Paged, StyleListItem } from '../style-library/style-library.service';
 
 // AI Studio (/api/v1/ai): smart search, change summary, BOM check and style renders on the Style Library.
@@ -61,6 +62,8 @@ export interface AiConnectionItem {
   timeoutSeconds: number;
   notes: string | null;
   isActive: boolean;
+  /** Calls this server gets at once while AI call limits are on. */
+  maxConcurrent: number;
   usedBy: AiPurpose[];
   updatedBy: string;
   updatedUtc: string;
@@ -85,7 +88,15 @@ export interface AiSettings {
   fallbacks: { purpose: AiPurpose; provider: string; model: string; isConfigured: boolean; leavesNetwork: boolean }[];
   kinds: AiConnectionKind[];
   /** The central switches. allowCloud false = nothing is sent to services outside LT. */
-  policy: { aiEnabled: boolean; allowCloud: boolean; updatedBy: string | null; updatedUtc: string | null };
+  policy: {
+    aiEnabled: boolean;
+    allowCloud: boolean;
+    updatedBy: string | null;
+    updatedUtc: string | null;
+    /** AI call limits: calls at once per AI server (set per connection) and AI tasks per user. */
+    limitCalls: boolean;
+    maxTasksPerUser: number;
+  };
 }
 
 /** apiKey: blank keeps the saved key; clearApiKey removes it. */
@@ -100,6 +111,7 @@ export interface SaveAiConnection {
   timeoutSeconds: number;
   notes: string | null;
   isActive: boolean;
+  maxConcurrent: number;
 }
 
 export interface AiTestResult {
@@ -396,17 +408,17 @@ export interface RenderBrief {
  * writing = the answer is coming in (words so far, field names included). Not a percentage.
  */
 export interface AiProgress {
-  phase: 'waiting' | 'writing';
+  /** queued: waiting for the AI server (AI call limits), ahead = calls before it. */
+  phase: 'queued' | 'waiting' | 'writing';
   words: number;
   seconds: number;
+  ahead?: number | null;
 }
-
-/** Sends the id the API files the call's progress under (followed with AiStudioService.progress). */
-const followed = (progressId?: string) => (progressId ? { headers: new HttpHeaders({ 'X-Ai-Progress': progressId }) } : {});
 
 @Injectable({ providedIn: 'root' })
 export class AiStudioService {
   private readonly http = inject(HttpClient);
+  private readonly jobs = inject(AiJobsService);
   private readonly api = `${environment.apiBaseUrl}/api/v1/ai`;
 
   private status$?: Observable<AiStatus>;
@@ -439,8 +451,9 @@ export class AiStudioService {
     return this.http.get<StyleCompare>(`${this.api}/style-compare`, { params });
   }
 
-  summarize(styleId: number, fromStyleId: number | null, progressId?: string): Observable<CompareSummary> {
-    return this.http.post<CompareSummary>(`${this.api}/style-compare/summary`, { styleId, fromStyleId }, followed(progressId));
+  /** An AI job: the answer once the job has finished (taskId: the tray's id for the run, see AiJobsService.describe). */
+  summarize(styleId: number, fromStyleId: number | null, taskId?: string): Observable<CompareSummary> {
+    return this.jobs.run(this.http.post<{ jobId: number }>(`${this.api}/style-compare/summary`, { styleId, fromStyleId }, this.jobs.options(taskId)), taskId);
   }
 
   bomCheck(query: BomCheckQuery): Observable<BomCheck> {
@@ -449,8 +462,9 @@ export class AiStudioService {
     return this.http.get<BomCheck>(`${this.api}/bom-check`, { params });
   }
 
-  explain(query: BomCheckQuery, progressId?: string): Observable<BomCheckExplanation> {
-    return this.http.post<BomCheckExplanation>(`${this.api}/bom-check/explain`, query, followed(progressId));
+  /** An AI job (see summarize). */
+  explain(query: BomCheckQuery, taskId?: string): Observable<BomCheckExplanation> {
+    return this.jobs.run(this.http.post<{ jobId: number }>(`${this.api}/bom-check/explain`, query, this.jobs.options(taskId)), taskId);
   }
 
   renderBrief(styleId: number, colorwayId: number | null): Observable<RenderBrief> {
@@ -458,17 +472,14 @@ export class AiStudioService {
     return this.http.get<RenderBrief>(`${this.api}/style-render/${styleId}`, { params });
   }
 
-  writePrompt(styleId: number, colorwayId: number | null, progressId?: string): Observable<{ prompt: string }> {
-    return this.http.post<{ prompt: string }>(`${this.api}/style-render/${styleId}/prompt`, { colorwayId }, followed(progressId));
+  /** An AI job (see summarize). */
+  writePrompt(styleId: number, colorwayId: number | null, taskId?: string): Observable<{ prompt: string }> {
+    return this.jobs.run(this.http.post<{ jobId: number }>(`${this.api}/style-render/${styleId}/prompt`, { colorwayId }, this.jobs.options(taskId)), taskId);
   }
 
-  /** Progress of a running call sent with this id; null before it starts and after it ends. */
-  progress(progressId: string): Observable<AiProgress | null> {
-    return this.http.get<AiProgress | null>(`${this.api}/progress/${progressId}`);
-  }
-
-  render(styleId: number, colorwayId: number | null, prompt: string, useSketch: boolean): Observable<StyleRender> {
-    return this.http.post<StyleRender>(`${this.api}/style-render/${styleId}`, { colorwayId, prompt, useSketch });
+  /** An AI job on the image lane (see summarize). */
+  render(styleId: number, colorwayId: number | null, prompt: string, useSketch: boolean, taskId?: string): Observable<StyleRender> {
+    return this.jobs.run(this.http.post<{ jobId: number }>(`${this.api}/style-render/${styleId}`, { colorwayId, prompt, useSketch }, this.jobs.options(taskId)), taskId);
   }
 
   deleteRender(styleId: number, renderId: number): Observable<unknown> {
@@ -537,6 +548,11 @@ export class AiStudioService {
   /** The central switches. */
   savePolicy(aiEnabled: boolean, allowCloud: boolean): Observable<unknown> {
     return this.http.put(`${this.admin}/policy`, { aiEnabled, allowCloud });
+  }
+
+  /** AI call limits on or off, and how many AI tasks one user may have queued or running. */
+  saveLimits(limitCalls: boolean, maxTasksPerUser: number): Observable<unknown> {
+    return this.http.put(`${this.admin}/limits`, { limitCalls, maxTasksPerUser });
   }
 
   /** Tests a saved connection or the form's draft (a blank key uses the saved one). */

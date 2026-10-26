@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.Ai;
@@ -129,9 +130,10 @@ public sealed class AiStudioTests(ApiFactory factory) : IClassFixture<ApiFactory
         Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsJsonAsync("/api/v1/ai/style-render/7", new { useSketch = false })).StatusCode);
 
         var merchandiser = await SignInAsync("Merchandiser");
-        var response = await merchandiser.PostAsJsonAsync("/api/v1/ai/style-render/7", new { prompt = "A plain grey adidas hoodie", useSketch = false });
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var render = await response.Content.ReadFromJsonAsync<StyleRenderDto>();
+        var job = await AiJobsTests.FinishedAsync(merchandiser,
+            await merchandiser.PostAsJsonAsync("/api/v1/ai/style-render/7", new { prompt = "A plain grey adidas hoodie", useSketch = false }));
+        Assert.Equal((AiJobStatuses.Done, AiJobLanes.Image), (job.Status, job.Lane));
+        var render = job.Result!.Value.Deserialize<StyleRenderDto>(new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
         Assert.StartsWith("/api/v1/styles/images/", render!.ImageUrl);
         Assert.DoesNotContain("adidas", render.Prompt, StringComparison.OrdinalIgnoreCase);   // brand words never reach the image model
         Assert.Equal(HttpStatusCode.OK, (await merchandiser.GetAsync(render.ImageUrl)).StatusCode);

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using LT.ODM.Api.Jobs;
 using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.Admin;
 using LT.ODM.Application.Ai;
@@ -337,21 +338,15 @@ public sealed class StyleImportsController(IStyleWorkbookReader reader, IStyleIm
         => i.List is not null && ImportCodeLists.All.Contains(i.List) && !string.IsNullOrWhiteSpace(i.Value) && !string.IsNullOrWhiteSpace(i.Code)
            && i.Value.Length <= 150 && i.Code.Trim().Length <= 64;
 
-    /// <summary>AI suggestions (Text job) for the values the spelling rules could not match. Nothing is changed until mapped.</summary>
+    /// <summary>AI suggestions (Text job) for the values the spelling rules could not match. Nothing is changed until mapped. An AI job: 202 with its id.</summary>
     [HttpPost("{batchId:int}/codes/suggest")]
     [EnableRateLimiting(RateLimitPolicies.Ai)]
-    public async Task<IActionResult> SuggestCodes(int batchId, [FromServices] IAiJsonClient ai, [FromServices] ImportCodeAdvisor advisor, CancellationToken ct)
+    public async Task<IActionResult> SuggestCodes(int batchId, [FromServices] IAiJsonClient ai, [FromServices] AiJobQueue jobs, CancellationToken ct)
     {
         if (await ai.GetInfoAsync(ct) is { IsConfigured: false } info)
             return Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: AiUnavailable.Message("AI suggestions", info));
-        try
-        {
-            return Ok(await advisor.SuggestAsync(await imports.GetNewCodesAsync(batchId, ct), ct));
-        }
-        catch (AiServiceException ex)
-        {
-            return Problem(statusCode: StatusCodes.Status502BadGateway, title: ex.Message);
-        }
+        return await this.QueueAiJobAsync(jobs, AiJobKinds.ImportCodes, AiJobLanes.Text, new { batchId }, async (sp, jct) =>
+            await sp.GetRequiredService<ImportCodeAdvisor>().SuggestAsync(await sp.GetRequiredService<IStyleImportRepository>().GetNewCodesAsync(batchId, jct), jct), ct);
     }
 
     private const int MaxMappingChars = 64 * 1024;

@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '@env/environment';
 import { Observable } from 'rxjs';
+import { AiJobsService } from '../../core/ai/ai-jobs.service';
 import { Paged } from '../style-library/style-library.service';
 
 // Materials (/api/v1/materials): the BOM seen by material. Read only; same readers as Styles.
@@ -203,6 +204,7 @@ export interface MaterialSpecPage {
 @Injectable({ providedIn: 'root' })
 export class MaterialsService {
   private readonly http = inject(HttpClient);
+  private readonly jobs = inject(AiJobsService);
   private readonly api = `${environment.apiBaseUrl}/api/v1/materials`;
 
   list(filter: MaterialListFilter): Observable<Paged<MaterialListItem>> {
@@ -250,9 +252,12 @@ export class MaterialsService {
     return this.http.get<MaterialSpec>(`${this.specsApi}/${materialId}`);
   }
 
-  /** Reads the next batch (batchSize) of unread or changed descriptions in the scope, or the chosen materials (at most batchSize; read again if read). One AI call. */
+  /**
+   * Reads the next batch (batchSize) of unread or changed descriptions in the scope, or the chosen materials (at most batchSize;
+   * read again if read). One AI call, as an AI job: the readings are stored even if the page is left before it finishes.
+   */
   readSpecs(contentClass: string | null, materialType: string | null, materialIds?: number[]): Observable<{ read: number; remaining: number }> {
-    return this.http.post<{ read: number; remaining: number }>(`${this.specsApi}/read`, { contentClass, materialType, materialIds: materialIds ?? null });
+    return this.jobs.run(this.http.post<{ jobId: number }>(`${this.specsApi}/read`, { contentClass, materialType, materialIds: materialIds ?? null }));
   }
 
   reviewSpecs(materialIds: number[], status: 'Accepted' | 'Rejected' | 'Pending'): Observable<{ updated: number }> {

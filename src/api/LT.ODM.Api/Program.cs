@@ -7,6 +7,7 @@ using LT.ODM.Api.Auth;
 using LT.ODM.Api.Controllers;
 using LT.ODM.Api.Health;
 using LT.ODM.Api.Hubs;
+using LT.ODM.Api.Jobs;
 using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.Admin;
 using LT.ODM.Application.Ai;
@@ -75,7 +76,10 @@ builder.Services.AddSingleton<IAiSecretProtector, DataProtectionAiSecretProtecto
 
 // Authentication: short-lived JWT access tokens + rotating refresh tokens (HttpOnly cookie).
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<AiProgressRegistry>();
+// Slow AI work (renders, summaries, readers) runs in the background: endpoints answer 202 with a job id (AiJobQueue).
+builder.Services.Configure<AiJobOptions>(builder.Configuration.GetSection(AiJobOptions.SectionName));
+builder.Services.AddSingleton<AiJobQueue>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<AiJobQueue>());
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
@@ -257,16 +261,13 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseRateLimiter();
 
-// A browser following a slow AI call sends X-Ai-Progress: <random id>; the call's progress is then readable at
-// GET api/v1/ai/progress/{id} by the same user while it runs (AiProgressController).
+// AI call limits take turns by user: AI calls made while handling a request are interactive calls for the signed-in user.
 app.Use(async (context, next) =>
 {
-    var id = context.Request.Headers[AiProgressRegistry.Header].ToString();
-    if (AiProgressRegistry.Owner(context.User) is { } owner && AiProgressRegistry.ValidId(id))
-        await context.RequestServices.GetRequiredService<AiProgressRegistry>().FollowAsync(owner, id, () => next());
-    else
-        await next();
+    AiCallContext.Set(context.User.FindFirst("sub")?.Value is { } user ? new AiCaller(user, AiCallPriority.Interactive) : null);
+    await next();
 });
+
 app.UseAuthorization();
 
 app.MapControllers();

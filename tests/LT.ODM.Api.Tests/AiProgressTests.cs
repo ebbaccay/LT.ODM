@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
-using LT.ODM.Api.Controllers;
 using LT.ODM.Application.Ai;
 using LT.ODM.Application.StyleAi;
 using LT.ODM.Infrastructure.Ai;
@@ -55,28 +54,6 @@ public sealed class AiProgressTests
         finally { AiProgress.Follow(null); }
 
         Assert.Equal(("writing", 3), (entry.Snapshot().Phase, entry.Snapshot().Words));
-    }
-
-    [Fact]
-    public async Task A_followed_request_is_visible_to_its_user_only_while_it_runs()
-    {
-        var registry = new AiProgressRegistry();
-        var id = Guid.NewGuid().ToString();
-        AiProgressEntry? seenInside = null, seenByOther = null;
-
-        await registry.FollowAsync("user-1", id, () =>
-        {
-            AiProgress.Current!.Wrote("one two");
-            seenInside = registry.Find("user-1", id.ToUpperInvariant());
-            seenByOther = registry.Find("user-2", id);
-            return Task.CompletedTask;
-        });
-
-        Assert.Equal(2, seenInside!.Snapshot().Words);
-        Assert.Null(seenByOther);
-        Assert.Null(registry.Find("user-1", id));     // gone once the request ended
-        Assert.Null(AiProgress.Current);
-        Assert.False(AiProgressRegistry.ValidId("../../etc"));
     }
 
     [Fact]

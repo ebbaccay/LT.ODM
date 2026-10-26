@@ -14,6 +14,7 @@ import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { ConfirmDialogService } from '@tms/shared/confirm-dialog/confirm-dialog.service';
 import { Modal } from '@tms/shared/ui/modal';
 import { problemMessage } from '../../core/auth/auth.service';
+import { AiTasksAdmin } from './ai-tasks-admin';
 import { AI_PURPOSES, AiConnectionItem, AiConnectionKind, AiPurpose, AiSettings, AiStudioService, AiTestResult } from './ai-studio.service';
 
 interface ConnectionForm {
@@ -26,6 +27,7 @@ interface ConnectionForm {
   timeoutSeconds: number;
   notes: string;
   isActive: boolean;
+  maxConcurrent: number;
 }
 
 interface PurposeDraft {
@@ -53,7 +55,7 @@ const ENDPOINTS: Record<AiConnectionKind, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe, NgIcon, Modal, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports,
-    HlmSpinnerImports, TranslocoPipe,
+    HlmSpinnerImports, TranslocoPipe, AiTasksAdmin,
   ],
   providers: [
     provideIcons({ lucideCircleCheck, lucideCloud, lucideCpu, lucidePencil, lucidePlug, lucidePlus, lucideServer, lucideTrash2, lucideTriangleAlert }),
@@ -211,17 +213,46 @@ export class AiConnections implements OnInit {
     });
   }
 
+  /** AI call limits: on/off (no confirmation: both directions are safe) and AI tasks per user. */
+  setLimits(change: { limitCalls?: boolean; maxTasksPerUser?: number }): void {
+    const current = this.settings()?.policy;
+    if (!current || this.savingPolicy()) return;
+    const limitCalls = change.limitCalls ?? current.limitCalls;
+    const maxTasksPerUser = Math.round(change.maxTasksPerUser ?? current.maxTasksPerUser);
+    if (maxTasksPerUser < 1 || maxTasksPerUser > 50) {
+      toast.error(this.t('aiSettings.limits.perUserRange'));
+      this.load();
+      return;
+    }
+    this.savingPolicy.set(true);
+    this.svc.saveLimits(limitCalls, maxTasksPerUser).subscribe({
+      next: () => {
+        this.savingPolicy.set(false);
+        toast.success(this.t('aiSettings.limits.saved'));
+        this.load();
+      },
+      error: (e) => {
+        this.savingPolicy.set(false);
+        toast.error(problemMessage(e));
+        this.load();
+      },
+    });
+  }
+
   // ── Connections ────────────────────────────────────────────
 
   private blank(): ConnectionForm {
-    return { name: '', kind: 'OpenAiCompatible', endpoint: '', apiKey: '', clearApiKey: false, inHouse: true, timeoutSeconds: 120, notes: '', isActive: true };
+    return { name: '', kind: 'OpenAiCompatible', endpoint: '', apiKey: '', clearApiKey: false, inHouse: true, timeoutSeconds: 120, notes: '', isActive: true, maxConcurrent: 1 };
   }
 
   openConnection(c: AiConnectionItem | null): void {
     this.editing.set(c);
     this.form.set(
       c
-        ? { name: c.name, kind: c.kind, endpoint: c.endpoint, apiKey: '', clearApiKey: false, inHouse: c.inHouse, timeoutSeconds: c.timeoutSeconds, notes: c.notes ?? '', isActive: c.isActive }
+        ? {
+            name: c.name, kind: c.kind, endpoint: c.endpoint, apiKey: '', clearApiKey: false, inHouse: c.inHouse, timeoutSeconds: c.timeoutSeconds,
+            notes: c.notes ?? '', isActive: c.isActive, maxConcurrent: c.maxConcurrent ?? 1,
+          }
         : this.blank(),
     );
     this.testResult.set(null);
@@ -270,7 +301,7 @@ export class AiConnections implements OnInit {
       .saveConnection(c?.connectionId ?? null, {
         rowVer: c?.rowVer ?? null, name: f.name.trim(), kind: f.kind, endpoint: f.endpoint.trim(), apiKey: f.apiKey.trim() || null,
         clearApiKey: f.clearApiKey, inHouse: f.kind !== 'Gemini' && f.inHouse, timeoutSeconds: Number(f.timeoutSeconds) || 120,
-        notes: f.notes.trim() || null, isActive: f.isActive,
+        notes: f.notes.trim() || null, isActive: f.isActive, maxConcurrent: Math.round(Number(f.maxConcurrent)) || 1,
       })
       .subscribe({
         next: (r) => {

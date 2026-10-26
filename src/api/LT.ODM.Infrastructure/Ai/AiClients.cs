@@ -512,7 +512,7 @@ public static partial class OpenAiApi
 }
 
 /// <summary>Text answers from the service set for the "text" job (Settings > AI connections, else appsettings).</summary>
-public sealed class RoutedAiJsonClient(HttpClient http, IAiConnectionResolver resolver, ILogger<RoutedAiJsonClient> logger) : IAiJsonClient
+public sealed class RoutedAiJsonClient(HttpClient http, IAiConnectionResolver resolver, AiCallLimiter limiter, ILogger<RoutedAiJsonClient> logger) : IAiJsonClient
 {
     public async Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default) => AiConnectionInfo.Of(await resolver.ExplainAsync(AiPurposes.Text, ct));
 
@@ -521,6 +521,7 @@ public sealed class RoutedAiJsonClient(HttpClient http, IAiConnectionResolver re
     {
         var c = await resolver.ResolveAsync(AiPurposes.Text, ct);
         if (!AiHttp.Info(c).IsConfigured) throw new AiServiceException("AI text answers are not set up on this server.");
+        using var place = await limiter.EnterAsync(c!, ct);
         return c!.Kind == AiConnectionKinds.Gemini
             ? await GeminiApi.GenerateJsonAsync(http, c, logger, purpose, systemInstruction, userText, schema, temperature, ct)
             : await OpenAiApi.GenerateJsonAsync(http, c, logger, purpose, systemInstruction, userText, schema, temperature, ct, maxTokens);
@@ -528,8 +529,8 @@ public sealed class RoutedAiJsonClient(HttpClient http, IAiConnectionResolver re
 }
 
 /// <summary>Images from the service set for the "image" job. Only Gemini uses the reference image (the sketch).</summary>
-public sealed class RoutedAiImageClient(HttpClient http, IAiConnectionResolver resolver, IOptions<OpenAiCompatibleOptions> openAi, ILogger<RoutedAiImageClient> logger)
-    : IAiImageClient
+public sealed class RoutedAiImageClient(
+    HttpClient http, IAiConnectionResolver resolver, AiCallLimiter limiter, IOptions<OpenAiCompatibleOptions> openAi, ILogger<RoutedAiImageClient> logger) : IAiImageClient
 {
     /// <summary>OpenAI-compatible servers take the sketch too (images/edits) unless ImageSketchStrength is 0.</summary>
     public async Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default)
@@ -543,6 +544,7 @@ public sealed class RoutedAiImageClient(HttpClient http, IAiConnectionResolver r
     {
         var c = await resolver.ResolveAsync(AiPurposes.Image, ct);
         if (!AiHttp.Info(c).IsConfigured) throw new AiServiceException("Image generation is not set up on this server.");
+        using var place = await limiter.EnterAsync(c!, ct);
         if (c!.Kind == AiConnectionKinds.Gemini) return await GeminiApi.GenerateImageAsync(http, c, logger, purpose, prompt, reference, ct);
         return reference is not null && SketchStrength > 0
             ? await OpenAiApi.EditImageAsync(http, c, openAi.Value.ImageSize, SketchStrength, logger, purpose, prompt, reference, ct, openAi.Value.ImageFitShape)
@@ -556,7 +558,7 @@ public sealed class RoutedAiImageClient(HttpClient http, IAiConnectionResolver r
 /// Picture reading from the service set for the "vision" job. In-house (OpenAI-compatible) servers only: image search must
 /// not send library pictures to a cloud service, and no Gemini path is built for it.
 /// </summary>
-public sealed class RoutedAiVisionClient(HttpClient http, IAiConnectionResolver resolver, ILogger<RoutedAiVisionClient> logger) : IAiVisionClient
+public sealed class RoutedAiVisionClient(HttpClient http, IAiConnectionResolver resolver, AiCallLimiter limiter, ILogger<RoutedAiVisionClient> logger) : IAiVisionClient
 {
     /// <summary>Longest side sent to the model: enough to see garment details, and far fewer image tokens on a CPU server.</summary>
     public const int MaxDimension = 768;
@@ -579,17 +581,23 @@ public sealed class RoutedAiVisionClient(HttpClient http, IAiConnectionResolver 
             throw new AiServiceException("The picture could not be read.", ex);
         }
         var sent = new ReferenceImage(small, ConceptStudioRules.ContentType(ConceptStudioRules.Extension(smallKind)));
+        using var place = await limiter.EnterAsync(c, ct);
         return await OpenAiApi.DescribeJsonAsync(http, c, logger, purpose, systemInstruction, userText, sent, schema, ct);
     }
 }
 
 /// <summary>Vectors from the service set for the "embedding" job (in-house OpenAI-compatible servers only).</summary>
-public sealed class RoutedAiEmbeddingClient(HttpClient http, IAiConnectionResolver resolver, ILogger<RoutedAiEmbeddingClient> logger) : IAiEmbeddingClient
+public sealed class RoutedAiEmbeddingClient(HttpClient http, IAiConnectionResolver resolver, AiCallLimiter limiter, ILogger<RoutedAiEmbeddingClient> logger)
+    : IAiEmbeddingClient
 {
     public async Task<AiProviderInfo> GetInfoAsync(CancellationToken ct = default) => AiConnectionInfo.Of(await resolver.ExplainAsync(AiPurposes.Embedding, ct));
 
     public async Task<float[]> EmbedAsync(string purpose, string text, CancellationToken ct = default)
-        => await OpenAiApi.EmbedAsync(http, await AiRouting.InHouseAsync(resolver, AiPurposes.Embedding, "Embeddings", ct), logger, purpose, text, ct);
+    {
+        var c = await AiRouting.InHouseAsync(resolver, AiPurposes.Embedding, "Embeddings", ct);
+        using var place = await limiter.EnterAsync(c, ct);
+        return await OpenAiApi.EmbedAsync(http, c, logger, purpose, text, ct);
+    }
 }
 
 internal static class AiRouting

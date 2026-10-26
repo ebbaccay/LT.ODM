@@ -32,7 +32,7 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory, Styl
         using var grid = await conn.QueryMultipleAsync(Proc("style.usp_Style_List", new
         {
             q.Search, CustomerCode = q.Customer, SeasonCode = q.Season, BusinessUnitCode = q.BusinessUnit, ProductTypeCode = q.ProductType,
-            WeaveTypeCode = q.WeaveType, q.Gender, q.Material, q.IsActive, q.Looks, q.HasPicture, q.ParentsOnly, q.Skip, q.Take,
+            WeaveTypeCode = q.WeaveType, q.Gender, q.Material, q.IsActive, q.Looks, q.HasPicture, q.ParentsOnly, q.Sort, q.Desc, q.Skip, q.Take,
         }, ct));
         var rows = (await grid.ReadAsync<ListRow>()).ToList();
         var matches = (await grid.ReadAsync<MatchRow>()).ToLookup(m => m.StyleId);

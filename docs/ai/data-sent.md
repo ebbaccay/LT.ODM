@@ -169,6 +169,10 @@ Sensitivity is LT's view of the data: **Low** (reference lists and generic text)
 
 The **Design prompt** dialog on a style page only builds text from the style's data ([Styles](../components/styles.md#design-prompt)). LT ODM sends nothing to any service. What reaches an outside design tool (StyTrix, Style3D, …) is whatever the user pastes or attaches there, so the same care applies as for any customer information: the prompt leaves out customer, model and style numbers, suppliers and costs, but fabric, colour and trim details still describe a customer's style.
 
+## Stored while AI tasks run
+
+Slow AI work runs as [AI tasks](overview.md#ai-tasks-slow-ai-work-in-the-background) (renders, summaries, explanations, material readings, Fill the gaps, import suggestions). Each task is kept in LT's database (`ai.Job`) with who started it, the request (style id, colorway, render description, BOM check scope, the material or gap scope, the import batch) and the answer the AI's reply became (summary, explanation, rewritten description, render reference, suggestions). Nothing more is sent to the AI service than the feature itself sends (see each feature above). Finished tasks are deleted after 7 days by default (Admin: Settings > AI connections > AI tasks, 1-365 days).
+
 ## Keeping data inside LT
 
 **Straight away:** in Settings > AI connections > Switches, turn **Allow cloud AI services** off. From the next call, no job sends anything to Gemini or to any connection not marked "runs on the LT network", whatever the jobs or the appsettings fallback say; those features say that cloud AI is not allowed and that no data was sent. To stop all AI, turn **AI features** off; to stop one job, set it to **Off**. New installs start with cloud AI not allowed.

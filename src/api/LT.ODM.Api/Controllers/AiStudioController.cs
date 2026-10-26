@@ -1,3 +1,4 @@
+using LT.ODM.Api.Jobs;
 using LT.ODM.Application.Ai;
 using LT.ODM.Application.StyleAi;
 using LT.ODM.Application.StyleLibrary;
@@ -12,12 +13,13 @@ namespace LT.ODM.Api.Controllers;
 /// AI Studio on the Style Library: smart search, change summary, BOM check and style renders.
 /// Reading: Style Library readers (Admin, Merchandiser, Costing, Viewer). Making or deleting renders: Admin, Merchandiser.
 /// The comparison and the BOM check are rules and work without AI; AI calls are rate limited and answer 503 when no
-/// provider is set up (Settings > AI connections, else appsettings Ai:Provider / Ai:ImageProvider).
+/// provider is set up (Settings > AI connections, else appsettings Ai:Provider / Ai:ImageProvider). The slow AI calls
+/// (summaries, explanations, prompt rewrites, renders, material readings) run as AI jobs: 202 with the job id.
 /// </summary>
 [ApiController]
 [Route("api/v1/ai")]
 [Authorize(Roles = StyleAiRoles.Readers)]
-public sealed class AiStudioController(StyleAiAssistant assistant, IAiJsonClient text, IAiImageClient images) : ControllerBase
+public sealed class AiStudioController(StyleAiAssistant assistant, IAiJsonClient text, IAiImageClient images, AiJobQueue jobs) : ControllerBase
 {
     private string CurrentUserName => User.FindFirst(JwtRegisteredClaimNames.PreferredUsername)?.Value ?? "";
 
@@ -58,7 +60,11 @@ public sealed class AiStudioController(StyleAiAssistant assistant, IAiJsonClient
     [HttpPost("style-compare/summary")]
     [EnableRateLimiting(RateLimitPolicies.Ai)]
     public Task<IActionResult> Summarize(StyleCompareRequest request, CancellationToken ct)
-        => WithText(async () => Ok(await assistant.SummarizeAsync(await assistant.CompareAsync(request.StyleId, request.FromStyleId, ct), ct)));
+        => WithText(() => this.QueueAiJobAsync(jobs, AiJobKinds.CompareSummary, AiJobLanes.Text, request, async (sp, jct) =>
+        {
+            var a = sp.GetRequiredService<StyleAiAssistant>();
+            return await a.SummarizeAsync(await a.CompareAsync(request.StyleId, request.FromStyleId, jct), jct);
+        }, ct));
 
     // ----- BOM check -----
 
@@ -70,7 +76,14 @@ public sealed class AiStudioController(StyleAiAssistant assistant, IAiJsonClient
     [HttpPost("bom-check/explain")]
     [EnableRateLimiting(RateLimitPolicies.Ai)]
     public Task<IActionResult> Explain(BomCheckQuery request, CancellationToken ct)
-        => WithText(async () => Ok(await assistant.ExplainAsync(await assistant.BomCheckAsync(Query(request.StyleId, request.Customer, request.Season), ct), ct)));
+    {
+        var q = Query(request.StyleId, request.Customer, request.Season);
+        return WithText(() => this.QueueAiJobAsync(jobs, AiJobKinds.BomExplain, AiJobLanes.Text, q, async (sp, jct) =>
+        {
+            var a = sp.GetRequiredService<StyleAiAssistant>();
+            return await a.ExplainAsync(await a.BomCheckAsync(q, jct), jct);
+        }, ct));
+    }
 
     // ----- Concept to existing styles (from Concept Studio) -----
 
@@ -103,10 +116,14 @@ public sealed class AiStudioController(StyleAiAssistant assistant, IAiJsonClient
     [Authorize(Roles = StyleAiRoles.Editors)]
     [EnableRateLimiting(RateLimitPolicies.Ai)]
     public Task<IActionResult> ReadMaterialSpecs(ReadMaterialSpecsRequest request, [FromServices] MaterialReader reader, CancellationToken ct)
-        => request.MaterialIds is { Count: var n } && n > reader.BatchSize
-            ? Task.FromResult(Invalid("materialIds", $"Read at most {reader.BatchSize} chosen materials per call."))
-            : WithText(async () => Ok(await reader.ReadNextAsync(request with { ContentClass = Clean(request.ContentClass, 8), MaterialType = Clean(request.MaterialType, 16) },
-            CurrentUserName, ct)));
+    {
+        if (request.MaterialIds is { Count: var n } && n > reader.BatchSize)
+            return Task.FromResult(Invalid("materialIds", $"Read at most {reader.BatchSize} chosen materials per call."));
+        var cleaned = request with { ContentClass = Clean(request.ContentClass, 8), MaterialType = Clean(request.MaterialType, 16) };
+        var user = CurrentUserName;
+        return WithText(() => this.QueueAiJobAsync(jobs, AiJobKinds.MaterialRead, AiJobLanes.Text, cleaned,
+            async (sp, jct) => await sp.GetRequiredService<MaterialReader>().ReadNextAsync(cleaned, user, jct), ct));
+    }
 
     /// <summary>Accept or reject readings (only readings of the current description can be accepted).</summary>
     [HttpPost("material-specs/review")]
@@ -130,7 +147,8 @@ public sealed class AiStudioController(StyleAiAssistant assistant, IAiJsonClient
     [Authorize(Roles = StyleAiRoles.Editors)]
     [EnableRateLimiting(RateLimitPolicies.Ai)]
     public Task<IActionResult> WritePrompt(int styleId, RenderPromptRequest request, CancellationToken ct)
-        => WithText(async () => Ok(await assistant.WritePromptAsync(styleId, request.ColorwayId, ct)));
+        => WithText(() => this.QueueAiJobAsync(jobs, AiJobKinds.RenderPrompt, AiJobLanes.Text, new { styleId, request.ColorwayId },
+            async (sp, jct) => await sp.GetRequiredService<StyleAiAssistant>().WritePromptAsync(styleId, request.ColorwayId, jct), ct));
 
     [HttpPost("style-render/{styleId:int}")]
     [Authorize(Roles = StyleAiRoles.Editors)]
@@ -139,8 +157,10 @@ public sealed class AiStudioController(StyleAiAssistant assistant, IAiJsonClient
     {
         if ((request.Prompt?.Length ?? 0) > RenderRules.MaxPrompt)
             return Task.FromResult<IActionResult>(Invalid("prompt", $"Keep the description to {RenderRules.MaxPrompt} characters."));
+        var user = CurrentUserName;
         return Run(async () => await images.GetInfoAsync(ct) is { IsConfigured: true }
-            ? Ok(await assistant.RenderAsync(styleId, request, CurrentUserName, ct))
+            ? await this.QueueAiJobAsync(jobs, AiJobKinds.Render, AiJobLanes.Image, new { styleId, request.ColorwayId, request.UseSketch, request.Prompt },
+                async (sp, jct) => await sp.GetRequiredService<StyleAiAssistant>().RenderAsync(styleId, request, user, jct), ct)
             : NotSetUp("Image generation", await images.GetInfoAsync(ct)));
     }
 

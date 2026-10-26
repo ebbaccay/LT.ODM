@@ -32,6 +32,11 @@ public sealed class AiConnectionResolver(
 
     public async Task<bool> AiEnabledAsync(CancellationToken ct = default) => (await LoadAsync(ct)).Policy.AiEnabled;
 
+    public async Task<AiPolicy> PolicyAsync(CancellationToken ct = default) => (await LoadAsync(ct)).Policy;
+
+    /// <summary>Calls at once for the appsettings defaults: one for an in-house server, a few for a cloud service.</summary>
+    private const int FallbackInHouseLimit = 1, FallbackCloudLimit = 4;
+
     public async Task<AiConnection?> ResolveAsync(string purpose, CancellationToken ct = default)
         => await ExplainAsync(purpose, ct) is { Blocked: null } r ? r.Connection : null;
 
@@ -40,6 +45,8 @@ public sealed class AiConnectionResolver(
         var s = await LoadAsync(ct);
         if (s.Disabled.Contains(purpose)) return new AiResolution(null, AiBlocks.JobOff);
         var c = s.ByPurpose.TryGetValue(purpose, out var set) ? set : Fallback(purpose);
+        // AI call limits off: no limit at the AI server (AiCallLimiter lets every call through).
+        if (c is not null && !s.Policy.LimitCalls) c = c with { MaxConcurrent = 0 };
         if (!s.Policy.AiEnabled) return new AiResolution(c, AiBlocks.AiOff);
         if (c is not null && !s.Policy.AllowCloud && (c.Kind == AiConnectionKinds.Gemini || !c.InHouse)) return new AiResolution(c, AiBlocks.CloudBlocked);
         return new AiResolution(c, null);
@@ -54,14 +61,16 @@ public sealed class AiConnectionResolver(
         return purpose switch
         {
             AiPurposes.Text when InHouseProvider(ai.Value.Provider)
-                => new AiConnection("In-house (OpenAI-compatible)", AiConnectionKinds.OpenAiCompatible, o.Endpoint, o.ApiKey, o.Model, o.InHouse, o.TimeoutSeconds, "appsettings"),
+                => new AiConnection("In-house (OpenAI-compatible)", AiConnectionKinds.OpenAiCompatible, o.Endpoint, o.ApiKey, o.Model, o.InHouse, o.TimeoutSeconds, "appsettings",
+                    o.InHouse ? FallbackInHouseLimit : FallbackCloudLimit),
             AiPurposes.Text
-                => new AiConnection("Gemini", AiConnectionKinds.Gemini, g.Endpoint, g.ApiKey, g.Model, false, g.TimeoutSeconds, "appsettings"),
+                => new AiConnection("Gemini", AiConnectionKinds.Gemini, g.Endpoint, g.ApiKey, g.Model, false, g.TimeoutSeconds, "appsettings", FallbackCloudLimit),
             AiPurposes.Image when InHouseProvider(ai.Value.ImageProvider)
                 => new AiConnection("In-house (OpenAI-compatible)", AiConnectionKinds.OpenAiCompatible,
-                    string.IsNullOrWhiteSpace(o.ImageEndpoint) ? o.Endpoint : o.ImageEndpoint, o.ApiKey, o.ImageModel, o.InHouse, o.TimeoutSeconds, "appsettings"),
+                    string.IsNullOrWhiteSpace(o.ImageEndpoint) ? o.Endpoint : o.ImageEndpoint, o.ApiKey, o.ImageModel, o.InHouse, o.TimeoutSeconds, "appsettings",
+                    o.InHouse ? FallbackInHouseLimit : FallbackCloudLimit),
             AiPurposes.Image
-                => new AiConnection("Gemini", AiConnectionKinds.Gemini, g.Endpoint, g.ApiKey, g.ImageModel, false, g.TimeoutSeconds, "appsettings"),
+                => new AiConnection("Gemini", AiConnectionKinds.Gemini, g.Endpoint, g.ApiKey, g.ImageModel, false, g.TimeoutSeconds, "appsettings", FallbackCloudLimit),
             _ => null,
         };
     }
@@ -93,7 +102,8 @@ public sealed class AiConnectionResolver(
                     var key = c.ApiKeyProtected is null ? null : protector.Unprotect(c.ApiKeyProtected);
                     if (c.ApiKeyProtected is not null && key is null)
                         logger.LogWarning("The API key of AI connection {Name} cannot be decrypted; enter it again in Settings > AI connections.", c.Name);
-                    byPurpose[p.Purpose] = new AiConnection(c.Name, c.Kind, c.Endpoint, key, p.Model.Trim(), c.InHouse, c.TimeoutSeconds, "settings");
+                    byPurpose[p.Purpose] = new AiConnection(c.Name, c.Kind, c.Endpoint, key, p.Model.Trim(), c.InHouse, c.TimeoutSeconds, "settings",
+                        Math.Max((int)c.MaxConcurrent, 1));
                 }
             }
             catch (SqlException ex)
@@ -184,7 +194,7 @@ public sealed class AiSettingsRepository(IDbConnectionFactory connectionFactory)
             ConnectionId = connectionId, RowVer = connectionId is null ? null : r.RowVer, Name = r.Name.Trim(), r.Kind, Endpoint = r.Endpoint.Trim().TrimEnd('/'),
             KeyAction = keyAction, ApiKeyProtected = apiKeyProtected, ApiKeyHint = apiKeyHint,
             InHouse = r.Kind != AiConnectionKinds.Gemini && r.InHouse, r.TimeoutSeconds, Notes = string.IsNullOrWhiteSpace(r.Notes) ? null : r.Notes.Trim(),
-            r.IsActive, ChangedBy = changedBy,
+            r.IsActive, ChangedBy = changedBy, MaxConcurrent = (short)Math.Clamp(r.MaxConcurrent, 1, 64),
         }, ct)));
     }
 
@@ -208,6 +218,13 @@ public sealed class AiSettingsRepository(IDbConnectionFactory connectionFactory)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
         await conn.ExecuteAsync(Proc("ai.usp_Policy_Save", new { AiEnabled = aiEnabled, AllowCloud = allowCloud, ChangedBy = changedBy }, ct));
+    }
+
+    public async Task SaveLimitsAsync(bool limitCalls, int maxTasksPerUser, string changedBy, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        await RuleErrors(() => conn.ExecuteAsync(Proc("ai.usp_Policy_SaveLimits",
+            new { LimitCalls = limitCalls, MaxTasksPerUser = (short)maxTasksPerUser, ChangedBy = changedBy }, ct)));
     }
 
     /// <summary>THROW 50400 / 50404 / 50409 -> AiSettingsException with that HTTP status.</summary>

@@ -28,14 +28,16 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
     [HttpGet]
     /// <param name="status">active, inactive, or empty for both.</param>
     /// <param name="pictures">with (a picture or sketch), without, or empty for both.</param>
+    /// <param name="sort">style, customer, season, businessUnit, productType, colorways, bomLines or changed (else newest season first); desc=true reverses it.</param>
     /// <param name="parentsOnly">true: a version is folded under the style it came from when that style is in the results too (Versions counts them).</param>
     public Task<PagedResult<StyleListItemDto>> List(string? search, string? customer, string? season, string? businessUnit, string? productType,
         string? weaveType, string? gender, string? material, string? status, int skip = 0, int take = 50, string? looks = null,
-        string? pictures = null, bool? parentsOnly = null, CancellationToken ct = default)
+        string? pictures = null, bool? parentsOnly = null, string? sort = null, bool? desc = null, CancellationToken ct = default)
         => styles.ListAsync(new StyleListQuery(Clean(search, 100), Clean(customer, 32), Clean(season, 200), Clean(businessUnit, 200),
             Clean(productType, 400), Clean(weaveType, 8), Clean(gender, 16), Math.Max(0, skip), Math.Clamp(take, 1, 200), Clean(material, 100),
             status?.Trim().ToLowerInvariant() switch { "active" => true, "inactive" => false, _ => null }, Clean(looks, 400),
-            pictures?.Trim().ToLowerInvariant() switch { "with" => true, "without" => false, _ => null }, parentsOnly == true ? true : null), ct);
+            pictures?.Trim().ToLowerInvariant() switch { "with" => true, "without" => false, _ => null }, parentsOnly == true ? true : null,
+            StyleListSorts.Clean(sort), desc == true ? true : null), ct);
 
     /// <summary>Landing page summary of the library (totals, seasons, top customers / materials / suppliers, recent changes).</summary>
     [HttpGet("dashboard")]

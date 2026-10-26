@@ -43,6 +43,7 @@ run procedures\style.image-import.procedures.sql  # Settings > Import pictures (
 run tables\ai.tables.sql
 run procedures\ai.procedures.sql
 run procedures\ai.assistant.procedures.sql    # Library assistant saved questions (table in tables\ai.tables.sql)
+run procedures\ai.jobs.procedures.sql         # AI tasks: slow AI work run in the background (table ai.Job)
 run seed\ai.saved-questions.sql               # Library assistant question patterns (adds only missing ones)
 
 # Menu again: adds pages introduced by the scripts above (keeps changes made in Settings > Menu)

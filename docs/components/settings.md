@@ -75,7 +75,7 @@ Adds style pictures from a folder of files named after the style. Admin only. No
 | **Letter version** (its own style) | `RC2701OW001A_H` | No |
 | **Base style** (file has a letter version) | `RC2702OM001` for `RC2702OM001A_Img01.jpg` | No |
 
-All seasons of a style number are listed. Files whose number is not in the library show **No style found**. **Only styles in the library** (on by default) hides those files from the list; they stay under the **No style found** tab. While saving, a progress bar shows how many pictures are done.
+All seasons of a style number are listed. Files whose number is not in the library show **No style found**. **Only styles in the library** (on by default) hides those files from the list; they stay under the **No style found** tab. **Only styles without a picture** (off by default) shows only files whose styles have neither a picture nor a sketch yet, and saving then skips the ticked styles that already have one (marked *Has a picture: skipped*). While saving, a progress bar shows how many pictures are done.
 
 **Steps.**
 
@@ -128,8 +128,10 @@ Which AI service each job uses. See [AI overview](../ai/overview.md) for how it 
 - **Switches** (top of the page):
   - **AI features**: off = no AI call anywhere in the app; AI pages say AI is turned off.
   - **Allow cloud AI services**: off = only in-house connections are used; jobs set to Gemini or to a connection not on the LT network are blocked and send nothing. Off on new installs.
+  - **Limit AI calls** (on by default): each AI server gets at most its connection's *Calls at once*; the other calls wait their turn (quick questions first, users taking turns), and each user may have **AI tasks per user** (default 3) waiting or running. Off = no limits. See [AI call limits](../ai/overview.md#ai-call-limits-taking-turns-at-the-ai-server).
   - Turning cloud on or AI off asks for confirmation. Who changed them last, and when, is shown.
-- **Connections**: add a service (Gemini, OpenAI-compatible in-house server, or custom HTTP), its address, API key (write-only: only the last 4 characters are shown afterwards; leave blank when editing to keep it), timeout, notes, whether it runs on the LT network, active or not. **Test connection** lists the service's models.
+- **Connections**: add a service (Gemini, OpenAI-compatible in-house server, or custom HTTP), its address, API key (write-only: only the last 4 characters are shown afterwards; leave blank when editing to keep it), timeout, **calls at once** (while AI call limits are on: 1 for a server without a GPU, 4-16 for a GPU server with vLLM or a cloud service; connections with the same address share the lowest), notes, whether it runs on the LT network, active or not. **Test connection** lists the service's models.
 - **Jobs**: for each job (Text, Image, Embedding and Vision in use; Document, Prediction prepared for AI Lab; Embedding and Vision accept only OpenAI-compatible connections and the embedding model must return 1024 numbers) choose a connection and model (the chip button loads the model list), then **Save** that row. "App default" uses the server's configuration file. **Off** (shown when there is an app default) turns the job off entirely. A job stopped by a switch shows a red line saying why.
 - Changes apply to the next AI call (within a minute on other server processes); no restart.
 - A connection used by a job cannot be deleted or turned off.
+- **AI tasks** (bottom of the page): every user's slow AI work (renders, summaries, explanations, material readings, Fill the gaps, import suggestions), newest first, filtered by status (default *Queued or running*): what it is, the style or label, who started it, when, how long it ran, and any error. **Stop** ends a queued or running task (it asks first; nothing unfinished is saved). **Keep finished tasks for** N days (1-365, default 7): older tasks are deleted with their answers. See [AI tasks](../ai/overview.md#ai-tasks-slow-ai-work-in-the-background).

@@ -14,7 +14,7 @@ public static class TestAiText
     public static IAiJsonClient Gemini(HttpMessageHandler handler, string key = "k")
         => new LT.ODM.Infrastructure.Ai.RoutedAiJsonClient(new HttpClient(handler),
             new FixedResolver(new AiConnection("Gemini", AiConnectionKinds.Gemini, "https://generativelanguage.googleapis.com/v1beta", key, "gemini-2.5-flash", false, 60, "test")),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<LT.ODM.Infrastructure.Ai.RoutedAiJsonClient>.Instance);
+            new LT.ODM.Infrastructure.Ai.AiCallLimiter(), Microsoft.Extensions.Logging.Abstractions.NullLogger<LT.ODM.Infrastructure.Ai.RoutedAiJsonClient>.Instance);
 
     private sealed class FixedResolver(AiConnection connection) : IAiConnectionResolver
     {
@@ -50,7 +50,13 @@ public sealed class FakeAiSettingsRepository : IAiSettingsRepository
 
     public Task SavePolicyAsync(bool aiEnabled, bool allowCloud, string changedBy, CancellationToken ct = default)
     {
-        lock (_lock) _policy = new AiPolicy(aiEnabled, allowCloud, changedBy, DateTime.UtcNow);
+        lock (_lock) _policy = _policy with { AiEnabled = aiEnabled, AllowCloud = allowCloud, UpdatedBy = changedBy, UpdatedUtc = DateTime.UtcNow };
+        return Task.CompletedTask;
+    }
+
+    public Task SaveLimitsAsync(bool limitCalls, int maxTasksPerUser, string changedBy, CancellationToken ct = default)
+    {
+        lock (_lock) _policy = _policy with { LimitCalls = limitCalls, MaxTasksPerUser = maxTasksPerUser, UpdatedBy = changedBy, UpdatedUtc = DateTime.UtcNow };
         return Task.CompletedTask;
     }
 
@@ -65,7 +71,8 @@ public sealed class FakeAiSettingsRepository : IAiSettingsRepository
             {
                 var id = _connections.Count + 1;
                 _connections.Add(new AiConnectionRow(id, r.Name.Trim(), r.Kind, r.Endpoint, keyAction == "set" ? apiKeyProtected : null,
-                    keyAction == "set" ? apiKeyHint : null, r.InHouse, r.TimeoutSeconds, r.Notes, r.IsActive, changedBy, DateTime.UtcNow, NextVersion()));
+                    keyAction == "set" ? apiKeyHint : null, r.InHouse, r.TimeoutSeconds, r.Notes, r.IsActive, changedBy, DateTime.UtcNow, NextVersion(),
+                    (short)r.MaxConcurrent));
                 return Task.FromResult(id);
             }
             var i = _connections.FindIndex(c => c.ConnectionId == connectionId);
@@ -75,7 +82,7 @@ public sealed class FakeAiSettingsRepository : IAiSettingsRepository
             _connections[i] = old with
             {
                 Name = r.Name.Trim(), Kind = r.Kind, Endpoint = r.Endpoint, InHouse = r.InHouse, TimeoutSeconds = r.TimeoutSeconds, Notes = r.Notes,
-                IsActive = r.IsActive, UpdatedBy = changedBy, RowVer = NextVersion(),
+                IsActive = r.IsActive, UpdatedBy = changedBy, RowVer = NextVersion(), MaxConcurrent = (short)r.MaxConcurrent,
                 ApiKeyProtected = keyAction switch { "set" => apiKeyProtected, "clear" => null, _ => old.ApiKeyProtected },
                 ApiKeyHint = keyAction switch { "set" => apiKeyHint, "clear" => null, _ => old.ApiKeyHint },
             };

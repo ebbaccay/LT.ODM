@@ -39,9 +39,12 @@ public static class AiConnectionKinds
     public static readonly string[] All = [Gemini, OpenAiCompatible, Custom];
 }
 
-/// <summary>Where and how the app calls an AI service, resolved for one job (key in clear; server side only).</summary>
+/// <summary>
+/// Where and how the app calls an AI service, resolved for one job (key in clear; server side only). MaxConcurrent: calls the
+/// server gets at once (AiCallLimiter); 0 = no limit (AI call limits turned off).
+/// </summary>
 public sealed record AiConnection(
-    string Name, string Kind, string Endpoint, string? ApiKey, string Model, bool InHouse, int TimeoutSeconds, string Source);
+    string Name, string Kind, string Endpoint, string? ApiKey, string Model, bool InHouse, int TimeoutSeconds, string Source, int MaxConcurrent = 0);
 
 /// <summary>Why a job is blocked by the central switches (Settings > AI connections).</summary>
 public static class AiBlocks
@@ -74,8 +77,12 @@ public static class AiUnavailable
 /// <summary>A job's service and, if the central switches forbid using it, why (Connection is then still shown, not used).</summary>
 public sealed record AiResolution(AiConnection? Connection, string? Blocked);
 
-/// <summary>The central switches. AllowCloud = false blocks every service outside the LT network.</summary>
-public sealed record AiPolicy(bool AiEnabled, bool AllowCloud, string? UpdatedBy, DateTime? UpdatedUtc)
+/// <summary>
+/// The central switches. AllowCloud = false blocks every service outside the LT network. LimitCalls: each AI server gets
+/// at most its connection's MaxConcurrent calls at once (the rest wait their turn, quick questions first, users in turn) and
+/// a user may have at most MaxTasksPerUser AI tasks queued or running; off = neither limit.
+/// </summary>
+public sealed record AiPolicy(bool AiEnabled, bool AllowCloud, string? UpdatedBy, DateTime? UpdatedUtc, bool LimitCalls = true, int MaxTasksPerUser = 3)
 {
     /// <summary>Before ai.Policy exists (older database): everything allowed, as before.</summary>
     public static readonly AiPolicy Open = new(true, true, null, null);
@@ -112,6 +119,9 @@ public interface IAiConnectionResolver
 
     /// <summary>The <b>AI features</b> switch (ai.Policy.AiEnabled). Also covers AI that runs inside the API (image search's look-alike model).</summary>
     Task<bool> AiEnabledAsync(CancellationToken ct = default) => Task.FromResult(true);
+
+    /// <summary>The central switches, including the AI call limits (cached like the connections).</summary>
+    Task<AiPolicy> PolicyAsync(CancellationToken ct = default) => Task.FromResult(AiPolicy.Open);
 }
 
 /// <summary>Encrypts API keys before they are stored (ASP.NET Data Protection in the API).</summary>
@@ -128,7 +138,7 @@ public interface IAiSecretProtector
 /// <summary>ApiKeyHint is the key's last 4 characters; the key itself never leaves the server.</summary>
 public sealed record AiConnectionDto(
     int ConnectionId, string Name, string Kind, string Endpoint, bool HasApiKey, string? ApiKeyHint, bool InHouse, int TimeoutSeconds,
-    string? Notes, bool IsActive, IReadOnlyList<string> UsedBy, string UpdatedBy, DateTime UpdatedUtc, byte[] RowVer);
+    string? Notes, bool IsActive, IReadOnlyList<string> UsedBy, string UpdatedBy, DateTime UpdatedUtc, byte[] RowVer, int MaxConcurrent = 1);
 
 /// <summary>A job with its connection and model (null = not set in the app).</summary>
 public sealed record AiPurposeDto(
@@ -143,15 +153,19 @@ public sealed record AiSettingsDto(
 
 /// <summary>
 /// RowVer null = new connection. ApiKey: null or blank keeps the saved key; a value replaces it; ClearApiKey removes it.
+/// MaxConcurrent: calls the server gets at once while AI call limits are on (1-64; 1 for a CPU server).
 /// </summary>
 public sealed record SaveAiConnectionRequest(
     byte[]? RowVer, string Name, string Kind, string Endpoint, string? ApiKey, bool ClearApiKey, bool InHouse, int TimeoutSeconds, string? Notes,
-    bool IsActive);
+    bool IsActive, int MaxConcurrent = 1);
 
 /// <summary>ConnectionId null = use the app default (appsettings) or nothing; Off = the job is turned off.</summary>
 public sealed record SaveAiPurposeRequest(int? ConnectionId, string? Model, bool Off = false);
 
 public sealed record SaveAiPolicyRequest(bool AiEnabled, bool AllowCloud);
+
+/// <summary>AI call limits on or off, and how many AI tasks one user may have queued or running (1-50).</summary>
+public sealed record SaveAiLimitsRequest(bool LimitCalls, int MaxTasksPerUser);
 
 /// <summary>Tests a saved connection (ConnectionId) or a draft from the form; a blank ApiKey uses the saved one.</summary>
 public sealed record TestAiConnectionRequest(int? ConnectionId, string Kind, string Endpoint, string? ApiKey, int TimeoutSeconds);
@@ -166,7 +180,7 @@ public sealed record AiPurposeStatusDto(
 /// <summary>Stored connection row (API key still encrypted).</summary>
 public sealed record AiConnectionRow(
     int ConnectionId, string Name, string Kind, string Endpoint, string? ApiKeyProtected, string? ApiKeyHint, bool InHouse, int TimeoutSeconds,
-    string? Notes, bool IsActive, string UpdatedBy, DateTime UpdatedUtc, byte[] RowVer);
+    string? Notes, bool IsActive, string UpdatedBy, DateTime UpdatedUtc, byte[] RowVer, short MaxConcurrent = 1);
 
 public sealed record AiPurposeRow(string Purpose, int? ConnectionId, string? Model, string? UpdatedBy, DateTime? UpdatedUtc, bool Disabled = false);
 
@@ -185,6 +199,7 @@ public interface IAiSettingsRepository
     Task DeleteConnectionAsync(int connectionId, byte[] rowVer, CancellationToken ct = default);
     Task SavePurposeAsync(string purpose, int? connectionId, string? model, bool disabled, string changedBy, CancellationToken ct = default);
     Task SavePolicyAsync(bool aiEnabled, bool allowCloud, string changedBy, CancellationToken ct = default);
+    Task SaveLimitsAsync(bool limitCalls, int maxTasksPerUser, string changedBy, CancellationToken ct = default);
 }
 
 /// <summary>A rule the database refused (in use, changed by someone else, not found). StatusCode is 400, 404 or 409.</summary>
@@ -210,6 +225,7 @@ public static partial class AiSettingsValidation
         if ((r.ApiKey?.Length ?? 0) > 500) e["apiKey"] = ["The API key is too long."];
         if (r.TimeoutSeconds is < 5 or > MaxTimeoutSeconds) e["timeoutSeconds"] = [$"Use 5 to {MaxTimeoutSeconds} seconds."];
         if ((r.Notes?.Length ?? 0) > 400) e["notes"] = ["At most 400 characters."];
+        if (r.MaxConcurrent is < 1 or > 64) e["maxConcurrent"] = ["Use 1 to 64 calls at once (1 for a server without a GPU)."];
         return e;
     }
 

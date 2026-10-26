@@ -24,7 +24,7 @@ October 2026, 2,502 styles: 1,334 of 1,577 missing genders had a suggestion (1,0
 - Each row has a pick list prefilled with the suggestion; change it to choose by hand. High and Medium rows start ticked, Check rows do not.
 - **Accept ticked** writes the chosen values. **Accept all high (N)** accepts every High suggestion in the customer / season filter (not only the page shown), after a confirmation. **Dismiss ticked** turns suggestions down; the same value is not offered again for that style (`style.GapDismissed`).
 - Only styles still missing the field change; a style someone filled in the meantime is left alone. Accepting records who and when on the style like an edit.
-- **Ask AI for the rest** (styles with no suggestion): sends the next 25 to the Text job, again and again until none are left or **Stop**. Its answers appear as Medium suggestions marked **AI**; a style the AI could not read is not asked again. What is sent: [Data sent to AI services](../ai/data-sent.md#style-library--fill-the-gaps-ask-ai-for-the-rest).
+- **Ask AI for the rest** (styles with no suggestion): sends the next 25 to the Text job, again and again until none are left or **Stop**. Each batch runs as an [AI task](../ai/overview.md#ai-tasks-slow-ai-work-in-the-background), so leaving the page keeps the batch in progress (the next one starts only while the page is open). Its answers appear as Medium suggestions marked **AI**; a style the AI could not read is not asked again. What is sent: [Data sent to AI services](../ai/data-sent.md#style-library--fill-the-gaps-ask-ai-for-the-rest).
 
 ## Seasons
 

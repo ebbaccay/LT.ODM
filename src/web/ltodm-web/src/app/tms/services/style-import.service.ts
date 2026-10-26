@@ -2,6 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import { Injectable, inject } from '@angular/core';
 import { environment } from '@env/environment';
 import { Observable } from 'rxjs';
+import { AiJobsService } from '../../core/ai/ai-jobs.service';
 
 // Settings > Import: Style Library workbook import (/api/v1/style-library/imports, Admin role only).
 
@@ -190,6 +191,7 @@ export interface WorkbookInspection {
 @Injectable({ providedIn: 'root' })
 export class StyleImportService {
   private readonly http = inject(HttpClient);
+  private readonly jobs = inject(AiJobsService);
   private readonly api = `${environment.apiBaseUrl}/api/v1/style-library/imports`;
 
   /** The workbook layout to fill in (headings in the customer's terms). */
@@ -291,9 +293,9 @@ export class StyleImportService {
     return this.http.post<void>(`${this.api}/codes/forget`, { list, value });
   }
 
-  /** AI suggestions (Text job) for the values the spelling rules could not match. */
+  /** AI suggestions (Text job, as an AI job) for the values the spelling rules could not match. */
   suggestCodes(batchId: number): Observable<ImportCodeSuggestion[]> {
-    return this.http.post<ImportCodeSuggestion[]>(`${this.api}/${batchId}/codes/suggest`, {});
+    return this.jobs.run(this.http.post<{ jobId: number }>(`${this.api}/${batchId}/codes/suggest`, {}));
   }
 
   /** Undoes a commit. 409 with `blockers` (RollbackBlocker[]) when styles changed after it; nothing is changed then. */

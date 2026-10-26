@@ -15,6 +15,9 @@
                     arguments it chose - never the answer. Status Rule = answered from here without AI (set by a thumbs up
                     or an Admin); Recorded = AI is used; Removed = a thumbs down or an Admin took it out. No asker names.
                     IsPattern = 1: a seeded pattern (seedi.saved-questions.sql), matched with the filter words taken out.
+    ai.Job:         slow AI work run in the background (renders, summaries, explanations, readers): who asked, status,
+                    the input and the result (JSON, as the API returns it). Finished jobs are deleted after
+                    ai.Policy.JobKeepDays (default 7). One row per job; nothing is re-run after an API restart.
     Idempotent.
 
       sqlcmd -S YOUR_SERVER -d YOUR_DATABASE -E -b -I -i tables\ai.tables.sql
@@ -139,6 +142,62 @@ CREATE TABLE ai.SavedQuestion
 GO
 IF COL_LENGTH(N'ai.SavedQuestion', N'IsPattern') IS NULL
     ALTER TABLE ai.SavedQuestion ADD IsPattern bit NOT NULL CONSTRAINT DF_ai_SavedQuestion_IsPattern DEFAULT (0);
+GO
+
+-- AI call limits: how many calls one AI server gets at once (per connection; connections with the same address share the
+-- lowest), and how many AI tasks one user may have queued or running. LimitCalls = 0 turns both off.
+IF COL_LENGTH(N'ai.Connections', N'MaxConcurrent') IS NULL
+BEGIN
+    ALTER TABLE ai.Connections ADD MaxConcurrent smallint NOT NULL CONSTRAINT DF_ai_Connections_MaxConcurrent DEFAULT (1)
+        CONSTRAINT CK_ai_Connections_MaxConcurrent CHECK (MaxConcurrent BETWEEN 1 AND 64);
+    -- Cloud services answer many calls at once; an in-house CPU server one at a time.
+    EXEC (N'UPDATE ai.Connections SET MaxConcurrent = 4 WHERE Kind = ''Gemini'' OR InHouse = 0');
+END
+GO
+IF COL_LENGTH(N'ai.Policy', N'LimitCalls') IS NULL
+    ALTER TABLE ai.Policy ADD LimitCalls bit NOT NULL CONSTRAINT DF_ai_Policy_LimitCalls DEFAULT (1);
+GO
+IF COL_LENGTH(N'ai.Policy', N'MaxTasksPerUser') IS NULL
+    ALTER TABLE ai.Policy ADD MaxTasksPerUser smallint NOT NULL CONSTRAINT DF_ai_Policy_MaxTasksPerUser DEFAULT (3)
+        CONSTRAINT CK_ai_Policy_MaxTasksPerUser CHECK (MaxTasksPerUser BETWEEN 1 AND 50);
+GO
+
+IF COL_LENGTH(N'ai.Policy', N'JobKeepDays') IS NULL
+    ALTER TABLE ai.Policy ADD JobKeepDays smallint NOT NULL CONSTRAINT DF_ai_Policy_JobKeepDays DEFAULT (7)
+        CONSTRAINT CK_ai_Policy_JobKeepDays CHECK (JobKeepDays BETWEEN 1 AND 365);
+GO
+
+IF OBJECT_ID(N'ai.Job', N'U') IS NULL
+CREATE TABLE ai.Job
+(
+    JobId        int IDENTITY(1, 1) NOT NULL,
+    Kind         varchar(32)    NOT NULL,   -- render | renderPrompt | bomExplain | compareSummary | materialRead | gapsAskAi | importCodes
+    Lane         varchar(8)     NOT NULL,   -- text | image: how many run at once is set per lane
+    Status       varchar(16)    NOT NULL CONSTRAINT DF_ai_Job_Status DEFAULT ('Queued'),
+    OwnerName    nvarchar(64)   NOT NULL,   -- user name of who asked
+    OwnerId      nvarchar(64)   NOT NULL,   -- sign-in subject (sub), to show the job to its owner only
+    TaskKey      nvarchar(150)  NULL,       -- the page's key for the answer, e.g. render:123 (AI task tray)
+    Label        nvarchar(150)  NULL,       -- shown in the tray and the Admin list, e.g. the style number
+    Url          nvarchar(400)  NULL,       -- the page to go back to
+    Input        nvarchar(max)  NULL,       -- the request, JSON
+    Result       nvarchar(max)  NULL,       -- the answer, JSON
+    Error        nvarchar(1000) NULL,
+    ErrorStatus  smallint       NULL,       -- the HTTP status the request would have answered with
+    Seen         bit            NOT NULL CONSTRAINT DF_ai_Job_Seen DEFAULT (0),   -- the owner's page has shown the answer
+    CreatedUtc   datetime2(3)   NOT NULL CONSTRAINT DF_ai_Job_Created DEFAULT (SYSUTCDATETIME()),
+    StartedUtc   datetime2(3)   NULL,
+    FinishedUtc  datetime2(3)   NULL,
+    CancelledBy  nvarchar(64)   NULL,
+
+    CONSTRAINT PK_ai_Job PRIMARY KEY CLUSTERED (JobId),
+    CONSTRAINT CK_ai_Job_Status CHECK (Status IN ('Queued', 'Running', 'Done', 'Failed', 'Cancelled', 'Interrupted')),
+    CONSTRAINT CK_ai_Job_Lane CHECK (Lane IN ('text', 'image')),
+    CONSTRAINT CK_ai_Job_Input CHECK (Input IS NULL OR ISJSON(Input) = 1),
+    CONSTRAINT CK_ai_Job_Result CHECK (Result IS NULL OR ISJSON(Result) = 1)
+);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ai_Job_Owner' AND object_id = OBJECT_ID(N'ai.Job'))
+    CREATE INDEX IX_ai_Job_Owner ON ai.Job (OwnerId, CreatedUtc DESC) INCLUDE (Status, Seen);
 GO
 
 PRINT 'AI connection tables ready.';

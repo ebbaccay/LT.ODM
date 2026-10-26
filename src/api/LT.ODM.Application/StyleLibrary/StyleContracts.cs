@@ -40,7 +40,16 @@ public sealed record StyleLookupsDto(
 /// </summary>
 public sealed record StyleListQuery(
     string? Search, string? Customer, string? Season, string? BusinessUnit, string? ProductType, string? WeaveType, string? Gender,
-    int Skip, int Take, string? Material = null, bool? IsActive = null, string? Looks = null, bool? HasPicture = null, bool? ParentsOnly = null);
+    int Skip, int Take, string? Material = null, bool? IsActive = null, string? Looks = null, bool? HasPicture = null, bool? ParentsOnly = null,
+    string? Sort = null, bool? Desc = null);
+
+/// <summary>Columns the Styles list sorts by (StyleListQuery.Sort); anything else keeps the default, newest season first.</summary>
+public static class StyleListSorts
+{
+    public static readonly string[] All = ["style", "customer", "season", "businessUnit", "productType", "colorways", "bomLines", "changed"];
+
+    public static string? Clean(string? sort) => All.FirstOrDefault(s => string.Equals(s, sort?.Trim(), StringComparison.OrdinalIgnoreCase));
+}
 
 /// <summary>Key: the season, customer, product type, business unit, gender or weave code (null = not set).</summary>
 public sealed record StyleCountDto(string? Key, string? Name, int Styles);

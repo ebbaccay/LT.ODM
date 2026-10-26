@@ -57,6 +57,7 @@ $scripts = @(
     'tables\ai.tables.sql',                            # AI connections
     'procedures\ai.procedures.sql',
     'procedures\ai.assistant.procedures.sql',          # Library assistant saved questions
+    'procedures\ai.jobs.procedures.sql',               # AI tasks (slow AI work in the background)
     'seed\ai.saved-questions.sql',                     # Library assistant question patterns
     'seed\nav.menu.sql'                                # menu again: pages added by the scripts above
 )
