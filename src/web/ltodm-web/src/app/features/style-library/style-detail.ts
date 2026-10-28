@@ -10,11 +10,14 @@ import {
   lucideCalculator,
   lucideCopy,
   lucideDownload,
+  lucideFileSpreadsheet,
   lucideFileText,
   lucideGitBranch,
   lucideGitCompareArrows,
   lucideImage,
   lucideLink,
+  lucidePackage,
+  lucidePackagePlus,
   lucidePalette,
   lucidePencil,
   lucidePlus,
@@ -38,6 +41,8 @@ import { ConfirmDialogService } from '@tms/shared/confirm-dialog/confirm-dialog.
 import { AuthImgDirective } from '@tms/shared/ui/auth-img';
 import { Modal } from '@tms/shared/ui/modal';
 import { toneBadge } from '@tms/shared/ui/tones';
+import { AddToPackageDialog } from '../style-packages/add-to-package-dialog';
+import { PackagesService, StylePackage } from '../style-packages/packages.service';
 import { BomLineDialog } from './bom-line-dialog';
 import { BomSuggestDialog } from './bom-suggest-dialog';
 import { ColourSuggestDialog } from './colour-suggest-dialog';
@@ -70,11 +75,11 @@ interface BomSection {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe, DecimalPipe, RouterLink, NgIcon, AuthImgDirective, Modal, StyleFormDialog, ColorwayDialog, BomLineDialog, BomSuggestDialog, ColourSuggestDialog, CopyStyleDialog,
-    HistoryDialog, DesignPromptDialog, ColorwayPicturesDialog, LcoFillDialog, SimilarStyles, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe,
+    HistoryDialog, DesignPromptDialog, ColorwayPicturesDialog, LcoFillDialog, SimilarStyles, AddToPackageDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe,
   ],
   providers: [
     provideIcons({
-      lucideArrowLeft, lucideArrowLeftRight, lucideCalculator, lucideCopy, lucideDownload, lucideFileText, lucideGitBranch, lucideGitCompareArrows, lucideImage, lucideLink, lucidePalette, lucidePencil, lucidePlus, lucideImages, lucideSearch, lucideShieldAlert,
+      lucideArrowLeft, lucideArrowLeftRight, lucideCalculator, lucideCopy, lucideDownload, lucideFileSpreadsheet, lucideFileText, lucideGitBranch, lucideGitCompareArrows, lucideImage, lucideLink, lucidePackage, lucidePackagePlus, lucidePalette, lucidePencil, lucidePlus, lucideImages, lucideSearch, lucideShieldAlert,
       lucideTrash2, lucideUnlink, lucideWandSparkles,
     }),
   ],
@@ -82,6 +87,7 @@ interface BomSection {
 })
 export class StyleDetail implements OnInit {
   private readonly svc = inject(StyleLibraryService);
+  private readonly packagesSvc = inject(PackagesService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly confirmDlg = inject(ConfirmDialogService);
@@ -106,7 +112,8 @@ export class StyleDetail implements OnInit {
   /** Image shown large; fileName (without extension) is used when it is downloaded. */
   readonly preview = signal<{ url: string; title: string; fileName?: string } | null>(null);
   readonly downloading = signal(false);
-  readonly techPackBusy = signal(false);
+  /** The tech pack being made: pdf or xlsx (Excel). */
+  readonly techPackBusy = signal<'pdf' | 'xlsx' | null>(null);
 
   // Dialogs
   readonly editOpen = signal(false);
@@ -122,6 +129,9 @@ export class StyleDetail implements OnInit {
   readonly lcoOpen = signal(false);
   readonly suggestOpen = signal(false);
   readonly coloursOpen = signal(false);
+  readonly packageOpen = signal(false);
+  /** Style packages this style is offered in. */
+  readonly packages = signal<StylePackage[]>([]);
 
   readonly style = computed(() => this.detail()?.style ?? null);
   readonly colorways = computed(() => this.detail()?.colorways ?? []);
@@ -184,6 +194,7 @@ export class StyleDetail implements OnInit {
       this.bomSearch.set(this.route.snapshot.queryParamMap.get('bomSearch') ?? '');
       this.compareIds.set([]);
       this.load(true);
+      this.loadPackages();
     });
   }
 
@@ -227,16 +238,16 @@ export class StyleDetail implements OnInit {
 
   // ── Style ──────────────────────────────────────────────────
 
-  async downloadTechPack(): Promise<void> {
+  async downloadTechPack(format: 'pdf' | 'xlsx'): Promise<void> {
     const s = this.style();
     if (!s || this.techPackBusy()) return;
-    this.techPackBusy.set(true);
+    this.techPackBusy.set(format);
     try {
-      await this.svc.downloadTechPack(s.styleId, s.styleNo, s.seasonCode);
+      await this.svc.downloadTechPack(s.styleId, s.styleNo, s.seasonCode, format);
     } catch {
       toast.error(this.t('styles.detail.techPackFailed'));
     } finally {
-      this.techPackBusy.set(false);
+      this.techPackBusy.set(null);
     }
   }
 
@@ -256,6 +267,10 @@ export class StyleDetail implements OnInit {
   onStyleSaved(): void {
     this.editOpen.set(false);
     this.load();
+  }
+
+  loadPackages(): void {
+    this.packagesSvc.forStyle(this.styleId()).subscribe({ next: (p) => this.packages.set(p), error: () => this.packages.set([]) });
   }
 
   onCopied(newId: number): void {

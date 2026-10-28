@@ -12,7 +12,7 @@ The BOM seen by material instead of by style.
 | **Standard trims** | For one product type: how many different materials do each job (e.g. 51 zippers on 83 jackets), how many are used once ("Worth standardising"), and each trim's share of the styles: *Standard kit* (50%+), *Common* (20-50%), *Occasional* | Default trims for new styles; consolidating one-offs to cut minimums |
 | **Suppliers** | Share of styles per SAP supplier, materials only one supplier provides, lines without a supplier | Sourcing risk, negotiation |
 | **Duplicates** | Groups of materials with identical descriptions | Cleaning the material master. Generic descriptions ("ADDITIONAL LABEL") group different items, so check before merging |
-| **Recycled** | Share of fabric lines whose description says recycled, by season and product type; styles whose fabrics are all recycled | Sustainability reporting. Seasons without the word in descriptions show 0% |
+| **Recycled** | Share of fabric lines whose description says recycled, by season and product type; styles whose fabrics are all recycled. Each season and product type opens its styles with recycled fabric on the Styles list, ready to pick for a [style package](style-packages.md) | Sustainability reporting, recycled programs. Seasons without the word in descriptions show 0% |
 | **Colours** | Most used material colours; colours under several codes | Dye-lot planning; colour code clean-up |
 | **Description reader** (AI) | See below | Structured fibre, weight and width data |
 
@@ -20,6 +20,7 @@ The BOM seen by material instead of by style.
 
 Tabs:
 
+- **Pick styles for a package** opens the Styles list filtered to this material, with picking for a [style package](style-packages.md) turned on (readers who cannot edit see **Styles using it**: the same list without picking).
 - **Where used**: every style and BOM line (newest season first, up to 1,000), with consumption, supplier, colours. A warning icon marks consumption under 0.6× or over 1.6× the usual (median) for that product type; **Unusual consumption** filters to those.
 - **Consumption**: per product type, the range across styles (lowest, middle half, median, highest). Use it to sanity-check a new BOM.
 - **Suppliers**: share of styles per supplier; flags materials bought from several sources.

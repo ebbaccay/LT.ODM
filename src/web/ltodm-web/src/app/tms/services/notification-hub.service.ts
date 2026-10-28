@@ -21,7 +21,16 @@ export class NotificationHubService {
 
   private hubConn?: signalR.HubConnection;
   private _initPromise: Promise<void> | null = null;
+  /** Handlers added with listen(): put on every connection this service makes. */
+  private readonly _listeners = new Map<string, (...args: any[]) => void>();
   private _retryHandle?: ReturnType<typeof setTimeout>;
+
+  /** Handles a hub event (one handler per event); kept for connections made later, e.g. after sign-in. */
+  listen(event: string, handler: (...args: any[]) => void): void {
+    this._listeners.set(event, handler);
+    this.hubConn?.off(event);
+    this.hubConn?.on(event, handler);
+  }
 
   async initHub(): Promise<void> {
     if (this.hubStatus() === 'connected' || this.hubStatus() === 'connecting' || this.hubStatus() === 'reconnecting') {
@@ -64,6 +73,7 @@ export class NotificationHubService {
       .withAutomaticReconnect([0, 2000, 5000, 10000])
       .configureLogging(environment.production ? signalR.LogLevel.Error : signalR.LogLevel.Information)
       .build();
+    for (const [event, handler] of this._listeners) this.hubConn.on(event, handler);
 
     this.hubConn.serverTimeoutInMilliseconds = 60000;
     this.hubConn.keepAliveIntervalInMilliseconds = 15000;

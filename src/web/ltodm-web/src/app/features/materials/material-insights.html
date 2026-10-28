@@ -182,7 +182,8 @@
           <ul class="flex flex-col gap-3" role="list">
             @for (x of r.seasons; track x.key) {
               <li class="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-3 text-sm">
-                <span class="font-medium">{{ x.key }}</span>
+                <a class="text-primary font-medium underline-offset-2 hover:underline" routerLink="/styles" [title]="'materials.ins.openRecycled' | transloco"
+                   [queryParams]="{ recycled: 'some', season: x.key, customer: filter().customer || null, pictures: 'all', pick: 1 }">{{ x.key }}</a>
                 <span class="bg-muted h-3 overflow-hidden rounded-full" role="img" [attr.aria-label]="'materials.ins.recycledLines' | transloco: { pct: (ratio(x.recycledLines, x.fabricLines) | percent) }">
                   <span class="block h-full rounded-full bg-emerald-500" [style.width.%]="ratio(x.recycledLines, x.fabricLines) * 100"></span>
                 </span>
@@ -210,7 +211,14 @@
               <tbody class="divide-y">
                 @for (x of r.productTypes; track x.key ?? '-') {
                   <tr>
-                    <td class="px-5 py-2">{{ x.name || x.key || ('materials.noProductType' | transloco) }}</td>
+                    <td class="px-5 py-2">
+                      @if (x.key) {
+                        <a class="text-primary underline-offset-2 hover:underline" routerLink="/styles" [title]="'materials.ins.openRecycled' | transloco"
+                           [queryParams]="{ recycled: 'some', productType: x.key, customer: filter().customer || null, pictures: 'all', pick: 1 }">{{ x.name || x.key }}</a>
+                      } @else {
+                        {{ 'materials.noProductType' | transloco }}
+                      }
+                    </td>
                     <td class="px-3 py-2 text-right tabular-nums">{{ x.styles }}</td>
                     <td class="px-3 py-2 text-right tabular-nums">{{ ratio(x.allRecycled, x.styles) | percent }}</td>
                     <td class="px-3 py-2 text-right tabular-nums">{{ ratio(x.someRecycled, x.styles) | percent }}</td>

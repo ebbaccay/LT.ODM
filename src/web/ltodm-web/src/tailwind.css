@@ -279,9 +279,12 @@
     0 0 0 1px var(--glass-line),
     var(--glass-shadow);
 }
-/* Menus, popovers, slide-out panels: more opaque, so what is under them never competes with their text. */
+/*
+  Menus, popovers, slide-out panels and bars floating over the page (.floating-bar, e.g. "5 styles picked"): more opaque,
+  so what is under them never competes with their text.
+*/
 :root.glass
-  :is([data-slot='popover-content'], [data-slot='dropdown-menu'], [data-slot='sheet-content']) {
+  :is([data-slot='popover-content'], [data-slot='dropdown-menu'], [data-slot='sheet-content'], .floating-bar) {
   background-color: var(--glass-overlay);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   backdrop-filter: blur(24px) saturate(160%);

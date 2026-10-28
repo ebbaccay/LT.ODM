@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -58,6 +59,35 @@ public sealed class TechPackTests(ApiFactory factory) : IClassFixture<ApiFactory
         // TECHPACK_OUT=<folder> keeps the file to look at.
         if (Environment.GetEnvironmentVariable("TECHPACK_OUT") is { Length: > 0 } folder)
             await File.WriteAllBytesAsync(Path.Combine(folder, "techpack-test.pdf"), pdf);
+    }
+
+    [Fact]
+    public async Task Readers_download_the_tech_pack_as_excel_too()
+    {
+        var viewer = await SignInAsync("Viewer");
+        var response = await viewer.GetAsync("/api/v1/styles/5/tech-pack.xlsx");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("S1_SS27_2027-SS_techpack.xlsx", response.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
+        Assert.Equal(HttpStatusCode.NotFound, (await viewer.GetAsync("/api/v1/styles/404/tech-pack.xlsx")).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_excel_tech_pack_has_the_sketch_colorway_pictures_and_numbers_to_calculate_with()
+    {
+        var xlsx = await new TechPackExcelWriter(new OneImageStore()).WriteAsync(LargeStyle(), "tester", DateTime.UtcNow);
+        using var zip = new ZipArchive(new MemoryStream(xlsx));
+        string Part(string name) => new StreamReader(zip.GetEntry(name)!.Open()).ReadToEnd();
+
+        Assert.Contains("name=\"Tech pack\"", Part("xl/workbook.xml"));
+        Assert.Contains("name=\"Material colours\"", Part("xl/workbook.xml"));
+        // Sketch beside the facts (the photo file is missing: "No photo"); colorway 1's picture in its row.
+        Assert.Contains("<xdr:col>3</xdr:col>", Part("xl/drawings/drawing1.xml"));
+        Assert.Contains("No photo", Part("xl/worksheets/sheet1.xml"));
+        Assert.Contains("<xdr:row>1</xdr:row>", Part("xl/drawings/drawing2.xml"));
+        Assert.Equal(2, zip.Entries.Count(e => e.FullName.StartsWith("xl/media/")));
+        // BOM consumption is a number, not text; Chinese colour names come through.
+        Assert.Matches("<c r=\"H2\"[^>]*><v>[0-9.]+</v></c>", Part("xl/worksheets/sheet3.xml"));
+        Assert.Contains("藏青色", Part("xl/worksheets/sheet4.xml"));
     }
 
     private static int Pages(byte[] pdf)

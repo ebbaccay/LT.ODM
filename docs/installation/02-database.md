@@ -39,6 +39,10 @@ run procedures\style.tags.procedures.sql       # Picture tags (look filters; tab
 run procedures\style.assistant.procedures.sql  # AI Studio > Library assistant (style counts)
 run procedures\style.image-import.procedures.sql  # Settings > Import pictures (style matching, set picture, check existing pictures)
 
+# Style Packages (pack schema; after the Style Library)
+run tables\pack.tables.sql
+run procedures\pack.procedures.sql            # packages and their styles
+
 # AI connections (ai schema)
 run tables\ai.tables.sql
 run procedures\ai.procedures.sql
@@ -93,6 +97,7 @@ GRANT EXECUTE ON SCHEMA::style   TO ltodm_app;
 GRANT EXECUTE ON SCHEMA::mat     TO ltodm_app;
 GRANT EXECUTE ON SCHEMA::staging TO ltodm_app;
 GRANT EXECUTE ON SCHEMA::ai      TO ltodm_app;
+GRANT EXECUTE ON SCHEMA::pack    TO ltodm_app;   -- Style Packages (pack.tables.sql also grants it when the role exists)
 -- Settings > Import bulk-copies the workbook into these tables (SqlBulkCopy with CheckConstraints).
 -- SqlBulkCopy reads each table's columns first with a SELECT, so it needs SELECT as well as INSERT.
 GRANT SELECT, INSERT ON staging.StyleRow   TO ltodm_app;
@@ -120,6 +125,7 @@ Procedures and tables share an owner (`dbo`), so ownership chaining covers the r
 | `style` | Styles, colorways, BOM lines, colours per colorway, style history, AI renders |
 | `staging` | Workbook imports waiting to be committed |
 | `ai` | AI connections (API keys encrypted), which connection each AI job uses (or Off), Library assistant saved questions, and the central switches (`ai.Policy`: AI on/off, cloud allowed; cloud starts not allowed on a new database) |
+| `pack` | Style Packages: packages of library styles offered to clients, their share links (only a fingerprint of each link is kept), clients' answers, link openings, outcomes for the hit rate, and notices to LT users |
 | `dbo` | Tables and procedures from TMS used by the ported modules |
 
 ## 5. Health check

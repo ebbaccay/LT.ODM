@@ -18,10 +18,15 @@ public sealed class NotificationsHub(TmsNotificationRepository notifications, IL
 {
     private const int MaxText = 2000;
 
+    /// <summary>The group of one user's connections (Style Packages notices go to a user, not a TMS group).</summary>
+    public static string UserGroup(string userName) => "user:" + userName.Trim().ToLowerInvariant();
+
     public override async Task OnConnectedAsync()
     {
         if (TmsNotificationRules.GroupFor(Context.User!) is { } group)
             await Groups.AddToGroupAsync(Context.ConnectionId, group);
+        if (Context.User?.FindFirst(JwtRegisteredClaimNames.PreferredUsername)?.Value is { Length: > 0 } user)
+            await Groups.AddToGroupAsync(Context.ConnectionId, UserGroup(user));
         await base.OnConnectedAsync();
     }
 

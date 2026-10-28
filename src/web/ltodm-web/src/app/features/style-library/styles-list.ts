@@ -4,7 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideArrowDown, lucideArrowUp, lucideGitBranch, lucideImage, lucidePlus, lucideSearch, lucideShirt, lucideX } from '@ng-icons/lucide';
+import { lucideArrowDown, lucideArrowUp, lucideGitBranch, lucideImage, lucidePackagePlus, lucidePlus, lucideSearch, lucideShirt, lucideX } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -16,6 +16,7 @@ import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { AuthImgDirective } from '@tms/shared/ui/auth-img';
 import { Subject, debounceTime } from 'rxjs';
+import { AddToPackageDialog } from '../style-packages/add-to-package-dialog';
 import { StyleFormDialog } from './style-form-dialog';
 import { GENDERS, StyleLibraryService, StyleListFilter, StyleListItem, StyleLookups, styleError } from './style-library.service';
 
@@ -24,8 +25,10 @@ const PAGE = 50;
 // pictures: '' = styles with a picture or sketch (the default), or 'all'.
 // sort / dir: the column sorted by and 'desc' (both kept in the address; empty = newest season first).
 // versions: '' = parent styles only, versions folded under them (the default), or 'all'.
+// recycled: '' = any, 'some' = a fabric line written as recycled, 'all' = every fabric line (recycled programs, Style Packages).
+// pick=1 (not a filter) opens the list with picking for a package turned on (Materials links use it).
 // weaveType and material have no select here; AI Studio's smart search sets them (and several seasons / product types).
-const FILTER_KEYS = ['search', 'customer', 'season', 'businessUnit', 'productType', 'gender', 'status', 'weaveType', 'material', 'looks', 'pictures', 'versions', 'sort', 'dir'] as const;
+const FILTER_KEYS = ['search', 'customer', 'season', 'businessUnit', 'productType', 'gender', 'status', 'weaveType', 'material', 'looks', 'recycled', 'pictures', 'versions', 'sort', 'dir'] as const;
 const SORT_KEYS = ['style', 'customer', 'season', 'businessUnit', 'productType', 'colorways', 'bomLines', 'changed'] as const;
 /** Counts, dates and seasons start largest / newest first; text starts A-Z. */
 const DESC_FIRST: readonly string[] = ['colorways', 'bomLines', 'changed', 'season'];
@@ -39,10 +42,10 @@ type FilterKey = (typeof FILTER_KEYS)[number];
   selector: 'app-styles-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe, DecimalPipe, RouterLink, NgIcon, AuthImgDirective, StyleFormDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports,
+    DatePipe, DecimalPipe, RouterLink, NgIcon, AuthImgDirective, StyleFormDialog, AddToPackageDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports,
     HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe,
   ],
-  providers: [provideIcons({ lucideArrowDown, lucideArrowUp, lucideGitBranch, lucideImage, lucidePlus, lucideSearch, lucideShirt, lucideX })],
+  providers: [provideIcons({ lucideArrowDown, lucideArrowUp, lucideGitBranch, lucideImage, lucidePackagePlus, lucidePlus, lucideSearch, lucideShirt, lucideX })],
   templateUrl: './styles-list.html',
 })
 export class StylesList implements OnInit {
@@ -56,12 +59,20 @@ export class StylesList implements OnInit {
   readonly genders = GENDERS;
   readonly lookups = signal<StyleLookups | null>(null);
   readonly filter = signal<Record<FilterKey, string>>({
-    search: '', customer: '', season: '', businessUnit: '', productType: '', gender: '', status: '', weaveType: '', material: '', looks: '', pictures: '', versions: '', sort: '', dir: '',
+    search: '', customer: '', season: '', businessUnit: '', productType: '', gender: '', status: '', weaveType: '', material: '', looks: '', recycled: '', pictures: '', versions: '', sort: '', dir: '',
   });
   readonly styles = signal<StyleListItem[]>([]);
   readonly total = signal(0);
   readonly loading = signal(false);
   readonly createOpen = signal(false);
+  /** Picking styles for a style package (editors): ticks beside the rows, kept across filters and pages until cleared. */
+  readonly selecting = signal(false);
+  readonly selected = signal<ReadonlyMap<number, StyleListItem>>(new Map());
+  readonly packageOpen = signal(false);
+  readonly selectedIds = computed(() => [...this.selected().keys()]);
+  /** The customer (and season) the picked styles share, to start a new package with. */
+  readonly selectedCustomer = computed(() => this.shared((s) => s.customerCode));
+  readonly selectedSeason = computed(() => this.shared((s) => s.seasonCode));
   /** Image URLs that failed to load (the row falls back to the sketch, then the placeholder). */
   readonly brokenImages = signal<ReadonlySet<string>>(new Set());
 
@@ -93,6 +104,7 @@ export class StylesList implements OnInit {
   });
 
   ngOnInit(): void {
+    if (this.route.snapshot.queryParamMap.get('pick') === '1' && this.canEdit()) this.selecting.set(true);
     this.svc.lookups().subscribe({ next: (l) => this.lookups.set(l), error: (e) => toast.error(styleError(e).message) });
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       const next = { ...this.filter() };
@@ -200,6 +212,50 @@ export class StylesList implements OnInit {
   onCreated(styleId: number): void {
     this.createOpen.set(false);
     void this.router.navigate(['/styles', styleId]);
+  }
+
+  toggleSelecting(): void {
+    this.selecting.update((v) => !v);
+    if (!this.selecting()) this.selected.set(new Map());
+  }
+
+  toggleSelected(s: StyleListItem): void {
+    this.selected.update((m) => {
+      const next = new Map(m);
+      if (!next.delete(s.styleId)) next.set(s.styleId, s);
+      return next;
+    });
+  }
+
+  /** Ticks every style shown (or clears them when all are ticked). */
+  toggleAllShown(): void {
+    const shown = this.styles();
+    const all = shown.length > 0 && shown.every((s) => this.selected().has(s.styleId));
+    this.selected.update((m) => {
+      const next = new Map(m);
+      for (const s of shown) if (all) next.delete(s.styleId); else next.set(s.styleId, s);
+      return next;
+    });
+  }
+
+  allShownSelected = () => this.styles().length > 0 && this.styles().every((s) => this.selected().has(s.styleId));
+
+  clearSelected(): void {
+    this.selected.set(new Map());
+  }
+
+  /** Styles were added to a package from the open dialog: clear the picks when it closes. */
+  addedToPackage = false;
+
+  closePackageDialog(): void {
+    this.packageOpen.set(false);
+    if (this.addedToPackage) this.clearSelected();
+    this.addedToPackage = false;
+  }
+
+  private shared(pick: (s: StyleListItem) => string): string | null {
+    const values = new Set([...this.selected().values()].map(pick));
+    return values.size === 1 ? [...values][0] : null;
   }
 
   markBroken(url: string): void {

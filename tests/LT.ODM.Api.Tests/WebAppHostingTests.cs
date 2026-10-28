@@ -32,6 +32,7 @@ public sealed class WebAppHostingTests(ApiFactory factory) : IClassFixture<ApiFa
     [InlineData("/")]
     [InlineData("/styles/12")]
     [InlineData("/settings/import")]
+    [InlineData("/share/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCd")]   // a client opening a style package link
     public async Task App_routes_get_index_html_without_sign_in_and_are_never_cached(string path)
     {
         var response = await Client().GetAsync(path);

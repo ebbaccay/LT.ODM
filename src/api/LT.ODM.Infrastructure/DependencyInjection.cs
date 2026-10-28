@@ -38,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<IStyleImportRepository, StyleImportRepository>();
         services.AddScoped<IStyleRepository, StyleRepository>();
         services.AddScoped<IStyleGapRepository, StyleGapRepository>();
+        services.AddScoped<IPackageRepository, PackageRepository>();
         services.AddSingleton<StyleDashboardCache>();
         services.AddScoped<IMaterialRepository, MaterialRepository>();
 
@@ -61,6 +62,8 @@ public static class DependencyInjection
         services.AddSingleton<IProductImageStore, FileSystemProductImageStore>();
         services.AddSingleton<IStyleImageStore, FileSystemStyleImageStore>();
         services.AddSingleton<ITechPackWriter, StyleLibrary.TechPackPdfWriter>();
+        services.AddSingleton<ITechPackExcelWriter, StyleLibrary.TechPackExcelWriter>();
+        services.AddSingleton<IPackageLineSheetWriter, StyleLibrary.PackageLineSheetWriter>();
         services.AddSingleton<ISignInImageStore, FileSystemSignInImageStore>();
         services.AddSingleton<ISignInAppearanceStore, FileSignInAppearanceStore>();
         services.AddSingleton<IImportFileStore, FileSystemImportFileStore>();

@@ -81,6 +81,7 @@ Without SMTP, new users cannot receive their set-password link; an Admin can sen
 | `Auth:Password:*` | MinLength 12, MaxLength 128, upper, lower, digit, symbol, HistoryCount 5 | Password policy |
 | `RateLimiting:AuthPermitPerMinute` | 10 | Sign-in and password requests per client IP per minute |
 | `RateLimiting:AiPermitPerMinute` | 10 | AI requests per user per minute (protects cost and rate limits) |
+| `RateLimiting:SharePermitPerMinute` | 60 | Style package share links opened without signing in: page loads, answers and PDFs per client IP per minute (pictures count only in the general limit) |
 | `RateLimiting:PermitPerMinute` | 600 | All API requests per **signed-in user** per minute (per client IP before sign-in). Pictures (`.../images/...`) do not count. Too many answers `429 Too Many Requests` until the minute is over |
 
 The overall limit used to be 100 per client IP, which a few quick refreshes of a page with pictures could use up, and which everyone behind one office address (NAT, VPN, remote desktop) shared.

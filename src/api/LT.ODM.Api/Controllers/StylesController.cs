@@ -30,14 +30,16 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
     /// <param name="pictures">with (a picture or sketch), without, or empty for both.</param>
     /// <param name="sort">style, customer, season, businessUnit, productType, colorways, bomLines or changed (else newest season first); desc=true reverses it.</param>
     /// <param name="parentsOnly">true: a version is folded under the style it came from when that style is in the results too (Versions counts them).</param>
+    /// <param name="recycled">some (a fabric line written as recycled) or all (every fabric line); anything else = no filter.</param>
     public Task<PagedResult<StyleListItemDto>> List(string? search, string? customer, string? season, string? businessUnit, string? productType,
         string? weaveType, string? gender, string? material, string? status, int skip = 0, int take = 50, string? looks = null,
-        string? pictures = null, bool? parentsOnly = null, string? sort = null, bool? desc = null, CancellationToken ct = default)
+        string? pictures = null, bool? parentsOnly = null, string? sort = null, bool? desc = null, string? recycled = null, CancellationToken ct = default)
         => styles.ListAsync(new StyleListQuery(Clean(search, 100), Clean(customer, 32), Clean(season, 200), Clean(businessUnit, 200),
             Clean(productType, 400), Clean(weaveType, 8), Clean(gender, 16), Math.Max(0, skip), Math.Clamp(take, 1, 200), Clean(material, 100),
             status?.Trim().ToLowerInvariant() switch { "active" => true, "inactive" => false, _ => null }, Clean(looks, 400),
             pictures?.Trim().ToLowerInvariant() switch { "with" => true, "without" => false, _ => null }, parentsOnly == true ? true : null,
-            StyleListSorts.Clean(sort), desc == true ? true : null), ct);
+            StyleListSorts.Clean(sort), desc == true ? true : null,
+            recycled?.Trim().ToLowerInvariant() switch { "some" => "some", "all" => "all", _ => null }), ct);
 
     /// <summary>Landing page summary of the library (totals, seasons, top customers / materials / suppliers, recent changes).</summary>
     [HttpGet("dashboard")]
@@ -54,6 +56,16 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
         if (await styles.GetAsync(styleId, ct) is not { } style) return NotFound();
         var pdf = await writer.WriteAsync(style, CurrentUserName, DateTime.UtcNow, ct);
         return File(pdf, "application/pdf", $"{FileNameSafe(style.Style.StyleNo)}_{FileNameSafe(style.Style.SeasonCode)}_techpack.pdf");
+    }
+
+    /// <summary>The same tech pack as an Excel workbook: facts with sketch and photo, colorways with pictures, BOM, material colours.</summary>
+    [HttpGet("{styleId:int}/tech-pack.xlsx")]
+    public async Task<IActionResult> TechPackExcel(int styleId, [FromServices] ITechPackExcelWriter writer, CancellationToken ct)
+    {
+        if (await styles.GetAsync(styleId, ct) is not { } style) return NotFound();
+        var xlsx = await writer.WriteAsync(style, CurrentUserName, DateTime.UtcNow, ct);
+        return File(xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"{FileNameSafe(style.Style.StyleNo)}_{FileNameSafe(style.Style.SeasonCode)}_techpack.xlsx");
     }
 
     private static string FileNameSafe(string text) => string.Concat(text.Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '_'));

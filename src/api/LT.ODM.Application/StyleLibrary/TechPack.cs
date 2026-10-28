@@ -9,3 +9,12 @@ public interface ITechPackWriter
 {
     Task<byte[]> WriteAsync(StyleDetailDto style, string generatedBy, DateTime generatedUtc, CancellationToken ct = default);
 }
+
+/// <summary>
+/// The same tech pack as an Excel workbook: a Tech pack sheet (facts, sketch and photo), Colorways (with their pictures),
+/// BOM (by section, consumption as numbers) and Material colours (each BOM line's colour per colorway).
+/// </summary>
+public interface ITechPackExcelWriter
+{
+    Task<byte[]> WriteAsync(StyleDetailDto style, string generatedBy, DateTime generatedUtc, CancellationToken ct = default);
+}

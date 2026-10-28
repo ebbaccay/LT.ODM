@@ -997,6 +997,12 @@ BEGIN
     FROM #u u WHERE EXISTS (SELECT 1 FROM style.StyleHistory h
                             WHERE h.LinkSource = 'Manual' AND (h.StyleId = u.StyleId OR h.SourceStyleId = u.StyleId)
                               AND ISNULL(h.UpdatedUtc, h.CreatedUtc) > @at);
+    INSERT @b SELECT u.StyleNo, u.SeasonCode, N'Copied for another customer after the import (style packages).'
+    FROM #u u WHERE u.Kind = 'N' AND u.Present = 1 AND EXISTS (SELECT 1 FROM style.Style k WHERE k.OriginStyleId = u.StyleId);
+    IF OBJECT_ID(N'pack.PackageItem', N'U') IS NOT NULL   -- Style Packages (pack.tables.sql)
+        INSERT @b SELECT u.StyleNo, u.SeasonCode, CONCAT(N'Added to style package "', p.Name, N'" after the import.')
+        FROM #u u JOIN pack.PackageItem i ON i.StyleId = u.StyleId JOIN pack.Package p ON p.PackageId = i.PackageId
+        WHERE u.Kind = 'N' AND u.Present = 1;
     INSERT @b SELECT NULL, NULL, CONCAT(N'Material ', m.MaterialCode, N' was edited after the import.')
     FROM staging.ImportUndoMaterial um JOIN mat.Material m ON m.MaterialId = um.MaterialId
     WHERE um.BatchId = @BatchId AND m.UpdatedUtc > @at;

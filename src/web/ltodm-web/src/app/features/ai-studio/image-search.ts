@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
-  lucideArrowRight, lucideImage, lucideImageUp, lucideScanEye, lucideSearch, lucideSparkles, lucideSquare, lucideTriangleAlert, lucideX,
+  lucideArrowRight, lucideImage, lucideImageUp, lucidePackagePlus, lucideScanEye, lucideSearch, lucideSparkles, lucideSquare, lucideTriangleAlert, lucideX,
 } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -17,6 +17,7 @@ import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { AuthImgDirective } from '@tms/shared/ui/auth-img';
 import { catchError, firstValueFrom, Observable, of } from 'rxjs';
 import { problemMessage } from '../../core/auth/auth.service';
+import { AddToPackageDialog } from '../style-packages/add-to-package-dialog';
 import { StyleLibraryService } from '../style-library/style-library.service';
 import { AiProviderBanner } from './ai-provider-banner';
 import { AiStudioService, ImageSearchResult, ImageSearchStatus } from './ai-studio.service';
@@ -35,11 +36,11 @@ const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
   selector: 'app-image-search',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DecimalPipe, PercentPipe, RouterLink, NgIcon, AuthImgDirective, AiProviderBanner, HlmBadgeImports, HlmButtonImports, HlmCardImports,
+    DecimalPipe, PercentPipe, RouterLink, NgIcon, AuthImgDirective, AiProviderBanner, AddToPackageDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports,
     HlmInputImports, HlmNativeSelectImports, HlmSpinnerImports, TranslocoPipe,
   ],
   providers: [
-    provideIcons({ lucideArrowRight, lucideImage, lucideImageUp, lucideScanEye, lucideSearch, lucideSparkles, lucideSquare, lucideTriangleAlert, lucideX }),
+    provideIcons({ lucideArrowRight, lucideImage, lucideImageUp, lucidePackagePlus, lucideScanEye, lucideSearch, lucideSparkles, lucideSquare, lucideTriangleAlert, lucideX }),
   ],
   template: `
     <section class="flex flex-col gap-5">
@@ -193,6 +194,12 @@ const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
           </p>
         }
         @if (r.matches.length) {
+          @if (canEdit()) {
+            <!-- Style Packages: every style found at once (another brand's style is offered as a copy in the dialog) -->
+            <button hlmBtn variant="outline" type="button" class="h-11 self-start lg:h-9" (click)="addToPackage(r.matches)">
+              <ng-icon name="lucidePackagePlus" />{{ 'packages.pick.addAllFound' | transloco: { count: r.matches.length } }}
+            </button>
+          }
           <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="list">
             @for (m of r.matches; track m.styleId) {
               <li hlmCard class="gap-0 overflow-hidden py-0">
@@ -210,9 +217,16 @@ const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
                   <a [routerLink]="['/styles', m.styleId]" class="truncate font-mono text-sm font-medium hover:underline">{{ m.styleNo }}</a>
                   <span class="text-muted-foreground truncate text-xs">{{ m.customerCode }} · {{ m.seasonCode }} · {{ m.modelName || m.productTypeName || '—' }}</span>
                   @if (m.garment) { <span class="line-clamp-2 text-xs">{{ m.garment }}{{ m.colours ? ' — ' + m.colours : '' }}</span> }
-                  <button hlmBtn variant="ghost" size="sm" class="mt-auto h-9 self-start px-2" (click)="similar(m.styleId, m.styleNo)">
-                    {{ 'ai.imageSearch.moreLikeThis' | transloco }}<ng-icon name="lucideArrowRight" />
-                  </button>
+                  <div class="mt-auto flex flex-wrap gap-1">
+                    <button hlmBtn variant="ghost" size="sm" class="h-9 px-2" (click)="similar(m.styleId, m.styleNo)">
+                      {{ 'ai.imageSearch.moreLikeThis' | transloco }}<ng-icon name="lucideArrowRight" />
+                    </button>
+                    @if (canEdit()) {
+                      <button hlmBtn variant="ghost" size="sm" class="h-9 px-2" (click)="addToPackage([m])">
+                        <ng-icon name="lucidePackagePlus" />{{ 'packages.pick.addToPackage' | transloco }}
+                      </button>
+                    }
+                  </div>
                 </div>
               </li>
             }
@@ -224,6 +238,11 @@ const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
         }
       }
     </section>
+
+    @if (packageStyles(); as p) {
+      <app-add-to-package-dialog [open]="true" [styleIds]="p.styleIds" addedFrom="ImageSearch" [customerCode]="p.customerCode" [seasonCode]="p.seasonCode"
+                                 (closed)="packageStyles.set(null)" />
+    }
   `,
 })
 export class ImageSearch implements OnInit {
@@ -236,6 +255,17 @@ export class ImageSearch implements OnInit {
 
   readonly canEdit = this.styles.canEdit;
   readonly modes = ['photo', 'words'] as const;
+  /** Styles being added to a style package, with the customer and season they share (to start a new package with). */
+  readonly packageStyles = signal<{ styleIds: number[]; customerCode: string | null; seasonCode: string | null } | null>(null);
+
+  addToPackage(matches: { styleId: number; customerCode: string; seasonCode: string }[]): void {
+    const one = (values: string[]) => (new Set(values).size === 1 ? values[0] : null);
+    this.packageStyles.set({
+      styleIds: [...new Set(matches.map((m) => m.styleId))],
+      customerCode: one(matches.map((m) => m.customerCode)),
+      seasonCode: one(matches.map((m) => m.seasonCode)),
+    });
+  }
   private readonly lookups = toSignal(this.styles.lookups().pipe(catchError(() => of(null))), { initialValue: null });
   readonly customers = computed(() => this.lookups()?.customers ?? []);
 

@@ -94,7 +94,11 @@
     "materials": "物料",
     "aiImageSearch": "图片搜索",
     "aiAssistant": "款式库助手",
-    "fillGaps": "补齐缺失数据"
+    "fillGaps": "补齐缺失数据",
+    "stylePackages": "款式包",
+    "packages": "款式包列表",
+    "offer": "推荐款式",
+    "hitRate": "成交率"
   },
   "settings": {
     "nav": {
@@ -2092,7 +2096,12 @@
     "aiAssistant": "款式库助手",
     "imageImport": "导入图片",
     "fillGaps": "补齐缺失数据",
-    "signInPage": "登录页面"
+    "signInPage": "登录页面",
+    "packages": "款式包",
+    "package": "款式包",
+    "offer": "推荐款式",
+    "shared": "款式清单",
+    "hitRate": "成交率"
   },
   "layout": {
     "appSubtitle": "款式库",
@@ -2390,7 +2399,8 @@
       "picturesSwapped": "已交换图片和款式图。",
       "tabSimilar": "相似款",
       "techPack": "技术包 (PDF)",
-      "techPackFailed": "无法生成技术包，请重试。"
+      "techPackFailed": "无法生成技术包，请重试。",
+      "techPackExcel": "技术包 (Excel)"
     },
     "form": {
       "newTitle": "新建款式",
@@ -2725,6 +2735,12 @@
       "colorways": "配色",
       "bomLines": "物料行",
       "changed": "最后修改"
+    },
+    "recycled": {
+      "label": "再生面料",
+      "any": "任意面料",
+      "some": "部分再生面料",
+      "all": "仅再生面料"
     }
   },
   "ai": {
@@ -3495,7 +3511,8 @@
       "recycledFabricLines": "再生面料行",
       "recycledRule": "根据物料清单描述判断，只有描述中注明时才计入。没有任何再生记录的季节（如 Skechers 季节）可能只是没有注明。",
       "codes": "{{ count }} 个编号",
-      "colourRow": "{{ styles }} 个款式 · {{ materials }} 种物料 · {{ seasons }} 个季节"
+      "colourRow": "{{ styles }} 个款式 · {{ materials }} 种物料 · {{ seasons }} 个季节",
+      "openRecycled": "打开这些使用再生面料的款式（可挑选加入款式包）"
     },
     "reader": {
       "hint": "AI 将物料描述解读为纤维成分、再生比例、组织、克重和门幅。解读结果在有人接受之前保持“待审核”；物料描述本身不会被修改。",
@@ -3541,7 +3558,9 @@
       "readAgain": "重新读取",
       "readingRow": "读取中…",
       "queuedRow": "等待中"
-    }
+    },
+    "pickForPackage": "挑选款式加入款式包",
+    "showStyles": "使用此物料的款式"
   },
   "aiSettings": {
     "title": "AI 连接",
@@ -3863,6 +3882,267 @@
       "filled": "已为 {{ count }} 行填入 LCO（标记为估算）。",
       "estimate": "估算",
       "estimateHint": "LCO 用量由建议填入（估算）：在该行保存实际数值即可确认"
+    }
+  },
+  "packages": {
+    "title": "款式包",
+    "subtitle": "从款式库中挑选经过验证的款式，按推介顺序提供给客户。暂不含价格。",
+    "newPackage": "新建款式包",
+    "searchLabel": "搜索款式包",
+    "searchPlaceholder": "款式包、客户或款号",
+    "allCustomers": "全部客户",
+    "allSeasons": "全部季节",
+    "allStatuses": "全部状态",
+    "mine": "我的款式包",
+    "noMatch": "没有符合筛选条件的款式包。",
+    "empty": "还没有款式包",
+    "emptyHint": "跟单在这里把款式库中经过验证的款式组合起来，提供给客户。",
+    "emptyHintEdit": "点击“新建款式包”开始，或在款式列表中挑选款式后选择“加入款式包”。",
+    "styleCount": "{{ count }} 个款式",
+    "ownerChanged": "{{ owner }} · 更新于 {{ date }}",
+    "back": "款式包",
+    "notFound": "此款式包已不存在。",
+    "brand": "品牌 {{ brand }}",
+    "addStyles": "添加款式",
+    "addStylesHint": "打开此客户的款式列表：在那里挑选款式，然后选择“加入款式包”。",
+    "edit": "编辑",
+    "delete": "删除款式包",
+    "deleteMessage": "删除“{{ name }}”及其 {{ count }} 个款式？款式仍保留在款式库中。",
+    "deleted": "已删除款式包“{{ name }}”。",
+    "saved": "款式包已保存。",
+    "ownedBy": "负责人 {{ owner }}",
+    "createdBy": "由 {{ user }} 于 {{ date }} 创建",
+    "sentOn": "发送于 {{ date }}",
+    "changedBy": "由 {{ user }} 于 {{ date }} 修改",
+    "noStyles": "此款式包还没有款式",
+    "noStylesHint": "可从款式列表、款式页面或其“相似款式”选项卡添加款式（加入款式包）。",
+    "leadTime": "交期 {{ days }} 天",
+    "leadTimeUnknown": "交期未知",
+    "otherBrandItem": "不属于此款式包的品牌：添加此款式后客户已被更改。请移除后重新添加，以复制款提供。",
+    "allColorwaysOffered": "提供全部 {{ count }} 个配色",
+    "someColorwaysOffered": "提供 {{ count }} 个配色",
+    "internalOnly": "内部备注，仅 LT 可见",
+    "editItem": "备注和配色",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "removeItem": "从款式包中移除 {{ styleNo }}",
+    "removeTitle": "移除款式",
+    "removeMessage": "将 {{ styleNo }} 从“{{ name }}”中移除？其备注和配色选择也会一起移除；款式仍保留在款式库中。",
+    "removed": "已从款式包中移除 {{ styleNo }}。",
+    "inPackages": "所在款式包：",
+    "status": {
+      "Draft": "草稿",
+      "Sent": "已发送",
+      "Viewed": "已查看",
+      "Sampling": "打样中",
+      "Ordered": "已下单",
+      "Closed": "已关闭"
+    },
+    "form": {
+      "newTitle": "新建款式包",
+      "editTitle": "编辑款式包",
+      "name": "名称",
+      "namePlaceholder": "例如 SS28 户外系列",
+      "nameRequired": "请为款式包命名。",
+      "customer": "客户",
+      "customerHint": "只能添加此客户所属品牌的款式。",
+      "customerRequired": "请选择款式包的客户。",
+      "season": "季节（可选）",
+      "status": "状态",
+      "owner": "负责人",
+      "description": "说明（可选）",
+      "descriptionPlaceholder": "向客户介绍这个款式包",
+      "create": "创建款式包"
+    },
+    "add": {
+      "title": "将 {{ count }} 个款式加入款式包",
+      "existing": "现有款式包",
+      "new": "新建款式包",
+      "search": "搜索款式包",
+      "noPackages": "没有找到未关闭的款式包。",
+      "brandRule": "只有款式包所属品牌的款式可以原样加入。其他品牌的款式可以作为带新款号的复制款提供。",
+      "submit": "加入 {{ count }} 个款式",
+      "added": "已将 {{ count }} 个款式加入“{{ name }}”。",
+      "alreadyIn": "已在款式包中：{{ styles }}。",
+      "otherBrand": "未加入，属于其他品牌：{{ styles }}。",
+      "otherBrandHint": "其他品牌的款式绝不会原样提供。可在下方将其作为此款式包客户的新款式提供。",
+      "notFound": "{{ count }} 个款式已不存在。",
+      "openPackage": "打开款式包"
+    },
+    "item": {
+      "title": "款式包中的 {{ styleNo }}",
+      "pitchNote": "给客户的备注",
+      "pitchNotePlaceholder": "推荐理由：版型、面料故事、销售表现",
+      "internalNote": "内部备注（仅 LT 可见）",
+      "internalNotePlaceholder": "不会出现在客户看到的任何内容中",
+      "colorways": "提供的配色",
+      "allColorways": "全部配色（{{ count }}）",
+      "noColorways": "此款式没有配色。",
+      "missing": "已不在此款式上",
+      "dropped": "已取消",
+      "chooseColorway": "请至少选择一个配色，或提供全部配色。"
+    },
+    "pick": {
+      "start": "挑选加入款式包",
+      "stop": "停止挑选",
+      "allShown": "当前显示的全部 {{ count }} 个款式",
+      "one": "挑选 {{ styleNo }}",
+      "selected": "已挑选 {{ count }} 个款式",
+      "addToPackage": "加入款式包",
+      "addAllFound": "将 {{ count }} 个款式加入款式包"
+    },
+    "fabrics": "面料",
+    "trims": "辅料",
+    "recycled": "再生（按 BOM 描述）",
+    "recycledAll": "再生面料",
+    "recycledSome": "再生：{{ total }} 种面料中有 {{ recycled }} 种",
+    "noFabrics": "BOM 中没有面料",
+    "lineSheetPdf": "款式清单（PDF）",
+    "lineSheetExcel": "Excel",
+    "lineSheetHint": "款式清单是给客户的：只包含提供的配色和给客户的备注。内部备注和其他品牌的款式不会包含在内。暂不含价格。",
+    "lineSheetFailed": "无法生成款式清单，请重试。",
+    "copiedFrom": "复制自",
+    "copiedTo": "已复制为",
+    "copy": {
+      "season": "季节",
+      "styleNo": "新款号",
+      "submit": "复制并加入",
+      "done": "已作为 {{ styleNo }} 加入。",
+      "required": "请填写季节和新款号。",
+      "what": "复制款保留经验知识：说明、产品信息、交期以及 BOM 中的面料、辅料和配件。品牌的图片、配色、型号名称、标签、包装和图案不会复制。复制款会链接到所选的原款式。"
+    },
+    "offer": {
+      "title": "推荐款式",
+      "subtitle": "仅根据款式库，找出可向客户推荐的成熟款式：之后未再翻单的自有款式、很少采购的品类，以及使用其已有面料的款式。",
+      "chooseCustomer": "选择客户",
+      "pickCustomer": "选择客户以查看推荐款式。",
+      "backToPackage": "返回款式包",
+      "profile": "{{ brand }}：款式库中有 {{ styles }} 个款式（{{ accounts }} 个账户），{{ first }} 至 {{ latest }}。采购的品类：",
+      "latestIn": "最近一季 {{ season }}",
+      "noStyles": "此客户在款式库中还没有款式，无从比较。请改在款式列表中挑选款式。",
+      "none": "此处没有推荐。",
+      "asCopy": "其他品牌：以复制款提供",
+      "rules": "按规则从款式库计算，不使用 AI：品类来自产品类型（或说明），翻单来自款式历史，面料来自 BOM 面料行。每个款式系列只推荐一个；已在款式包中的款式和变体款不推荐。会参考已发送给此客户的款式包：其喜欢、打样或下单的品类排名靠前，不要或未采用的品类排名靠后，其不要或未采用的款式（或已收到复制款的款式）不再推荐。",
+      "section": {
+        "Repitch": {
+          "title": "再次推荐其款式",
+          "hint": "其以往季节、之后未再翻单的自有款式，限于其采购最多的品类。有图片、配色多的优先。"
+        },
+        "Gap": {
+          "title": "很少采购的品类",
+          "hint": "LT 经常为其他品牌生产、而此客户（几乎）从未采购的品类，附 LT 的最佳示例。以带新款号的复制款提供。"
+        },
+        "Fabric": {
+          "title": "使用其已有面料",
+          "hint": "使用此客户已有面料的其他品牌款式：熟悉的面料，新的款式。以复制款提供。"
+        }
+      },
+      "reason": {
+        "Repitch": "{{ d1 }} 个配色 · 之后已过 {{ d2 }} 季",
+        "Gap": "其有 {{ d1 }} 个 {{ category }} 款式；LT 生产过 {{ d2 }} 个",
+        "Fabric": "使用其 {{ d1 }} 种面料"
+      },
+      "won": "成交 {{ won }}/{{ offered }}",
+      "record": "此客户：已推荐的 {{ offered }} 个{{ category }}中有 {{ won }} 个进入打样或下单"
+    },
+    "share": {
+      "title": "分享给客户",
+      "hint": "客户无需登录即可打开的链接：带图片的款式清单、每个款式的喜欢 / 不要和评论，以及 PDF。绝不包含内部备注或其他品牌的款式。每位收件人各建一个链接，便于了解是谁的回复。",
+      "label": "分享对象",
+      "labelPlaceholder": "例如 Skechers 男装采购团队",
+      "days": "有效天数",
+      "create": "生成链接",
+      "onceOnly": "请把此链接发给客户。链接有效期内，之后可用“复制链接”再次复制。",
+      "link": "分享链接",
+      "copy": "复制",
+      "open": "打开",
+      "copied": "链接已复制。",
+      "copyFailed": "无法复制。请选中链接手动复制。",
+      "made": "由 {{ user }} 于 {{ date }} 生成",
+      "expires": "有效期至 {{ date }}",
+      "expired": "已过期",
+      "revokedOn": "已于 {{ date }} 撤销",
+      "views": "已打开 {{ count }} 次，最近 {{ date }}",
+      "notOpened": "尚未打开",
+      "comments": "{{ count }} 条评论",
+      "revoke": "撤销链接",
+      "revokeMessage": "停用给“{{ label }}”的链接？链接立即失效；客户的回复会保留。",
+      "answers": "客户回复",
+      "copyLink": "复制链接",
+      "oldLink": "无法再次复制",
+      "oldLinkHint": "此链接生成于可再次复制功能之前。如需重新发送，请生成新链接（客户使用新链接后再撤销此链接）。",
+      "mixed": "意见不一"
+    },
+    "shared": {
+      "kicker": "款式清单",
+      "pdf": "下载 PDF",
+      "yourName": "您的姓名",
+      "howTo": "请先输入您的姓名：同事可以使用同一链接，每个人的喜欢、不要和评论会分别保存，内容会自动保存。",
+      "like": "喜欢",
+      "pass": "不要",
+      "saved": "已保存",
+      "comment": "对 {{ styleNo }} 的评论",
+      "commentPlaceholder": "评论（可选）：颜色、版型、价格、数量……",
+      "footer": "分享给 {{ label }} · 此链接有效期至 {{ date }}。",
+      "goneTitle": "此链接已失效",
+      "goneText": "链接可能已过期或已被停用。请向您的 LT 联系人索取新链接。",
+      "tooMany": "修改过于频繁。请稍等一分钟再试。",
+      "notSaved": "未保存，请重试。"
+    },
+    "outcome": {
+      "label": "{{ styleNo }} 的结果",
+      "none": "结果：暂无",
+      "Sampling": "打样",
+      "Ordered": "已下单",
+      "Dropped": "未采用",
+      "setBy": "由 {{ user }} 于 {{ date }} 设置"
+    },
+    "source": {
+      "Styles": "款式列表",
+      "StylePage": "款式页面",
+      "Similar": "相似款式",
+      "ImageSearch": "以图搜款",
+      "Assistant": "款式库助手",
+      "Concept": "概念",
+      "Copy": "其他品牌款式的复制款",
+      "Offer": "推荐款式",
+      "Unknown": "未记录"
+    },
+    "hitRate": {
+      "title": "成交率",
+      "subtitle": "已发送给客户的款式包中各款式的结果：客户通过分享链接的回复，以及在每个款式上设置的结果（打样、下单、未采用）。",
+      "from": "发送日期从",
+      "to": "至",
+      "empty": "此期间没有发送款式包。",
+      "emptyHint": "款式包发送后才计入（生成分享链接会设为已发送）。客户做出决定后，请在款式包页面设置每个款式的结果。",
+      "offered": "已推荐",
+      "inPackages": "共 {{ count }} 个款式包",
+      "answered": "已回复",
+      "liked": "喜欢",
+      "ofAnswered": "{{ count }} 个款式，占已回复",
+      "sampling": "进入打样",
+      "samplingSub": "{{ count }} 个款式（打样或下单）",
+      "ordered": "已下单",
+      "orderedSub": "{{ count }} 个款式",
+      "passedCol": "不要",
+      "byGarment": "按品类",
+      "byClient": "按客户",
+      "bySource": "按款式来源",
+      "col": {
+        "byGarment": "品类",
+        "byClient": "客户（品牌）",
+        "bySource": "添加自"
+      },
+      "rules": "统计状态为已发送及之后的款式包中的所有款式，按款式包首次发送日期计。投票：每人（所填姓名）每个分享链接每个款式一票；多人可使用同一链接。每个已回复款式归为全部喜欢、意见不一（有喜欢也有不要）或全部不要。进入打样包括标为打样或已下单的款式；下单率按所有已推荐款式计算。",
+      "positive": "正面票",
+      "votes": "{{ likes }} 喜欢 · {{ passes }} 不要",
+      "votesCol": "投票",
+      "stylesCol": "已回复款式",
+      "split": "{{ liked }} 全部喜欢 · {{ mixed }} 意见不一 · {{ passed }} 全部不要",
+      "noAnswers": "暂无回复"
+    },
+    "notice": {
+      "title": "客户已回复"
     }
   }
 }

@@ -84,6 +84,8 @@ export interface StyleListFilter {
   gender?: string;
   /** Picture tags 'attribute:value' separated by commas (hood:hooded,colour:navy); only styles with tagged pictures match. */
   looks?: string;
+  /** 'some' = a fabric line written as recycled; 'all' = every fabric line. */
+  recycled?: string;
   /** 'active', 'inactive', or empty for both. */
   status?: string;
   /** 'with' (a picture or sketch), 'without', or empty for both. */
@@ -251,11 +253,23 @@ export interface FamilyMember {
   isCurrent: boolean;
 }
 
+/** Style Packages copy link: From = the style this one was copied from; To = a copy made from it for another customer. */
+export interface StyleCopyLink {
+  direction: 'From' | 'To';
+  styleId: number;
+  styleNo: string;
+  seasonCode: string;
+  customerCode: string;
+  createdBy: string;
+  createdUtc: string;
+}
+
 export interface StyleDetail {
   style: StyleHeader;
   colorways: Colorway[];
   bomLines: BomLine[];
   family: FamilyMember[];
+  copyLinks: StyleCopyLink[] | null;
 }
 
 export interface SaveStyleRequest {
@@ -713,10 +727,14 @@ export class StyleLibraryService {
     saveBlob(blob, `${safeFileName(baseName)}.${ext}`);
   }
 
-  /** Downloads the style's tech pack (PDF: header, sketch and photo, colorways, BOM, material colours by colorway). */
-  async downloadTechPack(styleId: number, styleNo: string, seasonCode: string): Promise<void> {
-    const blob = await firstValueFrom(this.http.get(`${this.api}/${styleId}/tech-pack`, { responseType: 'blob' }));
-    saveBlob(blob, `${safeFileName(styleNo)}_${safeFileName(seasonCode)}_techpack.pdf`);
+  /**
+   * Downloads the style's tech pack: pdf (header, sketch and photo, colorways, BOM, material colours by colorway) or xlsx
+   * (the same as an Excel workbook, with the pictures).
+   */
+  async downloadTechPack(styleId: number, styleNo: string, seasonCode: string, format: 'pdf' | 'xlsx' = 'pdf'): Promise<void> {
+    const url = format === 'pdf' ? `${this.api}/${styleId}/tech-pack` : `${this.api}/${styleId}/tech-pack.xlsx`;
+    const blob = await firstValueFrom(this.http.get(url, { responseType: 'blob' }));
+    saveBlob(blob, `${safeFileName(styleNo)}_${safeFileName(seasonCode)}_techpack.${format}`);
   }
 
   /** Uploads an image (already compressed) and returns its URL to save with the style, colorway or BOM line. */

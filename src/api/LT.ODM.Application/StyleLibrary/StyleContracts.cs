@@ -37,11 +37,12 @@ public sealed record StyleLookupsDto(
 /// Season, BusinessUnit and ProductType may hold several codes separated by commas (AI Studio search: "jackets" covers JACKET, JACKETS,
 /// JACKETMDW; "running" covers RUA, RUB, RUX). Material matches BOM material codes and descriptions; several words must all be on one BOM line.
 /// Looks: picture tags "attribute:value" separated by commas (hood:hooded,colour:navy); a style needs them all (styles without pictures never match). IsActive null lists active and inactive styles.
+/// Recycled: "some" = a fabric line is written as recycled; "all" = every fabric line is (null = no filter).
 /// </summary>
 public sealed record StyleListQuery(
     string? Search, string? Customer, string? Season, string? BusinessUnit, string? ProductType, string? WeaveType, string? Gender,
     int Skip, int Take, string? Material = null, bool? IsActive = null, string? Looks = null, bool? HasPicture = null, bool? ParentsOnly = null,
-    string? Sort = null, bool? Desc = null);
+    string? Sort = null, bool? Desc = null, string? Recycled = null);
 
 /// <summary>Columns the Styles list sorts by (StyleListQuery.Sort); anything else keeps the default, newest season first.</summary>
 public static class StyleListSorts
@@ -101,8 +102,15 @@ public sealed record StyleFamilyMemberDto(
     int StyleId, string StyleNo, string SeasonCode, string? ModelName, string? ImageUrl,
     int? SourceStyleId, string? Relation, string? Suffix, string? LinkSource, string? Note, string? LinkedBy, bool IsCurrent);
 
+/// <summary>
+/// A copy link (Style Packages): Direction From = the style this one was copied from for its customer; To = a copy made from
+/// this style for another customer (style.Style.OriginStyleId).
+/// </summary>
+public sealed record StyleCopyLinkDto(string Direction, int StyleId, string StyleNo, string SeasonCode, string CustomerCode, string CreatedBy, DateTime CreatedUtc);
+
 public sealed record StyleDetailDto(
-    StyleHeaderDto Style, IReadOnlyList<ColorwayDto> Colorways, IReadOnlyList<BomLineDto> BomLines, IReadOnlyList<StyleFamilyMemberDto> Family);
+    StyleHeaderDto Style, IReadOnlyList<ColorwayDto> Colorways, IReadOnlyList<BomLineDto> BomLines, IReadOnlyList<StyleFamilyMemberDto> Family,
+    IReadOnlyList<StyleCopyLinkDto>? CopyLinks = null);
 
 /// <summary>Landing page: what is in the library, where it is concentrated, what changed last, and what is missing (Gaps).</summary>
 public sealed record StyleDashboardDto(

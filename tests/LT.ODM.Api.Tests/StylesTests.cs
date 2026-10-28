@@ -244,6 +244,18 @@ public sealed class StylesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task The_list_filters_styles_with_recycled_fabric()
+    {
+        var (viewer, _) = await SignInAsync("Viewer");
+        await viewer.GetAsync("/api/v1/styles?recycled=ALL");
+        Assert.Equal("all", factory.Styles.LastListQuery!.Recycled);
+        await viewer.GetAsync("/api/v1/styles?recycled=some");
+        Assert.Equal("some", factory.Styles.LastListQuery!.Recycled);
+        await viewer.GetAsync("/api/v1/styles?recycled=lots");
+        Assert.Null(factory.Styles.LastListQuery!.Recycled);
+    }
+
+    [Fact]
     public async Task Styles_can_be_marked_inactive_and_filtered_by_status()
     {
         var (admin, _) = await SignInAsync("Admin");

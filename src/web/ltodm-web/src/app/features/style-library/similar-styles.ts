@@ -3,12 +3,14 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, si
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideGitCompareArrows, lucideImage, lucideInfo } from '@ng-icons/lucide';
+import { lucideGitCompareArrows, lucideImage, lucideInfo, lucidePackagePlus } from '@ng-icons/lucide';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { AuthImgDirective } from '@tms/shared/ui/auth-img';
+import { AddToPackageDialog } from '../style-packages/add-to-package-dialog';
 import { SimilarStyle, StyleGapsService } from './style-gaps.service';
+import { StyleLibraryService } from './style-library.service';
 
 /**
  * Style page > Similar: styles that share this one's materials (fabrics and rare materials count most), garment, weave and
@@ -18,8 +20,8 @@ import { SimilarStyle, StyleGapsService } from './style-gaps.service';
 @Component({
   selector: 'app-similar-styles',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, RouterLink, NgIcon, AuthImgDirective, HlmBadgeImports, HlmCardImports, HlmSkeletonImports, TranslocoPipe],
-  providers: [provideIcons({ lucideGitCompareArrows, lucideImage, lucideInfo })],
+  imports: [NgTemplateOutlet, RouterLink, NgIcon, AuthImgDirective, AddToPackageDialog, HlmBadgeImports, HlmCardImports, HlmSkeletonImports, TranslocoPipe],
+  providers: [provideIcons({ lucideGitCompareArrows, lucideImage, lucideInfo, lucidePackagePlus })],
   template: `
     <section hlmCard class="gap-0 py-0">
       <div class="border-b px-5 py-3">
@@ -84,16 +86,33 @@ import { SimilarStyle, StyleGapsService } from './style-gaps.service';
         @if (s.mainFabric) {
           <p class="text-muted-foreground line-clamp-2 text-xs" [title]="s.mainFabric">{{ 'similar.mainFabric' | transloco: { fabric: s.mainFabric } }}</p>
         }
-        <a [routerLink]="['/styles', styleId(), 'compare']" [queryParams]="{ from: s.styleId }"
-           class="text-primary mt-auto flex min-h-11 items-center gap-1 text-xs underline-offset-2 hover:underline lg:min-h-0">
-          <ng-icon name="lucideGitCompareArrows" />{{ 'similar.compare' | transloco }}
-        </a>
+        <div class="mt-auto flex flex-wrap gap-x-4">
+          <a [routerLink]="['/styles', styleId(), 'compare']" [queryParams]="{ from: s.styleId }"
+             class="text-primary flex min-h-11 items-center gap-1 text-xs underline-offset-2 hover:underline lg:min-h-0">
+            <ng-icon name="lucideGitCompareArrows" />{{ 'similar.compare' | transloco }}
+          </a>
+          <!-- Another brand's style is not added as it is: the dialog offers it as a copy with its own style number -->
+          @if (canEdit()) {
+            <button type="button" class="text-primary flex min-h-11 items-center gap-1 text-xs underline-offset-2 hover:underline lg:min-h-0" (click)="packageStyle.set(s)">
+              <ng-icon name="lucidePackagePlus" />{{ 'packages.pick.addToPackage' | transloco }}
+            </button>
+          }
+        </div>
       </li>
     </ng-template>
+
+    @if (packageStyle(); as p) {
+      <app-add-to-package-dialog [open]="true" [styleIds]="[p.styleId]" addedFrom="Similar" [customerCode]="p.customerCode" [seasonCode]="p.seasonCode"
+                                 (closed)="packageStyle.set(null)" />
+    }
   `,
 })
 export class SimilarStyles {
   private readonly svc = inject(StyleGapsService);
+
+  readonly canEdit = inject(StyleLibraryService).canEdit;
+  /** The style being added to a package. */
+  readonly packageStyle = signal<SimilarStyle | null>(null);
 
   readonly styleId = input.required<number>();
 

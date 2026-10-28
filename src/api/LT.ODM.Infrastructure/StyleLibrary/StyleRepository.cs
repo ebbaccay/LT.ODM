@@ -32,7 +32,7 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory, Styl
         using var grid = await conn.QueryMultipleAsync(Proc("style.usp_Style_List", new
         {
             q.Search, CustomerCode = q.Customer, SeasonCode = q.Season, BusinessUnitCode = q.BusinessUnit, ProductTypeCode = q.ProductType,
-            WeaveTypeCode = q.WeaveType, q.Gender, q.Material, q.IsActive, q.Looks, q.HasPicture, q.ParentsOnly, q.Sort, q.Desc, q.Skip, q.Take,
+            WeaveTypeCode = q.WeaveType, q.Gender, q.Material, q.IsActive, q.Looks, q.Recycled, q.HasPicture, q.ParentsOnly, q.Sort, q.Desc, q.Skip, q.Take,
         }, ct));
         var rows = (await grid.ReadAsync<ListRow>()).ToList();
         var matches = (await grid.ReadAsync<MatchRow>()).ToLookup(m => m.StyleId);
@@ -65,6 +65,7 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory, Styl
         var lines = (await grid.ReadAsync<LineRow>()).ToList();
         var lineColors = (await grid.ReadAsync<LineColorRow>()).ToLookup(r => r.BomLineId);
         var family = (await grid.ReadAsync<FamilyRow>()).ToList();
+        var copies = (await grid.ReadAsync<CopyLinkRow>()).ToList();
 
         return new StyleDetailDto(
             new StyleHeaderDto(h.StyleId, h.CustomerCode, h.CustomerName, h.SeasonCode, h.StyleNo, h.BaseStyleNo, h.Description, h.ModelCode, h.ModelName,
@@ -79,7 +80,8 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory, Styl
                 lineColors[l.BomLineId].Select(x => new BomLineColorwayDto(x.ColorwayId, x.MaterialColorCode, x.MaterialColorDescription)).ToList(),
                 l.CreatedBy, Utc(l.CreatedUtc), l.UpdatedBy, Utc(l.UpdatedUtc), l.RowVer, l.MaterialId, l.LcoIsEstimate, l.ConsumptionAllowance)).ToList(),
             family.Select(f => new StyleFamilyMemberDto(f.StyleId, f.StyleNo, f.SeasonCode, f.ModelName, f.ImageUrl, f.SourceStyleId, f.Relation,
-                f.Suffix, f.LinkSource, f.Note, f.LinkedBy, f.IsCurrent)).ToList());
+                f.Suffix, f.LinkSource, f.Note, f.LinkedBy, f.IsCurrent)).ToList(),
+            copies.Select(c => new StyleCopyLinkDto(c.Direction, c.StyleId, c.StyleNo, c.SeasonCode, c.CustomerCode, c.CreatedBy, Utc(c.CreatedUtc))).ToList());
     }
 
     /// <summary>From <see cref="StyleDashboardCache"/>: the procedure runs at most once per change (or every few minutes).</summary>
@@ -390,5 +392,16 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory, Styl
         public string? Note { get; init; }
         public string? LinkedBy { get; init; }
         public bool IsCurrent { get; init; }
+    }
+
+    private sealed class CopyLinkRow
+    {
+        public string Direction { get; init; } = "";
+        public int StyleId { get; init; }
+        public string StyleNo { get; init; } = "";
+        public string SeasonCode { get; init; } = "";
+        public string CustomerCode { get; init; } = "";
+        public string CreatedBy { get; init; } = "";
+        public DateTime CreatedUtc { get; init; }
     }
 }

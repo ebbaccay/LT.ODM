@@ -5,14 +5,14 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideArrowLeft, lucideCopy, lucideTriangleAlert } from '@ng-icons/lucide';
+import { lucideArrowLeft, lucideCopy, lucidePackagePlus, lucideTriangleAlert } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
-import { styleError } from '../style-library/style-library.service';
+import { StyleLibraryService, styleError } from '../style-library/style-library.service';
 import { MaterialBenchmark, MaterialDetail as Detail, MaterialSpec, MaterialUse, MaterialsService } from './materials.service';
 
 type Tab = 'uses' | 'consumption' | 'suppliers' | 'colours' | 'similar';
@@ -32,13 +32,15 @@ const HIGH = 1.6;
     DatePipe, DecimalPipe, RouterLink, NgIcon, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmNativeSelectImports, HlmSkeletonImports,
     TranslocoPipe,
   ],
-  providers: [provideIcons({ lucideArrowLeft, lucideCopy, lucideTriangleAlert })],
+  providers: [provideIcons({ lucideArrowLeft, lucideCopy, lucidePackagePlus, lucideTriangleAlert })],
   templateUrl: './material-detail.html',
 })
 export class MaterialDetailPage implements OnInit {
   private readonly svc = inject(MaterialsService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  /** Editors open the Styles list with picking for a style package turned on. */
+  readonly canEdit = inject(StyleLibraryService).canEdit;
 
   readonly detail = signal<Detail | null>(null);
   /** The AI reading of the description (Materials > Description reader), if any. */

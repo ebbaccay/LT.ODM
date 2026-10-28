@@ -1,6 +1,6 @@
 # LT ODM roadmap and status
 
-Status of every component, open fixes, and planned work. Last updated 2026-10-16.
+Status of every component, open fixes, and planned work. Last updated 2026-10-28.
 
 **Legend:** ✅ Done · 🧪 Done, still to be tested (browser, real data or real AI model) · 🔧 Open fix · ⏳ Waiting on a decision, data or a server · 💡 Planned · ⏸️ Parked or skipped
 
@@ -90,13 +90,62 @@ Status of every component, open fixes, and planned work. Last updated 2026-10-16
 
 ## 5. ODM pitch workflow (business goal)
 
-LT pitches its own designs to brands, using the style library and AI.
+LT pitches its own designs to brands, using the style library and AI. Planned 2026-10-28: a new **Style Packages** menu that sends packages of proven library styles to clients.
+
+**Approach (decided 2026-10-28):** new tables and stored procedures on the library standards (`ref`, `partner`, `style`, `mat`) and new components under a new menu. No setting that switches the app between the old TMS tables and the new ones. The old TMS offering pages (Concept Studio, Collection Builder, Customer Proposal, Product Matching, Market Trends) stay as they are, as a reference. They are hidden or retired per role from Settings > Menu once the new pages replace them. Why: the two data sets use different codes (iPLEX customer codes vs `partner.Partner`; free-text customer and season in concepts), only 5 of 38,066 iPLEX styles are in the library, and a switch would double every procedure, endpoint and test.
+
+**Decisions (2026-10-28):**
+
+1. **Start clean.** Old `tms_*` concepts and collections are not copied; the old pages stay for reference. No customer code map is needed.
+2. **Packages first, costs later.** Costing is not available yet, so packages hold styles only. Cost must plug in later without changing the package tables: costs will go in their own table keyed by the package item (one item can have several quotes over time), not in columns on the item.
+3. **Material prices:** open; only needed for 5.19.
+4. **Offering another brand's style = a new copy** with a new column on `style.Style` pointing at the original style (`OriginStyleId`), so the copy's history can be followed back. This is separate from StyleHistory, which links reuse within the same brand (carry-over, variant).
+
+**Order:** 5a (packages) first, then 5b (concepts), 5c, 5d, 5e.
+
+### 5a. Style Package (core, first)
 
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 5.1 | Design provenance: record which library styles inspired a concept | 💡 | |
-| 5.2 | Cross-brand guardrail: check new concepts for closeness to another brand's styles | 💡 | A brand's own styles may inspire pitches to that brand; across brands use only know-how and aggregates |
-| 5.3 | Pitch pack: concept + render + cost + lead time in one customer-ready proposal | 💡 | Builds on Customer Proposal and AI Render |
+| 5.8 | New `pack` schema: Package (customer, season, status, owner) and PackageItem (StyleId, order, notes, chosen colourways) with a stable PackageItemId | 🧪 | 2026-10-28: [Style Packages](components/style-packages.md). Tables + procedures on the laptop DB, smoke-tested in rolled-back transactions; no pages yet. No cost columns: costs attach later by PackageItemId (decision 2). Dev server needs `pack.tables.sql`, `pack.procedures.sql`, `style.procedures.sql`, `style.import.procedures.sql` |
+| 5.9 | Style Packages list and package editor: add styles from Styles list, Similar styles, image search and the Library assistant | 🧪 | 2026-10-28: menu Style Packages > Packages, list and package page; Add to package from the Styles list (pick), style page, Similar tab, image search (each style or all found) and Library assistant answers. API tests pass, repository checked on the laptop DB; not browser-tested. Adding from concepts comes with 5.7. Dev server needs `nav.menu.sql` too |
+| 5.10 | Package cards: picture or sketch, key fabrics and trims, colourways, recycled content, lead time where known | 🧪 | 2026-10-28: up to 3 fabrics (composition when read, else BOM description) and 4 trims, recycled from the BOM description (`mat.fn_IsRecycled`); package read about 0.2 s. Not browser-tested. Missing data is shown as missing, not guessed. FOB added by 5.19 |
+| 5.11 | Line sheet export: PDF (reuse tech pack PDF / Customer Proposal layout) and Excel | 🧪 | 2026-10-28: PDF cards two per row (tech pack drawing helpers moved to `Pdf.cs`), Excel one row per style with its picture in the row and an empty Price column for 5.19 (opened in Excel 2026-10-28: pictures in place, no repair prompt); internal notes, colourways not offered and other brands' styles left out. Checked on a real package from the laptop DB (few pictures on the laptop); not browser-tested |
+| 5.12 | Offer to brand: another brand's style enters a package as a new style of the package's customer; new column `style.Style.OriginStyleId` points at the original | 🧪 | 2026-10-28. Decision 4: any style can be copied; `OriginStyleId` is exactly the style the user picked (a suffixed version such as `S2508MR1212_SS27` stays the reference; earlier versions through its StyleHistory); season and style number typed by the user. Copies know-how only: no pictures, colourways, model code / name, labels / packaging / artwork lines; fabrics, trims and accessories kept. Copied from / Copied to on the style pages; StyleHistory stays for same-brand reuse. Checked on the laptop DB, not browser-tested. Dev server needs `style.tables.sql` too |
+| 5.2 | Cross-brand guardrail: check package items and concepts for closeness to another brand's styles | 💡 | Partly covered by 5.12: copies leave the brand's identity behind (pictures, colourways, model, labels / artwork). Still to do: a closeness check for concepts (5.7) and new designs; a brand's own styles go straight in |
+
+### 5b. Concepts (after packages)
+
+| # | Task | Status | Notes |
+|---|---|---|---|
+| 5.6 | Pick lists: target markets, trend tags and product categories as `ref` lists (Settings > Reference lists) | 💡 | Needed by concepts, not by packages. No old code map (decision 1) |
+| 5.7 | New `concept` schema: concepts on library codes (customer, season), inspiration images, AI brief; a concept can feed a package | 💡 | New Concept page under Style Packages; old Concept Studio stays for reference |
+| 5.1 | Design provenance: record which library styles inspired a concept (`ConceptStyle`) | 💡 | Package items record their source style through 5.12 |
+
+### 5c. Choosing what to offer
+
+| # | Task | Status | Notes |
+|---|---|---|---|
+| 5.13 | Client profile: price bands, compliance rules (restricted substances, minimum recycled %), preferred mills, season pitch dates | 💡 | Packages pre-filter to what the client accepts |
+| 5.14 | "What to offer this client": client's history, gaps in their range, re-pitch candidates from their older styles, other brands' know-how matched to their price and fabric range | 🧪 | 2026-10-28: Style Packages > What to offer (`pack.usp_Offer_Suggest`, rules only, about 1 s): re-offer their styles not carried over, garments they rarely buy (LT's examples, as copies), styles on fabrics they buy (as copies); tick and Add to package (AddedFrom Offer). Price range not used yet (no prices, 5.19). Not browser-tested. Dev server needs `pack.tables.sql`, `pack.procedures.sql`, `nav.menu.sql` |
+| 5.15 | Fabric-story packages: start a package from a material or recycled program and list the proven styles built on it | 🧪 | 2026-10-28: Pick styles for a package on the material page; Materials > Insights > Recycled links per season / product type; Styles list filter Recycled fabric (some / only recycled, `style.usp_Style_List @Recycled`, about 0.5 s). Not browser-tested. Dev server needs `style.procedures.sql` |
+
+### 5d. Sending and feedback
+
+| # | Task | Status | Notes |
+|---|---|---|---|
+| 5.16 | Shareable read-only link with expiry; client marks each style like / pass / comment | 🧪 | 2026-10-28: Share with client on the package page; links per recipient, 1-90 days, shown once (SHA-256 kept), revoke; client page `/share/...` without sign-in (line sheet content, Like / Pass, comments, PDF); only the package's pictures served; openings logged; 60 requests per minute per IP. API tests pass, repository checked on the laptop DB; not browser-tested. Dev server needs `pack.tables.sql`, `pack.procedures.sql` and a release |
+| 5.17 | Package status: draft, sent, viewed, sampling, order; hit rate per category and per client | 🧪 | 2026-10-28: Outcome per style on the package page (Sampling / Ordered / Dropped); Style Packages > Hit rate (`pack.usp_HitRate`, about 0.3 s): totals and by garment, client and where the style came from; share link sets Sent, first visit Viewed (5.16). What to offer learns from it: garments won / liked move up, dropped / passed move down, styles passed on or dropped (or already copied) are not suggested again. Not browser-tested. Dev server needs `pack.tables.sql`, `pack.procedures.sql`, `nav.menu.sql` |
+| 5.16b | Notices when clients answer: the bell for the package owner and the link maker, grouped per visit (10 minutes), live push, package page refreshes | 🧪 | 2026-10-28: `pack.PackageNotice`, `PackageNoticesController`, event `PackageNotice` on the notifications hub. Not browser-tested. Dev server needs `pack.tables.sql`, `pack.procedures.sql` and a release |
+| 5.18 | Email the package link | ⏳ | Needs SMTP (7.2) |
+
+### 5e. Cost, lead time and visuals
+
+| # | Task | Status | Notes |
+|---|---|---|---|
+| 5.19 | Costs on packages: a cost table keyed by PackageItemId (quote versions), indicative FOB and lead time on cards and line sheet | ⏳ | Needs Costing / Workmanship (3.15, 3.16), material prices (decision 3) and lead-time data (3.21) |
+| 5.3 | Pitch pack: concept + render + cost + lead time in one customer-ready proposal | 💡 | Now the package line sheet (5.11) plus 5.19 and renders |
+| 5.20 | Retire the old TMS offering pages once each has a replacement (hide per role in Settings > Menu) | 💡 | Last step; tables stay read-only for reference |
 | 5.4 | Virtual try-on / image-to-video (Kling AI) or 2D design (StyTrix) | 💡 | Explored only; cloud services, would send designs outside LT |
 | 5.5 | 3D (Style3D) | ⏸️ | Needs DXF patterns, which LT does not have |
 

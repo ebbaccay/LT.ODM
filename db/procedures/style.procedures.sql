@@ -101,6 +101,7 @@ CREATE OR ALTER PROCEDURE style.usp_Style_List
     @Gender           nvarchar(16)  = NULL,
     @Material         nvarchar(100) = NULL,   -- word(s) in a BOM line's material code or description; several words must all be on the same line
     @Looks            nvarchar(400) = NULL,   -- picture tags 'attribute:value' separated by commas (hood:hooded,colour:navy); a style needs all
+    @Recycled         varchar(4)    = NULL,   -- some = a fabric line written as recycled (mat.fn_IsRecycled, in mat.procedures.sql); all = every fabric line
     @IsActive         bit           = NULL,   -- NULL = active and inactive
     @HasPicture       bit           = NULL,   -- 1 = has a picture or sketch, 0 = has neither, NULL = all
     @ParentsOnly      bit           = NULL,
@@ -165,6 +166,10 @@ BEGIN
                  AND NOT EXISTS (SELECT 1 FROM @materialWords w
                                  WHERE UPPER(b.MaterialDescription) COLLATE Latin1_General_100_BIN2 NOT LIKE w.Pattern
                                    AND UPPER(m.MaterialCode) COLLATE Latin1_General_100_BIN2 NOT LIKE w.Pattern)))
+      AND (@Recycled IS NULL OR (
+               EXISTS (SELECT 1 FROM style.BomLine b WHERE b.StyleId = s.StyleId AND b.ContentClassCode = N'FAB' AND mat.fn_IsRecycled(b.MaterialDescription) = 1)
+               AND (@Recycled <> 'all' OR NOT EXISTS (
+                   SELECT 1 FROM style.BomLine b WHERE b.StyleId = s.StyleId AND b.ContentClassCode = N'FAB' AND mat.fn_IsRecycled(b.MaterialDescription) = 0))))
       AND (@Search IS NULL OR s.StyleId IN (SELECT StyleId FROM @found))
     OPTION (RECOMPILE);
 
@@ -269,8 +274,10 @@ END
 GO
 
 /*
-    A style with everything on its page: header, colorways, BOM lines, the colorways each line uses, and its family
-    (same customer + base style number + model, plus any style linked to it by hand), oldest season first.
+    A style with everything on its page: header, colorways, BOM lines, the colorways each line uses, its family
+    (same customer + base style number + model, plus any style linked to it by hand), oldest season first, and its copy
+    links: the style it was copied from for this customer (Direction From) and the copies made from it for other
+    customers (Direction To; Style Packages, style.Style.OriginStyleId).
 */
 CREATE OR ALTER PROCEDURE style.usp_Style_Get
     @StyleId int
@@ -333,6 +340,15 @@ BEGIN
     LEFT JOIN ref.SeasonTerm t ON t.Term = se.Term
     LEFT JOIN style.StyleHistory h ON h.StyleId = s.StyleId
     ORDER BY se.SeasonYear, t.SortOrder, LEN(s.StyleNo), s.StyleNo;
+
+    SELECT Direction = 'From', o.StyleId, o.StyleNo, o.SeasonCode, CustomerCode = c.PartnerCode, s.CreatedBy, s.CreatedUtc
+    FROM style.Style s JOIN style.Style o ON o.StyleId = s.OriginStyleId JOIN partner.Partner c ON c.PartnerId = o.CustomerId
+    WHERE s.StyleId = @StyleId
+    UNION ALL
+    SELECT 'To', k.StyleId, k.StyleNo, k.SeasonCode, c.PartnerCode, k.CreatedBy, k.CreatedUtc
+    FROM style.Style k JOIN partner.Partner c ON c.PartnerId = k.CustomerId
+    WHERE k.OriginStyleId = @StyleId
+    ORDER BY Direction DESC, CreatedUtc;
 END
 GO
 
@@ -605,6 +621,17 @@ BEGIN
         THROW 50404, 'This style no longer exists.', 1;
     IF NOT EXISTS (SELECT 1 FROM style.Style WHERE StyleId = @StyleId AND RowVer = @RowVer)
         THROW 50409, 'Someone else changed this style after you opened it. Reload and try again.', 1;
+    -- Style Packages (pack.tables.sql): a style offered to a client stays until it is taken out of its packages.
+    IF OBJECT_ID(N'pack.PackageItem', N'U') IS NOT NULL
+    BEGIN
+        DECLARE @packs nvarchar(400) = (SELECT STRING_AGG(p.Name, N', ') FROM pack.PackageItem i JOIN pack.Package p ON p.PackageId = i.PackageId
+                                        WHERE i.StyleId = @StyleId);
+        IF @packs IS NOT NULL
+        BEGIN
+            DECLARE @inPacks nvarchar(500) = CONCAT(N'This style is in style packages (', LEFT(@packs, 300), N'). Remove it from them first.');
+            THROW 50409, @inPacks, 1;
+        END
+    END
 
     DECLARE @source int = (SELECT SourceStyleId FROM style.StyleHistory WHERE StyleId = @StyleId);
     IF @source IS NULL
@@ -613,6 +640,8 @@ BEGIN
         UPDATE style.StyleHistory SET SourceStyleId = @source, UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
         WHERE SourceStyleId = @StyleId;
     DELETE style.StyleHistory WHERE StyleId = @StyleId;
+    -- Copies made from it keep a link to where it came from (its own origin), or none.
+    UPDATE style.Style SET OriginStyleId = (SELECT OriginStyleId FROM style.Style WHERE StyleId = @StyleId) WHERE OriginStyleId = @StyleId;
 
     DELETE blc FROM style.BomLineColorway blc JOIN style.BomLine bl ON bl.BomLineId = blc.BomLineId WHERE bl.StyleId = @StyleId;
     DELETE style.BomLine WHERE StyleId = @StyleId;

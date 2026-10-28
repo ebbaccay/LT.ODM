@@ -10,7 +10,13 @@
       <p class="text-muted-foreground mt-1 text-sm">{{ 'styles.subtitle' | transloco }}</p>
     </div>
     @if (canEdit()) {
-      <button hlmBtn type="button" class="h-11 lg:h-9" (click)="createOpen.set(true)"><ng-icon name="lucidePlus" />{{ 'styles.newStyle' | transloco }}</button>
+      <div class="flex flex-wrap gap-2">
+        <!-- Pick styles to offer in a style package -->
+        <button hlmBtn variant="outline" type="button" class="h-11 lg:h-9" [attr.aria-pressed]="selecting()" (click)="toggleSelecting()">
+          <ng-icon name="lucidePackagePlus" />{{ (selecting() ? 'packages.pick.stop' : 'packages.pick.start') | transloco }}
+        </button>
+        <button hlmBtn type="button" class="h-11 lg:h-9" (click)="createOpen.set(true)"><ng-icon name="lucidePlus" />{{ 'styles.newStyle' | transloco }}</button>
+      </div>
     }
   </header>
 
@@ -74,6 +80,11 @@
           <option hlmNativeSelectOption [value]="g.code">{{ 'styles.gender.' + g.code | transloco }}</option>
         }
       </hlm-native-select>
+      <hlm-native-select selectId="filter-recycled" selectClass="h-11 w-full lg:h-9 lg:w-40" [attr.aria-label]="'styles.recycled.label' | transloco" [value]="f.recycled" (valueChange)="setFilter('recycled', $event ?? '')">
+        <option hlmNativeSelectOption value="">{{ 'styles.recycled.any' | transloco }}</option>
+        <option hlmNativeSelectOption value="some">{{ 'styles.recycled.some' | transloco }}</option>
+        <option hlmNativeSelectOption value="all">{{ 'styles.recycled.all' | transloco }}</option>
+      </hlm-native-select>
       <hlm-native-select selectId="filter-status" selectClass="h-11 w-full lg:h-9 lg:w-32" [attr.aria-label]="'styles.status' | transloco" [value]="f.status" (valueChange)="setFilter('status', $event ?? '')">
         <option hlmNativeSelectOption value="">{{ 'styles.activeStyles' | transloco }}</option>
         <option hlmNativeSelectOption value="inactive">{{ 'styles.inactiveStyles' | transloco }}</option>
@@ -135,7 +146,13 @@
         }
       </div>
     } @else {
-      <div class="text-muted-foreground hidden grid-cols-[3.5rem_minmax(0,1.5fr)_minmax(0,8rem)_minmax(0,1fr)_minmax(0,4.5rem)_minmax(0,4.5rem)_minmax(0,7rem)] gap-4 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase lg:grid">
+      @if (selecting()) {
+        <label class="text-muted-foreground flex min-h-11 items-center gap-2 border-b px-5 py-2 text-sm" for="pick-all">
+          <hlm-checkbox inputId="pick-all" [checked]="allShownSelected()" (checkedChange)="toggleAllShown()" />
+          {{ 'packages.pick.allShown' | transloco: { count: styles().length } }}
+        </label>
+      }
+      <div class="text-muted-foreground hidden grid-cols-[3.5rem_minmax(0,1.5fr)_minmax(0,8rem)_minmax(0,1fr)_minmax(0,4.5rem)_minmax(0,4.5rem)_minmax(0,7rem)] gap-4 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase lg:grid" [style.padding-left.rem]="selecting() ? 3.5 : null">
         <!-- The cell holds the picture column's place; only its text is hidden (sr-only alone takes it out of the grid) -->
         <span><span class="sr-only">{{ 'styles.colPhoto' | transloco }}</span></span>
         <!-- Click a heading to sort by it (all matching styles, not just this page); again to reverse -->
@@ -180,11 +197,16 @@
       </div>
       <ul class="divide-y" role="list">
         @for (s of styles(); track s.styleId) {
-          <li>
+          <li class="flex items-stretch">
+            @if (selecting()) {
+              <label class="flex shrink-0 items-center pl-5" [for]="'pick-' + s.styleId" [attr.aria-label]="'packages.pick.one' | transloco: { styleNo: s.styleNo }">
+                <hlm-checkbox [inputId]="'pick-' + s.styleId" [checked]="selected().has(s.styleId)" (checkedChange)="toggleSelected(s)" />
+              </label>
+            }
             <a
               [routerLink]="['/styles', s.styleId]"
               [queryParams]="rowParams(s)"
-              class="hover:bg-accent/40 grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-0.5 px-5 py-3 transition-colors lg:grid-cols-[3.5rem_minmax(0,1.5fr)_minmax(0,8rem)_minmax(0,1fr)_minmax(0,4.5rem)_minmax(0,4.5rem)_minmax(0,7rem)]"
+              class="hover:bg-accent/40 grid min-w-0 flex-1 grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-0.5 px-5 py-3 transition-colors lg:grid-cols-[3.5rem_minmax(0,1.5fr)_minmax(0,8rem)_minmax(0,1fr)_minmax(0,4.5rem)_minmax(0,4.5rem)_minmax(0,7rem)]"
             >
               <span class="bg-muted row-span-2 flex size-14 items-center justify-center overflow-hidden rounded-md border lg:row-span-1">
                 @let thumb = thumbFor(s);
@@ -263,4 +285,15 @@
   </section>
 </section>
 
+<!-- Picked styles: a bar at the bottom of the screen until they are added or cleared -->
+@if (selecting() && selected().size) {
+  <div class="floating-bar bg-card ring-foreground/10 sticky bottom-4 z-20 mx-auto mt-4 flex w-fit max-w-full flex-wrap items-center gap-3 rounded-xl px-4 py-2 shadow-lg ring-1">
+    <span class="text-sm font-medium">{{ 'packages.pick.selected' | transloco: { count: selected().size } }}</span>
+    <button hlmBtn variant="ghost" type="button" class="h-11 lg:h-9" (click)="clearSelected()">{{ 'styles.clear' | transloco }}</button>
+    <button hlmBtn type="button" class="h-11 lg:h-9" (click)="packageOpen.set(true)"><ng-icon name="lucidePackagePlus" />{{ 'packages.pick.addToPackage' | transloco }}</button>
+  </div>
+}
+
 <app-style-form-dialog [open]="createOpen()" [lookups]="lookups()" (closed)="createOpen.set(false)" (saved)="onCreated($event)" />
+<app-add-to-package-dialog [open]="packageOpen()" [styleIds]="selectedIds()" addedFrom="Styles" [customerCode]="selectedCustomer()" [seasonCode]="selectedSeason()"
+                           (closed)="closePackageDialog()" (stylesAdded)="addedToPackage = true" />

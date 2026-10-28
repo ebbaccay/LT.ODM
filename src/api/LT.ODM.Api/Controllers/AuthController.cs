@@ -174,4 +174,7 @@ public static class RateLimitPolicies
 
     /// <summary>AI endpoints: 10 requests per minute per signed-in user.</summary>
     public const string Ai = "ai";
+
+    /// <summary>Share links opened without signing in (page, answers, PDF): 60 requests per minute per client IP.</summary>
+    public const string Share = "share";
 }

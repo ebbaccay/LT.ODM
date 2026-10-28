@@ -8,6 +8,8 @@ import { Home } from './pages/home/home';
 import { TMS_ROUTES } from './tms/tms.routes';
 
 export const routes: Routes = [
+  // Style Packages: a package opened by the client through its share link, without signing in (no app layout, no guard).
+  { path: 'share/:token', loadComponent: () => import('./features/style-packages/shared-package-page').then((m) => m.SharedPackagePage), title: 'titles.shared' },
   // The app: signed-in users only. Listed first so "/" matches here, not the auth shell.
   {
     path: '',
@@ -35,6 +37,18 @@ export const routes: Routes = [
             loadComponent: () => import('./features/style-library/style-compare').then((m) => m.StyleComparePage),
             title: 'titles.styleCompare',
           },
+        ],
+      },
+      // Style Packages: library styles offered to a client (same readers; Admin and Merchandiser change them).
+      {
+        path: 'packages',
+        canActivate: [roleGuard('Admin', 'Merchandiser', 'Costing', 'Viewer')],
+        children: [
+          { path: '', loadComponent: () => import('./features/style-packages/packages-list').then((m) => m.PackagesList), title: 'titles.packages' },
+          // What to offer a customer (rules, no AI); before ':id'.
+          { path: 'offer', loadComponent: () => import('./features/style-packages/offer-page').then((m) => m.OfferPage), title: 'titles.offer' },
+          { path: 'hit-rate', loadComponent: () => import('./features/style-packages/hit-rate-page').then((m) => m.HitRatePage), title: 'titles.hitRate' },
+          { path: ':id', loadComponent: () => import('./features/style-packages/package-detail').then((m) => m.PackageDetailPage), title: 'titles.package' },
         ],
       },
       // AI Studio on the Style Library (same readers; the API lets only Admin and Merchandiser make renders).

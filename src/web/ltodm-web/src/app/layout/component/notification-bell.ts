@@ -1,32 +1,34 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { Component, OnDestroy, OnInit, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideBell } from '@ng-icons/lucide';
+import { lucideBell, lucidePackage, lucideThumbsDown, lucideThumbsUp } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmPopoverImports } from '@spartan-ng/helm/popover';
 import { GqNotification, GqNotificationService } from '@services/gq-notification.service';
 import { toneDot, toneText } from '@tms/shared/ui/tones';
+import { PackageNoticeService } from '../../features/style-packages/package-notice.service';
 
-/** Garment-quotation notifications (ported from the TMS shell), shown in the top bar. */
+/** The top bar's bell: Style Packages notices (clients answering through share links), then garment-quotation notifications (ported from the TMS shell). */
 @Component({
   selector: 'app-notification-bell',
-  imports: [NgIcon, HlmButtonImports, HlmPopoverImports, TranslocoPipe],
-  providers: [provideIcons({ lucideBell })],
+  imports: [DatePipe, NgIcon, HlmButtonImports, HlmPopoverImports, TranslocoPipe],
+  providers: [provideIcons({ lucideBell, lucidePackage, lucideThumbsDown, lucideThumbsUp })],
   template: `
-    <hlm-popover align="end" sideOffset="8" (stateChanged)="$event === 'open' && notif.markAllRead()">
+    <hlm-popover align="end" sideOffset="8" (stateChanged)="$event === 'open' && markAllRead()">
       <button
         hlmBtn
         hlmPopoverTrigger
         variant="ghost"
         size="icon"
         class="relative size-11 lg:size-9"
-        [attr.aria-label]="'shell.notificationsAriaLabel' | transloco: { count: notif.unreadCount() }"
+        [attr.aria-label]="'shell.notificationsAriaLabel' | transloco: { count: unread() }"
       >
         <ng-icon name="lucideBell" class="text-lg" />
-        @if (notif.unreadCount() > 0) {
+        @if (unread() > 0) {
           <span class="bg-destructive absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white">
-            {{ notif.unreadCount() > 99 ? '99+' : notif.unreadCount() }}
+            {{ unread() > 99 ? '99+' : unread() }}
           </span>
         }
       </button>
@@ -37,9 +39,35 @@ import { toneDot, toneText } from '@tms/shared/ui/tones';
             <button hlmBtn variant="ghost" size="sm" type="button" (click)="notif.clear()">{{ 'shell.clearAll' | transloco }}</button>
           }
         </div>
-        @if (notif.all().length === 0) {
+        @if (packages.notices().length) {
+          <!-- Style Packages: clients answered through share links -->
+          <ul class="divide-border max-h-[40vh] divide-y overflow-y-auto border-b">
+            @for (p of packages.notices().slice(0, 10); track p.noticeId) {
+              <li>
+                <button type="button" class="hover:bg-accent focus-visible:bg-accent flex w-full gap-3 px-4 py-3 text-left outline-none" [class.bg-primary/5]="!p.isRead"
+                        (click)="ctx.close(); packages.open(p)">
+                  <ng-icon name="lucidePackage" class="text-primary mt-0.5 shrink-0" />
+                  <span class="min-w-0 flex-1">
+                    <span class="flex items-center justify-between gap-2 text-xs">
+                      <span class="text-primary font-semibold">{{ 'packages.notice.title' | transloco }}</span>
+                      <span class="text-muted-foreground shrink-0">{{ p.lastUtc | date: 'MMM d, HH:mm' }}</span>
+                    </span>
+                    <span class="block truncate text-sm font-medium">{{ p.packageName }}</span>
+                    <span class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
+                      <span class="text-muted-foreground">{{ p.clientName || p.shareLabel }}:</span>
+                      @if (p.likes) { <span class="flex items-center gap-0.5"><ng-icon name="lucideThumbsUp" />{{ p.likes }}</span> }
+                      @if (p.passes) { <span class="flex items-center gap-0.5"><ng-icon name="lucideThumbsDown" />{{ p.passes }}</span> }
+                      @if (p.comments) { <span>{{ 'packages.share.comments' | transloco: { count: p.comments } }}</span> }
+                    </span>
+                  </span>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+        @if (notif.all().length === 0 && !packages.notices().length) {
           <p class="text-muted-foreground px-4 py-8 text-center text-sm">{{ 'shell.noNotifications' | transloco }}</p>
-        } @else {
+        } @else if (notif.all().length) {
           <ul class="divide-border max-h-[60vh] divide-y overflow-y-auto">
             @for (n of notif.all(); track n.id) {
               <li>
@@ -73,17 +101,26 @@ import { toneDot, toneText } from '@tms/shared/ui/tones';
 })
 export class NotificationBell implements OnInit, OnDestroy {
   protected readonly notif = inject(GqNotificationService);
+  protected readonly packages = inject(PackageNoticeService);
+  protected readonly unread = computed(() => this.notif.unreadCount() + this.packages.unreadCount());
   private readonly router = inject(Router);
   protected readonly toneDot = toneDot;
   protected readonly toneText = toneText;
 
   ngOnInit(): void {
-    void this.notif.init();
+    // The garment-quotation service starts the hub; package notices listen on the same connection.
+    void this.notif.init().finally(() => this.packages.init());
+  }
+
+  protected markAllRead(): void {
+    this.notif.markAllRead();
+    this.packages.markAllRead();
   }
 
   ngOnDestroy(): void {
     // Shell closes on sign-out: drop notifications and the connection.
     void this.notif.reset();
+    this.packages.reset();
   }
 
   /** Same deep link as TMS: open the style on the costing tab. */

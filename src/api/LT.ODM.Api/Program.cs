@@ -87,6 +87,9 @@ builder.Services.PostConfigure<EmailOptions>(o => o.LogBodyWhenNotConfigured = b
 builder.Services.AddSingleton<IAccessTokenService, JwtAccessTokenService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserInviteService>();
+// Style Packages: notices to LT users when clients answer through share links (pushed via the notifications hub).
+builder.Services.AddSingleton<LT.ODM.Application.StyleLibrary.IPackageNotifier, LT.ODM.Api.Controllers.HubPackageNotifier>();
+builder.Services.AddSingleton<LT.ODM.Application.StyleLibrary.IShareTokenProtector, LT.ODM.Api.Controllers.DataProtectionShareTokenProtector>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -168,6 +171,17 @@ builder.Services.AddRateLimiter(options =>
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = authPermitPerMinute,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+    // Share links (Style Packages) are opened without signing in: 60 page loads / answers / PDFs per minute per client IP.
+    var sharePermitPerMinute = builder.Configuration.GetValue("RateLimiting:SharePermitPerMinute", 60);
+    options.AddPolicy(RateLimitPolicies.Share, context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = sharePermitPerMinute,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));

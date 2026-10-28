@@ -58,17 +58,26 @@
           </div>
           <div class="flex w-full flex-wrap gap-2 sm:w-auto">
             <!-- Everyone who can read the style can download its tech pack -->
-            <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" [disabled]="techPackBusy()" (click)="downloadTechPack()">
-              @if (techPackBusy()) {
+            <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" [disabled]="!!techPackBusy()" (click)="downloadTechPack('pdf')">
+              @if (techPackBusy() === 'pdf') {
                 <hlm-spinner class="size-4" />
               } @else {
                 <ng-icon name="lucideDownload" />
               }
               {{ 'styles.detail.techPack' | transloco }}
             </button>
+            <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" [disabled]="!!techPackBusy()" (click)="downloadTechPack('xlsx')">
+              @if (techPackBusy() === 'xlsx') {
+                <hlm-spinner class="size-4" />
+              } @else {
+                <ng-icon name="lucideFileSpreadsheet" />
+              }
+              {{ 'styles.detail.techPackExcel' | transloco }}
+            </button>
             @if (canEdit()) {
               <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" (click)="editOpen.set(true)"><ng-icon name="lucidePencil" />{{ 'styles.detail.edit' | transloco }}</button>
               <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" (click)="copyOpen.set(true)"><ng-icon name="lucideCopy" />{{ 'styles.detail.reuse' | transloco }}</button>
+              <button hlmBtn variant="outline" type="button" class="h-11 flex-1 sm:flex-initial lg:h-9" (click)="packageOpen.set(true)"><ng-icon name="lucidePackagePlus" />{{ 'packages.pick.addToPackage' | transloco }}</button>
               <button hlmBtn variant="ghost" type="button" class="text-destructive h-11 lg:h-9" [attr.aria-label]="'styles.detail.deleteStyle' | transloco" (click)="deleteStyle()"><ng-icon name="lucideTrash2" /></button>
             }
           </div>
@@ -92,6 +101,26 @@
         </dl>
         @if (s.description) {
           <p class="text-sm">{{ s.description }}</p>
+        }
+        @if (detail()?.copyLinks?.length) {
+          <!-- Copies across customers (Style Packages): where this style came from, and the copies made from it -->
+          <div class="flex flex-wrap items-center gap-1.5 text-xs">
+            @for (c of detail()!.copyLinks!; track c.direction + c.styleId) {
+              <span class="text-muted-foreground">{{ (c.direction === 'From' ? 'packages.copiedFrom' : 'packages.copiedTo') | transloco }}</span>
+              <a [routerLink]="['/styles', c.styleId]" hlmBadge variant="outline" class="hover:bg-accent font-mono">{{ c.styleNo }} · {{ c.customerCode }} {{ c.seasonCode }}</a>
+            }
+          </div>
+        }
+        @if (packages().length) {
+          <!-- Style packages this style is offered in -->
+          <div class="flex flex-wrap items-center gap-1.5 text-xs">
+            <span class="text-muted-foreground">{{ 'packages.inPackages' | transloco }}</span>
+            @for (p of packages(); track p.packageId) {
+              <a [routerLink]="['/packages', p.packageId]" hlmBadge variant="outline" class="hover:bg-accent gap-1">
+                <ng-icon name="lucidePackage" />{{ p.name }} · {{ 'packages.status.' + p.status | transloco }}
+              </a>
+            }
+          </div>
         }
         <p class="text-muted-foreground text-xs">
           {{ 'styles.detail.createdBy' | transloco: { user: s.createdBy, date: (s.createdUtc | date: 'medium') } }}@if (s.importBatchId) { {{ 'styles.detail.importBatch' | transloco: { id: s.importBatchId } }} }
@@ -413,6 +442,8 @@
 
     <!-- Dialogs -->
     <app-style-form-dialog [open]="editOpen()" [style]="s" [lookups]="lookups()" (closed)="editOpen.set(false)" (saved)="onStyleSaved()" />
+    <app-add-to-package-dialog [open]="packageOpen()" [styleIds]="[s.styleId]" addedFrom="StylePage" [customerCode]="s.customerCode" [seasonCode]="s.seasonCode"
+                               (closed)="packageOpen.set(false)" (stylesAdded)="loadPackages()" />
     <app-copy-style-dialog [open]="copyOpen()" [style]="s" [lookups]="lookups()" (closed)="copyOpen.set(false)" (saved)="onCopied($event)" />
     <app-history-dialog [open]="historyOpen()" [style]="s" (closed)="historyOpen.set(false)" (saved)="onHistorySaved()" />
     <app-lco-fill-dialog [open]="lcoOpen()" [styleId]="s.styleId" [styleNo]="s.styleNo" (closed)="lcoOpen.set(false)" (saved)="lcoOpen.set(false); load()" />

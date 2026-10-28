@@ -311,6 +311,15 @@ ELSE IF NOT EXISTS (SELECT 1 FROM sys.index_columns ic JOIN sys.indexes i ON i.o
 IF INDEXPROPERTY(OBJECT_ID(N'style.Style'), N'IX_style_Style_Family', 'IndexId') IS NULL
     CREATE INDEX IX_style_Style_Family ON style.Style (CustomerId, BaseStyleNo, ModelCode) INCLUDE (SeasonCode, StyleNo);
 GO
+/* Added 2026-10-28 (Style Packages, roadmap 5.12): a copy made for another customer (another brand's style offered as a new
+   style) points at exactly the style it was copied from, a suffixed version too. Separate from StyleHistory, which links
+   reuse within the same customer. Set by pack.usp_PackageItem_AddCopy. */
+IF COL_LENGTH(N'style.Style', N'OriginStyleId') IS NULL
+    ALTER TABLE style.Style ADD OriginStyleId int NULL CONSTRAINT FK_style_Style_Origin REFERENCES style.Style (StyleId);
+GO
+IF INDEXPROPERTY(OBJECT_ID(N'style.Style'), N'IX_style_Style_Origin', 'IndexId') IS NULL
+    CREATE INDEX IX_style_Style_Origin ON style.Style (OriginStyleId) WHERE OriginStyleId IS NOT NULL;
+GO
 
 /*
     Style history: a style reused from an earlier one. Customers reuse a style by adding a suffix

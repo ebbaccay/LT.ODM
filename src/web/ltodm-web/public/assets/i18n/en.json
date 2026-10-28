@@ -94,7 +94,11 @@
     "materials": "Materials",
     "aiImageSearch": "Image search",
     "aiAssistant": "Library assistant",
-    "fillGaps": "Fill the gaps"
+    "fillGaps": "Fill the gaps",
+    "stylePackages": "Style Packages",
+    "packages": "Packages",
+    "offer": "What to offer",
+    "hitRate": "Hit rate"
   },
   "settings": {
     "nav": {
@@ -2092,7 +2096,12 @@
     "aiAssistant": "Library assistant",
     "imageImport": "Import pictures",
     "fillGaps": "Fill the gaps",
-    "signInPage": "Sign-in page"
+    "signInPage": "Sign-in page",
+    "packages": "Style packages",
+    "package": "Style package",
+    "offer": "What to offer",
+    "shared": "Line sheet",
+    "hitRate": "Hit rate"
   },
   "layout": {
     "appSubtitle": "Style Library",
@@ -2390,7 +2399,8 @@
       "picturesSwapped": "Picture and sketch swapped.",
       "tabSimilar": "Similar",
       "techPack": "Tech pack (PDF)",
-      "techPackFailed": "The tech pack could not be made. Try again."
+      "techPackFailed": "The tech pack could not be made. Try again.",
+      "techPackExcel": "Tech pack (Excel)"
     },
     "form": {
       "newTitle": "New style",
@@ -2725,6 +2735,12 @@
       "colorways": "Colorways",
       "bomLines": "BOM lines",
       "changed": "Last changed"
+    },
+    "recycled": {
+      "label": "Recycled fabric",
+      "any": "Any fabric",
+      "some": "Some recycled fabric",
+      "all": "Only recycled fabric"
     }
   },
   "ai": {
@@ -3495,7 +3511,8 @@
       "recycledFabricLines": "Recycled fabric lines",
       "recycledRule": "Read from BOM descriptions, so a fabric is counted only when its description says so. Seasons without any (e.g. Skechers seasons) may simply not write it.",
       "codes": "{{ count }} codes",
-      "colourRow": "{{ styles }} styles · {{ materials }} materials · {{ seasons }} seasons"
+      "colourRow": "{{ styles }} styles · {{ materials }} materials · {{ seasons }} seasons",
+      "openRecycled": "Open these styles with recycled fabric (to pick for a style package)"
     },
     "reader": {
       "hint": "AI reads material descriptions into fibre composition, recycled share, construction, weight and width. Readings stay Pending until someone accepts them; the description itself is never changed.",
@@ -3541,7 +3558,9 @@
       "readAgain": "Read again",
       "readingRow": "Reading…",
       "queuedRow": "Waiting"
-    }
+    },
+    "pickForPackage": "Pick styles for a package",
+    "showStyles": "Styles using it"
   },
   "aiSettings": {
     "title": "AI connections",
@@ -3863,6 +3882,267 @@
       "filled": "LCO filled on {{ count }} lines (marked as estimates).",
       "estimate": "estimate",
       "estimateHint": "LCO consumption, filled from a suggestion (estimate): save the line with the real figure to confirm it"
+    }
+  },
+  "packages": {
+    "title": "Style packages",
+    "subtitle": "Proven library styles offered to a client, in pitch order. No prices yet.",
+    "newPackage": "New package",
+    "searchLabel": "Search packages",
+    "searchPlaceholder": "Package, customer or style number",
+    "allCustomers": "All customers",
+    "allSeasons": "All seasons",
+    "allStatuses": "All statuses",
+    "mine": "My packages",
+    "noMatch": "No packages match these filters.",
+    "empty": "No style packages yet",
+    "emptyHint": "Merchandisers put proven library styles together here to offer them to a client.",
+    "emptyHintEdit": "Start one with New package, or pick styles on the Styles list and choose Add to package.",
+    "styleCount": "{{ count }} styles",
+    "ownerChanged": "{{ owner }} · changed {{ date }}",
+    "back": "Style packages",
+    "notFound": "This package does not exist any more.",
+    "brand": "Brand {{ brand }}",
+    "addStyles": "Add styles",
+    "addStylesHint": "Opens the Styles list for this customer: pick styles there and choose Add to package.",
+    "edit": "Edit",
+    "delete": "Delete package",
+    "deleteMessage": "Delete \"{{ name }}\" and its {{ count }} styles? The styles stay in the library.",
+    "deleted": "Package \"{{ name }}\" deleted.",
+    "saved": "Package saved.",
+    "ownedBy": "Owner {{ owner }}",
+    "createdBy": "created by {{ user }} on {{ date }}",
+    "sentOn": "sent {{ date }}",
+    "changedBy": "changed by {{ user }} on {{ date }}",
+    "noStyles": "No styles in this package yet",
+    "noStylesHint": "Add styles from the Styles list, a style page or its Similar tab (Add to package).",
+    "leadTime": "Lead time {{ days }} days",
+    "leadTimeUnknown": "Lead time not known",
+    "otherBrandItem": "Not of this package's brand: the customer was changed after this style was added. Remove it, then add it again to offer it as a copy.",
+    "allColorwaysOffered": "All {{ count }} colourways offered",
+    "someColorwaysOffered": "{{ count }} colourways offered",
+    "internalOnly": "Internal note, LT only",
+    "editItem": "Notes and colourways",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "removeItem": "Remove {{ styleNo }} from the package",
+    "removeTitle": "Remove style",
+    "removeMessage": "Take {{ styleNo }} out of \"{{ name }}\"? Its notes and colourway choice go with it; the style stays in the library.",
+    "removed": "{{ styleNo }} removed from the package.",
+    "inPackages": "In style packages:",
+    "status": {
+      "Draft": "Draft",
+      "Sent": "Sent",
+      "Viewed": "Viewed",
+      "Sampling": "Sampling",
+      "Ordered": "Ordered",
+      "Closed": "Closed"
+    },
+    "form": {
+      "newTitle": "New style package",
+      "editTitle": "Edit style package",
+      "name": "Name",
+      "namePlaceholder": "e.g. SS28 outdoor capsule",
+      "nameRequired": "Give the package a name.",
+      "customer": "Customer",
+      "customerHint": "Only styles of this customer's brand can be added.",
+      "customerRequired": "Choose the customer the package is for.",
+      "season": "Season (optional)",
+      "status": "Status",
+      "owner": "Owner",
+      "description": "Description (optional)",
+      "descriptionPlaceholder": "The story of the package for the client",
+      "create": "Create package"
+    },
+    "add": {
+      "title": "Add {{ count }} styles to a package",
+      "existing": "Existing package",
+      "new": "New package",
+      "search": "Search packages",
+      "noPackages": "No open packages found.",
+      "brandRule": "Only styles of the package's brand go in as they are. Another brand's style can be offered as a copy with its own style number.",
+      "submit": "Add {{ count }} styles",
+      "added": "{{ count }} styles added to \"{{ name }}\".",
+      "alreadyIn": "Already in the package: {{ styles }}.",
+      "otherBrand": "Not added, another brand: {{ styles }}.",
+      "otherBrandHint": "Another brand's style is never offered as it is. Below you can offer it as a new style of the package's customer.",
+      "notFound": "{{ count }} styles no longer exist.",
+      "openPackage": "Open package"
+    },
+    "item": {
+      "title": "{{ styleNo }} in the package",
+      "pitchNote": "Note for the client",
+      "pitchNotePlaceholder": "Why this style: fit, fabric story, what sold",
+      "internalNote": "Internal note (LT only)",
+      "internalNotePlaceholder": "Not on anything the client sees",
+      "colorways": "Colourways offered",
+      "allColorways": "All colourways ({{ count }})",
+      "noColorways": "This style has no colourways.",
+      "missing": "No longer on the style",
+      "dropped": "dropped",
+      "chooseColorway": "Choose at least one colourway, or offer all colourways."
+    },
+    "pick": {
+      "start": "Pick for a package",
+      "stop": "Stop picking",
+      "allShown": "All {{ count }} styles shown",
+      "one": "Pick {{ styleNo }}",
+      "selected": "{{ count }} styles picked",
+      "addToPackage": "Add to package",
+      "addAllFound": "Add {{ count }} styles to a package"
+    },
+    "fabrics": "Fabric",
+    "trims": "Trims",
+    "recycled": "Recycled (as written on the BOM)",
+    "recycledAll": "Recycled fabric",
+    "recycledSome": "Recycled: {{ recycled }} of {{ total }} fabrics",
+    "noFabrics": "No fabric on the BOM",
+    "lineSheetPdf": "Line sheet (PDF)",
+    "lineSheetExcel": "Excel",
+    "lineSheetHint": "The line sheet is for the client: offered colourways and notes for the client only. Internal notes and styles of another brand are left out. No prices yet.",
+    "lineSheetFailed": "The line sheet could not be made. Try again.",
+    "copiedFrom": "Copied from",
+    "copiedTo": "Copied to",
+    "copy": {
+      "season": "Season",
+      "styleNo": "New style number",
+      "submit": "Copy and add",
+      "done": "Added as {{ styleNo }}.",
+      "required": "Give the season and the new style number.",
+      "what": "The copy keeps the know-how: description, product facts, lead time and the fabric, trim and accessory lines of the BOM. The brand's pictures, colourways, model name, labels, packaging and artwork stay behind. It links back to the style picked."
+    },
+    "offer": {
+      "title": "What to offer",
+      "subtitle": "Proven styles to put in front of a client, from the library alone: their own styles not carried over since, garments they rarely buy, and styles on fabrics they already use.",
+      "chooseCustomer": "Choose a customer",
+      "pickCustomer": "Choose a customer to see what to offer them.",
+      "backToPackage": "Back to the package",
+      "profile": "{{ brand }}: {{ styles }} styles in the library ({{ accounts }} accounts), {{ first }} to {{ latest }}. Garments they buy:",
+      "latestIn": "Latest in {{ season }}",
+      "noStyles": "This customer has no styles in the library yet, so there is nothing to compare with. Pick styles on the Styles list instead.",
+      "none": "Nothing to suggest here.",
+      "asCopy": "Another brand: offered as a copy",
+      "rules": "Worked out from the library with rules, no AI: garments from product types (or descriptions), carry-overs from style history, fabrics from BOM fabric lines. One style per family; variants and styles already in the package are left out. Learns from packages sent to this client: garments they liked, sampled or ordered move up, garments they passed on or dropped move down, and styles they passed on or dropped (or already received as a copy) are not suggested again.",
+      "section": {
+        "Repitch": {
+          "title": "Re-offer their styles",
+          "hint": "Their own styles from earlier seasons that were not carried over since, in the garments they buy most. With pictures and more colourways first."
+        },
+        "Gap": {
+          "title": "Garments they rarely buy",
+          "hint": "Garments LT makes often for other brands that this client has (almost) never bought, with LT's best examples. Offered as copies with their own style number."
+        },
+        "Fabric": {
+          "title": "On fabrics they already buy",
+          "hint": "Other brands' styles built on fabrics this client already uses: known materials, a new garment. Offered as copies."
+        }
+      },
+      "reason": {
+        "Repitch": "{{ d1 }} colourways · {{ d2 }} seasons since",
+        "Gap": "They have {{ d1 }} {{ category }} styles; LT made {{ d2 }}",
+        "Fabric": "Shares {{ d1 }} of their fabrics"
+      },
+      "won": "{{ won }}/{{ offered }} won",
+      "record": "With this client: {{ won }} of {{ offered }} {{ category }} offered went to sampling or order"
+    },
+    "share": {
+      "title": "Share with client",
+      "hint": "A link the client opens without signing in: the line sheet with pictures, Like / Pass and comments per style, and the PDF. Never internal notes or another brand's styles. Make one link per recipient, so you see who answered.",
+      "label": "Who it is for",
+      "labelPlaceholder": "e.g. Skechers men's buying team",
+      "days": "Days valid",
+      "create": "Make link",
+      "onceOnly": "Send this link to the client. You can copy it again later with Copy link while it works.",
+      "link": "Share link",
+      "copy": "Copy",
+      "open": "Open",
+      "copied": "Link copied.",
+      "copyFailed": "Could not copy. Select the link and copy it by hand.",
+      "made": "made by {{ user }} on {{ date }}",
+      "expires": "works until {{ date }}",
+      "expired": "expired",
+      "revokedOn": "revoked on {{ date }}",
+      "views": "opened {{ count }} times, last {{ date }}",
+      "notOpened": "not opened yet",
+      "comments": "{{ count }} comments",
+      "revoke": "Revoke link",
+      "revokeMessage": "Stop the link for \"{{ label }}\"? It stops working at once; the client's answers stay.",
+      "answers": "Client answers",
+      "copyLink": "Copy link",
+      "oldLink": "Cannot be copied again",
+      "oldLinkHint": "Made before links could be copied again. To re-send it, make a new link (and revoke this one once the client uses the new one).",
+      "mixed": "mixed"
+    },
+    "shared": {
+      "kicker": "Line sheet",
+      "pdf": "Download PDF",
+      "yourName": "Your name",
+      "howTo": "Type your name first: colleagues can use the same link, and each person's likes, passes and comments are kept separately. They are saved as you go.",
+      "like": "Like",
+      "pass": "Pass",
+      "saved": "Saved",
+      "comment": "Comment on {{ styleNo }}",
+      "commentPlaceholder": "Comment (optional): colours, fit, price, quantities...",
+      "footer": "Shared with {{ label }} · this link works until {{ date }}.",
+      "goneTitle": "This link no longer works",
+      "goneText": "It may have expired or been stopped. Ask your LT contact for a new link.",
+      "tooMany": "Too many changes at once. Wait a minute and try again.",
+      "notSaved": "Not saved. Try again."
+    },
+    "outcome": {
+      "label": "Outcome of {{ styleNo }}",
+      "none": "Outcome: not yet",
+      "Sampling": "Sampling",
+      "Ordered": "Ordered",
+      "Dropped": "Dropped",
+      "setBy": "Set by {{ user }} on {{ date }}"
+    },
+    "source": {
+      "Styles": "Styles list",
+      "StylePage": "Style page",
+      "Similar": "Similar styles",
+      "ImageSearch": "Image search",
+      "Assistant": "Library assistant",
+      "Concept": "Concept",
+      "Copy": "Copy of another brand's style",
+      "Offer": "What to offer",
+      "Unknown": "Not recorded"
+    },
+    "hitRate": {
+      "title": "Hit rate",
+      "subtitle": "What came of the styles offered in packages sent to clients: their answers through share links, and the outcome set on each style (sampling, ordered, dropped).",
+      "from": "Sent from",
+      "to": "to",
+      "empty": "No packages were sent in this period.",
+      "emptyHint": "A package counts once it is sent (a share link sets Sent). Set each style's outcome on the package page as the client decides.",
+      "offered": "Offered",
+      "inPackages": "in {{ count }} packages",
+      "answered": "Answered",
+      "liked": "Liked",
+      "ofAnswered": "{{ count }} styles, of those answered",
+      "sampling": "To sampling",
+      "samplingSub": "{{ count }} styles (sampled or ordered)",
+      "ordered": "Ordered",
+      "orderedSub": "{{ count }} styles",
+      "passedCol": "Passed",
+      "byGarment": "By garment",
+      "byClient": "By client",
+      "bySource": "By where the style came from",
+      "col": {
+        "byGarment": "Garment",
+        "byClient": "Client (brand)",
+        "bySource": "Added from"
+      },
+      "rules": "Counts every style in packages with status Sent or later, by the day the package was first sent. Votes: one per person (the name typed) per share link per style; several people can use one link. Each answered style is all liked, mixed (likes and passes) or all passed. To sampling counts styles marked Sampling or Ordered; ordered rates are of all styles offered.",
+      "positive": "Positive votes",
+      "votes": "{{ likes }} like · {{ passes }} pass",
+      "votesCol": "Votes",
+      "stylesCol": "Styles answered",
+      "split": "{{ liked }} all liked · {{ mixed }} mixed · {{ passed }} all passed",
+      "noAnswers": "No answers yet"
+    },
+    "notice": {
+      "title": "Client answered"
     }
   }
 }

@@ -1,15 +1,18 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
-  lucideArrowRight, lucideBookmarkCheck, lucideImage, lucideListChecks, lucideScanEye, lucideSparkles, lucideSquare, lucideThumbsDown, lucideThumbsUp, lucideUser,
+  lucideArrowRight, lucideBookmarkCheck, lucideImage, lucideListChecks, lucidePackagePlus, lucideScanEye, lucideSparkles, lucideSquare, lucideThumbsDown,
+  lucideThumbsUp, lucideUser,
 } from '@ng-icons/lucide';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { AuthImgDirective } from '@tms/shared/ui/auth-img';
+import { StyleLibraryService } from '../style-library/style-library.service';
+import { AddToPackageDialog } from '../style-packages/add-to-package-dialog';
 import { LibraryAssistantSession, LibraryTurnState } from './library-assistant.session';
 
 /**
@@ -19,9 +22,12 @@ import { LibraryAssistantSession, LibraryTurnState } from './library-assistant.s
 @Component({
   selector: 'app-library-turn',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgIcon, AuthImgDirective, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmSpinnerImports, TranslocoPipe],
+  imports: [NgIcon, AuthImgDirective, AddToPackageDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmSpinnerImports, TranslocoPipe],
   providers: [
-    provideIcons({ lucideArrowRight, lucideBookmarkCheck, lucideImage, lucideListChecks, lucideScanEye, lucideSparkles, lucideSquare, lucideThumbsDown, lucideThumbsUp, lucideUser }),
+    provideIcons({
+      lucideArrowRight, lucideBookmarkCheck, lucideImage, lucideListChecks, lucidePackagePlus, lucideScanEye, lucideSparkles, lucideSquare, lucideThumbsDown,
+      lucideThumbsUp, lucideUser,
+    }),
   ],
   host: { class: 'flex flex-col gap-2' },
   template: `
@@ -106,6 +112,15 @@ import { LibraryAssistantSession, LibraryTurnState } from './library-assistant.s
             }
           </div>
         }
+        @if (canEdit() && answerStyleIds().length) {
+          <!-- Style Packages: the styles in this answer (another brand's style is offered as a copy in the dialog) -->
+          <button hlmBtn variant="outline" type="button" class="h-11 self-start lg:h-8" (click)="packageOpen.set(true)">
+            <ng-icon name="lucidePackagePlus" />{{ 'packages.pick.addAllFound' | transloco: { count: answerStyleIds().length } }}
+          </button>
+          @if (packageOpen()) {
+            <app-add-to-package-dialog [open]="true" [styleIds]="answerStyleIds()" addedFrom="Assistant" (closed)="packageOpen.set(false)" />
+          }
+        }
         @if (a.links.length) {
           <div class="flex flex-wrap gap-2 border-t pt-3">
             @for (l of a.links; track l.url) {
@@ -158,6 +173,12 @@ export class LibraryTurn {
   readonly firstRows = computed(() => (this.compact() ? 5 : 10));
   readonly args = computed(() => Object.entries(this.turn().answer?.arguments ?? {}).map(([key, value]) => ({ key, value })));
   readonly min = Math.min;
+  readonly canEdit = inject(StyleLibraryService).canEdit;
+  readonly packageOpen = signal(false);
+  /** The styles the answer lists (rows that open a style page), for Add to package. */
+  readonly answerStyleIds = computed(() => [
+    ...new Set((this.turn().answer?.table?.rowLinks ?? []).map((l) => /^\/styles\/(\d+)(?:[/?#]|$)/.exec(l ?? '')?.[1]).filter((id) => !!id).map(Number)),
+  ]);
 
   open(url: string | null): void {
     if (!url) return;
