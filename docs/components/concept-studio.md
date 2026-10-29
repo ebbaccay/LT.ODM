@@ -2,6 +2,8 @@
 
 **Where:** Manage Offerings > Concept Studio (`/concept-studio`). **Who:** Admin, Merchandiser. **Data:** TMS concept tables and procedures, plus LT ODM endpoints for the AI brief, images and matching.
 
+Kept as it is for reference. New concepts on the Style Library's codes, with the brand closeness check and offering in a style package, are made in [Concepts](concepts.md) (Style Packages > Concepts, 2026-10-28); nothing is copied between the two.
+
 ## Create a concept (New Concept tab)
 
 1. **Inspiration Inputs**: concept name, customer, season, target market, target FOB price, trend tags (shared lists; anyone can add tags and markets). At least a name, a customer or one tag is needed.

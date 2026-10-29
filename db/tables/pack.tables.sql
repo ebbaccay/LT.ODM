@@ -18,7 +18,7 @@
 
     A style in a package cannot be deleted (style.usp_Style_Delete) and an import that added it cannot be rolled back
     until it is removed from the package.
-    Requires style.tables.sql. Idempotent.
+    Requires style.tables.sql and concept.tables.sql (PackageItem.ConceptId). Idempotent.
 
       sqlcmd -S YOUR_SERVER -d YOUR_DATABASE -E -b -I -i tables\pack.tables.sql
 */
@@ -97,6 +97,16 @@ END
 GO
 IF INDEXPROPERTY(OBJECT_ID(N'pack.PackageItem'), N'IX_pack_PackageItem_Style', 'IndexId') IS NULL
     CREATE INDEX IX_pack_PackageItem_Style ON pack.PackageItem (StyleId) INCLUDE (PackageId);
+GO
+/*
+    Added 2026-10-28 (roadmap 5.7): the concept a style was offered for (AddedFrom 'Concept'). A concept used in a package
+    cannot be deleted (set it to Dropped instead).
+*/
+IF COL_LENGTH(N'pack.PackageItem', N'ConceptId') IS NULL
+    ALTER TABLE pack.PackageItem ADD ConceptId int NULL CONSTRAINT FK_pack_PackageItem_Concept REFERENCES concept.Concept (ConceptId);
+GO
+IF INDEXPROPERTY(OBJECT_ID(N'pack.PackageItem'), N'IX_pack_PackageItem_Concept', 'IndexId') IS NULL
+    CREATE INDEX IX_pack_PackageItem_Concept ON pack.PackageItem (ConceptId) INCLUDE (PackageId, StyleId) WHERE ConceptId IS NOT NULL;
 GO
 
 IF OBJECT_ID(N'pack.PackageItemColorway', N'U') IS NULL
@@ -244,4 +254,92 @@ CREATE TABLE pack.PackageNotice
 GO
 IF INDEXPROPERTY(OBJECT_ID(N'pack.PackageNotice'), N'IX_pack_PackageNotice_User', 'IndexId') IS NULL
     CREATE INDEX IX_pack_PackageNotice_User ON pack.PackageNotice (UserName, LastUtc DESC) INCLUDE (ReadUtc, ShareId);
+GO
+
+/*
+    Added 2026-10-29 (roadmap 5.23, Request sample on the client's page): a client asks for a sample of a style through the share
+    link, with a note (sizes, colours, quantity). Sample / SampleNote sit on the person's answer (pack.ShareFeedback); the first
+    request sets the style's outcome to Sampling (when none was set) and counts in the notice (Samples).
+*/
+IF COL_LENGTH(N'pack.ShareFeedback', N'Sample') IS NULL
+    ALTER TABLE pack.ShareFeedback ADD Sample bit NOT NULL CONSTRAINT DF_pack_ShareFeedback_Sample DEFAULT (0), SampleNote nvarchar(500) NULL;
+GO
+IF COL_LENGTH(N'pack.PackageNotice', N'Samples') IS NULL
+    ALTER TABLE pack.PackageNotice ADD Samples int NOT NULL CONSTRAINT DF_pack_PackageNotice_Samples DEFAULT (0);
+GO
+
+/*
+    Added 2026-10-29 - client profiles (roadmap 5.13): what a client accepts, so packages and What to offer warn before
+    something goes out that the client will not take. One profile per client: ClientKey is the brand (partner.Partner.BrandCode)
+    when the customer has one, else the customer code, so every account of a brand shares it.
+    pack.ClientProfile     : FOB price band (used once costs exist, roadmap 5.19), minimum share of recycled fabric lines,
+                             restricted words (materials and substances, comma separated, matched in BOM descriptions), the
+                             LT account manager (gets the pitch reminders) and notes.
+    pack.ClientProfileMill : preferred mills (supplier codes); fabrics from other suppliers are pointed out.
+    pack.ClientPitchDate   : when the client looks at offers for a season (follow-up reminders before it).
+    pack.FollowUpDismissal : follow-up reminders (roadmap 5.24) a user marked done (UntilUtc NULL) or put off until UntilUtc.
+*/
+IF OBJECT_ID(N'pack.ClientProfile', N'U') IS NULL
+CREATE TABLE pack.ClientProfile
+(
+    ClientKey       nvarchar(32)   NOT NULL,
+    PriceMin        decimal(10, 2) NULL,
+    PriceMax        decimal(10, 2) NULL,
+    Currency        char(3)        NOT NULL CONSTRAINT DF_pack_ClientProfile_Currency DEFAULT ('USD'),
+    MinRecycledPct  tinyint        NULL,
+    RestrictedTerms nvarchar(1000) NULL,
+    AccountManager  nvarchar(64)   NULL,
+    Notes           nvarchar(2000) NULL,
+    UpdatedBy       nvarchar(64)   NOT NULL,
+    UpdatedUtc      datetime2(3)   NOT NULL CONSTRAINT DF_pack_ClientProfile_UpdatedUtc DEFAULT (SYSUTCDATETIME()),
+    RowVer          rowversion     NOT NULL,
+
+    CONSTRAINT PK_pack_ClientProfile PRIMARY KEY CLUSTERED (ClientKey),
+    CONSTRAINT CK_pack_ClientProfile_Recycled CHECK (MinRecycledPct BETWEEN 0 AND 100),
+    CONSTRAINT CK_pack_ClientProfile_Price CHECK (PriceMin IS NULL OR PriceMax IS NULL OR PriceMin <= PriceMax),
+    CONSTRAINT CK_pack_ClientProfile_PriceNotNegative CHECK (ISNULL(PriceMin, 0) >= 0 AND ISNULL(PriceMax, 0) >= 0)
+);
+GO
+
+IF OBJECT_ID(N'pack.ClientProfileMill', N'U') IS NULL
+CREATE TABLE pack.ClientProfileMill
+(
+    ClientKey  nvarchar(32) NOT NULL,
+    SupplierId int          NOT NULL,
+
+    CONSTRAINT PK_pack_ClientProfileMill PRIMARY KEY CLUSTERED (ClientKey, SupplierId),
+    CONSTRAINT FK_pack_ClientProfileMill_Profile FOREIGN KEY (ClientKey) REFERENCES pack.ClientProfile (ClientKey) ON DELETE CASCADE,
+    CONSTRAINT FK_pack_ClientProfileMill_Supplier FOREIGN KEY (SupplierId) REFERENCES partner.Partner (PartnerId)
+);
+GO
+
+IF OBJECT_ID(N'pack.ClientPitchDate', N'U') IS NULL
+CREATE TABLE pack.ClientPitchDate
+(
+    PitchDateId int IDENTITY(1, 1) NOT NULL,
+    ClientKey   nvarchar(32)       NOT NULL,
+    SeasonCode  nvarchar(16)       NULL,
+    PitchDate   date               NOT NULL,
+    Note        nvarchar(200)      NULL,
+
+    CONSTRAINT PK_pack_ClientPitchDate PRIMARY KEY CLUSTERED (PitchDateId),
+    CONSTRAINT FK_pack_ClientPitchDate_Profile FOREIGN KEY (ClientKey) REFERENCES pack.ClientProfile (ClientKey) ON DELETE CASCADE,
+    CONSTRAINT FK_pack_ClientPitchDate_Season FOREIGN KEY (SeasonCode) REFERENCES ref.Season (SeasonCode)
+);
+GO
+IF INDEXPROPERTY(OBJECT_ID(N'pack.ClientPitchDate'), N'IX_pack_ClientPitchDate_Date', 'IndexId') IS NULL
+    CREATE INDEX IX_pack_ClientPitchDate_Date ON pack.ClientPitchDate (PitchDate) INCLUDE (ClientKey, SeasonCode);
+GO
+
+IF OBJECT_ID(N'pack.FollowUpDismissal', N'U') IS NULL
+CREATE TABLE pack.FollowUpDismissal
+(
+    UserName nvarchar(64) NOT NULL,
+    Kind     varchar(16)  NOT NULL,
+    RefKey   nvarchar(40) NOT NULL,
+    UntilUtc datetime2(3) NULL,   -- NULL = done for good; else hidden until then
+    SetUtc   datetime2(3) NOT NULL CONSTRAINT DF_pack_FollowUpDismissal_SetUtc DEFAULT (SYSUTCDATETIME()),
+
+    CONSTRAINT PK_pack_FollowUpDismissal PRIMARY KEY CLUSTERED (UserName, Kind, RefKey)
+);
 GO

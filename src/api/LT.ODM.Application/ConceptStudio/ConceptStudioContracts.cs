@@ -2,9 +2,13 @@ using LT.ODM.Application.Ai;
 
 namespace LT.ODM.Application.ConceptStudio;
 
-/// <summary>Concept Studio inputs sent to the AI (all optional, like the TMS form).</summary>
+/// <summary>
+/// Concept inputs sent to the AI (all optional, like the TMS form). Category, Gender and Description come from the Concepts page
+/// (Style Packages); Concept Studio leaves them out.
+/// </summary>
 public sealed record ConceptDraftRequest(
-    string? Name, string? Client, string? Season, string? TargetMarket, string? TargetPrice, IReadOnlyList<string>? Trends);
+    string? Name, string? Client, string? Season, string? TargetMarket, string? TargetPrice, IReadOnlyList<string>? Trends,
+    string? Category = null, string? Gender = null, string? Description = null);
 
 /// <summary>AI concept brief: summary text plus suggested products ("Item - $Price"), fabric direction and sustainability notes.</summary>
 public sealed record ConceptDraftDto(string Summary, IReadOnlyList<string> Products, IReadOnlyList<string> Fabrics, IReadOnlyList<string> Notes);

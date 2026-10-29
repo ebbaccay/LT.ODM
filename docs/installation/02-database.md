@@ -39,9 +39,11 @@ run procedures\style.tags.procedures.sql       # Picture tags (look filters; tab
 run procedures\style.assistant.procedures.sql  # AI Studio > Library assistant (style counts)
 run procedures\style.image-import.procedures.sql  # Settings > Import pictures (style matching, set picture, check existing pictures)
 
-# Style Packages (pack schema; after the Style Library)
+# Concepts and Style Packages (concept and pack schemas; after the Style Library)
+run tables\concept.tables.sql                 # concepts (before pack: package items link to them)
 run tables\pack.tables.sql
 run procedures\pack.procedures.sql            # packages and their styles
+run procedures\concept.procedures.sql         # concepts, brand closeness check
 
 # AI connections (ai schema)
 run tables\ai.tables.sql
@@ -98,6 +100,7 @@ GRANT EXECUTE ON SCHEMA::mat     TO ltodm_app;
 GRANT EXECUTE ON SCHEMA::staging TO ltodm_app;
 GRANT EXECUTE ON SCHEMA::ai      TO ltodm_app;
 GRANT EXECUTE ON SCHEMA::pack    TO ltodm_app;   -- Style Packages (pack.tables.sql also grants it when the role exists)
+GRANT EXECUTE ON SCHEMA::concept TO ltodm_app;   -- Concepts (concept.tables.sql also grants it when the role exists)
 -- Settings > Import bulk-copies the workbook into these tables (SqlBulkCopy with CheckConstraints).
 -- SqlBulkCopy reads each table's columns first with a SELECT, so it needs SELECT as well as INSERT.
 GRANT SELECT, INSERT ON staging.StyleRow   TO ltodm_app;
@@ -119,13 +122,14 @@ Procedures and tables share an owner (`dbo`), so ownership chaining covers the r
 |---|---|
 | `auth` | Users, roles, user roles, password history, refresh and reset tokens, login audit |
 | `nav` | Sidebar groups, pages and which roles see them |
-| `ref` | Pick lists: seasons, season terms, business units, product types, weave and material types, content classes, units |
+| `ref` | Pick lists: seasons, season terms, business units, product types, weave and material types, content classes, units; target markets, trend tags and product categories (concepts) |
 | `partner` | Customers and suppliers |
 | `mat` | Material master, material readings (`MaterialSpec`) |
 | `style` | Styles, colorways, BOM lines, colours per colorway, style history, AI renders |
 | `staging` | Workbook imports waiting to be committed |
 | `ai` | AI connections (API keys encrypted), which connection each AI job uses (or Off), Library assistant saved questions, and the central switches (`ai.Policy`: AI on/off, cloud allowed; cloud starts not allowed on a new database) |
 | `pack` | Style Packages: packages of library styles offered to clients, their share links (only a fingerprint of each link is kept), clients' answers, link openings, outcomes for the hit rate, and notices to LT users |
+| `concept` | Concepts: LT's own design ideas, their trend tags, inspiration pictures (with look-alike vectors for the brand closeness check) and the library styles they take from |
 | `dbo` | Tables and procedures from TMS used by the ported modules |
 
 ## 5. Health check

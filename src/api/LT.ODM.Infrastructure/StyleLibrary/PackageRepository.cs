@@ -2,6 +2,7 @@ using System.Data;
 using System.Text.Json;
 using Dapper;
 using LT.ODM.Application.Abstractions;
+using LT.ODM.Application.Concepts;
 using LT.ODM.Application.StyleLibrary;
 using Microsoft.Data.SqlClient;
 
@@ -38,6 +39,11 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
         var colorways = (await grid.ReadAsync<ColorwayRow>()).ToLookup(c => c.PackageItemId);
         var materials = (await grid.ReadAsync<MaterialRow>()).ToLookup(m => m.PackageItemId);
         var feedback = (await grid.ReadAsync<FeedbackRow>()).ToLookup(f => f.PackageItemId);
+        var storyRows = (await grid.ReadAsync<StoryRow>()).ToList();
+        var storyPictures = (await grid.ReadAsync<StoryPictureRow>()).ToLookup(x => x.ConceptId);
+        var stories = storyRows.Select(s => new PackageStoryDto(s.ConceptId, s.Name, s.ClientStory, s.Tags,
+            (s.PackageItemIds ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList(),
+            storyPictures[s.ConceptId].Select(x => new PackageStoryPictureDto(x.ImageUrl, x.Caption)).ToList())).ToList();
         return new PackageDetailDto(
             new PackageHeaderDto(h.PackageId, h.Name, h.CustomerCode, h.CustomerName, h.BrandCode, h.SeasonCode, h.Description, h.Status, h.OwnerName,
                 Utc(h.SentUtc), h.CreatedBy, Utc(h.CreatedUtc), h.UpdatedBy, Utc(h.UpdatedUtc), h.RowVer),
@@ -48,9 +54,10 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
                 colorways[i.PackageItemId].Select(c => new PackageColorwayDto(c.ColorwayCode, c.ColorwayName, c.Status, c.ImageUrl, c.Offered, c.Missing))
                     .ToList(),
                 materials[i.PackageItemId].Select(m => new PackageMaterialDto(m.Kind, m.MaterialCode, m.Description, m.Composition, m.Recycled)).ToList(),
-                feedback[i.PackageItemId].Select(f => new PackageFeedbackDto(f.ShareId, f.Label, f.Verdict, f.Comment, f.Name, Utc(f.UpdatedUtc))).ToList(),
-                i.Outcome, i.OutcomeBy, Utc(i.OutcomeUtc)))
-                .ToList());
+                feedback[i.PackageItemId].Select(f => new PackageFeedbackDto(f.ShareId, f.Label, f.Verdict, f.Comment, f.Name, Utc(f.UpdatedUtc), f.Sample,
+                    f.SampleNote)).ToList(),
+                i.Outcome, i.OutcomeBy, Utc(i.OutcomeUtc), i.ConceptId, i.ConceptName, i.OriginStyleId, i.StyleConceptId))
+                .ToList(), stories);
     }
 
     public async Task<IReadOnlyList<StylePackageDto>> ForStyleAsync(int styleId, CancellationToken ct = default)
@@ -91,17 +98,27 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
         => Write(conn => conn.ExecuteAsync(Proc("pack.usp_Package_Delete", new { PackageId = packageId, RowVer = rowVer, ChangedBy = changedBy }, ct)), ct);
 
     public async Task<IReadOnlyList<PackageAddResultDto>> AddItemsAsync(int packageId, IReadOnlyList<int> styleIds, string? addedFrom, string changedBy,
-        CancellationToken ct = default)
+        int? conceptId = null, CancellationToken ct = default)
         => await Write(async conn => (await conn.QueryAsync<PackageAddResultDto>(Proc("pack.usp_PackageItem_Add", new
         {
-            PackageId = packageId, StyleIds = JsonSerializer.Serialize(styleIds), AddedFrom = addedFrom, ChangedBy = changedBy,
+            PackageId = packageId, StyleIds = JsonSerializer.Serialize(styleIds), AddedFrom = addedFrom, ConceptId = conceptId, ChangedBy = changedBy,
         }, ct))).ToList(), ct);
 
-    public Task<PackageCopyResultDto> AddCopyAsync(int packageId, int styleId, string seasonCode, string styleNo, string changedBy, CancellationToken ct = default)
+    public Task<PackageCopyResultDto> AddCopyAsync(int packageId, int styleId, string seasonCode, string styleNo, string changedBy, int? conceptId = null,
+        CancellationToken ct = default)
         => Write(conn => conn.QuerySingleAsync<PackageCopyResultDto>(Proc("pack.usp_PackageItem_AddCopy", new
         {
-            PackageId = packageId, StyleId = styleId, SeasonCode = seasonCode, StyleNo = styleNo, ChangedBy = changedBy,
+            PackageId = packageId, StyleId = styleId, SeasonCode = seasonCode, StyleNo = styleNo, ConceptId = conceptId, ChangedBy = changedBy,
         }, ct)), ct);
+
+    public async Task<IReadOnlyList<PackageClosenessItemDto>> ClosenessAsync(int packageId, string model, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        var rows = await conn.QueryAsync<ClosenessRow>(new CommandDefinition("pack.usp_Package_Closeness", new { PackageId = packageId, Model = model },
+            commandType: CommandType.StoredProcedure, cancellationToken: ct, commandTimeout: 60));
+        return rows.Select(r => new PackageClosenessItemDto(r.PackageItemId, r.StyleId, r.OriginStyleId, r.Pictures, r.Indexed, r.MatchStyleId, r.MatchStyleNo,
+            r.MatchSeasonCode, r.MatchCustomerCode, r.MatchImageUrl, r.Similarity, "")).ToList();
+    }
 
     public Task SaveItemAsync(int packageId, int packageItemId, SavePackageItemRequest r, string changedBy, CancellationToken ct = default)
         => Write(conn => conn.ExecuteAsync(Proc("pack.usp_PackageItem_Save", new
@@ -175,14 +192,15 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
         }, ct));
         var share = await grid.ReadSingleOrDefaultAsync<OpenedShareRow>();
         if (share is null) return null;
-        var answers = (await grid.ReadAsync<AnswerRow>()).Select(a => new ShareAnswer(a.PackageItemId, a.Verdict, a.Comment, a.Name, Utc(a.UpdatedUtc))).ToList();
+        var answers = (await grid.ReadAsync<AnswerRow>())
+            .Select(a => new ShareAnswer(a.PackageItemId, a.Verdict, a.Comment, a.Name, Utc(a.UpdatedUtc), a.Sample, a.SampleNote)).ToList();
         return new OpenedShare(share.ShareId, share.PackageId, share.Label, Utc(share.ExpiresUtc), answers);
     }
 
     public async Task<IReadOnlyList<PackageNoticeFor>> SaveShareFeedbackAsync(byte[] tokenHash, int packageItemId, ShareFeedbackRequest a, CancellationToken ct = default)
         => await Write(async conn => (await conn.QueryAsync<NoticeRow>(Proc("pack.usp_Share_Feedback", new
         {
-            TokenHash = tokenHash, PackageItemId = packageItemId, a.Verdict, a.Comment, a.Name,
+            TokenHash = tokenHash, PackageItemId = packageItemId, a.Verdict, a.Comment, a.Name, Sample = a.Sample ?? false, a.SampleNote,
         }, ct))).Select(n => new PackageNoticeFor(n.UserName, ToNotice(n))).ToList(), ct);
 
     public async Task<IReadOnlyList<PackageNoticeDto>> ListNoticesAsync(string userName, CancellationToken ct = default)
@@ -198,7 +216,14 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
     }
 
     private static PackageNoticeDto ToNotice(NoticeRow n)
-        => new(n.NoticeId, n.PackageId, n.PackageName, n.ShareLabel, n.Likes, n.Passes, n.Comments, n.ClientName, Utc(n.FirstUtc), Utc(n.LastUtc), n.IsRead);
+        => new(n.NoticeId, n.PackageId, n.PackageName, n.ShareLabel, n.Likes, n.Passes, n.Comments, n.ClientName, Utc(n.FirstUtc), Utc(n.LastUtc), n.IsRead,
+            n.Samples);
+
+    public async Task<bool> ShareStoryImageAllowedAsync(byte[] tokenHash, string imageUrl, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        return await conn.QuerySingleAsync<bool>(Proc("pack.usp_Share_StoryImageAllowed", new { TokenHash = tokenHash, ImageUrl = imageUrl }, ct));
+    }
 
     public async Task<bool> ShareImageAllowedAsync(byte[] tokenHash, string imageUrl, CancellationToken ct = default)
     {
@@ -291,6 +316,25 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
         public string? Outcome { get; init; }
         public string? OutcomeBy { get; init; }
         public DateTime? OutcomeUtc { get; init; }
+        public int? ConceptId { get; init; }
+        public string? ConceptName { get; init; }
+        public int? OriginStyleId { get; init; }
+        public int? StyleConceptId { get; init; }
+    }
+
+    private sealed class ClosenessRow
+    {
+        public int PackageItemId { get; init; }
+        public int StyleId { get; init; }
+        public int? OriginStyleId { get; init; }
+        public int Pictures { get; init; }
+        public int Indexed { get; init; }
+        public int? MatchStyleId { get; init; }
+        public string? MatchStyleNo { get; init; }
+        public string? MatchSeasonCode { get; init; }
+        public string? MatchCustomerCode { get; init; }
+        public string? MatchImageUrl { get; init; }
+        public decimal? Similarity { get; init; }
     }
 
     private sealed class MaterialRow
@@ -317,6 +361,23 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
         public DateTime FirstUtc { get; init; }
         public DateTime LastUtc { get; init; }
         public bool IsRead { get; init; }
+        public int Samples { get; init; }
+    }
+
+    private sealed class StoryRow
+    {
+        public int ConceptId { get; init; }
+        public string Name { get; init; } = "";
+        public string ClientStory { get; init; } = "";
+        public string? Tags { get; init; }
+        public string? PackageItemIds { get; init; }
+    }
+
+    private sealed class StoryPictureRow
+    {
+        public int ConceptId { get; init; }
+        public string ImageUrl { get; init; } = "";
+        public string? Caption { get; init; }
     }
 
     private sealed class HitRateRow
@@ -344,6 +405,8 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
         public string? Comment { get; init; }
         public string? Name { get; init; }
         public DateTime UpdatedUtc { get; init; }
+        public bool Sample { get; init; }
+        public string? SampleNote { get; init; }
     }
 
     private sealed class ShareRow
@@ -380,6 +443,8 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
         public string? Comment { get; init; }
         public string? Name { get; init; }
         public DateTime UpdatedUtc { get; init; }
+        public bool Sample { get; init; }
+        public string? SampleNote { get; init; }
     }
 
     private sealed class ColorwayRow

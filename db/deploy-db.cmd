@@ -54,8 +54,10 @@ $scripts = @(
     'procedures\style.tags.procedures.sql',            # picture tags (look filters)
     'procedures\style.assistant.procedures.sql',       # Library assistant
     'procedures\style.image-import.procedures.sql',    # Settings > Import pictures
+    'tables\concept.tables.sql',                       # Concepts tables (concept schema; before pack)
     'tables\pack.tables.sql',                          # Style Packages tables (pack schema)
     'procedures\pack.procedures.sql',                  # Style Packages
+    'procedures\concept.procedures.sql',               # Concepts, brand closeness check
     'tables\ai.tables.sql',                            # AI connections
     'procedures\ai.procedures.sql',
     'procedures\ai.assistant.procedures.sql',          # Library assistant saved questions

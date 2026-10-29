@@ -191,6 +191,8 @@ export class AddToPackageDialog {
   readonly seasonCode = input<string | null>(null);
   /** A package to choose for the user (e.g. the one the page was opened for). */
   readonly packageId = input<number | null>(null);
+  /** The concept the styles are offered for (the package items keep it; roadmap 5.7). */
+  readonly conceptId = input<number | null>(null);
   readonly closed = output<void>();
   /** How many styles were added (the page may refresh its package list). */
   readonly stylesAdded = output<number>();
@@ -262,7 +264,7 @@ export class AddToPackageDialog {
       return;
     }
     this.copies.update((x) => ({ ...x, [r.styleId]: { ...c, saving: true, error: undefined } }));
-    this.svc.addCopy(packageId, r.styleId, seasonCode, styleNo).subscribe({
+    this.svc.addCopy(packageId, r.styleId, seasonCode, styleNo, this.conceptId()).subscribe({
       next: () => {
         this.copies.update((x) => ({ ...x, [r.styleId]: { seasonCode, styleNo, done: true } }));
         this.styles.refreshLookups();
@@ -328,7 +330,7 @@ export class AddToPackageDialog {
 
   private addTo(packageId: number, name: string): void {
     this.saving.set(true);
-    this.svc.addStyles(packageId, this.styleIds(), this.addedFrom()).subscribe({
+    this.svc.addStyles(packageId, this.styleIds(), this.addedFrom(), this.conceptId()).subscribe({
       next: (results) => {
         this.saving.set(false);
         this.targetId.set(packageId);

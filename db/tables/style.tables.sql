@@ -3,6 +3,7 @@
     Target: SQL Server 2025, database compatibility level 170
 
       ref.*      code lists (seasons, business units, product types, weave types, material types, content classes, UOMs)
+                 and the concept pick lists (target markets, trend tags, product categories)
       partner.*  customers and suppliers
       mat.*      material master (one row per material code)
       style.*    Style --< Colorway
@@ -161,6 +162,62 @@ CREATE TABLE ref.Uom
     Name    nvarchar(50) NOT NULL,
     CONSTRAINT PK_ref_Uom PRIMARY KEY CLUSTERED (UomCode)
 );
+GO
+
+/*
+    Pick lists for concepts (added 2026-10-28, roadmap 5.6; Settings > Reference lists). Concepts only: styles do not use
+    them. A first set is added once when a list is empty; edit them in Settings after that.
+      ref.TargetMarket    : who the concept is for (Gen Z urban, premium outdoor, ...).
+      ref.TrendTag        : trends a concept follows (athleisure, sustainable, ...).
+      ref.ProductCategory : the kind of garment, with the same codes as the garment groups of What to offer and the hit
+                            rate (style.fn_GarmentCategory), so concepts and offers count garments alike.
+*/
+IF OBJECT_ID(N'ref.TargetMarket', N'U') IS NULL
+CREATE TABLE ref.TargetMarket
+(
+    TargetMarketCode nvarchar(16)  NOT NULL,
+    Name             nvarchar(100) NOT NULL,
+    IsActive         bit           NOT NULL CONSTRAINT DF_ref_TargetMarket_IsActive DEFAULT (1),
+    CONSTRAINT PK_ref_TargetMarket PRIMARY KEY CLUSTERED (TargetMarketCode)
+);
+GO
+IF NOT EXISTS (SELECT 1 FROM ref.TargetMarket)
+    INSERT ref.TargetMarket (TargetMarketCode, Name) VALUES
+        (N'GENZ', N'Gen Z urban'), (N'MILLENNIAL', N'Millennial premium'), (N'MASS', N'Mass market'),
+        (N'OUTDOOR', N'Premium outdoor'), (N'PERFORMANCE', N'Performance sport'), (N'FAST', N'Fast fashion'), (N'KIDS', N'Kids and teens');
+GO
+
+IF OBJECT_ID(N'ref.TrendTag', N'U') IS NULL
+CREATE TABLE ref.TrendTag
+(
+    TrendTagCode nvarchar(40)  NOT NULL,
+    Name         nvarchar(100) NOT NULL,
+    IsActive     bit           NOT NULL CONSTRAINT DF_ref_TrendTag_IsActive DEFAULT (1),
+    CONSTRAINT PK_ref_TrendTag PRIMARY KEY CLUSTERED (TrendTagCode)
+);
+GO
+IF NOT EXISTS (SELECT 1 FROM ref.TrendTag)
+    INSERT ref.TrendTag (TrendTagCode, Name) VALUES
+        (N'ATHLEISURE', N'Athleisure'), (N'SUSTAINABLE', N'Sustainable'), (N'RECYCLED', N'Recycled materials'),
+        (N'URBAN-OUTDOOR', N'Urban outdoor'), (N'GORPCORE', N'Gorpcore'), (N'STREETWEAR', N'Streetwear'), (N'RETRO', N'Retro sport'),
+        (N'MINIMALIST', N'Minimalist'), (N'TECHNICAL', N'Technical performance'), (N'COMFORT', N'Comfort / lounge');
+GO
+
+IF OBJECT_ID(N'ref.ProductCategory', N'U') IS NULL
+CREATE TABLE ref.ProductCategory
+(
+    ProductCategoryCode nvarchar(20)  NOT NULL,
+    Name                nvarchar(100) NOT NULL,
+    IsActive            bit           NOT NULL CONSTRAINT DF_ref_ProductCategory_IsActive DEFAULT (1),
+    CONSTRAINT PK_ref_ProductCategory PRIMARY KEY CLUSTERED (ProductCategoryCode)
+);
+GO
+IF NOT EXISTS (SELECT 1 FROM ref.ProductCategory)
+    INSERT ref.ProductCategory (ProductCategoryCode, Name) VALUES
+        (N'JACKET', N'Jackets and coats'), (N'VEST', N'Vests'), (N'HOODIE', N'Hoodies'), (N'PULLOVER', N'Pullovers and sweatshirts'),
+        (N'POLO', N'Polos'), (N'TEE', N'T-shirts'), (N'SHIRT', N'Shirts'), (N'TANK', N'Tanks'), (N'TOP', N'Tops'), (N'PANTS', N'Pants'),
+        (N'SHORTS', N'Shorts'), (N'TIGHTS', N'Tights and leggings'), (N'SKIRT', N'Skirts'), (N'DRESS', N'Dresses'), (N'BRA', N'Bras'),
+        (N'UNDERWEAR', N'Underwear'), (N'SLEEPWEAR', N'Sleepwear and lounge'), (N'SET', N'Sets'), (N'ACCESSORY', N'Accessories');
 GO
 
 /* ================================ partner ================================ */

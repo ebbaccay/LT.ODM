@@ -20,6 +20,16 @@ public static class LineSheetContent
     public static IReadOnlyList<PackageItemDto> Items(PackageDetailDto package)
         => package.Items.Where(i => !i.OtherBrand).OrderBy(i => i.SortOrder).ThenBy(i => i.PackageItemId).ToList();
 
+    /// <summary>The concept story pages, keeping only the styles the client sees (a story with none of them is left out).</summary>
+    public static IReadOnlyList<PackageStoryDto> Stories(PackageDetailDto package)
+    {
+        var shown = Items(package).Select(i => i.PackageItemId).ToHashSet();
+        return (package.Stories ?? [])
+            .Select(s => s with { PackageItemIds = s.PackageItemIds.Where(shown.Contains).ToList() })
+            .Where(s => s.PackageItemIds.Count > 0)
+            .ToList();
+    }
+
     /// <summary>The offered colourways that are still on the style.</summary>
     public static IReadOnlyList<PackageColorwayDto> Colorways(PackageItemDto item) => item.Colorways.Where(c => c.Offered && !c.Missing).ToList();
 

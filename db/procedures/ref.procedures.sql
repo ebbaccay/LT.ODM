@@ -15,11 +15,15 @@
       customers       partner.Partner (Customer)     as typed             Name           IsActive         styles
       brands          ref.Brand                      upper-case           Name           IsActive         customers
       suppliers       partner.Partner (Supplier)     as typed             Name           IsActive         BOM lines
+      targetMarkets   ref.TargetMarket               upper-case           Name           IsActive         concepts
+      trendTags       ref.TrendTag                   upper-case           Name           IsActive         concepts
+      productCategories ref.ProductCategory          upper-case           Name           IsActive         concepts
 
     Codes are the keys styles, BOM lines and the workbook import use, so they cannot change once created (the API
     applies the case rules above). A row still in use cannot be deleted: make it inactive instead where the list
     has IsActive (inactive rows are left out of the pick lists, existing styles keep them).
-    Rule errors are THROWn as 50000+ with a message for the user. Requires style.tables.sql. Idempotent.
+    Rule errors are THROWn as 50000+ with a message for the user. Requires style.tables.sql (the concept lists' usage
+    counts read tables\concept.tables.sql, run later in the deploy). Idempotent.
 
       sqlcmd -S YOUR_SERVER -d YOUR_DATABASE -E -b -I -i procedures\ref.procedures.sql
 */
@@ -86,6 +90,18 @@ BEGIN
         SELECT Code = x.PartnerCode, x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
                UsageCount = (SELECT COUNT(*) FROM style.BomLine b WHERE b.SupplierId = x.PartnerId)
         FROM partner.Partner x WHERE x.PartnerType = 'Supplier' ORDER BY x.PartnerCode;
+    ELSE IF @List = 'targetMarkets'
+        SELECT Code = x.TargetMarketCode, x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
+               UsageCount = (SELECT COUNT(*) FROM concept.Concept c WHERE c.TargetMarketCode = x.TargetMarketCode)
+        FROM ref.TargetMarket x ORDER BY x.TargetMarketCode;
+    ELSE IF @List = 'trendTags'
+        SELECT Code = x.TrendTagCode, x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
+               UsageCount = (SELECT COUNT(*) FROM concept.ConceptTag c WHERE c.TrendTagCode = x.TrendTagCode)
+        FROM ref.TrendTag x ORDER BY x.TrendTagCode;
+    ELSE IF @List = 'productCategories'
+        SELECT Code = x.ProductCategoryCode, x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
+               UsageCount = (SELECT COUNT(*) FROM concept.Concept c WHERE c.ProductCategoryCode = x.ProductCategoryCode)
+        FROM ref.ProductCategory x ORDER BY x.ProductCategoryCode;
     ELSE
         THROW 50070, 'Unknown reference list.', 1;
 END
@@ -122,6 +138,9 @@ BEGIN
         WHEN @List = 'seasons'        THEN IIF(EXISTS (SELECT 1 FROM ref.Season WHERE SeasonCode = @Code), 1, 0)
         WHEN @List = 'seasonTerms'    THEN IIF(EXISTS (SELECT 1 FROM ref.SeasonTerm WHERE Term = @Code), 1, 0)
         WHEN @List = 'brands'         THEN IIF(EXISTS (SELECT 1 FROM ref.Brand WHERE BrandCode = @Code), 1, 0)
+        WHEN @List = 'targetMarkets'  THEN IIF(EXISTS (SELECT 1 FROM ref.TargetMarket WHERE TargetMarketCode = @Code), 1, 0)
+        WHEN @List = 'trendTags'      THEN IIF(EXISTS (SELECT 1 FROM ref.TrendTag WHERE TrendTagCode = @Code), 1, 0)
+        WHEN @List = 'productCategories' THEN IIF(EXISTS (SELECT 1 FROM ref.ProductCategory WHERE ProductCategoryCode = @Code), 1, 0)
         WHEN @partnerType IS NOT NULL THEN IIF(EXISTS (SELECT 1 FROM partner.Partner WHERE PartnerType = @partnerType AND PartnerCode = @Code), 1, 0)
     END;
     IF @exists IS NULL THROW 50070, 'Unknown reference list.', 1;
@@ -180,6 +199,21 @@ BEGIN
         IF @IsNew = 1 INSERT ref.Brand (BrandCode, Name, IsActive) VALUES (@Code, @Name, @IsActive);
         ELSE UPDATE ref.Brand SET Name = @Name, IsActive = @IsActive WHERE BrandCode = @Code;
     END
+    ELSE IF @List = 'targetMarkets'
+    BEGIN
+        IF @IsNew = 1 INSERT ref.TargetMarket (TargetMarketCode, Name, IsActive) VALUES (@Code, @Name, @IsActive);
+        ELSE UPDATE ref.TargetMarket SET Name = @Name, IsActive = @IsActive WHERE TargetMarketCode = @Code;
+    END
+    ELSE IF @List = 'trendTags'
+    BEGIN
+        IF @IsNew = 1 INSERT ref.TrendTag (TrendTagCode, Name, IsActive) VALUES (@Code, @Name, @IsActive);
+        ELSE UPDATE ref.TrendTag SET Name = @Name, IsActive = @IsActive WHERE TrendTagCode = @Code;
+    END
+    ELSE IF @List = 'productCategories'
+    BEGIN
+        IF @IsNew = 1 INSERT ref.ProductCategory (ProductCategoryCode, Name, IsActive) VALUES (@Code, @Name, @IsActive);
+        ELSE UPDATE ref.ProductCategory SET Name = @Name, IsActive = @IsActive WHERE ProductCategoryCode = @Code;
+    END
     ELSE
     BEGIN
         IF @IsNew = 1
@@ -217,6 +251,9 @@ BEGIN
         WHEN @List = 'brands'         THEN IIF(EXISTS (SELECT 1 FROM partner.Partner WHERE BrandCode = @Code), 1, 0)
         WHEN @List = 'customers'      THEN IIF(EXISTS (SELECT 1 FROM style.Style WHERE CustomerId = @partnerId), 1, 0)
         WHEN @List = 'suppliers'      THEN IIF(EXISTS (SELECT 1 FROM style.BomLine WHERE SupplierId = @partnerId), 1, 0)
+        WHEN @List = 'targetMarkets'  THEN IIF(EXISTS (SELECT 1 FROM concept.Concept WHERE TargetMarketCode = @Code), 1, 0)
+        WHEN @List = 'trendTags'      THEN IIF(EXISTS (SELECT 1 FROM concept.ConceptTag WHERE TrendTagCode = @Code), 1, 0)
+        WHEN @List = 'productCategories' THEN IIF(EXISTS (SELECT 1 FROM concept.Concept WHERE ProductCategoryCode = @Code), 1, 0)
     END;
     IF @used IS NULL THROW 50070, 'Unknown reference list.', 1;
     IF @used = 1
@@ -231,6 +268,9 @@ BEGIN
     ELSE IF @List = 'seasons'       DELETE ref.Season WHERE SeasonCode = @Code;
     ELSE IF @List = 'seasonTerms'   DELETE ref.SeasonTerm WHERE Term = @Code;
     ELSE IF @List = 'brands'        DELETE ref.Brand WHERE BrandCode = @Code;
+    ELSE IF @List = 'targetMarkets' DELETE ref.TargetMarket WHERE TargetMarketCode = @Code;
+    ELSE IF @List = 'trendTags'     DELETE ref.TrendTag WHERE TrendTagCode = @Code;
+    ELSE IF @List = 'productCategories' DELETE ref.ProductCategory WHERE ProductCategoryCode = @Code;
     ELSE                            DELETE partner.Partner WHERE PartnerId = @partnerId;
 END
 GO

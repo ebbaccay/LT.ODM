@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.Auth;
 using LT.ODM.Application.ConceptStudio;
+using LT.ODM.Application.Concepts;
 using LT.ODM.Application.StyleLibrary;
 using LT.ODM.Infrastructure.Files;
 using LT.ODM.Infrastructure.StyleLibrary;
@@ -37,7 +38,16 @@ public sealed class FakePackageRepository : IPackageRepository
                     [new("Fabric", "M1", "REC. POLY RIPSTOP", null, true), new("Trim", "T1", "YKK ZIPPER", null, false)]),
                 new PackageItemDto(8, 1, 2, null, null, true, "Styles", "F2325M142", "2025-FW", "ADI", null, null, null, null, null, null, null, null, null, null,
                     true, true, 0, 0, "merch", DateTime.UtcNow, null, null, RowVer, [], []),
+            ],
+            // Concept stories: one covers item 7 (and the other brand's item 8, left out for the client); one covers item 8 only (left out).
+            [
+                new PackageStoryDto(3, "Packable shell", "Light, packable and made from recycled ripstop.", "Athleisure", [7, 8],
+                    [new PackageStoryPictureDto(StoryImageUrl, "Mood")]),
+                new PackageStoryDto(4, "Hidden", "Only another brand's style.", null, [8], []),
             ]));
+
+    /// <summary>The story picture of concept 3 (a test may store a file under this name in the concept image store).</summary>
+    public string StoryImageUrl { get; set; } = "/api/v1/concepts/images/0123456789abcdef0123456789abcdef.png";
 
     public (string Customer, int? PackageId, int Top)? LastOffer { get; private set; }
 
@@ -67,16 +77,21 @@ public sealed class FakePackageRepository : IPackageRepository
     }
 
     public Task<IReadOnlyList<PackageAddResultDto>> AddItemsAsync(int packageId, IReadOnlyList<int> styleIds, string? addedFrom, string changedBy,
-        CancellationToken ct = default)
+        int? conceptId = null, CancellationToken ct = default)
     {
         Writes.Add(("add", packageId, (styleIds, addedFrom), changedBy));
+        LastConceptId = conceptId;
         return Task.FromResult<IReadOnlyList<PackageAddResultDto>>(
             styleIds.Select(id => new PackageAddResultDto(id, "S" + id, "2027-SS", id == 1 ? "ADI" : "SKE", id == 1 ? "OtherBrand" : "Added", id == 1 ? null : id + 100))
                 .ToList());
     }
 
-    public Task<PackageCopyResultDto> AddCopyAsync(int packageId, int styleId, string seasonCode, string styleNo, string changedBy, CancellationToken ct = default)
+    public int? LastConceptId { get; private set; }
+
+    public Task<PackageCopyResultDto> AddCopyAsync(int packageId, int styleId, string seasonCode, string styleNo, string changedBy, int? conceptId = null,
+        CancellationToken ct = default)
     {
+        LastConceptId = conceptId;
         if (styleNo == "TAKEN") throw new StyleRuleException(409, "The package customer already has a style with this number in this season.");
         Writes.Add(("copy", packageId, (styleId, seasonCode, styleNo), changedBy));
         return Task.FromResult(new PackageCopyResultDto(900, 901));
@@ -99,6 +114,14 @@ public sealed class FakePackageRepository : IPackageRepository
         Writes.Add(("order", packageId, packageItemIds, changedBy));
         return Task.CompletedTask;
     }
+
+    /// <summary>Copied item 7: closest other-brand picture 0.97; item 8: no picture yet.</summary>
+    public Task<IReadOnlyList<PackageClosenessItemDto>> ClosenessAsync(int packageId, string model, CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<PackageClosenessItemDto>>(
+        [
+            new(7, 421, 1, 1, 1, 1, "F2325M142", "2025-FW", "ADI", "/api/v1/styles/images/a.jpg", 0.97m, ""),
+            new(8, 900, 2, 0, 0, null, null, null, null, null, null, ""),
+        ]);
 
     public (string? Customer, DateTime? From, DateTime? To)? LastHitRate { get; private set; }
 
@@ -161,9 +184,10 @@ public sealed class FakePackageRepository : IPackageRepository
     {
         // Only item 7 is the client's to see (item 8 is another brand's style).
         if (!Shares.TryGetValue(Convert.ToHexString(tokenHash), out var x) || x.Revoked || packageItemId != 7) throw new StyleRuleException(404, "Not found.");
-        Answers[(x.ShareId, packageItemId, SharedPackageView.VoterKey(answer.Name))] = new ShareAnswer(packageItemId, answer.Verdict, answer.Comment, answer.Name, DateTime.UtcNow);
+        Answers[(x.ShareId, packageItemId, SharedPackageView.VoterKey(answer.Name))] =
+            new ShareAnswer(packageItemId, answer.Verdict, answer.Comment, answer.Name, DateTime.UtcNow, answer.Sample ?? false, answer.SampleNote);
         var notice = new PackageNoticeDto(Notices.Count + 1, x.PackageId, "SS27 outdoor", x.Label, answer.Verdict == "Like" ? 1 : 0, answer.Verdict == "Pass" ? 1 : 0,
-            answer.Comment is null ? 0 : 1, answer.Name, DateTime.UtcNow, DateTime.UtcNow);
+            answer.Comment is null ? 0 : 1, answer.Name, DateTime.UtcNow, DateTime.UtcNow, Samples: answer.Sample == true ? 1 : 0);
         Notices.Add(new PackageNoticeFor("merch-owner", notice));
         return Task.FromResult<IReadOnlyList<PackageNoticeFor>>([new PackageNoticeFor("merch-owner", notice)]);
     }
@@ -182,6 +206,9 @@ public sealed class FakePackageRepository : IPackageRepository
 
     public Task<bool> ShareImageAllowedAsync(byte[] tokenHash, string imageUrl, CancellationToken ct = default)
         => Task.FromResult(Shares.ContainsKey(Convert.ToHexString(tokenHash)) && imageUrl == AllowedImage);
+
+    public Task<bool> ShareStoryImageAllowedAsync(byte[] tokenHash, string imageUrl, CancellationToken ct = default)
+        => Task.FromResult(Shares.ContainsKey(Convert.ToHexString(tokenHash)) && imageUrl == StoryImageUrl);
 }
 
 
@@ -464,6 +491,39 @@ public sealed class StylePackagesTests(ApiFactory factory) : IClassFixture<ApiFa
         var sheet = new StreamReader(zip.GetEntry("xl/worksheets/sheet1.xml")!.Open()).ReadToEnd();
         Assert.Contains("<drawing r:id=\"rId1\"", sheet);
         Assert.Contains("<c r=\"A5\"><v>1</v></c>", sheet);   // numbers are numbers
+    }
+
+    [Fact]
+    public async Task The_client_sees_the_concept_story_and_can_ask_for_a_sample()
+    {
+        var (merch, _) = await SignInAsync("Merchandiser");
+        var store = factory.Services.GetRequiredService<IConceptImageStore>();
+        factory.Packages.StoryImageUrl = "/api/v1/concepts/images/" + await store.SaveAsync(FakeAiImageClient.Png, ImageKind.Png);
+        var created = await (await merch.PostAsJsonAsync("/api/v1/style-packages/5/shares", new { label = "Story buyers" })).Content.ReadFromJsonAsync<CreatedShareDto>();
+        var client = factory.CreateHttpsClient();
+
+        var page = (await client.GetFromJsonAsync<SharedPackageDto>($"/api/v1/share/{created!.Token}"))!;
+        var story = Assert.Single(page.Stories!);                                 // the story of another brand's style only is left out
+        Assert.Equal(("Packable shell", "Athleisure"), (story.Name, story.Tags));
+        Assert.Equal([7], story.PackageItemIds);                                   // the other brand's item is not listed
+        var file = Assert.Single(story.ImageFiles);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/v1/share/{created.Token}/story-images/{file}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/v1/share/{created.Token}/story-images/ffffffffffffffffffffffffffffffff.png")).StatusCode);
+
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await client.PutAsJsonAsync($"/api/v1/share/{created.Token}/items/7/feedback", new { sample = true, sampleNote = new string('x', 501) })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.PutAsJsonAsync($"/api/v1/share/{created.Token}/items/7/feedback", new { verdict = "Like", name = "Cleo", sample = true, sampleNote = "Size M, navy" })).StatusCode);
+        var answer = (await client.GetFromJsonAsync<SharedPackageDto>($"/api/v1/share/{created.Token}?name=cleo"))!.Items[0].Answer!;
+        Assert.Equal((true, "Size M, navy"), (answer.Sample, answer.SampleNote));
+        Assert.Contains(factory.Notifier.Pushed, n => n.Notice.Samples == 1 && n.Notice.ClientName == "Cleo");
+
+        // The line sheet PDF has the story picture even when no style has one.
+        var writer = new PackageLineSheetWriter(factory.Services.GetRequiredService<IStyleImageStore>(), store);
+        var pdf = await writer.WritePdfAsync((await factory.Packages.GetAsync(5))!, "tester", DateTime.UtcNow);
+        Assert.Contains("/Subtype /Image", System.Text.Encoding.Latin1.GetString(pdf));
+        using var zip = new ZipArchive(new MemoryStream(await writer.WriteExcelAsync((await factory.Packages.GetAsync(5))!, "tester", DateTime.UtcNow)));
+        Assert.NotNull(zip.GetEntry("xl/worksheets/sheet2.xml"));                // the Stories sheet
     }
 
     private sealed record ValidationProblem(Dictionary<string, string[]> Errors);

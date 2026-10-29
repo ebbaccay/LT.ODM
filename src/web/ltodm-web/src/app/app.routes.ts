@@ -48,7 +48,17 @@ export const routes: Routes = [
           // What to offer a customer (rules, no AI); before ':id'.
           { path: 'offer', loadComponent: () => import('./features/style-packages/offer-page').then((m) => m.OfferPage), title: 'titles.offer' },
           { path: 'hit-rate', loadComponent: () => import('./features/style-packages/hit-rate-page').then((m) => m.HitRatePage), title: 'titles.hitRate' },
+          { path: 'clients', loadComponent: () => import('./features/style-packages/client-profiles-page').then((m) => m.ClientProfilesPage), title: 'titles.clientProfiles' },
           { path: ':id', loadComponent: () => import('./features/style-packages/package-detail').then((m) => m.PackageDetailPage), title: 'titles.package' },
+        ],
+      },
+      // Concepts: LT's own design ideas, checked for closeness to other brands' designs before they are offered (Style Packages menu).
+      {
+        path: 'concepts',
+        canActivate: [roleGuard('Admin', 'Merchandiser', 'Costing', 'Viewer')],
+        children: [
+          { path: '', loadComponent: () => import('./features/concepts/concepts-list').then((m) => m.ConceptsList), title: 'titles.concepts' },
+          { path: ':id', loadComponent: () => import('./features/concepts/concept-detail').then((m) => m.ConceptDetailPage), title: 'titles.concept' },
         ],
       },
       // AI Studio on the Style Library (same readers; the API lets only Admin and Merchandiser make renders).

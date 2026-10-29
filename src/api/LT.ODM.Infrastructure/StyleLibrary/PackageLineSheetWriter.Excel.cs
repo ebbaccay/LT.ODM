@@ -58,6 +58,24 @@ public sealed partial class PackageLineSheetWriter
             ], withPictures ? StyleRowHeight : null);
             sheet.AddPicture(row, PictureColumn, pictures[n]);
         }
+
+        // Concept stories for the client (roadmap 5.22): one row each, on their own sheet.
+        var stories = LineSheetContent.Stories(package);
+        if (stories.Count > 0)
+        {
+            var styleNos = items.ToDictionary(i => i.PackageItemId, i => i.StyleNo);
+            var storySheet = book.AddSheet("Stories").Columns([30, 90, 36, 40]);
+            storySheet.Row(1, [Cell.Of("Concept", Heading), Cell.Of("Story", Heading), Cell.Of("Trends", Heading), Cell.Of("Styles", Heading)]);
+            for (var n = 0; n < stories.Count; n++)
+            {
+                var s = stories[n];
+                storySheet.Row(2 + n,
+                [
+                    Cell.Of(s.Name, Wrapped), Cell.Of(s.Story, Wrapped), Cell.Of(s.Tags, Wrapped),
+                    Cell.Of(string.Join(", ", s.PackageItemIds.Select(id => styleNos.GetValueOrDefault(id)).OfType<string>()), Wrapped),
+                ]);
+            }
+        }
         return await book.SaveAsync(ct);
     }
 }

@@ -46,6 +46,8 @@ public sealed record PackageMaterialDto(string Kind, string MaterialCode, string
 /// A style in the package. PackageItemId stays the same while the style is in the package (costs attach to it later).
 /// OtherBrand: the style is not of the package's brand (the customer was changed after it was added); to be offered as a copy.
 /// FabricLines / RecycledFabricLines: the style's fabric BOM lines and how many are written as recycled.
+/// ConceptId / ConceptName: the concept the style was offered for (roadmap 5.7). OriginStyleId: the style it was copied from (5.12).
+/// StyleConceptId: the style is an LT design developed from that concept (5.21).
 /// </summary>
 public sealed record PackageItemDto(
     int PackageItemId, int StyleId, int SortOrder, string? PitchNote, string? InternalNote, bool AllColorways, string? AddedFrom,
@@ -53,9 +55,21 @@ public sealed record PackageItemDto(
     string? ProductTypeName, string? Gender, string? WeaveTypeCode, string? WeaveTypeName, short? GarmentLeadTimeDays, string? ImageUrl,
     string? SketchUrl, bool IsActive, bool OtherBrand, int FabricLines, int RecycledFabricLines, string CreatedBy, DateTime CreatedUtc,
     string? UpdatedBy, DateTime? UpdatedUtc, byte[] RowVer, IReadOnlyList<PackageColorwayDto> Colorways, IReadOnlyList<PackageMaterialDto> Materials,
-    IReadOnlyList<PackageFeedbackDto>? Feedback = null, string? Outcome = null, string? OutcomeBy = null, DateTime? OutcomeUtc = null);
+    IReadOnlyList<PackageFeedbackDto>? Feedback = null, string? Outcome = null, string? OutcomeBy = null, DateTime? OutcomeUtc = null,
+    int? ConceptId = null, string? ConceptName = null, int? OriginStyleId = null, int? StyleConceptId = null);
 
-public sealed record PackageDetailDto(PackageHeaderDto Package, IReadOnlyList<PackageItemDto> Items);
+/// <summary>Stories: the concept story pages for the client (roadmap 5.22), in the order of their first style.</summary>
+public sealed record PackageDetailDto(PackageHeaderDto Package, IReadOnlyList<PackageItemDto> Items, IReadOnlyList<PackageStoryDto>? Stories = null);
+
+/// <summary>A picture on a story page (a concept picture marked for the client).</summary>
+public sealed record PackageStoryPictureDto(string ImageUrl, string? Caption);
+
+/// <summary>
+/// A concept of the package's styles with a story for the client: its name, the story text, trend tags, up to 4 pictures marked for
+/// the client, and the package items that belong to it (offered for the concept, or LT designs developed from it).
+/// </summary>
+public sealed record PackageStoryDto(int ConceptId, string Name, string Story, string? Tags, IReadOnlyList<int> PackageItemIds,
+    IReadOnlyList<PackageStoryPictureDto> Pictures);
 
 /// <summary>A package a style is in (style page).</summary>
 public sealed record StylePackageDto(int PackageId, string Name, string CustomerCode, string? SeasonCode, string Status, string OwnerName, int PackageItemId);
@@ -64,7 +78,8 @@ public sealed record StylePackageDto(int PackageId, string Name, string Customer
 public sealed record SavePackageRequest(byte[]? RowVer, string? Name, string? CustomerCode, string? SeasonCode, string? Description, string? Status,
     string? OwnerName);
 
-public sealed record AddPackageItemsRequest(IReadOnlyList<int>? StyleIds, string? AddedFrom);
+/// <summary>ConceptId: the concept the styles are offered for (AddedFrom is then Concept).</summary>
+public sealed record AddPackageItemsRequest(IReadOnlyList<int>? StyleIds, string? AddedFrom, int? ConceptId = null);
 
 /// <summary>Result: Added, AlreadyIn, OtherBrand (another brand's style: offer it as a copy) or NotFound.</summary>
 public sealed record PackageAddResultDto(int StyleId, string? StyleNo, string? SeasonCode, string? CustomerCode, string Result, int? PackageItemId);
@@ -74,8 +89,11 @@ public sealed record SavePackageItemRequest(byte[]? RowVer, string? PitchNote, s
 
 public sealed record PackageItemIdsRequest(IReadOnlyList<int>? PackageItemIds);
 
-/// <summary>Another customer's style offered as a new style of the package's customer: its season and its own style number.</summary>
-public sealed record CopyToPackageRequest(int StyleId, string? SeasonCode, string? StyleNo);
+/// <summary>
+/// Another customer's style offered as a new style of the package's customer: its season and its own style number. ConceptId: the
+/// concept it is offered for.
+/// </summary>
+public sealed record CopyToPackageRequest(int StyleId, string? SeasonCode, string? StyleNo, int? ConceptId = null);
 
 /// <summary>The new style and its place in the package.</summary>
 public sealed record PackageCopyResultDto(int StyleId, int PackageItemId);
@@ -93,10 +111,16 @@ public sealed record OfferCategoryDto(string Category, int Styles, string? Lates
 /// Gap (a garment the brand rarely bought; Detail1 its styles of it, Detail2 LT's) or Fabric (built on fabrics the brand buys;
 /// Detail1 shared fabrics). SameBrand false = offered as a copy. CategoryOffered / CategoryWon: this client's record on the garment
 /// (styles offered in packages sent, won = sampling or ordered); results move a garment's suggestions up or down.
+/// Issues is a property, not a constructor parameter: Dapper builds this record from usp_Offer_Suggest's columns, which must
+/// match the constructor exactly.
 /// </summary>
 public sealed record OfferSuggestionDto(
     string Section, int StyleId, string StyleNo, string SeasonCode, string CustomerCode, string? ModelName, string? Description, string? ProductTypeName,
-    string? Category, string? ImageUrl, string? SketchUrl, bool SameBrand, int? Detail1, int? Detail2, int CategoryOffered = 0, int CategoryWon = 0);
+    string? Category, string? ImageUrl, string? SketchUrl, bool SameBrand, int? Detail1, int? Detail2, int CategoryOffered = 0, int CategoryWon = 0)
+{
+    /// <summary>What the style breaks of the client's profile (roadmap 5.13); null without a profile.</summary>
+    public IReadOnlyList<ClientIssueDto>? Issues { get; init; }
+}
 
 // ----- Hit rate (roadmap 5.17, pack.usp_HitRate) -----
 
@@ -113,5 +137,9 @@ public sealed record HitRateRowDto(
 
 public sealed record HitRateDto(HitRateRowDto Totals, IReadOnlyList<HitRateRowDto> ByGarment, IReadOnlyList<HitRateRowDto> ByClient, IReadOnlyList<HitRateRowDto> BySource);
 
-/// <summary>Profile null = the client has no styles in the library yet (gaps and fabrics then have nothing to go by).</summary>
-public sealed record OfferDto(OfferProfileDto? Profile, IReadOnlyList<OfferCategoryDto> Categories, IReadOnlyList<OfferSuggestionDto> Suggestions);
+/// <summary>
+/// Profile null = the client has no styles in the library yet (gaps and fabrics then have nothing to go by). ClientRules: the
+/// client's profile (roadmap 5.13) when one is set; each suggestion then lists its Issues against it.
+/// </summary>
+public sealed record OfferDto(OfferProfileDto? Profile, IReadOnlyList<OfferCategoryDto> Categories, IReadOnlyList<OfferSuggestionDto> Suggestions,
+    ClientProfileDto? ClientRules = null);

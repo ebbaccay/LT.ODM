@@ -116,7 +116,7 @@ Confidence is the share of the lines seen that had the colour, lowered below 5 l
 - **Reuse** copies a style to another season or as a variant (colorways, BOM and images) and records the carry-over.
 - Set or remove history links by hand. Links made by the import (same base number and model) and by number (`S2808MR0000A` from `S2808MR0000`) are automatic; manual links are never replaced.
 - New customer, season, business unit, product type, material, supplier, material type and unit codes typed in forms are added to their lists (clean them up in Settings > Reference lists).
-- **Add to package** (style page, Similar tab) and **Pick for a package** (Styles list: tick styles, then Add to package) put styles in a [style package](style-packages.md); another brand's style is offered there as a copy with its own style number. The style page lists the packages the style is in, and **Copied from** / **Copied to** for such copies.
+- **Add to package** (style page, Similar tab) and **Pick for a package** (Styles list: tick styles, then Add to package) put styles in a [style package](style-packages.md); another brand's style is offered there as a copy with its own style number. The style page lists the packages the style is in, and **Copied from** / **Copied to** for such copies. It also lists the [concepts](concepts.md) the style inspired (design provenance), and for an LT design the concept it was developed from (*LT design from concept*).
 - A style in a style package cannot be deleted until it is taken out of its packages; the message names them.
 - If someone else saved the record first, the save is refused and the screen asks to reload.
 

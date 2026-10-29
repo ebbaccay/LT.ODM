@@ -77,6 +77,25 @@ const SECTIONS: OfferSection[] = ['Repitch', 'Gap', 'Fabric'];
         } @else {
           <p class="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">{{ 'packages.offer.noStyles' | transloco }}</p>
         }
+        <!-- The client's rules (roadmap 5.13) -->
+        @if (o.clientRules; as r) {
+          <section class="flex flex-col gap-2 rounded-md border px-4 py-3 text-sm">
+            <p class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span class="font-medium">{{ 'clientProfiles.rulesTitle' | transloco }}</span>
+              @if (r.priceMin !== null || r.priceMax !== null) { <span>{{ 'clientProfiles.priceBand' | transloco: { min: r.priceMin ?? '—', max: r.priceMax ?? '—', currency: r.currency } }}</span> }
+              @if (r.minRecycledPct) { <span>{{ 'clientProfiles.recycledRule' | transloco: { pct: r.minRecycledPct } }}</span> }
+              @if (r.restrictedTerms) { <span>{{ 'clientProfiles.restrictedRule' | transloco: { terms: r.restrictedTerms } }}</span> }
+              @if (r.mills.length) { <span>{{ 'clientProfiles.millsRule' | transloco: { count: r.mills.length } }}</span> }
+              <a routerLink="/packages/clients" class="text-primary text-xs underline-offset-2 hover:underline">{{ 'clientProfiles.title' | transloco }}</a>
+            </p>
+            <label class="flex min-h-9 items-center gap-2 text-xs" for="offer-hide">
+              <hlm-checkbox inputId="offer-hide" [checked]="hideBreaking()" (checkedChange)="hideBreaking.set(!hideBreaking())" />
+              {{ 'clientProfiles.hideBreaking' | transloco: { count: breaking() } }}
+            </label>
+          </section>
+        } @else if (o.profile) {
+          <p class="text-muted-foreground text-xs">{{ 'clientProfiles.noProfileHint' | transloco }} <a routerLink="/packages/clients" class="text-primary underline-offset-2 hover:underline">{{ 'clientProfiles.title' | transloco }}</a></p>
+        }
 
         @for (section of sections; track section) {
           @let items = bySection()[section];
@@ -115,6 +134,9 @@ const SECTIONS: OfferSection[] = ['Repitch', 'Gap', 'Fabric'];
                       }
                       @if (!s.sameBrand) {
                         <span class="mt-0.5 flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400"><ng-icon name="lucideCopy" />{{ 'packages.offer.asCopy' | transloco }}</span>
+                      }
+                      @for (x of s.issues ?? []; track x.kind + x.detail) {
+                        <span class="text-destructive text-xs" [title]="x.detail">{{ 'clientProfiles.issue.' + x.kind | transloco: { detail: x.detail } }}</span>
                       }
                     </div>
                   </li>
@@ -162,8 +184,11 @@ export class OfferPage implements OnInit {
   added = false;
 
   readonly pickedIds = computed(() => [...this.picked()]);
+  /** Leave out styles that break the client's profile (on by default when there is one). */
+  readonly hideBreaking = signal(true);
+  readonly breaking = computed(() => (this.offer()?.suggestions ?? []).filter((s) => s.issues?.length).length);
   readonly bySection = computed(() => {
-    const all = this.offer()?.suggestions ?? [];
+    const all = (this.offer()?.suggestions ?? []).filter((s) => !this.hideBreaking() || !s.issues?.length);
     return Object.fromEntries(SECTIONS.map((s) => [s, all.filter((x) => x.section === s)])) as Record<OfferSection, OfferSuggestion[]>;
   });
 

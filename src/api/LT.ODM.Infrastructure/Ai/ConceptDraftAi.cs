@@ -46,6 +46,9 @@ public sealed class ConceptDraftAi(IAiJsonClient ai) : IConceptDraftAi
             targetMarket = request.TargetMarket,
             targetFob = request.TargetPrice,
             trends = request.Trends ?? [],
+            productCategory = request.Category,
+            gender = request.Gender,
+            idea = request.Description,
         });
         var text = await ai.GenerateJsonAsync("a concept draft", SystemInstruction,
             $"Create the concept brief for this collection:\n{details}", ResponseSchema, 0.7, ct);

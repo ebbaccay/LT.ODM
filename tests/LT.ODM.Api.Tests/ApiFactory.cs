@@ -28,6 +28,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public FakeStyleRepository Styles { get; } = new();
     public FakeStyleGapRepository StyleGaps { get; } = new();
     public FakePackageRepository Packages { get; } = new();
+    public FakeConceptRepository Concepts { get; } = new();
+    public FakeClientProfileRepository ClientProfiles { get; } = new();
     public FakePackageNotifier Notifier { get; } = new();
     public FakeBomSuggestionRepository BomSuggestions { get; } = new();
     public FakeColourSuggestionRepository ColourSuggestions { get; } = new();
@@ -88,6 +90,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<IStyleGapRepository>(StyleGaps);
             services.RemoveAll<IPackageRepository>();
             services.AddSingleton<IPackageRepository>(Packages);
+            services.RemoveAll<IConceptRepository>();
+            services.AddSingleton<IConceptRepository>(Concepts);
+            services.RemoveAll<IClientProfileRepository>();
+            services.AddSingleton<IClientProfileRepository>(ClientProfiles);
             services.RemoveAll<IPackageNotifier>();
             services.AddSingleton<IPackageNotifier>(Notifier);
             services.RemoveAll<IBomSuggestionRepository>();

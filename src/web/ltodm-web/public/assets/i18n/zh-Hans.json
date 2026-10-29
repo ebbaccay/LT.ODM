@@ -98,7 +98,9 @@
     "stylePackages": "款式包",
     "packages": "款式包列表",
     "offer": "推荐款式",
-    "hitRate": "成交率"
+    "hitRate": "成交率",
+    "concepts": "概念",
+    "clientProfiles": "客户档案"
   },
   "settings": {
     "nav": {
@@ -530,7 +532,10 @@
         "contentClasses": "内容类别",
         "materialTypes": "物料类型",
         "uoms": "计量单位",
-        "suppliers": "SAP 供应商"
+        "suppliers": "SAP 供应商",
+        "targetMarkets": "目标市场",
+        "trendTags": "趋势标签",
+        "productCategories": "产品类别"
       },
       "names": {
         "customers": "名称",
@@ -543,7 +548,10 @@
         "contentClasses": "名称",
         "materialTypes": "名称",
         "uoms": "名称",
-        "suppliers": "名称"
+        "suppliers": "名称",
+        "targetMarkets": "名称",
+        "trendTags": "名称",
+        "productCategories": "名称"
       },
       "hints": {
         "customers": "款式表头上的客户。\"使用数\"为款式数量。",
@@ -556,7 +564,10 @@
         "contentClasses": "BOM 分类（BOM 行上的内容类别）。\"使用数\"为物料和 BOM 行数量。",
         "materialTypes": "BOM 行上的物料类型。\"使用数\"为物料和 BOM 行数量。",
         "uoms": "BOM 行上的计量单位（以小写存储）。\"使用数\"为 BOM 行数量。",
-        "suppliers": "BOM 行上的 SAP 供应商。\"使用数\"为 BOM 行数量。"
+        "suppliers": "BOM 行上的 SAP 供应商。\"使用数\"为 BOM 行数量。",
+        "targetMarkets": "概念面向的人群（款式包 > 概念）。“使用数”统计概念。",
+        "trendTags": "概念遵循的趋势（款式包 > 概念）。“使用数”统计概念。",
+        "productCategories": "概念的服装类别。代码与“推荐款式”和命中率的服装分组相同。“使用数”统计概念。"
       },
       "codeRules": {
         "customers": "最多 {{ max }} 个字符。",
@@ -569,7 +580,10 @@
         "contentClasses": "1-8 个字母、数字或下划线（例如 FAB）。导入工作簿中使用此值。",
         "materialTypes": "最多 {{ max }} 个字符，以大写存储。",
         "uoms": "最多 {{ max }} 个字符，以小写存储（例如 pc、m、yd）。",
-        "suppliers": "最多 {{ max }} 个字符。"
+        "suppliers": "最多 {{ max }} 个字符。",
+        "targetMarkets": "最多 {{ max }} 个字母、数字、- 或 _，以大写保存。",
+        "trendTags": "最多 {{ max }} 个字母、数字、- 或 _，以大写保存。",
+        "productCategories": "最多 {{ max }} 个字母、数字、- 或 _，以大写保存。"
       },
       "codeExamples": {
         "customers": "ADI",
@@ -582,7 +596,10 @@
         "contentClasses": "FAB",
         "materialTypes": "KNIT",
         "uoms": "pc",
-        "suppliers": "1100131"
+        "suppliers": "1100131",
+        "targetMarkets": "GENZ",
+        "trendTags": "ATHLEISURE",
+        "productCategories": "JACKET"
       }
     },
     "translations": {
@@ -2101,7 +2118,10 @@
     "package": "款式包",
     "offer": "推荐款式",
     "shared": "款式清单",
-    "hitRate": "成交率"
+    "hitRate": "成交率",
+    "concepts": "概念",
+    "concept": "概念",
+    "clientProfiles": "客户档案"
   },
   "layout": {
     "appSubtitle": "款式库",
@@ -3740,7 +3760,9 @@
     "none": "款式库中没有与此概念足够接近的款式。",
     "footer": "AI 解读了概念，款式库为 {{ count }} 个候选款式评分，AI 选出并解释了最佳款式。沿用前请核实款式。",
     "hint": "查找物料清单已验证的现有款式，作为此概念的起点。",
-    "needDraft": "请先生成概念（或添加产品、面料或趋势标签），再查找相似款式。"
+    "needDraft": "请先生成概念（或添加产品、面料或趋势标签），再查找相似款式。",
+    "addInspiration": "添加为灵感",
+    "added": "已是此概念的灵感款"
   },
   "similar": {
     "title": "相似款式",
@@ -4071,7 +4093,9 @@
       "copyLink": "复制链接",
       "oldLink": "无法再次复制",
       "oldLinkHint": "此链接生成于可再次复制功能之前。如需重新发送，请生成新链接（客户使用新链接后再撤销此链接）。",
-      "mixed": "意见不一"
+      "mixed": "意见不一",
+      "sampleAsked": "已申请样品",
+      "samples": "{{ count }} 个样品申请"
     },
     "shared": {
       "kicker": "款式清单",
@@ -4087,7 +4111,13 @@
       "goneTitle": "此链接已失效",
       "goneText": "链接可能已过期或已被停用。请向您的 LT 联系人索取新链接。",
       "tooMany": "修改过于频繁。请稍等一分钟再试。",
-      "notSaved": "未保存，请重试。"
+      "notSaved": "未保存，请重试。",
+      "story": "设计故事",
+      "storyStyles": "此故事中的款式：{{ styles }}",
+      "requestSample": "申请样品",
+      "sampleRequested": "已申请样品",
+      "sampleNote": "样品详情",
+      "sampleNotePlaceholder": "尺码、颜色、数量、寄送地址…"
     },
     "outcome": {
       "label": "{{ styleNo }} 的结果",
@@ -4139,10 +4169,276 @@
       "votesCol": "投票",
       "stylesCol": "已回复款式",
       "split": "{{ liked }} 全部喜欢 · {{ mixed }} 意见不一 · {{ passed }} 全部不要",
-      "noAnswers": "暂无回复"
+      "noAnswers": "暂无回复",
+      "hero": "命中率",
+      "heroSub": "已推荐的 {{ offered }} 个款式中有 {{ count }} 个进入打样或下单",
+      "funnel": "从推荐到下单",
+      "funnelHint": "每一步占已推荐款式的比例。结果为手动设置，因此款式可能未经链接回复就进入打样。",
+      "stage": {
+        "offered": "已推荐",
+        "answered": "已回复",
+        "liked": "有人喜欢",
+        "sampling": "进入打样",
+        "ordered": "已下单"
+      },
+      "answersTitle": "客户回复",
+      "answersHint": "已推荐款式按客户通过分享链接的回复分类。",
+      "votesTitle": "投票",
+      "positiveShare": "{{ pct }} 正面",
+      "outcomesTitle": "结果",
+      "outcomesHint": "已推荐款式按款式包页面上设置的结果分类。",
+      "legend": {
+        "allLiked": "全部喜欢",
+        "mixed": "意见不一",
+        "allPassed": "全部不要",
+        "noAnswer": "未回复",
+        "likes": "喜欢",
+        "passes": "不要",
+        "ordered": "已下单",
+        "sampling": "打样中",
+        "dropped": "已放弃",
+        "open": "未决定"
+      },
+      "view": {
+        "chart": "图表",
+        "table": "表格"
+      },
+      "showAll": "显示全部（{{ count }}）",
+      "showLess": "收起"
     },
     "notice": {
       "title": "客户已回复"
+    },
+    "forConcept": "所属概念：{{ name }}",
+    "closeness": {
+      "banner": "{{ count }} 个款式看起来像其他品牌的款式",
+      "bannerHint": "复制款和 LT 设计只保留其他品牌的技术经验（物料、工艺），不借用外观。发送前请修改设计（新款图或照片），或移除该款式。",
+      "looksLike": "相似于",
+      "clear": "与其他品牌款式无相似。",
+      "NoPicture": "复制自其他品牌：尚无图片，因此未检查外观。添加新款图后即可检查。",
+      "NotIndexed": "复制自其他品牌：其图片尚未被以图搜图读取（设置 > AI 连接 > 以图搜图）。",
+      "NotChecked": "未检查。"
+    },
+    "ltDesign": "LT 设计"
+  },
+  "closeness": {
+    "level": {
+      "Close": "过于相似",
+      "Check": "需检查",
+      "Clear": "无相似"
+    }
+  },
+  "concepts": {
+    "title": "概念",
+    "subtitle": "LT 自有的设计构想：灵感图片、借鉴的款式库款式以及 AI 简报，在放入款式包推荐之前会检查是否与其他品牌的设计过于相似。",
+    "newConcept": "新建概念",
+    "searchLabel": "搜索概念",
+    "searchPlaceholder": "概念、客户、趋势或款号",
+    "allCategories": "所有类别",
+    "mine": "我的概念",
+    "noMatch": "没有符合筛选条件的概念。",
+    "empty": "暂无概念",
+    "emptyHint": "跟单和设计人员在此完善 LT 自有的设计构想，然后再进行推荐。",
+    "emptyHintEdit": "点击“新建概念”开始：添加灵感图片、借鉴的款式库款式，并用 AI 起草简报。",
+    "noCustomer": "暂无客户",
+    "pictureCount": "{{ count }} 张图片",
+    "styleCount": "{{ count }} 个灵感款式",
+    "packageCount": "在 {{ count }} 个款式包中",
+    "back": "概念",
+    "notFound": "此概念已不存在。",
+    "offer": "放入款式包推荐",
+    "offerHint": "将灵感款式加入款式包（其他品牌的款式以复制款加入），并在每一项上记录此概念。",
+    "offerNeedsStyles": "请先添加此概念借鉴的款式库款式。",
+    "edit": "编辑",
+    "delete": "删除概念",
+    "deleteTitle": "删除概念",
+    "deleteMessage": "删除“{{ name }}”及其图片和灵感款式？款式仍保留在款式库中。",
+    "inspired": "启发的概念：",
+    "status": {
+      "Draft": "草稿",
+      "Ready": "就绪",
+      "Dropped": "已放弃"
+    },
+    "form": {
+      "newTitle": "新建概念",
+      "editTitle": "概念详情",
+      "name": "名称",
+      "namePlaceholder": "例如：可收纳再生风衣",
+      "nameRequired": "请为概念命名。",
+      "customer": "客户",
+      "customerHint": "可选：构想不一定已有客户。相似度会与所有其他品牌比较。",
+      "season": "季节",
+      "category": "产品类别",
+      "gender": "性别",
+      "market": "目标市场",
+      "none": "—",
+      "targetPrice": "目标价格",
+      "trends": "趋势标签",
+      "noTags": "暂无趋势标签（设置 > 参考列表）。",
+      "status": "状态",
+      "owner": "负责人",
+      "description": "构想",
+      "descriptionPlaceholder": "新意所在：廓形、面料、细节、给买手的故事。",
+      "create": "创建概念",
+      "clientStory": "给客户的故事",
+      "clientStoryPlaceholder": "买手看到的内容：构想、面向的人群、亮点。",
+      "clientStoryHint": "在线表和客户页面中作为款式之前的故事页显示。留空则没有故事页。上方的构想仅供 LT 内部使用。"
+    },
+    "pictures": {
+      "title": "灵感图片",
+      "add": "添加图片",
+      "remove": "移除图片",
+      "removeTitle": "移除图片",
+      "removeMessage": "从此概念中移除这张图片？",
+      "empty": "暂无图片。添加情绪板图片或款图：每张都会检查是否与其他品牌的设计相似。",
+      "drop": "松开即可添加图片",
+      "dropHint": "也可以将电脑中的图片拖放到此框中。",
+      "notImages": "已跳过 {{ count }} 个文件：只能添加 JPEG、PNG、GIF 和 WebP 图片。",
+      "forClient": "向客户展示",
+      "shownToClient": "已向客户展示"
+    },
+    "closeness": {
+      "again": "重新检查",
+      "summary": {
+        "Close": "有图片看起来像其他品牌的设计。推荐前请修改设计。",
+        "Check": "有图片与其他品牌的设计相似。推荐前请查看。",
+        "Clear": "没有图片像其他品牌的设计。",
+        "NotChecked": "图片尚未检查。"
+      },
+      "modelOff": "LT ODM 内置的图像模型未安装，或 AI 已关闭（设置 > AI 连接），因此暂时无法读取图片。",
+      "rule": "图片相似度达到 {{ close }} 为过于相似，达到 {{ watch }} 需检查。客户自己品牌的款式不会被标记。",
+      "checking": "正在检查…",
+      "notYet": "尚未检查。",
+      "notRead": "尚未读取：图像模型已关闭。",
+      "looksLike": "外观最相似的款式库款式：",
+      "ownBrand": "本品牌",
+      "noMatches": "款式库中暂无可比较的图片。"
+    },
+    "brief": {
+      "title": "AI 简报",
+      "draft": "用 AI 起草",
+      "again": "重新起草",
+      "products": "产品",
+      "fabrics": "面料",
+      "notes": "备注",
+      "by": "由 {{ user }} 于 {{ date }} 起草。使用前请检查。",
+      "empty": "暂无简报。保存详情后，“用 AI 起草”会写出摘要、产品、面料和采购备注。"
+    },
+    "styles": {
+      "title": "灵感款式（{{ count }}）",
+      "rule": "此概念借鉴的款式库款式。客户自己的款式可直接沿用；其他品牌的款式只提供技术经验（物料、工艺），不借用外观。",
+      "search": "按款号添加款式",
+      "knowHowOnly": "其他品牌：仅限技术经验",
+      "ownBrand": "本品牌",
+      "from": {
+        "Pick": "手动选择",
+        "Match": "AI 匹配",
+        "LookAlike": "外观相似"
+      },
+      "note": "此概念从该款式借鉴的内容",
+      "notePlaceholder": "借鉴内容：面料、工艺、版型、辅料…",
+      "remove": "移除灵感款式",
+      "empty": "暂无灵感款式。可按款号添加、从图片的相似款中添加，或从下方的 AI 匹配中添加。",
+      "addAsInspiration": "添加为灵感",
+      "added": "已添加 {{ styles }}。"
+    },
+    "packages": {
+      "title": "已放入款式包推荐"
+    },
+    "matches": {
+      "explain": "用 AI 解释",
+      "explainAgain": "重新解释",
+      "explaining": "AI 正在为这些款式排序并说明各自的适合原因。在内部 AI 服务器上可能需要几分钟；在此期间可以先使用上方的款式。",
+      "stale": "AI 解释之后概念已更改。请重新解释以更新。",
+      "matched": "其 BOM 上的面料词：{{ words }}",
+      "footer": "根据概念的类别、性别、客户和面料词查找（不使用 AI）。“用 AI 解释”会为其排序并说明适合原因。",
+      "footerExplained": "AI 已为最佳款式排序并作出解释；其余按得分排列。复用前请检查款式。"
+    },
+    "developedFrom": "来自概念的 LT 设计：",
+    "offerDesignsHint": "将此概念开发出的 LT 设计加入款式包，并在每一项上记录此概念。",
+    "develop": {
+      "button": "开发为款式",
+      "hint": "根据此概念创建 LT 设计：客户的新款式，像其他款式一样推荐。",
+      "title": "开发为款式",
+      "intro": "新款式从一开始就是 {{ customer }} 的设计：一旦客户采用，即归客户所有。它会像款式库中的其他款式一样被推荐、检查和核价。",
+      "needCustomer": "请先选择概念的客户（编辑）：新款式将成为该客户的设计。",
+      "base": "BOM 起始于",
+      "noBase": "暂无 BOM",
+      "wholeBom": "完整 BOM",
+      "knowHow": "其他品牌：仅面料、辅料和配件",
+      "baseHint": "从此概念的灵感款式中选择。客户自己的款式提供完整 BOM；其他品牌的款式只提供技术经验（面料、辅料、配件），不包括标签、印花、配色或图片。",
+      "picture": "款图",
+      "noPicture": "无",
+      "pictureHint": "用作该款式款图的概念图片（线表、客户页面、以图搜图）。会与其他品牌的图片进行比较。",
+      "what": "概念名称成为型号名称，构想成为描述；性别取自概念，其他产品信息取自起始款式。",
+      "submit": "创建款式",
+      "done": "款式已创建。现在可加入款式包，也可稍后在“LT 设计”中添加。",
+      "listTitle": "LT 设计（{{ count }}）",
+      "knowHowFrom": "BOM 技术经验来自",
+      "inPackages": "在 {{ count }} 个款式包中",
+      "addToPackage": "加入款式包"
+    }
+  },
+  "followUps": {
+    "title": "跟进",
+    "NotOpened": "链接“{{ label }}”已 {{ days }} 天未被打开。",
+    "NoAnswer": "链接“{{ label }}”于 {{ days }} 天前打开，尚无回复。",
+    "Expiring": "链接“{{ label }}”将于 {{ date }} 失效。",
+    "Sample": "{{ styleNo }} 的样品已申请 {{ days }} 天：寄出后请设置其结果。",
+    "Pitch": "提案日期 {{ date }} {{ season }} 还有 {{ days }} 天，尚未发送任何款式包。",
+    "done": "完成",
+    "later": "稍后（3 天）"
+  },
+  "clientProfiles": {
+    "title": "客户档案",
+    "subtitle": "每个客户接受的条件：价格区间、再生比例、受限材料、首选面料厂，以及查看提案的时间。款式包和“推荐款式”会据此检查。",
+    "search": "搜索客户",
+    "brandAccounts": "品牌，{{ count }} 个账户",
+    "customer": "客户",
+    "counts": "{{ styles }} 个款式 · {{ packages }} 个款式包",
+    "set": "已设置档案",
+    "none": "尚无档案：款式包不会被检查。",
+    "edit": "编辑档案",
+    "setUp": "设置档案",
+    "view": "查看档案",
+    "noMatch": "没有匹配的客户。",
+    "dialogTitle": "客户档案：{{ name }}",
+    "priceMin": "最低 FOB",
+    "priceMax": "最高 FOB",
+    "currency": "币种",
+    "priceHint": "客户采购的价格区间。款式包有成本后使用（路线图 5.19）。",
+    "minRecycled": "最低再生比例 %",
+    "restricted": "受限材料和物质",
+    "restrictedPlaceholder": "例如 PVC、PFAS、安哥拉毛、皮草",
+    "restrictedHint": "以逗号分隔。BOM 描述中含有这些词的行会被指出。",
+    "mills": "首选面料厂",
+    "millPlaceholder": "供应商代码",
+    "addMill": "添加",
+    "millsHint": "来自其他供应商的面料会被指出。留空 = 不限面料厂。",
+    "unknownMill": "此供应商代码不在供应商列表中。",
+    "pitchDates": "提案日期",
+    "season": "季节",
+    "date": "日期",
+    "notePlaceholder": "备注（例如：买手到访香港）",
+    "addDate": "添加提案日期",
+    "dateRequired": "请为每个提案日期填写日期。",
+    "accountManager": "LT 客户经理",
+    "accountManagerHint": "其用户名。提案日期前 14 天若该季节仍未发送任何款式包，会收到提醒。",
+    "notes": "备注",
+    "priceBand": "FOB {{ min }}-{{ max }} {{ currency }}",
+    "recycledRule": "再生面料至少 {{ pct }}%",
+    "restrictedRule": "不含 {{ terms }}",
+    "millsRule": "{{ count }} 个首选面料厂",
+    "nextPitch": "下次提案 {{ date }} {{ season }}",
+    "managedBy": "客户经理 {{ user }}",
+    "rulesTitle": "客户规则：",
+    "hideBreaking": "隐藏不符合规则的款式（{{ count }}）",
+    "noProfileHint": "此客户尚无档案，因此不会按其规则检查款式。",
+    "packageBanner": "{{ count }} 个款式不符合此客户的规则。发送前请检查。",
+    "issue": {
+      "Recycled": "再生面料：{{ detail }}",
+      "Restricted": "受限：{{ detail }}",
+      "Mill": "非首选面料厂：{{ detail }}"
     }
   }
 }

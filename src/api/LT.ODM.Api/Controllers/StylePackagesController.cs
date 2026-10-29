@@ -1,4 +1,5 @@
 using LT.ODM.Application.Abstractions;
+using LT.ODM.Application.Concepts;
 using LT.ODM.Application.StyleLibrary;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -55,14 +56,25 @@ public sealed class StylePackagesController(IPackageRepository packages, IShareT
     /// <summary>
     /// What to offer a customer's brand, from the library alone (rules, no AI): its own styles not carried over since, garments
     /// it rarely bought with LT's examples, and styles on fabrics it already buys. packageId leaves out styles already in it.
+    /// With a client profile, each suggestion lists what it breaks (recycled share, restricted words, mills).
     /// </summary>
     [HttpGet("offer")]
-    public async Task<IActionResult> Offer(string? customer, int? packageId, int top = 12, CancellationToken ct = default)
+    public async Task<IActionResult> Offer(string? customer, int? packageId, [FromServices] IClientProfileRepository profiles, int top = 12,
+        CancellationToken ct = default)
     {
         if (Clean(customer, 32) is not { } code) return Invalid("customer", "Choose the customer to suggest styles for.");
         try
         {
-            return Ok(await packages.OfferAsync(code, packageId, Math.Clamp(top, 1, 50), ct));
+            var offer = await packages.OfferAsync(code, packageId, Math.Clamp(top, 1, 50), ct);
+            // The client's rules (roadmap 5.13): each suggestion with what it breaks.
+            var check = await profiles.CheckAsync(code, offer.Suggestions.Select(s => s.StyleId).Distinct().ToList(), ct);
+            if (check.ClientKey is null) return Ok(offer);
+            var issues = check.Issues.ToLookup(i => i.StyleId);
+            return Ok(offer with
+            {
+                Suggestions = offer.Suggestions.Select(s => s with { Issues = issues[s.StyleId].ToList() }).ToList(),
+                ClientRules = await profiles.GetAsync(check.ClientKey, ct),
+            });
         }
         catch (StyleRuleException ex)
         {
@@ -151,6 +163,14 @@ public sealed class StylePackagesController(IPackageRepository packages, IShareT
             return NoContent();
         });
 
+    /// <summary>
+    /// Brand closeness (roadmap 5.2): each copied style in the package (another brand's style offered as a new style) against
+    /// other brands' pictures, by the image search vectors. A brand's own styles are not checked.
+    /// </summary>
+    [HttpGet("{packageId:int}/closeness")]
+    public Task<PackageClosenessDto> Closeness(int packageId, [FromServices] BrandClosenessService closeness, CancellationToken ct)
+        => closeness.CheckPackageAsync(packageId, ct);
+
     /// <summary>The packages a style is in (style page).</summary>
     [HttpGet("for-style/{styleId:int}")]
     public Task<IReadOnlyList<StylePackageDto>> ForStyle(int styleId, CancellationToken ct) => packages.ForStyleAsync(styleId, ct);
@@ -197,7 +217,7 @@ public sealed class StylePackagesController(IPackageRepository packages, IShareT
         string? from = null;
         if (!string.IsNullOrWhiteSpace(request.AddedFrom) && (from = PackageValues.Parse(PackageValues.AddedFrom, request.AddedFrom)) is null)
             errors["addedFrom"] = ["Unknown place the styles were added from."];
-        return Run(errors, async () => Ok(await packages.AddItemsAsync(packageId, request.StyleIds!, from, CurrentUserName, ct)));
+        return Run(errors, async () => Ok(await packages.AddItemsAsync(packageId, request.StyleIds!, from, CurrentUserName, request.ConceptId, ct)));
     }
 
     /// <summary>
@@ -215,7 +235,7 @@ public sealed class StylePackagesController(IPackageRepository packages, IShareT
         else if (season.Length > 16) errors["seasonCode"] = ["A season code has at most 16 characters."];
         if (string.IsNullOrEmpty(styleNo)) errors["styleNo"] = ["Give the new style its own style number."];
         else if (styleNo.Length > 100) errors["styleNo"] = ["A style number has at most 100 characters."];
-        return Run(errors, async () => Ok(await packages.AddCopyAsync(packageId, request.StyleId, season!, styleNo!, CurrentUserName, ct)));
+        return Run(errors, async () => Ok(await packages.AddCopyAsync(packageId, request.StyleId, season!, styleNo!, CurrentUserName, request.ConceptId, ct)));
     }
 
     /// <summary>Notes and offered colourways of one style in the package.</summary>

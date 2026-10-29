@@ -122,6 +122,26 @@
             }
           </div>
         }
+        @for (c of concepts(); track c.kind + c.conceptId) {
+          @if (c.kind === 'Developed') {
+            <!-- An LT design developed from a concept (roadmap 5.21) -->
+            <div class="flex flex-wrap items-center gap-1.5 text-xs">
+              <span class="text-muted-foreground">{{ 'concepts.developedFrom' | transloco }}</span>
+              <a [routerLink]="['/concepts', c.conceptId]" hlmBadge variant="outline" class="hover:bg-accent gap-1"><ng-icon name="lucidePalette" />{{ c.name }}</a>
+            </div>
+          }
+        }
+        @if (inspiredConcepts().length) {
+          <!-- Concepts this style inspired (design provenance) -->
+          <div class="flex flex-wrap items-center gap-1.5 text-xs">
+            <span class="text-muted-foreground">{{ 'concepts.inspired' | transloco }}</span>
+            @for (c of inspiredConcepts(); track c.conceptId) {
+              <a [routerLink]="['/concepts', c.conceptId]" hlmBadge variant="outline" class="hover:bg-accent gap-1" [title]="c.note ?? ''">
+                <ng-icon name="lucidePalette" />{{ c.name }}{{ c.customerCode ? ' · ' + c.customerCode : '' }}
+              </a>
+            }
+          </div>
+        }
         <p class="text-muted-foreground text-xs">
           {{ 'styles.detail.createdBy' | transloco: { user: s.createdBy, date: (s.createdUtc | date: 'medium') } }}@if (s.importBatchId) { {{ 'styles.detail.importBatch' | transloco: { id: s.importBatchId } }} }
           @if (s.updatedBy) { · {{ 'styles.detail.changedBy' | transloco: { user: s.updatedBy, date: (s.updatedUtc | date: 'medium') } }} }

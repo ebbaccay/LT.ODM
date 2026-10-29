@@ -97,6 +97,16 @@ public sealed class ConceptMatcher(IAiJsonClient ai, IStyleRepository styles, IS
         return new ConceptMatchResultDto(criteria, candidates.Count, await RankAsync(r, criteria, candidates, ct));
     }
 
+    /// <summary>
+    /// Step 3 alone: ranks and explains candidates found without AI (Concepts page: criteria from the concept's own fields).
+    /// One Text-job call instead of two.
+    /// </summary>
+    public async Task<ConceptMatchResultDto> ExplainAsync(ConceptMatchRequest r, ConceptCriteriaDto criteria, IReadOnlyList<ConceptCandidateDto> candidates,
+        CancellationToken ct = default)
+        => candidates.Count == 0
+            ? new ConceptMatchResultDto(criteria, 0, [])
+            : new ConceptMatchResultDto(criteria, candidates.Count, await RankAsync(r, criteria, candidates, ct));
+
     private async Task<ConceptCriteriaDto> CriteriaAsync(ConceptMatchRequest r, CancellationToken ct)
     {
         var l = await styles.GetLookupsAsync(ct);

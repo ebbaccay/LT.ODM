@@ -44,6 +44,7 @@ public sealed class SharedPackagesController(IPackageRepository packages, IPacka
         if (request.Verdict?.Trim() is { Length: > 0 } && verdict is null) return Invalid("verdict", "Choose Like or Pass.");
         if (request.Comment?.Trim().Length > 1000) return Invalid("comment", "Keep the comment under 1,000 characters.");
         if (request.Name?.Trim().Length > 100) return Invalid("name", "Keep the name under 100 characters.");
+        if (request.SampleNote?.Trim().Length > 500) return Invalid("sampleNote", "Keep the sample note under 500 characters.");
         try
         {
             var notices = await packages.SaveShareFeedbackAsync(ShareTokens.Hash(token), packageItemId, request with { Verdict = verdict }, ct);
@@ -69,6 +70,16 @@ public sealed class SharedPackagesController(IPackageRepository packages, IPacka
     public async Task<IActionResult> Image(string token, string fileName, int? width, [FromServices] IStyleImageStore images, CancellationToken ct)
     {
         if (!ShareTokens.LooksValid(token) || !await packages.ShareImageAllowedAsync(ShareTokens.Hash(token), SharedPackageView.ImageUrl(fileName), ct))
+            return NotFound();
+        return await ImageUploads.ServeAsync(this, images, fileName, width, ct);
+    }
+
+    /// <summary>A picture on a concept story page (a concept picture marked for the client) of this link's package; width 160 / 320 / 640.</summary>
+    [HttpGet("story-images/{fileName}")]
+    public async Task<IActionResult> StoryImage(string token, string fileName, int? width, [FromServices] LT.ODM.Application.ConceptStudio.IConceptImageStore images,
+        CancellationToken ct)
+    {
+        if (!ShareTokens.LooksValid(token) || !await packages.ShareStoryImageAllowedAsync(ShareTokens.Hash(token), SharedPackageView.StoryImageUrl(fileName), ct))
             return NotFound();
         return await ImageUploads.ServeAsync(this, images, fileName, width, ct);
     }

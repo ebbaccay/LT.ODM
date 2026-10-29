@@ -123,6 +123,31 @@ The model must return 768 numbers per picture (`style.ImageVector.Vector` is `ve
 
 Settings > Import pictures uses the same model to choose the garment on a sheet ([Settings](../components/settings.md#import-pictures-settingsimage-import)).
 
+### Follow-up reminders
+
+The bell's [follow-ups](../components/style-packages.md#follow-up-reminders) start after these many days.
+
+| Setting | Default | Notes |
+|---|---|---|
+| `FollowUps:NotOpenedDays` | 5 | A share link never opened |
+| `FollowUps:NoAnswerDays` | 7 | Opened, but no answer through it |
+| `FollowUps:ExpiringDays` | 3 | A link that stops working within this many days |
+| `FollowUps:SampleDays` | 3 | A client's sample request LT has not acted on |
+| `FollowUps:PitchDays` | 14 | A client's pitch date this close with nothing sent (to the account manager) |
+
+Environment variables `FollowUps__NotOpenedDays` and so on.
+
+### Brand closeness check
+
+[Concepts](../components/concepts.md) and copied styles in [Style Packages](../components/style-packages.md#brand-closeness) are compared with other brands' pictures by the look-alike model above (cosine similarity, 0-1). Without the model, or with AI switched off, concept pictures are not read (the pages say so).
+
+| Setting | Default | Notes |
+|---|---|---|
+| `BrandCloseness:Close` | 0.90 | At or above: *Too close* (looks like that brand's design) |
+| `BrandCloseness:Watch` | 0.85 | At or above: *Check* (similar). Used as Close when set higher |
+
+Set on the laptop library (143 pictures, 2026-10-28): different garments scored at most 0.93 and rarely above 0.90; copies and colour variants of one design about 1.00. Re-check them as the library gets more pictures. Environment variables `BrandCloseness__Close`, `BrandCloseness__Watch`.
+
 ### Picture upscaler (built into the API)
 
 Settings > Import pictures enlarges small cut-outs with an upscaler that runs **inside the API** (ONNX Runtime on the CPU; nothing sent anywhere). Its file is not in the release: copy it to the server once ([File storage](08-file-storage.md#picture-upscaler-file)).

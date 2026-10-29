@@ -4,6 +4,7 @@ import { environment } from '@env/environment';
 import { Observable, firstValueFrom, map } from 'rxjs';
 import { Tone } from '@tms/shared/ui/tones';
 import { safeFileName, saveBlob } from '../style-library/style-library.service';
+import type { ClientIssue, ClientProfile } from './client-profiles.service';
 
 // Style Packages (/api/v1/style-packages): library styles offered to a client.
 // Reading: Style Library readers. Changing: Admin, Merchandiser (the API checks both). No prices yet (roadmap 5.19).
@@ -127,7 +128,55 @@ export interface PackageItem {
   outcome: PackageOutcome | null;
   outcomeBy: string | null;
   outcomeUtc: string | null;
+  /** The concept the style was offered for (roadmap 5.7). */
+  conceptId: number | null;
+  conceptName: string | null;
+  /** The style it was copied from (another brand's style offered as a new style, 5.12). */
+  originStyleId: number | null;
+  /** Set when the style is an LT design developed from that concept (5.21). */
+  styleConceptId: number | null;
 }
+
+/**
+ * Brand closeness (roadmap 5.2): Close = looks like that design, Check = similar, Clear = below the thresholds; NoPicture /
+ * NotIndexed = nothing to compare yet; NotChecked = no picture could be compared.
+ */
+export type ClosenessLevel = 'Close' | 'Check' | 'Clear' | 'NoPicture' | 'NotIndexed' | 'NotChecked';
+
+/** The thresholds in use (cosine similarity of the image search look-alike vectors) and whether pictures can be read now. */
+export interface ClosenessThresholds {
+  close: number;
+  watch: number;
+  modelReady: boolean;
+  model: string;
+}
+
+/** A copied style in the package and the closest picture of another brand's style. */
+export interface PackageClosenessItem {
+  packageItemId: number;
+  styleId: number;
+  originStyleId: number | null;
+  pictures: number;
+  indexed: number;
+  matchStyleId: number | null;
+  matchStyleNo: string | null;
+  matchSeasonCode: string | null;
+  matchCustomerCode: string | null;
+  matchImageUrl: string | null;
+  similarity: number | null;
+  level: ClosenessLevel;
+}
+
+export interface PackageCloseness {
+  thresholds: ClosenessThresholds;
+  items: PackageClosenessItem[];
+}
+
+export const CLOSENESS_CLASS: Record<string, string> = {
+  Close: 'bg-red-500/15 text-red-700 dark:text-red-400',
+  Check: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
+  Clear: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
+};
 
 export const PACKAGE_OUTCOMES = ['Sampling', 'Ordered', 'Dropped'] as const;
 export type PackageOutcome = (typeof PACKAGE_OUTCOMES)[number];
@@ -168,6 +217,9 @@ export interface PackageFeedback {
   comment: string | null;
   name: string | null;
   updatedUtc: string;
+  /** Asked for a sample through the link (sampleNote: sizes, colours, quantity). */
+  sample: boolean;
+  sampleNote: string | null;
 }
 
 /** A share link of a package (the client opens /share/{token} without signing in). */
@@ -291,6 +343,8 @@ export interface OfferSuggestion {
   /** The client's record on this garment (offered in packages sent / won); results move suggestions up or down. */
   categoryOffered: number;
   categoryWon: number;
+  /** What the style breaks of the client's profile (roadmap 5.13); null without a profile. */
+  issues: ClientIssue[] | null;
 }
 
 /** profile null = the client has no styles in the library yet. */
@@ -298,6 +352,8 @@ export interface Offer {
   profile: OfferProfile | null;
   categories: OfferCategory[];
   suggestions: OfferSuggestion[];
+  /** The client's profile, when one is set. */
+  clientRules: ClientProfile | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -338,13 +394,19 @@ export class PackagesService {
     return this.http.delete<void>(`${this.api}/${packageId}`, { params: { rowVer } });
   }
 
-  addStyles(packageId: number, styleIds: number[], addedFrom: PackageSource): Observable<PackageAddResult[]> {
-    return this.http.post<PackageAddResult[]>(`${this.api}/${packageId}/items`, { styleIds, addedFrom });
+  /** conceptId: the concept the styles are offered for (they are then recorded as added from Concept). */
+  addStyles(packageId: number, styleIds: number[], addedFrom: PackageSource, conceptId: number | null = null): Observable<PackageAddResult[]> {
+    return this.http.post<PackageAddResult[]>(`${this.api}/${packageId}/items`, { styleIds, addedFrom, conceptId });
   }
 
   /** Offers another customer's style as a new style of the package's customer (know-how only) and adds it. */
-  addCopy(packageId: number, styleId: number, seasonCode: string, styleNo: string): Observable<PackageCopyResult> {
-    return this.http.post<PackageCopyResult>(`${this.api}/${packageId}/items/copy`, { styleId, seasonCode, styleNo });
+  addCopy(packageId: number, styleId: number, seasonCode: string, styleNo: string, conceptId: number | null = null): Observable<PackageCopyResult> {
+    return this.http.post<PackageCopyResult>(`${this.api}/${packageId}/items/copy`, { styleId, seasonCode, styleNo, conceptId });
+  }
+
+  /** Brand closeness of the package's copied styles (stored image search vectors; a brand's own styles are not checked). */
+  closeness(packageId: number): Observable<PackageCloseness> {
+    return this.http.get<PackageCloseness>(`${this.api}/${packageId}/closeness`);
   }
 
   saveItem(packageId: number, packageItemId: number, item: SavePackageItem): Observable<void> {

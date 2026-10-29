@@ -5,7 +5,7 @@ import { ActivatedRoute } from '@angular/router';
 import { environment } from '@env/environment';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideCheck, lucideDownload, lucideImage, lucideLeaf, lucideLink2Off, lucideThumbsDown, lucideThumbsUp } from '@ng-icons/lucide';
+import { lucideCheck, lucideDownload, lucideImage, lucideLeaf, lucideLink2Off, lucideShirt, lucideThumbsDown, lucideThumbsUp } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
@@ -28,7 +28,24 @@ interface SharedItem {
   recycled: string | null;
   colorways: { code: string; name: string | null; imageFile: string | null }[];
   note: string | null;
-  answer: { verdict: 'Like' | 'Pass' | null; comment: string | null; name: string | null } | null;
+  answer: { verdict: 'Like' | 'Pass' | null; comment: string | null; name: string | null; sample: boolean; sampleNote: string | null } | null;
+}
+
+/** A concept's story page (roadmap 5.22): the text for the client, trend tags, pictures (files), the styles it covers. */
+interface SharedStory {
+  name: string;
+  story: string;
+  tags: string | null;
+  imageFiles: string[];
+  packageItemIds: number[];
+}
+
+/** A person's whole answer on a style. */
+interface Answer {
+  verdict: 'Like' | 'Pass' | null;
+  comment: string | null;
+  sample: boolean;
+  sampleNote: string | null;
 }
 
 interface SharedPackage {
@@ -39,20 +56,22 @@ interface SharedPackage {
   label: string;
   expiresUtc: string;
   items: SharedItem[];
+  stories: SharedStory[] | null;
 }
 
 const NAME_KEY = 'ltodm.share.name';
 
 /**
  * A style package opened by the client through its share link (/share/:token), without signing in (roadmap 5.16). Outside
- * the app's layout and menu. Per style: Like / Pass and a comment, saved at once; the client's name is remembered in this
- * browser only. A link that is unknown, revoked or expired shows one message, whatever the reason.
+ * the app's layout and menu. The concepts' stories come first (5.22). Per style: Like / Pass, a comment, and Request sample with
+ * a note (5.23), saved at once; the client's name is remembered in this browser only. A link that is unknown, revoked or expired
+ * shows one message, whatever the reason.
  */
 @Component({
   selector: 'app-shared-package-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [DatePipe, NgIcon, HlmButtonImports, HlmCardImports, HlmInputImports, HlmSkeletonImports, HlmTextareaImports, TranslocoPipe],
-  providers: [provideIcons({ lucideCheck, lucideDownload, lucideImage, lucideLeaf, lucideLink2Off, lucideThumbsDown, lucideThumbsUp })],
+  providers: [provideIcons({ lucideCheck, lucideDownload, lucideImage, lucideLeaf, lucideLink2Off, lucideShirt, lucideThumbsDown, lucideThumbsUp })],
   template: `
     <main class="bg-background text-foreground min-h-dvh">
       <div class="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6">
@@ -83,6 +102,24 @@ const NAME_KEY = 'ltodm.share.name';
               <span class="text-muted-foreground text-xs">{{ 'packages.shared.howTo' | transloco }}</span>
             </div>
           </header>
+
+          <!-- The concepts' stories (roadmap 5.22) -->
+          @for (st of p.stories ?? []; track st.name) {
+            <section hlmCard class="gap-3 p-5">
+              <p class="text-primary text-xs font-semibold tracking-widest uppercase">{{ 'packages.shared.story' | transloco }}</p>
+              <h2 class="text-xl font-semibold tracking-tight">{{ st.name }}</h2>
+              @if (st.tags) { <p class="text-muted-foreground text-sm">{{ st.tags }}</p> }
+              <p class="max-w-3xl text-sm whitespace-pre-line">{{ st.story }}</p>
+              @if (st.imageFiles.length) {
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  @for (f of st.imageFiles; track f) {
+                    <img [src]="storyImageUrl(f, 640)" alt="" class="bg-muted aspect-square w-full rounded-md border object-contain" loading="lazy" />
+                  }
+                </div>
+              }
+              <p class="text-muted-foreground text-xs">{{ 'packages.shared.storyStyles' | transloco: { styles: styleNos(st) } }}</p>
+            </section>
+          }
 
           <ul class="grid gap-4 md:grid-cols-2" role="list">
             @for (i of p.items; track i.packageItemId) {
@@ -131,10 +168,17 @@ const NAME_KEY = 'ltodm.share.name';
                             (click)="setVerdict(i, 'Like')"><ng-icon name="lucideThumbsUp" />{{ 'packages.shared.like' | transloco }}</button>
                     <button hlmBtn type="button" class="h-11 lg:h-9" [variant]="a?.verdict === 'Pass' ? 'default' : 'outline'" [attr.aria-pressed]="a?.verdict === 'Pass'"
                             (click)="setVerdict(i, 'Pass')"><ng-icon name="lucideThumbsDown" />{{ 'packages.shared.pass' | transloco }}</button>
+                    <button hlmBtn type="button" class="h-11 lg:h-9" [variant]="a?.sample ? 'default' : 'outline'" [attr.aria-pressed]="!!a?.sample"
+                            (click)="toggleSample(i)"><ng-icon name="lucideShirt" />{{ (a?.sample ? 'packages.shared.sampleRequested' : 'packages.shared.requestSample') | transloco }}</button>
                     @if (saved()[i.packageItemId]) {
                       <span class="text-muted-foreground flex items-center gap-1 text-xs"><ng-icon name="lucideCheck" />{{ 'packages.shared.saved' | transloco }}</span>
                     }
                   </div>
+                  @if (a?.sample) {
+                    <input hlmInput class="h-11 text-sm lg:h-9" maxlength="500" [attr.aria-label]="'packages.shared.sampleNote' | transloco"
+                           [placeholder]="'packages.shared.sampleNotePlaceholder' | transloco" [value]="a?.sampleNote ?? ''"
+                           (input)="sampleDraft[i.packageItemId] = $any($event.target).value" (blur)="saveSampleNote(i)" />
+                  }
                   <textarea hlmTextarea rows="2" maxlength="1000" class="text-sm" [attr.aria-label]="'packages.shared.comment' | transloco: { styleNo: i.styleNo }"
                             [placeholder]="'packages.shared.commentPlaceholder' | transloco" [value]="a?.comment ?? ''" (input)="draft[i.packageItemId] = $any($event.target).value"
                             (blur)="saveComment(i)"></textarea>
@@ -160,10 +204,12 @@ export class SharedPackagePage implements OnInit {
   readonly gone = signal(false);
   readonly name = signal(this.readName());
   /** The client's answers by style (what was saved). */
-  readonly answers = signal<Record<number, { verdict: 'Like' | 'Pass' | null; comment: string | null }>>({});
+  readonly answers = signal<Record<number, Answer>>({});
   readonly saved = signal<Record<number, boolean>>({});
   /** Comments being typed, saved when the box is left. */
   readonly draft: Record<number, string> = {};
+  /** Sample notes being typed, saved when the box is left. */
+  readonly sampleDraft: Record<number, string> = {};
 
   ngOnInit(): void {
     this.token.set(this.route.snapshot.paramMap.get('token') ?? '');
@@ -181,7 +227,9 @@ export class SharedPackagePage implements OnInit {
     this.http.get<SharedPackage>(`${this.api}/${encodeURIComponent(this.token())}`, { params }).subscribe({
       next: (p) => {
         this.pkg.set(p);
-        this.answers.set(Object.fromEntries(p.items.filter((i) => i.answer).map((i) => [i.packageItemId, { verdict: i.answer!.verdict, comment: i.answer!.comment }])));
+        this.answers.set(Object.fromEntries(p.items.filter((i) => i.answer).map((i) => [i.packageItemId, {
+          verdict: i.answer!.verdict, comment: i.answer!.comment, sample: i.answer!.sample, sampleNote: i.answer!.sampleNote,
+        }])));
         this.saved.set({});
         if (first) this.loading.set(false);
       },
@@ -194,6 +242,16 @@ export class SharedPackagePage implements OnInit {
 
   imageUrl(file: string, width: number): string {
     return `${this.api}/${encodeURIComponent(this.token())}/images/${encodeURIComponent(file)}?width=${width}`;
+  }
+
+  storyImageUrl(file: string, width: number): string {
+    return `${this.api}/${encodeURIComponent(this.token())}/story-images/${encodeURIComponent(file)}?width=${width}`;
+  }
+
+  /** The style numbers a story covers, as on the cards below. */
+  styleNos(story: SharedStory): string {
+    const byId = new Map((this.pkg()?.items ?? []).map((i) => [i.packageItemId, i.styleNo]));
+    return story.packageItemIds.map((id) => byId.get(id)).filter((x) => !!x).join(', ');
   }
 
   pdfUrl(): string {
@@ -209,26 +267,52 @@ export class SharedPackagePage implements OnInit {
     }
   }
 
+  /** The answer as saved, with what is being typed. */
+  private current(i: SharedItem): Answer {
+    const a = this.answers()[i.packageItemId];
+    return {
+      verdict: a?.verdict ?? null, comment: this.draft[i.packageItemId] ?? a?.comment ?? null, sample: a?.sample ?? false,
+      sampleNote: this.sampleDraft[i.packageItemId] ?? a?.sampleNote ?? null,
+    };
+  }
+
   /** The same button again takes the answer back. */
   setVerdict(i: SharedItem, verdict: 'Like' | 'Pass'): void {
-    const current = this.answers()[i.packageItemId];
-    this.save(i, current?.verdict === verdict ? null : verdict, this.draft[i.packageItemId] ?? current?.comment ?? null);
+    const a = this.current(i);
+    this.save(i, { ...a, verdict: a.verdict === verdict ? null : verdict });
   }
 
   saveComment(i: SharedItem): void {
     const text = this.draft[i.packageItemId];
-    const current = this.answers()[i.packageItemId];
-    if (text === undefined || text.trim() === (current?.comment ?? '')) return;
-    this.save(i, current?.verdict ?? null, text);
+    if (text === undefined || text.trim() === (this.answers()[i.packageItemId]?.comment ?? '')) return;
+    this.save(i, this.current(i));
   }
 
-  private save(i: SharedItem, verdict: 'Like' | 'Pass' | null, comment: string | null): void {
-    const body = { verdict, comment: comment?.trim() || null, name: this.name().trim() || null };
+  /** Asks for a sample of the style (again: takes the request back). */
+  toggleSample(i: SharedItem): void {
+    const a = this.current(i);
+    this.save(i, { ...a, sample: !a.sample, sampleNote: a.sample ? null : a.sampleNote });
+  }
+
+  saveSampleNote(i: SharedItem): void {
+    const text = this.sampleDraft[i.packageItemId];
+    if (text === undefined || text.trim() === (this.answers()[i.packageItemId]?.sampleNote ?? '')) return;
+    this.save(i, this.current(i));
+  }
+
+  private save(i: SharedItem, answer: Answer): void {
+    const body = {
+      verdict: answer.verdict, comment: answer.comment?.trim() || null, name: this.name().trim() || null, sample: answer.sample,
+      sampleNote: answer.sample ? answer.sampleNote?.trim() || null : null,
+    };
     this.http.put<void>(`${this.api}/${encodeURIComponent(this.token())}/items/${i.packageItemId}/feedback`, body).subscribe({
       next: () => {
-        this.answers.update((a) => ({ ...a, [i.packageItemId]: { verdict, comment: body.comment } }));
+        this.answers.update((a) => ({
+          ...a, [i.packageItemId]: { verdict: body.verdict, comment: body.comment, sample: body.sample, sampleNote: body.sampleNote },
+        }));
         this.saved.update((s) => ({ ...s, [i.packageItemId]: true }));
         delete this.draft[i.packageItemId];
+        delete this.sampleDraft[i.packageItemId];
       },
       error: (e: unknown) => {
         if (e instanceof HttpErrorResponse && e.status === 404) this.gone.set(true);

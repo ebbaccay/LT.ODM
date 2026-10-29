@@ -1,3 +1,4 @@
+using LT.ODM.Application.Concepts;
 using LT.ODM.Application.StyleLibrary;
 
 namespace LT.ODM.Application.Abstractions;
@@ -22,10 +23,18 @@ public interface IPackageRepository
     Task<int> SaveAsync(int? packageId, SavePackageRequest request, string changedBy, CancellationToken ct = default);
     Task DeleteAsync(int packageId, byte[] rowVer, string changedBy, CancellationToken ct = default);
 
+    /// <summary>conceptId: the concept the styles are offered for (AddedFrom is then Concept).</summary>
     Task<IReadOnlyList<PackageAddResultDto>> AddItemsAsync(int packageId, IReadOnlyList<int> styleIds, string? addedFrom, string changedBy,
-        CancellationToken ct = default);
+        int? conceptId = null, CancellationToken ct = default);
     /// <summary>Copies another customer's style as a new style of the package's customer (know-how only) and adds it.</summary>
-    Task<PackageCopyResultDto> AddCopyAsync(int packageId, int styleId, string seasonCode, string styleNo, string changedBy, CancellationToken ct = default);
+    Task<PackageCopyResultDto> AddCopyAsync(int packageId, int styleId, string seasonCode, string styleNo, string changedBy, int? conceptId = null,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// The package's copied styles and the closest other-brand picture by the image search vectors of <paramref name="model"/>
+    /// (Level left empty: the caller sorts by its thresholds).
+    /// </summary>
+    Task<IReadOnlyList<PackageClosenessItemDto>> ClosenessAsync(int packageId, string model, CancellationToken ct = default);
     Task SaveItemAsync(int packageId, int packageItemId, SavePackageItemRequest request, string changedBy, CancellationToken ct = default);
     Task RemoveItemsAsync(int packageId, IReadOnlyList<int> packageItemIds, string changedBy, CancellationToken ct = default);
     Task ReorderItemsAsync(int packageId, IReadOnlyList<int> packageItemIds, string changedBy, CancellationToken ct = default);
@@ -61,4 +70,7 @@ public interface IPackageRepository
 
     /// <summary>The stored image is shown on the live link's page (a style or colourway picture of the package).</summary>
     Task<bool> ShareImageAllowedAsync(byte[] tokenHash, string imageUrl, CancellationToken ct = default);
+
+    /// <summary>The concept picture is on a story page of the live link's package (marked for the client).</summary>
+    Task<bool> ShareStoryImageAllowedAsync(byte[] tokenHash, string imageUrl, CancellationToken ct = default);
 }

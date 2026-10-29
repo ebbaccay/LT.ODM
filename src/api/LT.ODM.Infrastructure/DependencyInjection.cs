@@ -1,4 +1,5 @@
 using LT.ODM.Application.Abstractions;
+using LT.ODM.Application.Concepts;
 using LT.ODM.Application.ConceptStudio;
 using LT.ODM.Application.CostOptimization;
 using LT.ODM.Application.Ai;
@@ -10,6 +11,7 @@ using LT.ODM.Application.StyleAi;
 using LT.ODM.Application.StyleLibrary;
 using LT.ODM.Application.Translations;
 using LT.ODM.Infrastructure.Ai;
+using LT.ODM.Infrastructure.Concepts;
 using LT.ODM.Infrastructure.Data;
 using LT.ODM.Infrastructure.Email;
 using LT.ODM.Infrastructure.Files;
@@ -39,6 +41,8 @@ public static class DependencyInjection
         services.AddScoped<IStyleRepository, StyleRepository>();
         services.AddScoped<IStyleGapRepository, StyleGapRepository>();
         services.AddScoped<IPackageRepository, PackageRepository>();
+        services.AddScoped<IClientProfileRepository, ClientProfileRepository>();   // client profiles, follow-up reminders
+        services.AddScoped<IConceptRepository, ConceptRepository>();
         services.AddSingleton<StyleDashboardCache>();
         services.AddScoped<IMaterialRepository, MaterialRepository>();
 
@@ -104,6 +108,11 @@ public static class DependencyInjection
         services.AddScoped<ConceptMatcher>();
         services.AddScoped<IMaterialSpecRepository, MaterialSpecRepository>();
         services.Configure<MaterialReaderOptions>(configuration.GetSection(MaterialReaderOptions.SectionName));
+        services.Configure<BrandClosenessOptions>(configuration.GetSection(BrandClosenessOptions.SectionName));
+        services.AddScoped<BrandClosenessService>();   // brand closeness check of concepts and package copies (roadmap 5.2)
+        services.AddScoped<ConceptLibraryMatcher>();   // proven styles for a concept, without AI
+        services.AddScoped<ConceptStyleDeveloper>();   // Develop as style: an LT design from a concept
+        services.Configure<FollowUpOptions>(configuration.GetSection(FollowUpOptions.SectionName));   // follow-up reminders (roadmap 5.24)
         services.AddScoped<MaterialReader>();
         // Library assistant: one ILibraryTool per capability (the AI's instructions are built from this list).
         services.AddScoped<LibraryAssistantService>();

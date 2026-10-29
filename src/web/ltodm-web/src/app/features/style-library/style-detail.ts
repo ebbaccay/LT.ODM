@@ -43,6 +43,7 @@ import { Modal } from '@tms/shared/ui/modal';
 import { toneBadge } from '@tms/shared/ui/tones';
 import { AddToPackageDialog } from '../style-packages/add-to-package-dialog';
 import { PackagesService, StylePackage } from '../style-packages/packages.service';
+import { ConceptsService, StyleConcept } from '../concepts/concepts.service';
 import { BomLineDialog } from './bom-line-dialog';
 import { BomSuggestDialog } from './bom-suggest-dialog';
 import { ColourSuggestDialog } from './colour-suggest-dialog';
@@ -88,6 +89,7 @@ interface BomSection {
 export class StyleDetail implements OnInit {
   private readonly svc = inject(StyleLibraryService);
   private readonly packagesSvc = inject(PackagesService);
+  private readonly conceptsSvc = inject(ConceptsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly confirmDlg = inject(ConfirmDialogService);
@@ -132,6 +134,9 @@ export class StyleDetail implements OnInit {
   readonly packageOpen = signal(false);
   /** Style packages this style is offered in. */
   readonly packages = signal<StylePackage[]>([]);
+  /** Concepts this style inspired (design provenance, roadmap 5.1). */
+  readonly concepts = signal<StyleConcept[]>([]);
+  readonly inspiredConcepts = computed(() => this.concepts().filter((c) => c.kind === 'Inspired'));
 
   readonly style = computed(() => this.detail()?.style ?? null);
   readonly colorways = computed(() => this.detail()?.colorways ?? []);
@@ -271,6 +276,7 @@ export class StyleDetail implements OnInit {
 
   loadPackages(): void {
     this.packagesSvc.forStyle(this.styleId()).subscribe({ next: (p) => this.packages.set(p), error: () => this.packages.set([]) });
+    this.conceptsSvc.forStyle(this.styleId()).subscribe({ next: (c) => this.concepts.set(c), error: () => this.concepts.set([]) });
   }
 
   onCopied(newId: number): void {

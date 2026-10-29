@@ -41,6 +41,10 @@ public static class ReferenceLists
         new("materialTypes", 16, CodeCase.Upper, null, AnyCode, 100, true, false, false),
         new("uoms", 8, CodeCase.Lower, null, AnyCode, 50, true, false, false),
         new("suppliers", 32, CodeCase.AsTyped, null, AnyCode, 150, true, false, true),
+        // Concepts only (roadmap 5.6): ref.TargetMarket, ref.TrendTag, ref.ProductCategory.
+        new("targetMarkets", 16, CodeCase.Upper, "^[A-Z0-9_-]+$", "Use at most {0} letters, digits, - or _ (e.g. GENZ).", 100, true, false, true),
+        new("trendTags", 40, CodeCase.Upper, "^[A-Z0-9_-]+$", "Use at most {0} letters, digits, - or _ (e.g. ATHLEISURE).", 100, true, false, true),
+        new("productCategories", 20, CodeCase.Upper, "^[A-Z0-9_-]+$", "Use at most {0} letters, digits, - or _ (e.g. JACKET).", 100, true, false, true),
     ];
 
     public static RefListDefinition? Find(string key) => All.FirstOrDefault(d => d.Key == key);

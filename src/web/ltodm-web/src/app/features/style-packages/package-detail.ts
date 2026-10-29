@@ -1,11 +1,11 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, PercentPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
-  lucideArrowDown, lucideArrowLeft, lucideArrowUp, lucideCircleAlert, lucideDownload, lucideFileSpreadsheet, lucideImage, lucideLeaf, lucideLightbulb, lucideLock, lucideThumbsDown, lucideThumbsUp, lucidePackage, lucidePencil, lucidePlus, lucideTrash2,
+  lucideArrowDown, lucideArrowLeft, lucideArrowUp, lucideCircleAlert, lucideDownload, lucideFileSpreadsheet, lucideImage, lucideLeaf, lucideLightbulb, lucideLock, lucideThumbsDown, lucideThumbsUp, lucidePackage, lucidePalette, lucidePencil, lucidePlus, lucideShieldAlert, lucideShirt, lucideTrash2,
 } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -19,10 +19,14 @@ import { AuthImgDirective } from '@tms/shared/ui/auth-img';
 import { toneBadge } from '@tms/shared/ui/tones';
 import { GENDERS, StyleLibraryService, StyleLookups, styleError } from '../style-library/style-library.service';
 import { PackageFormDialog } from './package-form-dialog';
+import { ClientIssue, ClientProfilesService } from './client-profiles.service';
 import { PackageNoticeService } from './package-notice.service';
 import { SharePanel } from './share-panel';
 import { PackageItemDialog } from './package-item-dialog';
-import { OUTCOME_TONE, PACKAGE_OUTCOMES, PackageDetail as Detail, PackageItem, PackageOutcome, PackagesService, STATUS_TONE } from './packages.service';
+import {
+  CLOSENESS_CLASS, OUTCOME_TONE, PACKAGE_OUTCOMES, PackageCloseness, PackageClosenessItem, PackageDetail as Detail, PackageItem, PackageOutcome, PackagesService,
+  STATUS_TONE,
+} from './packages.service';
 
 /**
  * A style package: its header (customer, season, status, owner) and the styles offered, in pitch order, each with its
@@ -33,11 +37,11 @@ import { OUTCOME_TONE, PACKAGE_OUTCOMES, PackageDetail as Detail, PackageItem, P
   selector: 'app-package-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe, RouterLink, NgIcon, AuthImgDirective, PackageFormDialog, PackageItemDialog, SharePanel, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmNativeSelectImports,
+    DatePipe, PercentPipe, RouterLink, NgIcon, AuthImgDirective, PackageFormDialog, PackageItemDialog, SharePanel, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmNativeSelectImports,
     HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe,
   ],
   providers: [
-    provideIcons({ lucideArrowDown, lucideArrowLeft, lucideArrowUp, lucideCircleAlert, lucideDownload, lucideFileSpreadsheet, lucideImage, lucideLeaf, lucideLightbulb, lucideLock, lucideThumbsDown, lucideThumbsUp, lucidePackage, lucidePencil, lucidePlus, lucideTrash2 }),
+    provideIcons({ lucideArrowDown, lucideArrowLeft, lucideArrowUp, lucideCircleAlert, lucideDownload, lucideFileSpreadsheet, lucideImage, lucideLeaf, lucideLightbulb, lucideLock, lucideThumbsDown, lucideThumbsUp, lucidePackage, lucidePalette, lucidePencil, lucidePlus, lucideShieldAlert, lucideShirt, lucideTrash2 }),
   ],
   template: `
     <section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
@@ -107,6 +111,25 @@ import { OUTCOME_TONE, PACKAGE_OUTCOMES, PackageDetail as Detail, PackageItem, P
         <app-share-panel [packageId]="p.packageId" [customerName]="p.customerName" [canEdit]="canEdit()" (changed)="load()" />
 
         <h2 class="text-lg font-semibold">{{ 'packages.styleCount' | transloco: { count: d.items.length } }}</h2>
+        <!-- The client's rules (roadmap 5.13) -->
+        @if (clientIssues().length) {
+          <div class="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200" role="status">
+            <ng-icon name="lucideCircleAlert" class="mt-0.5 shrink-0" />
+            <p>{{ 'clientProfiles.packageBanner' | transloco: { count: clientIssueStyles() } }}
+              <a routerLink="/packages/clients" class="underline underline-offset-2">{{ 'clientProfiles.title' | transloco }}</a></p>
+          </div>
+        }
+        <!-- Brand closeness (roadmap 5.2): copied styles that look like another brand's style -->
+        @let flagged = flaggedCopies();
+        @if (flagged.length) {
+          <div class="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-800 dark:text-red-300" role="alert">
+            <ng-icon name="lucideShieldAlert" class="mt-0.5 shrink-0" />
+            <div>
+              <p class="font-medium">{{ 'packages.closeness.banner' | transloco: { count: flagged.length } }}</p>
+              <p class="mt-1 text-xs">{{ 'packages.closeness.bannerHint' | transloco }}</p>
+            </div>
+          </div>
+        }
         @if (!d.items.length) {
           <section hlmCard class="items-center gap-2 px-5 py-12 text-center">
             <ng-icon name="lucidePackage" class="text-muted-foreground text-4xl" />
@@ -155,6 +178,38 @@ import { OUTCOME_TONE, PACKAGE_OUTCOMES, PackageDetail as Detail, PackageItem, P
                   <p class="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
                     <ng-icon name="lucideCircleAlert" class="mt-0.5 shrink-0" />{{ 'packages.otherBrandItem' | transloco }}
                   </p>
+                }
+                @for (x of issuesOf(i); track x.kind + x.detail) {
+                  <p class="flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-300" [title]="x.detail">
+                    <ng-icon name="lucideCircleAlert" class="mt-0.5 shrink-0" />{{ 'clientProfiles.issue.' + x.kind | transloco: { detail: x.detail } }}
+                  </p>
+                }
+                @if (i.styleConceptId) {
+                  <span class="w-fit rounded-full px-2 py-0.5 text-[11px] font-medium" [class]="toneBadge('violet')">{{ 'packages.ltDesign' | transloco }}</span>
+                }
+                @if (i.conceptId) {
+                  <a [routerLink]="['/concepts', i.conceptId]" class="text-primary flex w-fit items-center gap-1.5 text-xs underline-offset-2 hover:underline">
+                    <ng-icon name="lucidePalette" />{{ 'packages.forConcept' | transloco: { name: i.conceptName } }}
+                  </a>
+                }
+                @if (closenessOf(i); as c) {
+                  <!-- A copy of another brand's style: how close it looks to that brand's (or any other brand's) pictures -->
+                  @if (c.level === 'Close' || c.level === 'Check' || c.level === 'Clear') {
+                    <p class="flex flex-wrap items-center gap-1.5 text-xs">
+                      <span class="rounded-full px-2 py-0.5 text-[11px] font-medium" [class]="closenessClass[c.level]">{{ 'closeness.level.' + c.level | transloco }}</span>
+                      @if (c.matchStyleId && c.level !== 'Clear') {
+                        <span>{{ 'packages.closeness.looksLike' | transloco }}
+                          <a [routerLink]="['/styles', c.matchStyleId]" class="font-mono underline-offset-2 hover:underline">{{ c.matchStyleNo }}</a>
+                          ({{ c.matchCustomerCode }}, {{ c.similarity | percent: '1.0-0' }})</span>
+                      } @else if (c.level === 'Clear') {
+                        <span class="text-muted-foreground">{{ 'packages.closeness.clear' | transloco }}</span>
+                      }
+                    </p>
+                  } @else {
+                    <p class="text-muted-foreground flex items-start gap-1.5 text-xs">
+                      <ng-icon name="lucideShieldAlert" class="mt-0.5 shrink-0" />{{ 'packages.closeness.' + c.level | transloco }}
+                    </p>
+                  }
                 }
                 <!-- Key materials: main fabrics, then trims (nothing guessed: a style without BOM lines says so) -->
                 @let fabrics = materialsOf(i, 'Fabric');
@@ -218,7 +273,12 @@ import { OUTCOME_TONE, PACKAGE_OUTCOMES, PackageDetail as Detail, PackageItem, P
                         @else if (f.verdict === 'Pass') { <ng-icon name="lucideThumbsDown" class="text-destructive mt-0.5 shrink-0" /> }
                         <span class="min-w-0">
                           <span class="text-muted-foreground">{{ f.name || f.label }}{{ f.name ? ' (' + f.label + ')' : '' }}:</span>
-                          {{ f.comment || ((f.verdict === 'Like' ? 'packages.shared.like' : 'packages.shared.pass') | transloco) }}
+                          @if (f.verdict || f.comment) { {{ f.comment || ((f.verdict === 'Like' ? 'packages.shared.like' : 'packages.shared.pass') | transloco) }} }
+                          @if (f.sample) {
+                            <span class="block font-medium text-amber-700 dark:text-amber-400">
+                              <ng-icon name="lucideShirt" class="align-middle" /> {{ 'packages.share.sampleAsked' | transloco }}{{ f.sampleNote ? ': ' + f.sampleNote : '' }}
+                            </span>
+                          }
                         </span>
                       </li>
                     }
@@ -286,6 +346,14 @@ export class PackageDetailPage implements OnInit {
   private readonly notices = inject(PackageNoticeService);
   readonly outcomes = PACKAGE_OUTCOMES;
   readonly outcomeTone = OUTCOME_TONE;
+  readonly closenessClass = CLOSENESS_CLASS;
+  /** Brand closeness of the copied styles (roadmap 5.2); null until checked or when the package has no copies. */
+  readonly closeness = signal<PackageCloseness | null>(null);
+  /** The package's styles against its client's profile (roadmap 5.13). */
+  readonly clientIssues = signal<ClientIssue[]>([]);
+  readonly clientIssueStyles = computed(() => new Set(this.clientIssues().map((x) => x.styleId)).size);
+  private readonly profiles = inject(ClientProfilesService);
+  readonly flaggedCopies = computed(() => (this.closeness()?.items ?? []).filter((c) => c.level === 'Close' || c.level === 'Check'));
 
   ngOnInit(): void {
     this.styles.lookups().subscribe({ next: (l) => this.lookups.set(l) });
@@ -310,6 +378,8 @@ export class PackageDetailPage implements OnInit {
         this.detail.set(d);
         this.loading.set(false);
         this.busy.set(false);
+        this.loadCloseness(d);
+        this.profiles.checkPackage(d.package.packageId).subscribe({ next: (c) => this.clientIssues.set(c.issues), error: () => this.clientIssues.set([]) });
       },
       error: (e) => {
         this.loading.set(false);
@@ -318,6 +388,23 @@ export class PackageDetailPage implements OnInit {
         else toast.error(styleError(e).message);
       },
     });
+  }
+
+  /** Copies of another brand's style and LT designs are checked against other brands' pictures; a brand's own styles are not. */
+  private loadCloseness(d: Detail): void {
+    if (!d.items.some((i) => i.originStyleId || i.styleConceptId)) {
+      this.closeness.set(null);
+      return;
+    }
+    this.svc.closeness(d.package.packageId).subscribe({ next: (c) => this.closeness.set(c), error: () => this.closeness.set(null) });
+  }
+
+  issuesOf(i: PackageItem): ClientIssue[] {
+    return this.clientIssues().filter((x) => x.styleId === i.styleId);
+  }
+
+  closenessOf(i: PackageItem): PackageClosenessItem | null {
+    return this.closeness()?.items.find((c) => c.packageItemId === i.packageItemId) ?? null;
   }
 
   /** The colourways in the offer (all on the style, or the chosen ones, missing ones last). */

@@ -1,4 +1,5 @@
 using System.Globalization;
+using LT.ODM.Application.ConceptStudio;
 using LT.ODM.Application.StyleLibrary;
 using SkiaSharp;
 using static LT.ODM.Infrastructure.StyleLibrary.Pdf;
@@ -8,12 +9,13 @@ namespace LT.ODM.Infrastructure.StyleLibrary;
 /// <summary>
 /// Style package line sheet. PDF: A4 landscape like the tech pack, a header (package, customer, season, description) and the
 /// styles as cards, two per row, in pitch order: picture (photo, else sketch), style number, model, product facts, main
-/// fabrics, recycled content, offered colourways, lead time and the note for the client. Excel: see the .Excel part.
+/// fabrics, recycled content, offered colourways, lead time and the note for the client. Concepts with a story for the client
+/// get a story page first (roadmap 5.22: story, trend tags, up to 4 pictures, the styles it covers). Excel: see the .Excel part.
 /// Labels are English: the line sheet goes to brands. What goes on it: <see cref="LineSheetContent"/>.
 /// </summary>
-public sealed partial class PackageLineSheetWriter(IStyleImageStore images) : IPackageLineSheetWriter
+public sealed partial class PackageLineSheetWriter(IStyleImageStore images, IConceptImageStore? conceptImages = null) : IPackageLineSheetWriter
 {
-    private const float CardHeight = 200, CardGap = 14, CardPad = 10, PictureWidth = 150;
+    private const float CardHeight = 200, CardGap = 14, CardPad = 10, PictureWidth = 150, StoryPictureHeight = 190;
 
     public async Task<byte[]> WritePdfAsync(PackageDetailDto package, string generatedBy, DateTime generatedUtc, CancellationToken ct = default)
     {
@@ -34,10 +36,26 @@ public sealed partial class PackageLineSheetWriter(IStyleImageStore images) : IP
                 if (SKImage.FromEncodedData(buffer.ToArray()) is { } image) pictures[url!] = image;
             }
 
+            var stories = LineSheetContent.Stories(package);
+            if (conceptImages is not null)
+                foreach (var url in stories.SelectMany(s => s.Pictures).Select(x => x.ImageUrl).Distinct())
+                {
+                    if (SharedPackageView.StoryImageFile(url) is not { } name || pictures.ContainsKey(url)) continue;
+                    var opened = await conceptImages.OpenThumbnailAsync(name, 640, ct);
+                    if (opened is not { } file) continue;
+                    await using var content = file.Content;
+                    using var buffer = new MemoryStream();
+                    await content.CopyToAsync(buffer, ct);
+                    if (SKImage.FromEncodedData(buffer.ToArray()) is { } image) pictures[url] = image;
+                }
+
             using var fonts = new Fonts();
             var layout = new Layout(fonts);
             var p = package.Package;
             Header(layout, p, items.Count);
+            var styleNos = items.ToDictionary(i => i.PackageItemId, i => i.StyleNo);
+            foreach (var story in stories) Story(layout, story, pictures, styleNos);
+            if (stories.Count > 0) layout.NewPage();
             if (items.Count == 0) layout.Note("No styles in this package.");
             var width = (layout.Right - layout.Left - CardGap) / 2;
             for (var n = 0; n < items.Count; n++)
@@ -83,6 +101,50 @@ public sealed partial class PackageLineSheetWriter(IStyleImageStore images) : IP
         l.Y += 12;
         l.Rule(Layout.Accent, 1.5f);
         l.Y += 14;
+    }
+
+    /// <summary>A concept's story: name, trend tags, the story text, up to 4 pictures in a row, and the styles it covers.</summary>
+    private static void Story(Layout l, PackageStoryDto s, IReadOnlyDictionary<string, SKImage> pictures, IReadOnlyDictionary<int, string> styleNos)
+    {
+        var f = l.Fonts;
+        var width = l.Right - l.Left;
+        var text = Lines(l, s.Story, f.Regular, 10.5f, width, 12);
+        var shown = s.Pictures.Where(x => pictures.ContainsKey(x.ImageUrl)).Take(4).ToList();
+        var needed = 60 + text.Count * 14 + (shown.Count > 0 ? StoryPictureHeight + 24 : 0) + 20;
+        if (l.Y + Math.Min(needed, l.Bottom - 40) > l.Bottom) l.NewPage();
+
+        l.Text("THE STORY", f.Bold, 8, Layout.Accent, l.Left, l.Y + 8);
+        l.Text(l.Fit(s.Name, f.Bold, 16, width), f.Bold, 16, Layout.Ink, l.Left, l.Y + 28);
+        l.Y += 32;
+        if (!string.IsNullOrWhiteSpace(s.Tags))
+        {
+            l.Y += 13;
+            l.Text(l.Fit(s.Tags!, f.Regular, 9.5f, width), f.Regular, 9.5f, Layout.Muted, l.Left, l.Y);
+        }
+        l.Y += 6;
+        foreach (var line in text)
+        {
+            l.Y += 14;
+            l.Text(line, f.Regular, 10.5f, Layout.Ink, l.Left, l.Y);
+        }
+        if (shown.Count > 0)
+        {
+            l.Y += 12;
+            const float gap = 10;
+            var w = (width - gap * 3) / 4;
+            for (var n = 0; n < shown.Count; n++)
+                l.Picture(pictures[shown[n].ImageUrl], shown[n].Caption, l.Left + n * (w + gap), l.Y, w, StoryPictureHeight);
+            l.Y += StoryPictureHeight + 6;
+        }
+        var nos = s.PackageItemIds.Select(id => styleNos.GetValueOrDefault(id)).OfType<string>().ToList();
+        if (nos.Count > 0)
+        {
+            l.Y += 14;
+            l.Text(l.Fit("Styles: " + string.Join(", ", nos), f.Regular, 9, width), f.Regular, 9, Layout.Muted, l.Left, l.Y);
+        }
+        l.Y += 14;
+        l.Rule(Layout.Border, 0.8f);
+        l.Y += 16;
     }
 
     private static void Card(Layout l, PackageItemDto i, SKImage? picture, float x, float y, float width)

@@ -5,6 +5,7 @@ import { environment } from '@env/environment';
 import { NotificationHubService } from '@services/notification-hub.service';
 import { Subject } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
+import { ClientProfilesService, FollowUp } from './client-profiles.service';
 
 /** A client answered through a share link (likes, passes, new or changed comments gathered while unread). */
 export interface PackageNotice {
@@ -15,6 +16,8 @@ export interface PackageNotice {
   likes: number;
   passes: number;
   comments: number;
+  /** Sample requests (new, or a changed note). */
+  samples: number;
   clientName: string | null;
   firstUtc: string;
   lastUtc: string;
@@ -39,6 +42,10 @@ export class PackageNoticeService {
   private readonly api = `${environment.apiBaseUrl}/api/v1/package-notices`;
 
   readonly notices = signal<PackageNotice[]>([]);
+  /** Follow-up reminders (roadmap 5.24): worked out on the server; stay until Done or Later. */
+  readonly followUps = signal<FollowUp[]>([]);
+  private readonly profiles = inject(ClientProfilesService);
+  private followUpTimer: ReturnType<typeof setInterval> | null = null;
   readonly unreadCount = computed(() => this.notices().filter((n) => !n.isRead).length);
   /** Package ids clients just answered on (live). */
   readonly answered = new Subject<number>();
@@ -47,6 +54,9 @@ export class PackageNoticeService {
   init(): void {
     if (!(this.auth.user()?.roles ?? []).some((r) => READERS.includes(r.toLowerCase()))) return;
     this.http.get<PackageNotice[]>(this.api).subscribe({ next: (list) => this.notices.set(list), error: () => undefined });
+    this.loadFollowUps();
+    // Follow-ups change with time (a link turns 5 days old): look again every 30 minutes while the app is open.
+    this.followUpTimer ??= setInterval(() => this.loadFollowUps(), 30 * 60 * 1000);
     this.hub.listen('PackageNotice', (n: PackageNotice) =>
       this.zone.run(() => {
         this.notices.update((list) => [{ ...n, isRead: false }, ...list.filter((x) => x.noticeId !== n.noticeId)].slice(0, 50));
@@ -69,7 +79,25 @@ export class PackageNoticeService {
     void this.router.navigate(['/packages', n.packageId]);
   }
 
+  loadFollowUps(): void {
+    this.profiles.followUps().subscribe({ next: (list) => this.followUps.set(list), error: () => undefined });
+  }
+
+  /** Done (days null) or Later; it leaves the list at once. */
+  dismiss(f: FollowUp, days: number | null): void {
+    this.followUps.update((list) => list.filter((x) => !(x.kind === f.kind && x.refKey === f.refKey)));
+    this.profiles.dismiss(f, days).subscribe({ error: () => this.loadFollowUps() });
+  }
+
+  /** The package it is about, or the client profiles page for a pitch date. */
+  openFollowUp(f: FollowUp): void {
+    void this.router.navigate(f.packageId ? ['/packages', f.packageId] : ['/packages/clients']);
+  }
+
   reset(): void {
     this.notices.set([]);
+    this.followUps.set([]);
+    if (this.followUpTimer) clearInterval(this.followUpTimer);
+    this.followUpTimer = null;
   }
 }

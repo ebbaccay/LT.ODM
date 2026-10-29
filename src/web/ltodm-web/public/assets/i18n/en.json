@@ -98,7 +98,9 @@
     "stylePackages": "Style Packages",
     "packages": "Packages",
     "offer": "What to offer",
-    "hitRate": "Hit rate"
+    "hitRate": "Hit rate",
+    "concepts": "Concepts",
+    "clientProfiles": "Client profiles"
   },
   "settings": {
     "nav": {
@@ -530,7 +532,10 @@
         "contentClasses": "Content classes",
         "materialTypes": "Material types",
         "uoms": "Units of measure",
-        "suppliers": "SAP suppliers"
+        "suppliers": "SAP suppliers",
+        "targetMarkets": "Target markets",
+        "trendTags": "Trend tags",
+        "productCategories": "Product categories"
       },
       "names": {
         "customers": "Name",
@@ -543,7 +548,10 @@
         "contentClasses": "Name",
         "materialTypes": "Name",
         "uoms": "Name",
-        "suppliers": "Name"
+        "suppliers": "Name",
+        "targetMarkets": "Name",
+        "trendTags": "Name",
+        "productCategories": "Name"
       },
       "hints": {
         "customers": "Customer on the style header. \"Used by\" counts styles.",
@@ -556,7 +564,10 @@
         "contentClasses": "BOM sections (Content class on a BOM line). \"Used by\" counts materials and BOM lines.",
         "materialTypes": "Material type on a BOM line. \"Used by\" counts materials and BOM lines.",
         "uoms": "Unit of measure on a BOM line (stored lower-case). \"Used by\" counts BOM lines.",
-        "suppliers": "SAP supplier on a BOM line. \"Used by\" counts BOM lines."
+        "suppliers": "SAP supplier on a BOM line. \"Used by\" counts BOM lines.",
+        "targetMarkets": "Who a concept is for (Style Packages > Concepts). \"Used by\" counts concepts.",
+        "trendTags": "Trends a concept follows (Style Packages > Concepts). \"Used by\" counts concepts.",
+        "productCategories": "The kind of garment of a concept. The codes match the garment groups of What to offer and the hit rate. \"Used by\" counts concepts."
       },
       "codeRules": {
         "customers": "At most {{ max }} characters.",
@@ -569,7 +580,10 @@
         "contentClasses": "1-8 letters, digits or underscores (e.g. FAB). This is the value used in the import workbook.",
         "materialTypes": "At most {{ max }} characters, stored upper-case.",
         "uoms": "At most {{ max }} characters, stored lower-case (e.g. pc, m, yd).",
-        "suppliers": "At most {{ max }} characters."
+        "suppliers": "At most {{ max }} characters.",
+        "targetMarkets": "At most {{ max }} letters, digits, - or _, stored upper-case.",
+        "trendTags": "At most {{ max }} letters, digits, - or _, stored upper-case.",
+        "productCategories": "At most {{ max }} letters, digits, - or _, stored upper-case."
       },
       "codeExamples": {
         "customers": "ADI",
@@ -582,7 +596,10 @@
         "contentClasses": "FAB",
         "materialTypes": "KNIT",
         "uoms": "pc",
-        "suppliers": "1100131"
+        "suppliers": "1100131",
+        "targetMarkets": "GENZ",
+        "trendTags": "ATHLEISURE",
+        "productCategories": "JACKET"
       }
     },
     "translations": {
@@ -2101,7 +2118,10 @@
     "package": "Style package",
     "offer": "What to offer",
     "shared": "Line sheet",
-    "hitRate": "Hit rate"
+    "hitRate": "Hit rate",
+    "concepts": "Concepts",
+    "concept": "Concept",
+    "clientProfiles": "Client profiles"
   },
   "layout": {
     "appSubtitle": "Style Library",
@@ -3740,7 +3760,9 @@
     "none": "No style in the library is close enough to this concept.",
     "footer": "AI read the concept, the library scored {{ count }} candidates, AI picked and explained the best. Check the styles before reusing them.",
     "hint": "Find existing styles with a proven BOM to start this concept from.",
-    "needDraft": "Draft the concept first (or add products, fabrics or trend tags) to find similar styles."
+    "needDraft": "Draft the concept first (or add products, fabrics or trend tags) to find similar styles.",
+    "addInspiration": "Add as inspiration",
+    "added": "Inspiration of this concept"
   },
   "similar": {
     "title": "Similar styles",
@@ -4071,7 +4093,9 @@
       "copyLink": "Copy link",
       "oldLink": "Cannot be copied again",
       "oldLinkHint": "Made before links could be copied again. To re-send it, make a new link (and revoke this one once the client uses the new one).",
-      "mixed": "mixed"
+      "mixed": "mixed",
+      "sampleAsked": "Sample requested",
+      "samples": "{{ count }} sample requests"
     },
     "shared": {
       "kicker": "Line sheet",
@@ -4087,7 +4111,13 @@
       "goneTitle": "This link no longer works",
       "goneText": "It may have expired or been stopped. Ask your LT contact for a new link.",
       "tooMany": "Too many changes at once. Wait a minute and try again.",
-      "notSaved": "Not saved. Try again."
+      "notSaved": "Not saved. Try again.",
+      "story": "The story",
+      "storyStyles": "Styles in this story: {{ styles }}",
+      "requestSample": "Request sample",
+      "sampleRequested": "Sample requested",
+      "sampleNote": "Sample details",
+      "sampleNotePlaceholder": "Sizes, colours, quantity, delivery address…"
     },
     "outcome": {
       "label": "Outcome of {{ styleNo }}",
@@ -4139,10 +4169,276 @@
       "votesCol": "Votes",
       "stylesCol": "Styles answered",
       "split": "{{ liked }} all liked · {{ mixed }} mixed · {{ passed }} all passed",
-      "noAnswers": "No answers yet"
+      "noAnswers": "No answers yet",
+      "hero": "Hit rate",
+      "heroSub": "{{ count }} of {{ offered }} styles offered went to sampling or an order",
+      "funnel": "From offer to order",
+      "funnelHint": "Each step as a share of the styles offered. Outcomes are set by hand, so a style can reach sampling without an answer through a link.",
+      "stage": {
+        "offered": "Offered",
+        "answered": "Answered",
+        "liked": "Liked by someone",
+        "sampling": "To sampling",
+        "ordered": "Ordered"
+      },
+      "answersTitle": "Client answers",
+      "answersHint": "Styles offered, by how clients answered through share links.",
+      "votesTitle": "Votes",
+      "positiveShare": "{{ pct }} positive",
+      "outcomesTitle": "Outcome",
+      "outcomesHint": "Styles offered, by the outcome set on the package page.",
+      "legend": {
+        "allLiked": "All liked",
+        "mixed": "Mixed",
+        "allPassed": "All passed",
+        "noAnswer": "No answer",
+        "likes": "Likes",
+        "passes": "Passes",
+        "ordered": "Ordered",
+        "sampling": "Sampling",
+        "dropped": "Dropped",
+        "open": "Not decided"
+      },
+      "view": {
+        "chart": "Chart",
+        "table": "Table"
+      },
+      "showAll": "Show all ({{ count }})",
+      "showLess": "Show fewer"
     },
     "notice": {
       "title": "Client answered"
+    },
+    "forConcept": "For concept: {{ name }}",
+    "closeness": {
+      "banner": "{{ count }} styles look like another brand's style",
+      "bannerHint": "Copies and LT designs keep another brand's know-how (materials, construction), never its look. Change the design (new sketch or picture) before sending, or remove the style.",
+      "looksLike": "Looks like",
+      "clear": "Looks like no other brand's style.",
+      "NoPicture": "Copied from another brand: no picture yet, so its look is not checked. Add the new sketch to check it.",
+      "NotIndexed": "Copied from another brand: its picture is not read by image search yet (Settings > AI connections > Image search).",
+      "NotChecked": "Not checked."
+    },
+    "ltDesign": "LT design"
+  },
+  "closeness": {
+    "level": {
+      "Close": "Too close",
+      "Check": "Check",
+      "Clear": "Clear"
+    }
+  },
+  "concepts": {
+    "title": "Concepts",
+    "subtitle": "LT's own design ideas: inspiration pictures, the library styles they take from and an AI brief, checked for closeness to other brands' designs before they are offered in a package.",
+    "newConcept": "New concept",
+    "searchLabel": "Search concepts",
+    "searchPlaceholder": "Concept, customer, trend or style number",
+    "allCategories": "All categories",
+    "mine": "My concepts",
+    "noMatch": "No concepts match these filters.",
+    "empty": "No concepts yet",
+    "emptyHint": "Merchandisers and designers work up LT's own design ideas here before they are offered.",
+    "emptyHintEdit": "Start one with New concept: add inspiration pictures, the library styles it takes from, and draft a brief with AI.",
+    "noCustomer": "No customer yet",
+    "pictureCount": "{{ count }} pictures",
+    "styleCount": "{{ count }} inspiration styles",
+    "packageCount": "in {{ count }} packages",
+    "back": "Concepts",
+    "notFound": "This concept does not exist any more.",
+    "offer": "Offer in a package",
+    "offerHint": "Adds the inspiration styles to a package (another brand's style as a copy) and records this concept on each.",
+    "offerNeedsStyles": "Add the library styles the concept takes from first.",
+    "edit": "Edit",
+    "delete": "Delete concept",
+    "deleteTitle": "Delete concept",
+    "deleteMessage": "Delete \"{{ name }}\" with its pictures and inspiration styles? The styles stay in the library.",
+    "inspired": "Inspired concepts:",
+    "status": {
+      "Draft": "Draft",
+      "Ready": "Ready",
+      "Dropped": "Dropped"
+    },
+    "form": {
+      "newTitle": "New concept",
+      "editTitle": "Concept details",
+      "name": "Name",
+      "namePlaceholder": "e.g. Packable recycled windbreaker",
+      "nameRequired": "Give the concept a name.",
+      "customer": "Customer",
+      "customerHint": "Optional: an idea need not have a client yet. Closeness is checked against every other brand.",
+      "season": "Season",
+      "category": "Product category",
+      "gender": "Gender",
+      "market": "Target market",
+      "none": "—",
+      "targetPrice": "Target price",
+      "trends": "Trend tags",
+      "noTags": "No trend tags yet (Settings > Reference lists).",
+      "status": "Status",
+      "owner": "Owner",
+      "description": "The idea",
+      "descriptionPlaceholder": "What makes it new: silhouette, fabric, details, the story for the buyer.",
+      "create": "Create concept",
+      "clientStory": "Story for the client",
+      "clientStoryPlaceholder": "What the buyer reads: the idea, who it is for, what makes it special.",
+      "clientStoryHint": "Shown as a story page before the styles on the line sheet and the client's page. Empty = no story page. The idea above stays LT's own."
+    },
+    "pictures": {
+      "title": "Inspiration pictures",
+      "add": "Add pictures",
+      "remove": "Remove picture",
+      "removeTitle": "Remove picture",
+      "removeMessage": "Remove this picture from the concept?",
+      "empty": "No pictures yet. Add mood pictures or sketches: each is checked for closeness to other brands' designs.",
+      "drop": "Drop pictures to add them",
+      "dropHint": "Or drag pictures from your computer onto this box.",
+      "notImages": "{{ count }} files were left out: only JPEG, PNG, GIF and WebP pictures can be added.",
+      "forClient": "Show to the client",
+      "shownToClient": "Shown to the client"
+    },
+    "closeness": {
+      "again": "Check again",
+      "summary": {
+        "Close": "A picture looks like another brand's design. Change the design before offering it.",
+        "Check": "A picture is similar to another brand's design. Have a look before offering it.",
+        "Clear": "No picture looks like another brand's design.",
+        "NotChecked": "The pictures have not been checked yet."
+      },
+      "modelOff": "The image model built into LT ODM is not installed, or AI is switched off (Settings > AI connections), so pictures cannot be read now.",
+      "rule": "Too close from {{ close }} picture similarity, check from {{ watch }}. The customer's own brand is never flagged.",
+      "checking": "Checking…",
+      "notYet": "Not checked yet.",
+      "notRead": "Not read yet: the image model is off.",
+      "looksLike": "Library styles that look closest:",
+      "ownBrand": "own brand",
+      "noMatches": "No library picture to compare with yet."
+    },
+    "brief": {
+      "title": "AI brief",
+      "draft": "Draft with AI",
+      "again": "Draft again",
+      "products": "Products",
+      "fabrics": "Fabrics",
+      "notes": "Notes",
+      "by": "Drafted by {{ user }} on {{ date }}. Check it before using it.",
+      "empty": "No brief yet. Save the details, then Draft with AI writes a summary, products, fabrics and sourcing notes."
+    },
+    "styles": {
+      "title": "Inspiration styles ({{ count }})",
+      "rule": "The library styles this concept takes from. The customer's own styles may be reused as they are; another brand's style gives know-how only (materials, construction), never the look.",
+      "search": "Add a style by number",
+      "knowHowOnly": "Other brand: know-how only",
+      "ownBrand": "Own brand",
+      "from": {
+        "Pick": "picked",
+        "Match": "AI match",
+        "LookAlike": "look-alike"
+      },
+      "note": "What the concept takes from this style",
+      "notePlaceholder": "What it takes: fabric, construction, fit, trims…",
+      "remove": "Remove inspiration style",
+      "empty": "No inspiration styles yet. Add one by number, from the look-alikes of a picture, or from the AI matches below.",
+      "addAsInspiration": "Add as inspiration",
+      "added": "Added {{ styles }}."
+    },
+    "packages": {
+      "title": "Offered in packages"
+    },
+    "matches": {
+      "explain": "Explain with AI",
+      "explainAgain": "Explain again",
+      "explaining": "The AI is ranking these styles and writing why each fits. On an in-house AI server this can take a few minutes; the styles above can be used meanwhile.",
+      "stale": "The concept changed since the AI explained these. Explain again to update.",
+      "matched": "Fabric words on its BOM: {{ words }}",
+      "footer": "Found from the concept's category, gender, customer and fabric words (no AI). Explain with AI ranks them and says why each fits.",
+      "footerExplained": "The AI ranked the best and explained them; the rest follow by score. Check the styles before reusing them."
+    },
+    "developedFrom": "LT design from concept:",
+    "offerDesignsHint": "Adds the LT designs developed from this concept to a package, with the concept recorded on each.",
+    "develop": {
+      "button": "Develop as style",
+      "hint": "Makes an LT design from this concept: a new style of the customer, offered like any style.",
+      "title": "Develop as style",
+      "intro": "The new style is {{ customer }}'s design from the start: once they adopt it, it is theirs. It is offered, checked and costed like any library style.",
+      "needCustomer": "Choose the concept's customer first (Edit): the new style becomes that customer's design.",
+      "base": "Start the BOM from",
+      "noBase": "No BOM yet",
+      "wholeBom": "whole BOM",
+      "knowHow": "other brand: fabrics, trims and accessories only",
+      "baseHint": "One of the concept's inspiration styles. The customer's own style gives its whole BOM; another brand's style gives know-how only (fabrics, trims, accessories), never labels, artwork, colourways or pictures.",
+      "picture": "Sketch",
+      "noPicture": "None",
+      "pictureHint": "The concept picture to use as the style's sketch (line sheets, the client's page, image search). It is checked against other brands' pictures.",
+      "what": "The concept's name becomes the model name and its idea the description; gender from the concept, other product facts from the base style.",
+      "submit": "Create style",
+      "done": "Style created. Add it to a package now, or later from LT designs.",
+      "listTitle": "LT designs ({{ count }})",
+      "knowHowFrom": "BOM know-how from",
+      "inPackages": "In {{ count }} packages",
+      "addToPackage": "Add to package"
+    }
+  },
+  "followUps": {
+    "title": "Follow up",
+    "NotOpened": "Link \"{{ label }}\" not opened for {{ days }} days.",
+    "NoAnswer": "Link \"{{ label }}\" opened {{ days }} days ago, no answers yet.",
+    "Expiring": "Link \"{{ label }}\" stops working on {{ date }}.",
+    "Sample": "Sample of {{ styleNo }} asked for {{ days }} days ago: set its outcome when it is on its way.",
+    "Pitch": "Pitch date {{ date }} {{ season }} in {{ days }} days, and nothing sent yet.",
+    "done": "Done",
+    "later": "Later (3 days)"
+  },
+  "clientProfiles": {
+    "title": "Client profiles",
+    "subtitle": "What each client accepts: price band, recycled share, restricted materials and preferred mills, and when they look at offers. Packages and What to offer are checked against it.",
+    "search": "Search clients",
+    "brandAccounts": "brand, {{ count }} accounts",
+    "customer": "customer",
+    "counts": "{{ styles }} styles · {{ packages }} packages",
+    "set": "Profile set",
+    "none": "No profile yet: packages are not checked.",
+    "edit": "Edit profile",
+    "setUp": "Set up profile",
+    "view": "View profile",
+    "noMatch": "No client matches.",
+    "dialogTitle": "Client profile: {{ name }}",
+    "priceMin": "Lowest FOB",
+    "priceMax": "Highest FOB",
+    "currency": "Currency",
+    "priceHint": "The price band the client buys in. Used once costs are on packages (roadmap 5.19).",
+    "minRecycled": "Minimum recycled %",
+    "restricted": "Restricted materials and substances",
+    "restrictedPlaceholder": "e.g. PVC, PFAS, angora, fur",
+    "restrictedHint": "Comma separated. Any BOM line whose description holds one of these words is pointed out.",
+    "mills": "Preferred mills",
+    "millPlaceholder": "Supplier code",
+    "addMill": "Add",
+    "millsHint": "Fabrics from other suppliers are pointed out. Empty = any mill.",
+    "unknownMill": "This supplier code is not on the supplier list.",
+    "pitchDates": "Pitch dates",
+    "season": "Season",
+    "date": "Date",
+    "notePlaceholder": "Note (e.g. buyers visit Hong Kong)",
+    "addDate": "Add pitch date",
+    "dateRequired": "Give every pitch date a date.",
+    "accountManager": "LT account manager",
+    "accountManagerHint": "Their user name. They get a reminder 14 days before a pitch date when nothing has been sent for that season.",
+    "notes": "Notes",
+    "priceBand": "FOB {{ min }}-{{ max }} {{ currency }}",
+    "recycledRule": "At least {{ pct }}% recycled fabric",
+    "restrictedRule": "No {{ terms }}",
+    "millsRule": "{{ count }} preferred mills",
+    "nextPitch": "Next pitch {{ date }} {{ season }}",
+    "managedBy": "Account manager {{ user }}",
+    "rulesTitle": "Client's rules:",
+    "hideBreaking": "Hide styles that break them ({{ count }})",
+    "noProfileHint": "This client has no profile yet, so styles are not checked against its rules.",
+    "packageBanner": "{{ count }} styles do not meet this client's rules. Check them before sending.",
+    "issue": {
+      "Recycled": "Recycled fabric: {{ detail }}",
+      "Restricted": "Restricted: {{ detail }}",
+      "Mill": "Not a preferred mill: {{ detail }}"
     }
   }
 }

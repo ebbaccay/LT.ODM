@@ -3,7 +3,7 @@ import { Component, OnDestroy, OnInit, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideBell, lucidePackage, lucideThumbsDown, lucideThumbsUp } from '@ng-icons/lucide';
+import { lucideBell, lucideClock, lucidePackage, lucideThumbsDown, lucideThumbsUp } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmPopoverImports } from '@spartan-ng/helm/popover';
 import { GqNotification, GqNotificationService } from '@services/gq-notification.service';
@@ -14,9 +14,9 @@ import { PackageNoticeService } from '../../features/style-packages/package-noti
 @Component({
   selector: 'app-notification-bell',
   imports: [DatePipe, NgIcon, HlmButtonImports, HlmPopoverImports, TranslocoPipe],
-  providers: [provideIcons({ lucideBell, lucidePackage, lucideThumbsDown, lucideThumbsUp })],
+  providers: [provideIcons({ lucideBell, lucideClock, lucidePackage, lucideThumbsDown, lucideThumbsUp })],
   template: `
-    <hlm-popover align="end" sideOffset="8" (stateChanged)="$event === 'open' && markAllRead()">
+    <hlm-popover align="end" sideOffset="8" (stateChanged)="$event === 'open' && opened()">
       <button
         hlmBtn
         hlmPopoverTrigger
@@ -39,6 +39,28 @@ import { PackageNoticeService } from '../../features/style-packages/package-noti
             <button hlmBtn variant="ghost" size="sm" type="button" (click)="notif.clear()">{{ 'shell.clearAll' | transloco }}</button>
           }
         </div>
+        @if (packages.followUps().length) {
+          <!-- Follow-up reminders (roadmap 5.24): stay until Done or Later -->
+          <p class="text-muted-foreground border-b px-4 pt-2 pb-1 text-[11px] font-semibold tracking-wide uppercase">{{ 'followUps.title' | transloco }}</p>
+          <ul class="divide-border max-h-[40vh] divide-y overflow-y-auto border-b">
+            @for (f of packages.followUps().slice(0, 10); track f.kind + f.refKey) {
+              <li class="flex gap-3 px-4 py-3">
+                <ng-icon name="lucideClock" class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span class="min-w-0 flex-1">
+                  <button type="button" class="block w-full text-left outline-none hover:underline" (click)="ctx.close(); packages.openFollowUp(f)">
+                    <span class="block truncate text-sm font-medium">{{ f.packageName || f.clientKey }}</span>
+                    <span class="block text-xs">{{ 'followUps.' + f.kind | transloco: { days: f.days, label: f.shareLabel, styleNo: f.styleNo, season: f.seasonCode ?? '', date: (f.dueDate | date: 'mediumDate') } }}</span>
+                    @if (f.note) { <span class="text-muted-foreground block truncate text-xs">{{ f.note }}</span> }
+                  </button>
+                  <span class="mt-1 flex gap-2">
+                    <button hlmBtn variant="outline" size="sm" type="button" class="h-8" (click)="packages.dismiss(f, null)">{{ 'followUps.done' | transloco }}</button>
+                    <button hlmBtn variant="ghost" size="sm" type="button" class="h-8" (click)="packages.dismiss(f, 3)">{{ 'followUps.later' | transloco }}</button>
+                  </span>
+                </span>
+              </li>
+            }
+          </ul>
+        }
         @if (packages.notices().length) {
           <!-- Style Packages: clients answered through share links -->
           <ul class="divide-border max-h-[40vh] divide-y overflow-y-auto border-b">
@@ -58,6 +80,7 @@ import { PackageNoticeService } from '../../features/style-packages/package-noti
                       @if (p.likes) { <span class="flex items-center gap-0.5"><ng-icon name="lucideThumbsUp" />{{ p.likes }}</span> }
                       @if (p.passes) { <span class="flex items-center gap-0.5"><ng-icon name="lucideThumbsDown" />{{ p.passes }}</span> }
                       @if (p.comments) { <span>{{ 'packages.share.comments' | transloco: { count: p.comments } }}</span> }
+                      @if (p.samples) { <span class="font-medium text-amber-700 dark:text-amber-400">{{ 'packages.share.samples' | transloco: { count: p.samples } }}</span> }
                     </span>
                   </span>
                 </button>
@@ -65,7 +88,7 @@ import { PackageNoticeService } from '../../features/style-packages/package-noti
             }
           </ul>
         }
-        @if (notif.all().length === 0 && !packages.notices().length) {
+        @if (notif.all().length === 0 && !packages.notices().length && !packages.followUps().length) {
           <p class="text-muted-foreground px-4 py-8 text-center text-sm">{{ 'shell.noNotifications' | transloco }}</p>
         } @else if (notif.all().length) {
           <ul class="divide-border max-h-[60vh] divide-y overflow-y-auto">
@@ -102,7 +125,8 @@ import { PackageNoticeService } from '../../features/style-packages/package-noti
 export class NotificationBell implements OnInit, OnDestroy {
   protected readonly notif = inject(GqNotificationService);
   protected readonly packages = inject(PackageNoticeService);
-  protected readonly unread = computed(() => this.notif.unreadCount() + this.packages.unreadCount());
+  /** Unread notices plus open follow-ups (they count until Done or Later). */
+  protected readonly unread = computed(() => this.notif.unreadCount() + this.packages.unreadCount() + this.packages.followUps().length);
   private readonly router = inject(Router);
   protected readonly toneDot = toneDot;
   protected readonly toneText = toneText;
@@ -110,6 +134,11 @@ export class NotificationBell implements OnInit, OnDestroy {
   ngOnInit(): void {
     // The garment-quotation service starts the hub; package notices listen on the same connection.
     void this.notif.init().finally(() => this.packages.init());
+  }
+
+  protected opened(): void {
+    this.markAllRead();
+    this.packages.loadFollowUps();
   }
 
   protected markAllRead(): void {

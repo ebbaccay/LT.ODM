@@ -16,7 +16,7 @@ Add users (they set their own password from an emailed link, or sign in with a t
 
 ## Reference lists (`/settings/reference-lists`)
 
-Every pick list on the Styles screens: customers, seasons, season terms, business units, product types, weave types, content classes (BOM sections), material types, units and SAP suppliers. Codes are fixed once created; **Used by** counts where a code is used. A used code cannot be deleted, but customers, suppliers, seasons, business units and product types can be made inactive to hide them from pick lists.
+Every pick list on the Styles screens: customers, seasons, season terms, business units, product types, weave types, content classes (BOM sections), material types, units and SAP suppliers; and for [Concepts](concepts.md) (added 2026-10-28): **target markets**, **trend tags** and **product categories** (codes upper-case: letters, digits, `-`, `_`; a first set is added when a list is empty; product categories use the garment codes of What to offer and the hit rate, such as JACKET or PANTS). Codes are fixed once created; **Used by** counts where a code is used. A used code cannot be deleted, but customers, suppliers, seasons, business units, product types and the three concept lists can be made inactive to hide them from pick lists.
 
 **Seasons** can have any name of up to 16 characters, without `|`, stored upper-case (e.g. `2027-SS`, `FA26`, `ALL-SEASON`). Names that show a year and term (`2027-SS`, `FA26`, `26FW`) get them filled for sorting; others sort last. Season drop-downs show the **description** when there is one, otherwise the name. Note that [Fill the gaps](fill-the-gaps.md) lists every season not named year-term (`2027-SS`) as one to merge.
 
