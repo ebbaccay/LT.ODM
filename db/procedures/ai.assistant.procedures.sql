@@ -9,6 +9,9 @@
     usp_SavedQuestion_Popular   the most used Rules (suggested questions)
     usp_SavedQuestion_Save      Admin: status and corrected arguments (RowVer-free: last save wins)
     usp_SavedQuestion_Delete    Admin
+    usp_Guide_List              how-to guides (ai.Guide) and the questions that open them (pattern Rules, tool how_to)
+    usp_Guide_Save              Admin: add or change a guide and replace its questions
+    usp_Guide_Delete            Admin: a guide and its questions
 
     Arguments are checked by the API before they are stored. Rule errors are THROWn as 50400 / 50404.
     Requires tables\ai.tables.sql. Idempotent.
@@ -145,5 +148,101 @@ BEGIN
 END
 GO
 
-PRINT 'Library assistant saved questions ready.';
+/*
+    How-to guides (ai.Guide). A guide's questions are pattern Rules in ai.SavedQuestion with Tool 'how_to' and
+    Arguments {"guide":"<Code>"}; their keys are computed by the API (QuestionPatterns).
+*/
+CREATE OR ALTER PROCEDURE ai.usp_Guide_List
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT Code, Title, Who, Intro, Steps, IsActive, ChangedBy, ChangedUtc, ChangedHow FROM ai.Guide ORDER BY Title;
+    SELECT Code = JSON_VALUE(Arguments, '$.guide'), Question
+    FROM ai.SavedQuestion
+    WHERE Tool = 'how_to' AND IsPattern = 1 AND Status = 'Rule' AND ISJSON(Arguments) = 1
+    ORDER BY SavedQuestionId;
+END
+GO
+
+/*
+    Adds or changes a guide and replaces its questions (@Questions: JSON array of {"questionKey": ..., "question": ...}).
+    A wording another look-up answers as a Rule is refused (50400); one that was only recorded, removed, or another
+    guide's is taken over.
+*/
+CREATE OR ALTER PROCEDURE ai.usp_Guide_Save
+    @Code      varchar(40),
+    @Title     nvarchar(200),
+    @Who       nvarchar(200),
+    @Intro     nvarchar(1000),
+    @Steps     nvarchar(max),
+    @IsActive  bit,
+    @Questions nvarchar(max),
+    @ChangedBy nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    IF @Code NOT LIKE '[a-z]%' OR @Code LIKE '%[^a-z0-9_]%' THROW 50400, N'The code is lower-case letters, digits or _.', 1;
+    IF ISJSON(@Steps) = 0 OR ISJSON(@Questions) = 0 THROW 50400, N'Steps and questions must be JSON.', 1;
+
+    DECLARE @q TABLE (QuestionKey nvarchar(300) NOT NULL PRIMARY KEY, Question nvarchar(500) NOT NULL);
+    INSERT @q (QuestionKey, Question)
+    SELECT QuestionKey, MIN(Question) FROM OPENJSON(@Questions) WITH (QuestionKey nvarchar(300) '$.questionKey', Question nvarchar(500) '$.question')
+    WHERE QuestionKey IS NOT NULL AND Question IS NOT NULL GROUP BY QuestionKey;
+
+    DECLARE @args nvarchar(100) = N'{"guide":"' + @Code + N'"}';
+    -- Checked before the transaction, so a refusal leaves nothing open for the caller.
+    DECLARE @clash nvarchar(600) = (
+        SELECT TOP (1) N'"' + q.Question + N'" already answers another look-up (' + s.Tool + N'). Change that saved question first, or word this one differently.'
+        FROM @q q JOIN ai.SavedQuestion s ON s.QuestionKey = q.QuestionKey
+        WHERE s.Status = 'Rule' AND s.Tool <> 'how_to');
+    IF @clash IS NOT NULL THROW 50400, @clash, 1;
+
+    BEGIN TRAN;
+    UPDATE ai.Guide
+    SET Title = @Title, Who = @Who, Intro = @Intro, Steps = @Steps, IsActive = @IsActive,
+        ChangedBy = @ChangedBy, ChangedUtc = SYSUTCDATETIME(), ChangedHow = 'Admin'
+    WHERE Code = @Code;
+    IF @@ROWCOUNT = 0
+        INSERT ai.Guide (Code, Title, Who, Intro, Steps, IsActive, ChangedBy, ChangedHow)
+        VALUES (@Code, @Title, @Who, @Intro, @Steps, @IsActive, @ChangedBy, 'Admin');
+
+    DELETE ai.SavedQuestion
+    WHERE Tool = 'how_to' AND IsPattern = 1 AND ISJSON(Arguments) = 1 AND JSON_VALUE(Arguments, '$.guide') = @Code
+      AND QuestionKey NOT IN (SELECT QuestionKey FROM @q);
+
+    UPDATE s
+    SET Question = q.Question, Tool = 'how_to', Arguments = @args, Status = 'Rule', IsPattern = 1,
+        ChangedBy = @ChangedBy, ChangedUtc = SYSUTCDATETIME(), ChangedHow = 'Admin'
+    FROM ai.SavedQuestion s JOIN @q q ON q.QuestionKey = s.QuestionKey;
+
+    INSERT ai.SavedQuestion (QuestionKey, Question, Tool, Arguments, Status, AskCount, ChangedBy, ChangedUtc, ChangedHow, IsPattern)
+    SELECT q.QuestionKey, q.Question, 'how_to', @args, 'Rule', 0, @ChangedBy, SYSUTCDATETIME(), 'Admin', 1
+    FROM @q q
+    WHERE NOT EXISTS (SELECT 1 FROM ai.SavedQuestion s WHERE s.QuestionKey = q.QuestionKey);
+    COMMIT;
+END
+GO
+
+/* The guide and its questions (answers the AI recorded for it stay, and go back to the AI when asked). */
+CREATE OR ALTER PROCEDURE ai.usp_Guide_Delete
+    @Code varchar(40)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    BEGIN TRAN;
+    DELETE ai.SavedQuestion
+    WHERE Tool = 'how_to' AND IsPattern = 1 AND ISJSON(Arguments) = 1 AND JSON_VALUE(Arguments, '$.guide') = @Code;
+    DELETE ai.Guide WHERE Code = @Code;
+    IF @@ROWCOUNT = 0
+    BEGIN
+        ROLLBACK;
+        THROW 50404, N'The guide was not found. It may have been deleted.', 1;
+    END
+    COMMIT;
+END
+GO
+
+PRINT 'Library assistant saved questions and how-to guides ready.';
 GO

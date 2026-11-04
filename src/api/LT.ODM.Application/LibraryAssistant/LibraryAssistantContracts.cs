@@ -43,6 +43,8 @@ public static class LibrarySources
     public const string Saved = "saved";
     /// <summary>Matched by how the pictures look (the image model built into the API); no AI call.</summary>
     public const string Look = "look";
+    /// <summary>A "how do I ...?" question whose words point to one how-to guide (ai.Guide); no AI call.</summary>
+    public const string Guide = "guide";
     /// <summary>Not answered: AI could not run and the phrase list understood nothing.</summary>
     public const string None = "none";
 }

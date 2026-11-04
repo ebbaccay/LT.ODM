@@ -40,8 +40,8 @@ export interface LibraryLink {
 
 export interface LibraryAnswer {
   answer: string;
-  /** rules: the phrase list (no AI). saved: a saved question (no AI). ai: the AI picked the tool. none: not answered. */
-  source: 'rules' | 'saved' | 'look' | 'ai' | 'none';
+  /** rules: the phrase list (no AI). saved: a saved question (no AI). guide: a how-to guide by its words (no AI). ai: the AI picked the tool. none: not answered. */
+  source: 'rules' | 'saved' | 'look' | 'guide' | 'ai' | 'none';
   tool: string | null;
   understood: string | null;
   arguments: Record<string, string>;
@@ -75,6 +75,28 @@ export interface SavedQuestion {
   changedHow: string | null;
   isPattern: boolean;
 }
+
+/** One step of a how-to guide; url: an app address ({customer} and {season} are filled from the question), or null. */
+export interface GuideStep {
+  text: string;
+  url: string | null;
+}
+
+/** A how-to guide (ai.Guide). questions: the wordings that open it at once. */
+export interface Guide {
+  code: string;
+  title: string;
+  who: string | null;
+  intro: string | null;
+  steps: GuideStep[];
+  isActive: boolean;
+  questions: string[];
+  changedBy: string | null;
+  changedUtc: string | null;
+  changedHow: string | null;
+}
+
+export type GuideInput = Pick<Guide, 'title' | 'who' | 'intro' | 'steps' | 'isActive' | 'questions'>;
 
 @Injectable({ providedIn: 'root' })
 export class LibraryAssistantService {
@@ -115,5 +137,19 @@ export class LibraryAssistantService {
 
   deleteSaved(id: number): Observable<unknown> {
     return this.http.delete(`${this.api}/saved/${id}`);
+  }
+
+  // ----- How-to guides (reading: every reader; changing: Admin) -----
+
+  guides(): Observable<Guide[]> {
+    return this.http.get<Guide[]>(`${this.api}/guides`);
+  }
+
+  saveGuide(code: string, guide: GuideInput): Observable<unknown> {
+    return this.http.put(`${this.api}/guides/${encodeURIComponent(code)}`, guide);
+  }
+
+  deleteGuide(code: string): Observable<unknown> {
+    return this.http.delete(`${this.api}/guides/${encodeURIComponent(code)}`);
   }
 }

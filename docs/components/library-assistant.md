@@ -2,12 +2,15 @@
 
 **Where:** AI Studio > Library assistant (`/ai/assistant`). **Who:** Admin, Merchandiser, Costing, Viewer (the Style Library readers). **AI service:** the Text job in Settings > AI connections (for example qwen2.5:7b on the in-house Ollama server). What is sent: [Data sent to AI services](../ai/data-sent.md#ai-studio--library-assistant).
 
-Ask questions about the library in your own words: *"How many jackets per season?"*, *"What fabric does S2808MR0000 use?"*, *"Who are our main suppliers for SKE?"*. Answers come from the database. Every answer shows how it was found, the rows behind it, and links to the styles, materials or screens.
+Ask questions about the library in your own words: *"How many jackets per season?"*, *"What fabric does S2808MR0000 use?"*, *"Who are our main suppliers for SKE?"*. Answers come from the database. Every answer shows how it was found, the rows behind it, and links to the styles, materials or screens. Questions about how to do something in LT ODM (*"How do I create a style package for ADI?"*) get a [how-to guide](#how-to-guides-fixed-processes): numbered steps with links to the screens.
 
 ## How a question is answered
 
 ```
 question ──► 1. saved question (Rule) for the same question, or a question pattern it fits? ──► its look-up on today's data, no AI
+                    │ no                                                                         (a how-to guide's question: its steps)
+                    ▼
+             1a. "how do I ...?" whose words clearly point to one how-to guide? ──► its steps, no AI
                     │ no
                     ▼
              1b. phrase list (StyleQueryParser) ── understood every word? ──► style search, no AI
@@ -36,7 +39,7 @@ question ──► 1. saved question (Rule) for the same question, or a question
 - **What the model leaves out, the phrase list fills in.** If the phrase list read a criterion from the same question ("jackets", "SKE", "SS27") and the model left it out, it is added for the tools that take it. (Seen in testing: qwen2.5:7b answered "main suppliers for SKE" with every customer's suppliers.)
 - **Follow-ups work**: the screen sends the last 4 questions with their tool and arguments, so *"and only for women?"* keeps the previous search. A follow-up (a question starting with *and*, *also*, *only*, *what about* ...) always goes to the AI when it can run, so the earlier turn is taken into account. Nothing is stored on the server; **New conversation** clears the page.
 - **Without AI** (not set up, turned off, or cloud not allowed for a cloud connection): phrase-list questions still work; anything else says that AI is not available.
-- Questions outside the tools (*"what's the weather?"*, *"change this BOM"*) get "I can only look things up in the style library" with examples.
+- Questions outside the tools (*"what's the weather?"*, *"change this BOM"*) get "I can only look things up in the style library" with examples. The assistant never changes data: a how-to guide links to the screens, and the user does the steps.
 
 ## Saved questions: common questions answered at once
 
@@ -51,7 +54,7 @@ Questions the AI answered are kept (table `ai.SavedQuestion`) with the **look-up
 
 ### Question patterns (seeded)
 
-The app comes with **137 question patterns** for 11 look-ups (`db/seed/ai.saved-questions.sql`, reviewed 2026-10-22): different wordings of the common questions, such as *main suppliers*, *who are our main suppliers*, *how many styles per season*, *BOM problems*, *what fabric does {styleNo} use*. *Find styles* and *Styles that look like…* are not seeded: the phrase list and the "looks like" rule already answer them without AI.
+The app comes with **137 question patterns** for 11 look-ups (`db/seed/ai.saved-questions.sql`, reviewed 2026-10-22), plus **70 wordings** that open the 12 [how-to guides](#how-to-guides-fixed-processes) (tool `how_to`, added 2026-11-04): different wordings of the common questions, such as *main suppliers*, *who are our main suppliers*, *how many styles per season*, *BOM problems*, *what fabric does {styleNo} use*. *Find styles* and *Styles that look like…* are not seeded: the phrase list and the "looks like" rule already answer them without AI.
 
 A pattern is a question with its **filter words taken out**, so one pattern answers every customer and season:
 
@@ -65,6 +68,45 @@ Material words (*recycled, zipper*) and picture looks (*navy, hooded*) stay part
 **Adding or changing a pattern:** the `QuestionKey` must be the key `QuestionPatterns` computes for the wording (typed with sample codes, `jackets` for `{productType}`). `LibraryAssistantSeedTests` checks every row, its tool and its arguments.
 
 **Admins: AI Studio > Library assistant > Saved questions.** Each question with its look-up, filters, status (*Rule (instant)*, *Recorded (AI)*, *Removed*), how often the AI answered it, how often it was answered at once, and who rated or changed it. Admins can make or remove a Rule, **correct the filters** (codes not on the library's lists are dropped), and delete a question.
+
+## How-to guides: fixed processes
+
+Some questions are not about data but about how to do something, and the answer is always the same process: *"How do I create a style package?"*, *"How do I share a package with a client?"*. These are written once as **how-to guides** (table `ai.Guide`): a title, who can do it, a short introduction, and numbered **steps**, each with a link to the screen where it is done. The answer shows the steps as a table (a row with a link opens its screen) and a **Start** button for the first link. The source badge says *How-to guide, no AI* (or *Saved question, no AI* when one of its questions matched).
+
+**How a guide is found** (no AI in either case):
+
+1. **Its questions.** Each guide has wordings that open it at once (*how do I create a package*, *new package*, *how do I make a pitch*). They are saved question patterns (tool `how_to`, argument `guide` = the guide's code), so customer and season words are taken out first: *"How do I create a package for ADI in 2027-SS?"* fits *how do I create a package*.
+2. **Its words.** A question that starts like a how-to (*how do I / how can we / how to / steps to / what is the process / where do I / I want to ...*) but fits no wording is compared with every active guide's title and questions. Words that mean the same are read alike (*make, start, set up* = create; *pitch, proposal, collection* = package; *send, link* = share; *client, brand, buyer* = customer; *copy, carry over* = reuse). The guide wins when it shares more words with the question than any other guide, and at least half of the question's words. *"What are the steps to share a package with my client?"* → *Share a package with a client*.
+3. Otherwise the question goes to the AI as before. The AI can also pick the `how_to` look-up; the guide it names is matched the same way, its steps are shown **as written** (never reworded by the AI), and a thumbs up makes that wording a Rule for the guide.
+
+**Customer and season fill the links.** A step's link can hold `{customer}` and `{season}`, filled from the customer and season in the question (the phrase list reads them); a link part left empty is dropped. *"How do I create a package for ADI SS27?"* → step 1 opens `/packages?new=1&customer=ADI&season=2027-SS`: the Packages list opens **New package** with ADI and 2027-SS filled in (`?new=1` works for Admins and Merchandisers; the address then keeps only the customer filter).
+
+**Seeded guides** (`db/seed/ai.guides.sql`, 2026-11-04; the steps follow the screens' documentation):
+
+| Code | Guide | Who |
+|---|---|---|
+| `create_package` | Create a style package | Admin, Merchandiser |
+| `add_styles_to_package` | Add styles to a package | Admin, Merchandiser |
+| `share_package` | Share a package with a client | Admin, Merchandiser |
+| `client_profile` | Set up a client profile | Admin, Merchandiser |
+| `what_to_offer` | Find what to offer a client | Everyone; adding: Admin, Merchandiser |
+| `create_concept` | Work up a concept (LT design idea) | Admin, Merchandiser |
+| `reuse_style` | Reuse a style in another season | Admin, Merchandiser |
+| `new_style` | Add a style | Admin, Merchandiser |
+| `compare_styles` | Compare two styles | Everyone |
+| `import_styles` | Import styles from Excel | Admin |
+| `bom_check` | Check BOMs before costing | Everyone |
+| `image_search` | Find styles by a picture | Everyone |
+
+*Who* is shown with the guide; every reader can see every guide (the screens themselves check the roles). The seed adds only guides that are missing, so one an Admin changed stays as it is. **When a screen changes, change its guide too** (Admin page, or the seed for new installations).
+
+**Admins: AI Studio > Library assistant > How-to guides.** Each guide with its steps, links and questions. **New guide** / **Edit**:
+
+- **Code** (new guides only, e.g. `send_sample`: lower-case letters, digits, `_`), **title**, **who can do it**, **introduction**.
+- **Steps**, one per line; to link a step, end it with ` | ` and the address: `Click New package. | /packages?new=1&customer={customer}&season={season}`. Only addresses inside LT ODM (starting with `/`) are allowed; 1-20 steps.
+- **Questions that open it**, one wording per line (up to 30). Customer and season words are taken out, so one wording answers every customer. A wording that another look-up already answers as a Rule is refused (change that saved question first); one that was only recorded, removed, or belonged to another guide moves to this guide. Teaching the assistant a new phrasing of a process = adding a line here.
+- **Active**: an inactive guide is not offered (its questions then go to the AI).
+- **Delete** removes the guide and its questions.
 
 ## Chat bubble, minimising and cancelling
 
@@ -91,6 +133,7 @@ The conversation belongs to the browser tab, not to the page:
 | `duplicate_materials` Duplicate materials | materials that are probably the same | `mat.usp_Material_Duplicates` | customer, season |
 | `colour_usage` Colours used | most used material colours | `mat.usp_Material_Colours` | customer, season |
 | `bom_check` BOM check | BOM problems for a style or a customer / season | `style.usp_BomCheck_Run` | styleNo, customer, season |
+| `how_to` How-to guides | how do I / how to / steps to do something in LT ODM (not data) | `ai.usp_Guide_List` | guide (words or code), customer, seasons (fill the links) |
 | `look_alike` Styles that look like… | styles whose pictures look like a description or like another style | the built-in image model (Marqo-FashionSigLIP) + `style.usp_ImageVectorSearch`; no AI server | look, styleNo, customer |
 
 The Materials views take one season: when a question names several, the first is used.
@@ -143,4 +186,5 @@ Good candidates once the data exists:
 | Endpoint | `LibraryAssistantController` (`GET /api/v1/ai/library-assistant/tools`, `POST /api/v1/ai/library-assistant/ask`, AI rate limit) |
 | SQL | `db/procedures/style.assistant.procedures.sql` (`style.usp_Style_Counts`); `db/tables/ai.tables.sql` (`ai.SavedQuestion`) and `db/procedures/ai.assistant.procedures.sql` (saved questions); the rest are the Styles, Materials and BOM check procedures |
 | Saved questions | `SavedQuestions.cs` (contracts), `QuestionPatterns.cs` (pattern keys, slots, arguments), seed `db/seed/ai.saved-questions.sql`, `src/api/LT.ODM.Infrastructure/StyleLibrary/SavedQuestionRepository.cs`; endpoints `GET popular`, `POST feedback` (readers), `GET/PUT/DELETE saved` (Admin) |
-| Screen | `src/web/ltodm-web/src/app/features/ai-studio/library-assistant.ts` (page), `library-assistant.session.ts` (the conversation, app-wide), `library-turn.ts` (one question and answer), `library-assistant-bubble.ts` (chat bubble, in the layout), `library-saved-questions.ts` (Admin list) |
+| How-to guides | `HowToGuides.cs` (contracts, how-to wording, matching by words, link filling), `Tools/HowToTool.cs`, `src/api/LT.ODM.Infrastructure/StyleLibrary/GuideRepository.cs`; table `ai.Guide` in `db/tables/ai.tables.sql`, procedures `ai.usp_Guide_List / _Save / _Delete` in `db/procedures/ai.assistant.procedures.sql`, seed `db/seed/ai.guides.sql` (plain ASCII) and the `how_to` rows of `db/seed/ai.saved-questions.sql`; endpoints `GET guides` (readers), `PUT/DELETE guides/{code}` (Admin); tests `HowToGuideTests.cs` |
+| Screen | `src/web/ltodm-web/src/app/features/ai-studio/library-assistant.ts` (page), `library-assistant.session.ts` (the conversation, app-wide), `library-turn.ts` (one question and answer), `library-assistant-bubble.ts` (chat bubble, in the layout), `library-saved-questions.ts` (Admin list), `library-guides.ts` (Admin: how-to guides) |

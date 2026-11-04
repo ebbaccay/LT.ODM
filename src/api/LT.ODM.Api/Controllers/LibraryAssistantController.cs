@@ -82,6 +82,29 @@ public sealed class LibraryAssistantController(LibraryAssistantService assistant
             return NoContent();
         }, ct);
 
+    // ----- How-to guides: readers see them (What can I ask?), Admins write them -----
+
+    [HttpGet("guides")]
+    public Task<IReadOnlyList<GuideDto>> Guides(CancellationToken ct) => assistant.GuidesAsync(ct);
+
+    [HttpPut("guides/{code}")]
+    [Authorize(Roles = SavedQuestionRoles.Admins)]
+    public Task<IActionResult> SaveGuide(string code, SaveGuideRequest request, CancellationToken ct)
+        => Run(async () =>
+        {
+            await assistant.SaveGuideAsync(code, request, CurrentUserName, ct);
+            return NoContent();
+        }, ct);
+
+    [HttpDelete("guides/{code}")]
+    [Authorize(Roles = SavedQuestionRoles.Admins)]
+    public Task<IActionResult> DeleteGuide(string code, CancellationToken ct)
+        => Run(async () =>
+        {
+            await assistant.DeleteGuideAsync(code, ct);
+            return NoContent();
+        }, ct);
+
     /// <summary>Rule errors -> their status; AI failures -> 502; the browser gone (page closed, Cancel) -> 499, nothing more is done.</summary>
     private async Task<IActionResult> Run(Func<Task<IActionResult>> action, CancellationToken ct)
     {

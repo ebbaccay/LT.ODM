@@ -30,6 +30,7 @@ public sealed class LibraryToolArgs
         ["groupBy"] = "what to count by: " + string.Join(", ", StyleCountGroups.All),
         ["looks"] = "what the garment looks like in its pictures, as tags (hood:hooded, closure:fullZip, pattern:striped, colour:navy); only styles with pictures have them",
         ["look"] = "a short description of how the garment looks, in the question's words (e.g. navy hooded windbreaker with contrast zips)",
+        ["guide"] = "the task a how-to question is about, in the question's words (e.g. create a style package)",
     };
 
     public StyleLookupsDto Lookups { get; private init; } = null!;
@@ -47,6 +48,7 @@ public sealed class LibraryToolArgs
     public string? GroupBy { get; private init; }
     public IReadOnlyList<string> Looks { get; private init; } = [];
     public string? Look { get; private init; }
+    public string? Guide { get; private init; }
 
     /// <summary>The schema of one argument (codes limited to the library's lists).</summary>
     public static JsonObject Schema(string name, StyleLookupsDto l) => name switch
@@ -83,6 +85,7 @@ public sealed class LibraryToolArgs
             GroupBy = StyleCountGroups.All.FirstOrDefault(g => string.Equals(g, Text(e, "groupBy", 20), StringComparison.OrdinalIgnoreCase)),
             Looks = KnownAll(e, "looks", LookItems),
             Look = Words(Text(e, "look", 120)),
+            Guide = Words(Text(e, "guide", 120)),
         };
     }
 
@@ -177,6 +180,7 @@ public sealed class LibraryToolArgs
             MaterialCode = Keep("materialCode", MaterialCode, AllWordsSaid(MaterialCode)),
             GroupBy = GroupBy,
             Looks = KeepAll("looks", Looks, LookSaid),
+            Guide = Guide,   // words only, matched to a guide by the tool; never a filter
             Look = Keep("look", Look, Look is not null && Look.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries).Count(w => q.Contains(w, StringComparison.Ordinal)) * 2 >= Look.Split(' ').Length),
         };
         dropped = removed;
@@ -207,6 +211,7 @@ public sealed class LibraryToolArgs
             GroupBy = GroupBy,
             Looks = Looks.Count > 0 || !Takes("looks") ? Looks : f.Looks ?? [],
             Look = Look,
+            Guide = Guide,
         };
     }
 
@@ -250,6 +255,7 @@ public sealed class LibraryToolArgs
         Add("groupBy", GroupBy);
         Add("looks", Join(Looks, ", "));
         Add("look", Look);
+        Add("guide", Guide);
         return d;
     }
 

@@ -147,7 +147,7 @@ type FilterKey = (typeof FILTER_KEYS)[number];
       }
     </section>
 
-    <app-package-form-dialog [open]="createOpen()" [lookups]="lookups()" (closed)="createOpen.set(false)" (saved)="onCreated($event)" />
+    <app-package-form-dialog [open]="createOpen()" [lookups]="lookups()" [defaults]="createDefaults()" (closed)="createOpen.set(false)" (saved)="onCreated($event)" />
   `,
 })
 export class PackagesList implements OnInit {
@@ -166,6 +166,8 @@ export class PackagesList implements OnInit {
   readonly total = signal(0);
   readonly loading = signal(false);
   readonly createOpen = signal(false);
+  /** Customer and season for New package, from the address (?new=1&customer=..&season=.., e.g. a Library assistant how-to guide). */
+  readonly createDefaults = signal<{ customerCode?: string; seasonCode?: string } | null>(null);
   readonly broken = signal<ReadonlySet<string>>(new Set());
   readonly searchInput = new Subject<string>();
   readonly activeFilters = computed(() => FILTER_KEYS.filter((k) => this.filter()[k]).length);
@@ -173,6 +175,15 @@ export class PackagesList implements OnInit {
   ngOnInit(): void {
     this.styles.lookups().subscribe({ next: (l) => this.lookups.set(l), error: (e) => toast.error(styleError(e).message) });
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      // ?new=1 opens New package once (with the customer and season of the address), then leaves the address.
+      if (params.get('new') === '1') {
+        if (this.canEdit()) {
+          this.createDefaults.set({ customerCode: params.get('customer') ?? undefined, seasonCode: params.get('season') ?? undefined });
+          this.createOpen.set(true);
+        }
+        void this.router.navigate([], { queryParams: { new: null, season: null }, queryParamsHandling: 'merge', replaceUrl: true });
+        return;
+      }
       const next = { ...this.filter() };
       for (const k of FILTER_KEYS) next[k] = params.get(k) ?? '';
       this.filter.set(next);

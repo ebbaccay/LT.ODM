@@ -43,6 +43,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public FakeImageSearchRepository ImageSearch { get; } = new();
     public FakeImageEmbeddingModel ImageModel { get; } = new();
     public FakeSavedQuestionRepository SavedQuestions { get; } = new();
+    public FakeGuideRepository Guides { get; } = new();
     public FakeAiJobRepository AiJobs { get; } = new();
     public FakePictureTagRepository PictureTags { get; } = new();
     public FakeStyleImageImportRepository ImageImports { get; } = new();
@@ -124,6 +125,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<IImageEmbeddingModel>(ImageModel);
             services.RemoveAll<ISavedQuestionRepository>();
             services.AddSingleton<ISavedQuestionRepository>(SavedQuestions);
+            services.RemoveAll<IGuideRepository>();
+            services.AddSingleton<IGuideRepository>(Guides);
             services.RemoveAll<IAiJobRepository>();
             services.AddSingleton<IAiJobRepository>(AiJobs);
             services.RemoveAll<IPictureTagRepository>();

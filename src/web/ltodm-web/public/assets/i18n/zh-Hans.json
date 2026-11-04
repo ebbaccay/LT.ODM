@@ -3256,7 +3256,7 @@
       "title": "款式库助手",
       "subtitle": "询问款式、物料清单、物料和供应商。答案来自款式库数据，并显示查找方式。",
       "canAsk": "可以问什么？",
-      "howItWorks": "由词库中的词组成的问题（如“men's jackets for SS27”）直接从数据库回答，无需 AI。其他问题由 AI 选择以下一种查询，并根据查询结果撰写答案；其中的数字会与结果核对。不会更改或保存任何内容。",
+      "howItWorks": "由词库中的词组成的问题（如“men's jackets for SS27”）直接从数据库回答，无需 AI。其他问题由 AI 选择以下一种查询，并根据查询结果撰写答案；其中的数字会与结果核对。不会更改或保存任何内容。关于固定流程的“我该如何……？”问题（创建款式包、与客户分享等）会得到带页面链接的操作指南。",
       "placeholder": "询问款式库，例如：每个季节有多少件夹克？",
       "ask": "提问",
       "clear": "新对话",
@@ -3270,7 +3270,8 @@
         "rules": "词库，未用 AI",
         "ai": "AI",
         "saved": "已保存的问题，未用 AI",
-        "look": "按图片匹配，未用 AI"
+        "look": "按图片匹配，未用 AI",
+        "guide": "操作指南，未用 AI"
       },
       "tool": {
         "style_search": "查找款式",
@@ -3286,7 +3287,8 @@
         "colour_usage": "使用的颜色",
         "bom_check": "物料清单检查",
         "none": "未回答",
-        "look_alike": "外观相似的款式"
+        "look_alike": "外观相似的款式",
+        "how_to": "操作指南"
       },
       "arg": {
         "customer": "客户",
@@ -3302,7 +3304,8 @@
         "materialCode": "物料代码",
         "groupBy": "统计依据",
         "looks": "外观",
-        "look": "看起来像"
+        "look": "看起来像",
+        "guide": "指南"
       },
       "col": {
         "styleNo": "款式",
@@ -3336,7 +3339,11 @@
         "rule": "规则",
         "severity": "严重程度",
         "picture": "图片",
-        "match": "匹配"
+        "match": "匹配",
+        "step": "步骤",
+        "what": "操作",
+        "guide": "指南",
+        "who": "适用角色"
       },
       "link": {
         "styles": "在款式中打开这 {{ text }} 个款式",
@@ -3347,14 +3354,16 @@
         "materials": "在物料中查找“{{ text }}”",
         "materialsView": "在物料中打开此视图",
         "bomCheck": "打开物料清单检查（{{ text }}）",
-        "imageSearch": "打开图片搜索"
+        "imageSearch": "打开图片搜索",
+        "howToStart": "开始：{{ text }}"
       },
       "popular": "即时回答（已保存的问题）",
       "cancel": "取消",
       "cancelled": "已取消。AI 服务器已停止处理。",
       "view": {
         "ask": "提问",
-        "saved": "已保存的问题"
+        "saved": "已保存的问题",
+        "guides": "操作指南"
       },
       "feedback": {
         "question": "查询方式正确吗？点赞即可保存：下次同一问题无需 AI 即时回答。",
@@ -3403,6 +3412,31 @@
         "placeholder": "询问款式库…",
         "open": "款式库助手：打开对话（{{ count }} 条新回答）",
         "openBusy": "款式库助手：正在查找…（{{ count }} 条新回答）"
+      },
+      "guides": {
+        "hint": "把固定流程写成带编号的步骤，每一步都链接到对应页面。与某个指南的问题相符的提问，或词语明确指向某个指南的“我该如何……？”，会立即得到该指南的步骤，不使用 AI。问题中的客户或季节会填入链接中的 {customer} 和 {season}。",
+        "new": "新建指南",
+        "code": "代码",
+        "codeHint": "小写字母、数字和 _（例如 send_sample），保存后不能更改。",
+        "title": "标题",
+        "who": "适用角色",
+        "whoPlaceholder": "例如 Admin, Merchandiser",
+        "intro": "简介（可选）",
+        "steps": "步骤",
+        "stepsHint": "每行一个步骤。要把步骤链接到页面，在末尾加上 \" | \" 和地址，例如 \"点击新建款式包。 | /packages?new=1&customer={customer}&season={season}\"。",
+        "questions": "打开此指南的问题",
+        "questionsHint": "每行一种问法，例如 \"how do I ask for a sample\"。客户和季节词会被去掉，因此一种问法适用于所有客户。",
+        "active": "启用（由助手提供）",
+        "inactive": "未启用",
+        "none": "还没有操作指南。",
+        "noQuestions": "无：仅按词语查找",
+        "saved": "指南已保存。",
+        "deleteTitle": "删除指南？",
+        "deleteMessage": "删除“{{ title }}”及打开它的问题？",
+        "changed": {
+          "Seed": "随应用的指南添加",
+          "Admin": "由 {{ user }} 于 {{ date }} 修改"
+        }
       }
     }
   },

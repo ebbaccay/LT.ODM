@@ -6,7 +6,7 @@ A style package is a set of proven library styles offered to one client: what LT
 
 ## Packages list
 
-Packages as cards (first style's picture, name, customer and season, number of styles, status, owner, last change), latest change first. Search finds package names and descriptions, customers and the style numbers and model names in packages. Filters: customer, season, status and **My packages** (the ones you own); they are kept in the address. **New package** asks for a name, customer and season (optional) and opens the new package.
+Packages as cards (first style's picture, name, customer and season, number of styles, status, owner, last change), latest change first. Search finds package names and descriptions, customers and the style numbers and model names in packages. Filters: customer, season, status and **My packages** (the ones you own); they are kept in the address. **New package** asks for a name, customer and season (optional) and opens the new package. The address `/packages?new=1&customer=ADI&season=2027-SS` opens New package with that customer and season filled in (for Admins and Merchandisers; used by the Library assistant's [how-to guide](library-assistant.md#how-to-guides-fixed-processes)).
 
 ## Adding styles
 

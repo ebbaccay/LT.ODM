@@ -131,6 +131,8 @@ public static class DependencyInjection
         services.AddScoped<ILibraryTool, ColourUsageTool>();
         services.AddScoped<ILibraryTool, BomCheckTool>();
         services.AddScoped<ILibraryTool, LookAlikeTool>();
+        services.AddScoped<IGuideRepository, GuideRepository>();
+        services.AddScoped<ILibraryTool, HowToTool>();   // how-to guides (ai.Guide)
         // Image search's look-alike model runs inside the API (ONNX Runtime, CPU); loaded on first use, shared by all requests.
         services.Configure<ImageModelOptions>(configuration.GetSection(ImageModelOptions.SectionName));
         services.AddSingleton<IImageEmbeddingModel, OnnxImageEmbeddingModel>();

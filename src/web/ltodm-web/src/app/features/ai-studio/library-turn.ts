@@ -43,6 +43,8 @@ import { LibraryAssistantSession, LibraryTurnState } from './library-assistant.s
             <span hlmBadge variant="outline" class="text-emerald-700 dark:text-emerald-400"><ng-icon name="lucideListChecks" />{{ 'ai.assistant.source.rules' | transloco }}</span>
           } @else if (a.source === 'look') {
             <span hlmBadge variant="outline" class="text-emerald-700 dark:text-emerald-400"><ng-icon name="lucideScanEye" />{{ 'ai.assistant.source.look' | transloco }}</span>
+          } @else if (a.source === 'guide') {
+            <span hlmBadge variant="outline" class="text-emerald-700 dark:text-emerald-400"><ng-icon name="lucideListChecks" />{{ 'ai.assistant.source.guide' | transloco }}</span>
           } @else if (a.source === 'saved') {
             <span hlmBadge variant="outline" class="text-emerald-700 dark:text-emerald-400"><ng-icon name="lucideBookmarkCheck" />{{ 'ai.assistant.source.saved' | transloco }}</span>
           } @else if (a.source === 'ai') {

@@ -3256,7 +3256,7 @@
       "title": "Library assistant",
       "subtitle": "Ask about styles, BOMs, materials and suppliers. Answers come from the library's data; each one shows how it was found.",
       "canAsk": "What can I ask?",
-      "howItWorks": "Questions made of phrase-list words (e.g. “men's jackets for SS27”) are answered straight from the database, without AI. For other questions the AI picks one of these look-ups and words the answer from its rows; numbers it uses are checked against them. Nothing is changed and nothing is saved.",
+      "howItWorks": "Questions made of phrase-list words (e.g. “men's jackets for SS27”) are answered straight from the database, without AI. For other questions the AI picks one of these look-ups and words the answer from its rows; numbers it uses are checked against them. Nothing is changed and nothing is saved. \"How do I …?\" questions about fixed processes (create a package, share it with a client, …) get a how-to guide with links to the screens.",
       "placeholder": "Ask about the library, e.g. how many jackets per season?",
       "ask": "Ask",
       "clear": "New conversation",
@@ -3270,7 +3270,8 @@
         "rules": "Phrase list, no AI",
         "ai": "AI",
         "saved": "Saved question, no AI",
-        "look": "Matched by pictures, no AI"
+        "look": "Matched by pictures, no AI",
+        "guide": "How-to guide, no AI"
       },
       "tool": {
         "style_search": "Find styles",
@@ -3286,7 +3287,8 @@
         "colour_usage": "Colours used",
         "bom_check": "BOM check",
         "none": "Not answered",
-        "look_alike": "Styles that look like…"
+        "look_alike": "Styles that look like…",
+        "how_to": "How-to guides"
       },
       "arg": {
         "customer": "Customer",
@@ -3302,7 +3304,8 @@
         "materialCode": "Material code",
         "groupBy": "Counted by",
         "looks": "Looks",
-        "look": "Looks like"
+        "look": "Looks like",
+        "guide": "Guide"
       },
       "col": {
         "styleNo": "Style",
@@ -3336,7 +3339,11 @@
         "rule": "Rule",
         "severity": "Severity",
         "picture": "Picture",
-        "match": "Match"
+        "match": "Match",
+        "step": "Step",
+        "what": "What to do",
+        "guide": "Guide",
+        "who": "Who"
       },
       "link": {
         "styles": "Open the {{ text }} styles in Styles",
@@ -3347,14 +3354,16 @@
         "materials": "Find “{{ text }}” in Materials",
         "materialsView": "Open this view in Materials",
         "bomCheck": "Open the BOM check ({{ text }})",
-        "imageSearch": "Open Image search"
+        "imageSearch": "Open Image search",
+        "howToStart": "Start: {{ text }}"
       },
       "popular": "Answered at once (saved questions)",
       "cancel": "Cancel",
       "cancelled": "Cancelled. The AI server stopped working on it.",
       "view": {
         "ask": "Ask",
-        "saved": "Saved questions"
+        "saved": "Saved questions",
+        "guides": "How-to guides"
       },
       "feedback": {
         "question": "Was this the right look-up? A thumbs up saves it: next time this question is answered at once, without AI.",
@@ -3403,6 +3412,31 @@
         "placeholder": "Ask about the library…",
         "open": "Library assistant: open conversation ({{ count }} new)",
         "openBusy": "Library assistant: looking it up… ({{ count }} new)"
+      },
+      "guides": {
+        "hint": "Fixed processes written once as numbered steps, each with a link to its screen. A question that fits one of a guide's questions, or a \"how do I …?\" whose words clearly point to one guide, gets its steps at once, without AI. A customer or season in the question fills {customer} and {season} in the links.",
+        "new": "New guide",
+        "code": "Code",
+        "codeHint": "Lower-case letters, digits and _ (e.g. send_sample). It cannot be changed later.",
+        "title": "Title",
+        "who": "Who can do it",
+        "whoPlaceholder": "e.g. Admin, Merchandiser",
+        "intro": "Introduction (optional)",
+        "steps": "Steps",
+        "stepsHint": "One step per line. To link a step to a screen, end it with \" | \" and the address, e.g. \"Click New package. | /packages?new=1&customer={customer}&season={season}\".",
+        "questions": "Questions that open it",
+        "questionsHint": "One wording per line, e.g. \"how do I ask for a sample\". Customer and season words are taken out, so one wording answers every customer.",
+        "active": "Active (offered by the assistant)",
+        "inactive": "Inactive",
+        "none": "No how-to guides yet.",
+        "noQuestions": "none: found only by its words",
+        "saved": "Guide saved.",
+        "deleteTitle": "Delete guide?",
+        "deleteMessage": "Delete \"{{ title }}\" and the questions that open it?",
+        "changed": {
+          "Seed": "added with the app's guides",
+          "Admin": "changed by {{ user }} on {{ date }}"
+        }
       }
     }
   },

@@ -14,6 +14,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { AiProviderBanner } from './ai-provider-banner';
 import { LibraryAssistantService } from './library-assistant.service';
 import { LibraryAssistantSession } from './library-assistant.session';
+import { LibraryGuides } from './library-guides';
 import { LibrarySavedQuestions } from './library-saved-questions';
 import { LibraryTurn } from './library-turn';
 
@@ -26,7 +27,7 @@ import { LibraryTurn } from './library-turn';
 @Component({
   selector: 'app-library-assistant',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgIcon, AiProviderBanner, LibrarySavedQuestions, LibraryTurn, HlmButtonImports, HlmCardImports, HlmInputImports, HlmSpinnerImports, TranslocoPipe],
+  imports: [NgIcon, AiProviderBanner, LibraryGuides, LibrarySavedQuestions, LibraryTurn, HlmButtonImports, HlmCardImports, HlmInputImports, HlmSpinnerImports, TranslocoPipe],
   providers: [provideIcons({ lucideEraser, lucideMessagesSquare, lucideMinimize2, lucideSend, lucideZap })],
   template: `
     <section class="flex flex-col gap-5">
@@ -64,6 +65,8 @@ import { LibraryTurn } from './library-turn';
 
       @if (view() === 'saved') {
         <app-library-saved-questions [tools]="tools()" />
+      } @else if (view() === 'guides') {
+        <app-library-guides />
       } @else {
         <app-ai-provider-banner uses="text" />
 
@@ -132,8 +135,8 @@ export class LibraryAssistant {
   private readonly location = inject(Location);
   private readonly box = viewChild<ElementRef<HTMLInputElement>>('box');
 
-  readonly views = ['ask', 'saved'] as const;
-  readonly view = signal<'ask' | 'saved'>('ask');
+  readonly views = ['ask', 'saved', 'guides'] as const;
+  readonly view = signal<'ask' | 'saved' | 'guides'>('ask');
   readonly isAdmin = computed(() => (this.auth.user()?.roles ?? []).some((r) => r.toLowerCase() === 'admin'));
   readonly tools = toSignal(this.svc.tools().pipe(catchError(() => of([]))), { initialValue: [] });
   readonly popular = toSignal(this.svc.popular().pipe(catchError(() => of([]))), { initialValue: [] });

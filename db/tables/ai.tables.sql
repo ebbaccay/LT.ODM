@@ -15,6 +15,9 @@
                     arguments it chose - never the answer. Status Rule = answered from here without AI (set by a thumbs up
                     or an Admin); Recorded = AI is used; Removed = a thumbs down or an Admin took it out. No asker names.
                     IsPattern = 1: a seeded pattern (seedi.saved-questions.sql), matched with the filter words taken out.
+    ai.Guide:       Library assistant how-to guides: a fixed process (create a style package, share it, ...) as numbered
+                    steps with links to the screens. Seeded by seed\ai.guides.sql; Admins edit them. Its questions are
+                    ai.SavedQuestion patterns with Tool 'how_to'.
     ai.Job:         slow AI work run in the background (renders, summaries, explanations, readers): who asked, status,
                     the input and the result (JSON, as the API returns it). Finished jobs are deleted after
                     ai.Policy.JobKeepDays (default 7). One row per job; nothing is re-run after an API restart.
@@ -142,6 +145,28 @@ CREATE TABLE ai.SavedQuestion
 GO
 IF COL_LENGTH(N'ai.SavedQuestion', N'IsPattern') IS NULL
     ALTER TABLE ai.SavedQuestion ADD IsPattern bit NOT NULL CONSTRAINT DF_ai_SavedQuestion_IsPattern DEFAULT (0);
+GO
+
+-- How-to guides: fixed processes as numbered steps with links to the screens (Library assistant, tool how_to). The
+-- questions that open a guide are ai.SavedQuestion patterns with Tool 'how_to' and Arguments {"guide":"<Code>"}.
+IF OBJECT_ID(N'ai.Guide', N'U') IS NULL
+CREATE TABLE ai.Guide
+(
+    GuideId    int IDENTITY(1, 1) NOT NULL,
+    Code       varchar(40)    NOT NULL,   -- create_package
+    Title      nvarchar(200)  NOT NULL,   -- Create a style package
+    Who        nvarchar(200)  NULL,       -- who can do it: Admin, Merchandiser
+    Intro      nvarchar(1000) NULL,
+    Steps      nvarchar(max)  NOT NULL,   -- JSON array of {"text": "...", "url": "/packages?new=1&customer={customer}"}
+    IsActive   bit            NOT NULL CONSTRAINT DF_ai_Guide_IsActive DEFAULT (1),
+    ChangedBy  nvarchar(64)   NULL,
+    ChangedUtc datetime2(3)   NOT NULL CONSTRAINT DF_ai_Guide_ChangedUtc DEFAULT (SYSUTCDATETIME()),
+    ChangedHow varchar(16)    NOT NULL CONSTRAINT DF_ai_Guide_ChangedHow DEFAULT ('Seed'),   -- Seed | Admin
+
+    CONSTRAINT PK_ai_Guide PRIMARY KEY CLUSTERED (GuideId),
+    CONSTRAINT UQ_ai_Guide_Code UNIQUE (Code),
+    CONSTRAINT CK_ai_Guide_Steps CHECK (ISJSON(Steps) = 1)
+);
 GO
 
 -- AI call limits: how many calls one AI server gets at once (per connection; connections with the same address share the
