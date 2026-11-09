@@ -74,6 +74,13 @@ public static class CreateUserCommand
     private static string ReadSecret(string prompt)
     {
         Console.Write(prompt);
+        // Piped input (a script): one line per answer, nothing echoed since nothing is typed.
+        if (Console.IsInputRedirected)
+        {
+            var line = Console.In.ReadLine() ?? throw new InvalidOperationException("No password on the input.");
+            Console.WriteLine();
+            return line;
+        }
         var sb = new StringBuilder();
         while (true)
         {

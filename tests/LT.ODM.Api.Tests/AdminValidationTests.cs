@@ -58,6 +58,15 @@ public sealed class AdminValidationTests
         Assert.Empty(AdminValidation.Access(new SetUserAccessRequest(["Factory"], "FTY", "F001")));
     }
 
+    [Fact]
+    public void A_changed_name_must_be_filled_in_and_fit_its_column()
+    {
+        Assert.Empty(AdminValidation.Access(new SetUserAccessRequest([], null, null, "Jane Doe")));
+        Assert.Empty(AdminValidation.Access(new SetUserAccessRequest([], null, null)));   // null keeps the current name
+        Assert.Contains("displayName", AdminValidation.Access(new SetUserAccessRequest([], null, null, "  ")).Keys);
+        Assert.Contains("displayName", AdminValidation.Access(new SetUserAccessRequest([], null, null, new string('N', 129))).Keys);
+    }
+
     [Theory]
     [InlineData(1, 1, new[] { "Viewer" }, true)]
     [InlineData(1, 1, new[] { "Admin", "Viewer" }, false)]

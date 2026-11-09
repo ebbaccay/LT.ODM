@@ -9,19 +9,28 @@ public enum CodeCase { AsTyped, Upper, Lower }
 /// One pick list maintained in Settings > Reference lists. Key is the @List value of ref.usp_RefList_* (the whitelist:
 /// anything else is refused before it reaches the database). Lengths match the columns in db/tables/style.tables.sql.
 /// </summary>
+/// <remarks>HasCountry: rows carry a country of origin (suppliers; ref.Country codes).</remarks>
 public sealed record RefListDefinition(
     string Key, int CodeMaxLength, CodeCase Case, string? CodePattern, string CodeRule,
-    int NameMaxLength, bool NameRequired, bool HasSortOrder, bool HasIsActive);
+    int NameMaxLength, bool NameRequired, bool HasSortOrder, bool HasIsActive, bool HasCountry = false);
 
 /// <summary>Sent to the page so its form follows the same rules as the API.</summary>
 public sealed record RefListInfoDto(
-    string Key, int CodeMaxLength, string CodeCase, string? CodePattern, int NameMaxLength, bool NameRequired, bool HasSortOrder, bool HasIsActive);
+    string Key, int CodeMaxLength, string CodeCase, string? CodePattern, int NameMaxLength, bool NameRequired, bool HasSortOrder, bool HasIsActive,
+    bool HasCountry);
 
-/// <summary>Name is the season description for seasons (optional there). UsageCount = rows that use the code (used = cannot be deleted).</summary>
-public sealed record RefListItemDto(string Code, string? Name, int? SortOrder, bool? IsActive, int UsageCount);
+/// <summary>
+/// Name is the season description for seasons (optional there). UsageCount = rows that use the code (used = cannot be deleted).
+/// CountryCode / CountryName: suppliers' country of origin (null elsewhere, or not set).
+/// </summary>
+public sealed record RefListItemDto(string Code, string? Name, int? SortOrder, bool? IsActive, int UsageCount, string? CountryCode = null,
+    string? CountryName = null);
 
-/// <summary>IsNew: insert; otherwise update the row with this Code (the code itself cannot change). SortOrder / IsActive only where the list has them.</summary>
-public sealed record SaveRefListItemRequest(bool IsNew, string Code, string? Name, int? SortOrder, bool? IsActive);
+/// <summary>
+/// IsNew: insert; otherwise update the row with this Code (the code itself cannot change). SortOrder / IsActive / CountryCode only where the
+/// list has them (CountryCode null or empty = not set).
+/// </summary>
+public sealed record SaveRefListItemRequest(bool IsNew, string Code, string? Name, int? SortOrder, bool? IsActive, string? CountryCode = null);
 
 public static class ReferenceLists
 {
@@ -40,7 +49,9 @@ public static class ReferenceLists
         new("contentClasses", 8, CodeCase.Upper, "^[A-Z0-9_]{1,8}$", "Use 1-8 letters, digits or underscores (e.g. FAB).", 50, true, true, false),
         new("materialTypes", 16, CodeCase.Upper, null, AnyCode, 100, true, false, false),
         new("uoms", 8, CodeCase.Lower, null, AnyCode, 50, true, false, false),
-        new("suppliers", 32, CodeCase.AsTyped, null, AnyCode, 150, true, false, true),
+        new("suppliers", 32, CodeCase.AsTyped, null, AnyCode, 150, true, false, true, HasCountry: true),
+        // ref.Country (2026-11-05): ISO two-letter codes; the names are free (the display name everywhere).
+        new("countries", 2, CodeCase.Upper, "^[A-Z]{2}$", "Use the 2-letter ISO code (e.g. VN).", 100, true, false, true),
         // Concepts only (roadmap 5.6): ref.TargetMarket, ref.TrendTag, ref.ProductCategory.
         new("targetMarkets", 16, CodeCase.Upper, "^[A-Z0-9_-]+$", "Use at most {0} letters, digits, - or _ (e.g. GENZ).", 100, true, false, true),
         new("trendTags", 40, CodeCase.Upper, "^[A-Z0-9_-]+$", "Use at most {0} letters, digits, - or _ (e.g. ATHLEISURE).", 100, true, false, true),
@@ -51,7 +62,7 @@ public static class ReferenceLists
 
     public static RefListInfoDto Info(RefListDefinition d) => new(
         d.Key, d.CodeMaxLength, d.Case switch { CodeCase.Upper => "upper", CodeCase.Lower => "lower", _ => "" },
-        d.CodePattern, d.NameMaxLength, d.NameRequired, d.HasSortOrder, d.HasIsActive);
+        d.CodePattern, d.NameMaxLength, d.NameRequired, d.HasSortOrder, d.HasIsActive, d.HasCountry);
 
     public static string NormalizeCode(RefListDefinition d, string? code)
     {
@@ -59,13 +70,14 @@ public static class ReferenceLists
         return d.Case switch { CodeCase.Upper => c.ToUpperInvariant(), CodeCase.Lower => c.ToLowerInvariant(), _ => c };
     }
 
-    /// <summary>Trimmed code in the list's case and trimmed name; SortOrder / IsActive dropped where the list has none.</summary>
+    /// <summary>Trimmed code in the list's case and trimmed name; SortOrder / IsActive / CountryCode dropped where the list has none.</summary>
     public static SaveRefListItemRequest Normalize(RefListDefinition d, SaveRefListItemRequest r) => r with
     {
         Code = NormalizeCode(d, r.Code),
         Name = r.Name?.Trim() ?? "",
         SortOrder = d.HasSortOrder ? r.SortOrder : null,
         IsActive = d.HasIsActive ? r.IsActive ?? true : null,
+        CountryCode = d.HasCountry && !string.IsNullOrWhiteSpace(r.CountryCode) ? r.CountryCode.Trim().ToUpperInvariant() : null,
     };
 
     public static Dictionary<string, string[]> Validate(RefListDefinition d, SaveRefListItemRequest r)
@@ -81,6 +93,8 @@ public static class ReferenceLists
             errors["name"] = [d.NameRequired ? $"Enter a name (at most {d.NameMaxLength} characters)." : $"Use at most {d.NameMaxLength} characters."];
         if (d.HasSortOrder && r.SortOrder is not (>= 0 and <= short.MaxValue))
             errors["sortOrder"] = ["Use a whole number from 0 to 32767."];
+        if (d.HasCountry && !string.IsNullOrWhiteSpace(r.CountryCode) && !Regex.IsMatch(r.CountryCode.Trim(), "^[A-Za-z]{2}$"))
+            errors["countryCode"] = ["Choose a country from the list."];
         return errors;
     }
 }

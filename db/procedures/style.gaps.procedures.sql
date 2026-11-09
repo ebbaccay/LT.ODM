@@ -347,6 +347,11 @@ BEGIN
         WHERE g.Confidence >= @MinConfidence AND (@CustomerCode IS NULL OR c.PartnerCode = @CustomerCode) AND (@SeasonCode IS NULL OR s.SeasonCode = @SeasonCode);
     END
 
+    -- Only styles the user may change (business unit teams).
+    DELETE p FROM #pick p JOIN style.Style s ON s.StyleId = p.StyleId
+    CROSS APPLY style.fn_CanEditStyle(@ChangedBy, s.BusinessUnitCode, s.CreatedBy) e
+    WHERE e.CanEdit = 0;
+
     IF @Field = 'gender'
     BEGIN
         UPDATE #pick SET Value = UPPER(Value);
@@ -386,7 +391,9 @@ BEGIN
     INSERT style.GapDismissed (StyleId, Field, Value, DismissedBy)
     SELECT DISTINCT i.StyleId, @Field, TRIM(i.Value), @ChangedBy
     FROM OPENJSON(@Items) WITH (StyleId int '$.styleId', Value nvarchar(40) '$.value') i
-    WHERE EXISTS (SELECT 1 FROM style.Style s WHERE s.StyleId = i.StyleId) AND NULLIF(TRIM(i.Value), N'') IS NOT NULL
+    WHERE EXISTS (SELECT 1 FROM style.Style s CROSS APPLY style.fn_CanEditStyle(@ChangedBy, s.BusinessUnitCode, s.CreatedBy) e
+                  WHERE s.StyleId = i.StyleId AND e.CanEdit = 1)
+      AND NULLIF(TRIM(i.Value), N'') IS NOT NULL
       AND NOT EXISTS (SELECT 1 FROM style.GapDismissed d WHERE d.StyleId = i.StyleId AND d.Field = @Field AND d.Value = TRIM(i.Value));
     SELECT Dismissed = @@ROWCOUNT;
 END
@@ -495,6 +502,8 @@ CREATE OR ALTER PROCEDURE style.usp_Gaps_MergeSeason
 AS
 BEGIN
     SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM style.fn_UserBusinessUnits(@ChangedBy))
+        THROW 50403, 'Merging seasons renames them for every style, so only users who can change every style can do it.', 1;
     SET XACT_ABORT ON;
     SET @From = TRIM(@From);
     SET @To = UPPER(TRIM(@To));
@@ -649,7 +658,10 @@ BEGIN
     INTO #fill
     FROM #lco f
     WHERE f.Value IS NOT NULL
-      AND (@BomLineIds IS NULL OR f.BomLineId IN (SELECT CAST([value] AS int) FROM OPENJSON(@BomLineIds)));
+      AND (@BomLineIds IS NULL OR f.BomLineId IN (SELECT CAST([value] AS int) FROM OPENJSON(@BomLineIds)))
+      -- only styles the user may change (business unit teams)
+      AND EXISTS (SELECT 1 FROM style.Style s CROSS APPLY style.fn_CanEditStyle(@ChangedBy, s.BusinessUnitCode, s.CreatedBy) e
+                  WHERE s.StyleId = f.StyleId AND e.CanEdit = 1);
 
     BEGIN TRANSACTION;
     UPDATE b SET LcoConsumption = f.Value, LcoIsEstimate = 1, UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()

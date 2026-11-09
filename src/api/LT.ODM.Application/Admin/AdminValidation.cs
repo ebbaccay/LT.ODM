@@ -1,3 +1,4 @@
+using LT.ODM.Application.Dashboards;
 using System.Text.RegularExpressions;
 
 namespace LT.ODM.Application.Admin;
@@ -23,6 +24,8 @@ public static partial class AdminValidation
             errors["name"] = ["Use 2-64 letters, digits or underscores, starting with a letter (e.g. Merchandiser)."];
         if ((r.DisplayName?.Length ?? 0) > 128) errors["displayName"] = ["Use at most 128 characters."];
         if ((r.Description?.Length ?? 0) > 256) errors["description"] = ["Use at most 256 characters."];
+        if (DashboardKeys.Normalize(r.DashboardKey) is { } key && !DashboardKeys.IsKnown(key))
+            errors["dashboardKey"] = [$"Choose one of: {string.Join(", ", DashboardKeys.All)}."];
         return errors;
     }
 
@@ -53,6 +56,10 @@ public static partial class AdminValidation
         if (a.Roles is null) errors["roles"] = ["Send the list of roles (it can be empty)."];
         if ((a.UserGroup?.Trim().Length ?? 0) > 16) errors["userGroup"] = ["Use at most 16 characters."];
         if ((a.Location?.Trim().Length ?? 0) > 32) errors["location"] = ["Use at most 32 characters."];
+        if (a.DisplayName is not null && (a.DisplayName.Trim().Length == 0 || a.DisplayName.Trim().Length > 128))
+            errors["displayName"] = ["Enter the user's name (at most 128 characters)."];
+        if (a.BusinessUnits is { } units && (units.Count > 200 || units.Any(u => string.IsNullOrWhiteSpace(u) || u.Trim().Length > 16 || u.Contains(','))))
+            errors["businessUnits"] = ["Choose business units from the list."];
         return errors;
     }
 
@@ -65,7 +72,7 @@ public static partial class AdminValidation
 
     public static Dictionary<string, string[]> NewUser(CreateUserRequest u)
     {
-        var errors = Access(new SetUserAccessRequest(u.Roles, u.UserGroup, u.Location));
+        var errors = Access(new SetUserAccessRequest(u.Roles, u.UserGroup, u.Location, BusinessUnits: u.BusinessUnits));
         if (!UserNameRegex().IsMatch(u.UserName?.Trim() ?? ""))
             errors["userName"] = ["Use 3-64 letters, digits, '.', '_' or '-' (e.g. jdoe or fty.dg01)."];
         var email = u.Email?.Trim() ?? "";

@@ -78,13 +78,16 @@
           <!-- Header row (sm and up); rows stack into cards on phones -->
           <div
             class="text-muted-foreground hidden gap-4 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase sm:grid"
-            [class]="l.hasSortOrder ? 'grid-cols-[4rem_minmax(0,8rem)_minmax(0,1fr)_6rem_6rem]' : 'grid-cols-[minmax(0,10rem)_minmax(0,1fr)_6rem_6rem]'"
+            [class]="gridCols()"
           >
             @if (l.hasSortOrder) {
               <span>{{ 'settings.refLists.colSort' | transloco }}</span>
             }
             <span>{{ 'settings.refLists.colCode' | transloco }}</span>
             <span>{{ 'settings.refLists.names.' + l.key | transloco }}</span>
+            @if (l.hasCountry) {
+              <span>{{ 'settings.refLists.colCountry' | transloco }}</span>
+            }
             <span class="text-right">{{ 'settings.refLists.colUsedBy' | transloco }}</span>
             <span class="sr-only">{{ 'actions.edit' | transloco }}</span>
           </div>
@@ -92,7 +95,7 @@
             @for (i of filtered(); track i.code) {
               <li
                 class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-2.5"
-                [class]="l.hasSortOrder ? 'sm:grid-cols-[4rem_minmax(0,8rem)_minmax(0,1fr)_6rem_6rem]' : 'sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_6rem_6rem]'"
+                [class]="rowCols()"
               >
                 @if (l.hasSortOrder) {
                   <span class="text-muted-foreground col-start-1 text-sm tabular-nums">
@@ -106,6 +109,11 @@
                   }
                 </span>
                 <span class="col-start-1 truncate text-sm sm:col-start-auto" [class.text-muted-foreground]="!i.name">{{ i.name || '—' }}</span>
+                @if (l.hasCountry) {
+                  <span class="col-start-1 truncate text-sm sm:col-start-auto" [class.text-muted-foreground]="!i.countryCode">
+                    <span class="text-muted-foreground sm:hidden">{{ 'settings.refLists.colCountry' | transloco }}: </span>{{ i.countryName || i.countryCode || ('settings.refLists.countryNotSet' | transloco) }}
+                  </span>
+                }
                 <span class="text-muted-foreground col-start-1 text-sm tabular-nums sm:col-start-auto sm:text-right">
                   <span class="sm:hidden">{{ 'settings.refLists.colUsedBy' | transloco }}: </span>{{ i.usageCount }}
                 </span>
@@ -184,6 +192,22 @@
           <p class="text-destructive text-xs">{{ 'settings.refLists.nameRule' | transloco: { max: l.nameMaxLength } }}</p>
         }
       </div>
+      @if (l.hasCountry) {
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="ref-country">{{ 'settings.refLists.colCountry' | transloco }}</label>
+          <hlm-native-select selectId="ref-country" selectClass="h-11 w-full lg:h-9" [value]="form().countryCode" (valueChange)="patch('countryCode', $event ?? '')">
+            <option hlmNativeSelectOption value="" [selected]="!form().countryCode">{{ 'settings.refLists.countryNotSet' | transloco }}</option>
+            <!-- The supplier's country stays choosable when it was made inactive (otherwise saving would clear it). -->
+            @if (form().countryCode && !activeCountry(form().countryCode)) {
+              <option hlmNativeSelectOption [value]="form().countryCode" [selected]="true">{{ editing()?.countryName || form().countryCode }} ({{ form().countryCode }})</option>
+            }
+            @for (c of countries(); track c.code) {
+              <option hlmNativeSelectOption [value]="c.code" [selected]="c.code === form().countryCode">{{ c.name }} ({{ c.code }})</option>
+            }
+          </hlm-native-select>
+          <p class="text-muted-foreground text-xs">{{ 'settings.refLists.countryHint' | transloco }}</p>
+        </div>
+      }
       @if (l.hasSortOrder) {
         <div class="flex flex-col gap-1.5">
           <label hlmLabel for="ref-sort">{{ 'settings.refLists.colSort' | transloco }}</label>

@@ -48,7 +48,7 @@ export interface LabCapability {
 export const LAB_CAPABILITIES: LabCapability[] = [
   {
     id: 'materialParse',
-    live: { route: '/materials', query: { view: 'reader' }, roles: ['admin', 'merchandiser', 'costing', 'viewer'], where: 'ai.lab.liveFeature.materialParse' },
+    live: { route: '/materials', query: { view: 'reader' }, roles: ['admin', 'merchandiser', 'designer', 'costing', 'viewer'], where: 'ai.lab.liveFeature.materialParse' },
     purpose: 'text',
     icon: 'lucideListChecks',
     status: 'ready',
@@ -110,7 +110,7 @@ export const LAB_CAPABILITIES: LabCapability[] = [
   },
   {
     id: 'lookAlike',
-    live: { route: '/ai/image-search', roles: ['admin', 'merchandiser', 'costing', 'viewer'], where: 'ai.lab.liveFeature.lookAlike' },
+    live: { route: '/ai/image-search', roles: ['admin', 'merchandiser', 'designer', 'costing', 'viewer'], where: 'ai.lab.liveFeature.lookAlike' },
     purpose: 'embedding',
     icon: 'lucideImages',
     status: 'needsData',
@@ -212,7 +212,7 @@ export const LAB_CAPABILITIES: LabCapability[] = [
   },
   {
     id: 'assistant',
-    live: { route: '/ai/assistant', roles: ['admin', 'merchandiser', 'costing', 'viewer'], where: 'ai.lab.liveFeature.assistant' },
+    live: { route: '/ai/assistant', roles: ['admin', 'merchandiser', 'designer', 'costing', 'viewer'], where: 'ai.lab.liveFeature.assistant' },
     purpose: 'text',
     icon: 'lucideMessagesSquare',
     status: 'needsInfra',

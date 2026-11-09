@@ -82,7 +82,7 @@ public sealed class PictureTagTests(ApiFactory factory) : IClassFixture<ApiFacto
     public void The_phrase_list_reads_looks_after_product_types()
     {
         var l = new StyleLookupsDto([], [], [], [new("HOODED SWEAT", "HOODED SWEAT"), new("JACKET", "JACKET"), new("TSHIRTSL", "T-SHIRT (SHORT SLEEVE)")],
-            [], [], [], [], [], []);
+            [], [], [], [], [], [], []);
         var r = StyleQueryParser.Parse("navy hooded jackets with a full zip", l);
         Assert.True(r.Complete);
         Assert.Equal(["JACKET"], r.Filters.ProductTypes);

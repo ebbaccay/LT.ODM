@@ -12,6 +12,7 @@ import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmTextareaImports } from '@spartan-ng/helm/textarea';
+import { browserTimeZone } from '../style-library/style-library.service';
 
 /** A style on the client's page (the line sheet's content: offered colourways, the note for the client). */
 interface SharedItem {
@@ -255,7 +256,7 @@ export class SharedPackagePage implements OnInit {
   }
 
   pdfUrl(): string {
-    return `${this.api}/${encodeURIComponent(this.token())}/line-sheet.pdf`;
+    return `${this.api}/${encodeURIComponent(this.token())}/line-sheet.pdf?tz=${encodeURIComponent(browserTimeZone())}`;
   }
 
   setName(value: string): void {

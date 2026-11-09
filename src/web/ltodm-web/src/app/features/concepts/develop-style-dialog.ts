@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCircleAlert, lucideInfo } from '@ng-icons/lucide';
@@ -10,7 +10,14 @@ import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { Modal } from '@tms/shared/ui/modal';
 import { AuthImgDirective } from '@tms/shared/ui/auth-img';
-import { StyleLibraryService, StyleLookups, styleError } from '../style-library/style-library.service';
+import {
+  StyleLibraryService,
+  StyleLookups,
+  businessUnitChoices,
+  businessUnitProblem,
+  defaultBusinessUnit,
+  styleError,
+} from '../style-library/style-library.service';
 import { ConceptDetail, ConceptsService } from './concepts.service';
 
 /**
@@ -52,6 +59,17 @@ import { ConceptDetail, ConceptsService } from './concepts.service';
                      [value]="styleNo()" (input)="styleNo.set($any($event.target).value)" [attr.aria-invalid]="!!e['styleNo']" />
               @if (e['styleNo']) { <p class="text-destructive text-xs">{{ e['styleNo'] }}</p> }
             </div>
+          </div>
+
+          <!-- Required; business unit team members get only their own units -->
+          <div class="flex flex-col gap-1.5">
+            <label hlmLabel for="dv-bu">{{ 'styles.form.businessUnit' | transloco }}</label>
+            <input hlmInput id="dv-bu" list="dv-bus" class="h-11 lg:h-9 sm:max-w-64" maxlength="16" autocomplete="off"
+                   [value]="businessUnit()" (input)="businessUnit.set($any($event.target).value)" [attr.aria-invalid]="!!e['businessUnitCode']" />
+            <datalist id="dv-bus">
+              @for (b of businessUnits(); track b.code) { <option [value]="b.code">{{ b.name }}</option> }
+            </datalist>
+            @if (e['businessUnitCode']) { <p class="text-destructive text-xs">{{ e['businessUnitCode'] }}</p> }
           </div>
 
           <div class="flex flex-col gap-1.5">
@@ -113,6 +131,8 @@ export class DevelopStyleDialog {
   readonly styleNo = signal('');
   readonly base = signal('');
   readonly picture = signal<number | null>(null);
+  readonly businessUnit = signal('');
+  readonly businessUnits = computed(() => businessUnitChoices(this.lookups()));
   readonly errors = signal<Record<string, string>>({});
   readonly saving = signal(false);
 
@@ -125,6 +145,7 @@ export class DevelopStyleDialog {
       // the customer's own inspiration style first, else none; the first picture
       this.base.set(String(d?.styles.find((s) => s.sameBrand)?.styleId ?? ''));
       this.picture.set(d?.images[0]?.conceptImageId ?? null);
+      this.businessUnit.set(untracked(() => defaultBusinessUnit(this.lookups())));
       this.errors.set({});
     });
   }
@@ -135,13 +156,15 @@ export class DevelopStyleDialog {
     const errors: Record<string, string> = {};
     if (!this.season().trim()) errors['seasonCode'] = this.transloco.translate('packages.copy.required');
     if (!this.styleNo().trim()) errors['styleNo'] = this.transloco.translate('packages.copy.required');
+    const unitProblem = businessUnitProblem(this.businessUnit(), this.lookups());
+    if (unitProblem) errors['businessUnitCode'] = this.transloco.translate(unitProblem.key, unitProblem.params);
     this.errors.set(errors);
     if (Object.keys(errors).length) return;
     this.saving.set(true);
     this.svc
       .develop(d.concept.conceptId, {
         seasonCode: this.season().trim().toUpperCase(), styleNo: this.styleNo().trim(), baseStyleId: this.base() ? Number(this.base()) : null,
-        conceptImageId: this.picture(),
+        conceptImageId: this.picture(), businessUnitCode: this.businessUnit().trim(),
       })
       .subscribe({
         next: (r) => {

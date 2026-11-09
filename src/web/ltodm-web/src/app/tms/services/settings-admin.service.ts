@@ -13,6 +13,8 @@ export interface RoleDto {
   displayName: string | null;
   description: string | null;
   userCount: number;
+  /** Home page dashboard for the role's users ('designer'); null = the library overview. */
+  dashboardKey: string | null;
 }
 
 export interface SaveRoleRequest {
@@ -20,6 +22,7 @@ export interface SaveRoleRequest {
   name: string;
   displayName: string | null;
   description: string | null;
+  dashboardKey: string | null;
 }
 
 export interface UserAccessDto {
@@ -33,10 +36,16 @@ export interface UserAccessDto {
   lastLoginUtc: string | null;
   lockoutEndUtc: string | null;
   roles: string[];
+  /** Business unit teams: units whose styles the user may change (empty = every style). */
+  businessUnits?: string[] | null;
 }
 
 export interface SetUserAccessRequest {
+  /** The user's name (first and last) as shown in the app; null keeps the current one. */
+  displayName: string | null;
   roles: string[];
+  /** Business unit teams: empty = every style; null = unchanged. */
+  businessUnits?: string[] | null;
   userGroup: string | null;
   location: string | null;
 }
@@ -51,6 +60,8 @@ export interface CreateUserRequest {
   location: string | null;
   /** Set = no email; the user signs in with it and must change it. Empty = email a "set your password" link. */
   temporaryPassword?: string | null;
+  /** The units whose styles the user may change; empty = every style. */
+  businessUnits?: string[];
 }
 
 export interface MenuConfigItemDto {
@@ -106,6 +117,8 @@ export interface RefListInfo {
   nameMaxLength: number;
   nameRequired: boolean;
   hasSortOrder: boolean;
+  /** Rows carry a country of origin (suppliers). */
+  hasCountry: boolean;
   hasIsActive: boolean;
 }
 
@@ -117,6 +130,9 @@ export interface RefListItem {
   sortOrder: number | null;
   isActive: boolean | null;
   usageCount: number;
+  /** Suppliers: country of origin (ISO alpha-2) and its name; null when not set. */
+  countryCode?: string | null;
+  countryName?: string | null;
 }
 
 export interface SaveRefListItemRequest {
@@ -125,6 +141,8 @@ export interface SaveRefListItemRequest {
   name: string;
   sortOrder: number | null;
   isActive: boolean | null;
+  /** Suppliers only: null = not set. */
+  countryCode?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

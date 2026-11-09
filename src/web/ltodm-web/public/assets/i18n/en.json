@@ -162,7 +162,10 @@
       "colDisplayName": "Display name",
       "colUsers": "Users",
       "nameFixed": "The role name cannot be changed because it is stored in sign-in tokens and menu rules.",
-      "saved": "Role saved"
+      "saved": "Role saved",
+      "colDashboard": "Home dashboard",
+      "dashboardDefault": "Library overview (default)",
+      "dashboardHint": "What users with this role see on the home page. A role that picks a dashboard wins over roles that keep the default. Only Admins can switch to other dashboards."
     },
     "userRoles": {
       "title": "User Roles",
@@ -227,7 +230,12 @@
       "setTempPassword": "Set temporary password",
       "setTempPasswordHint": "Use this when the user cannot receive email. Their current password and open links stop working, they are signed out, and they must choose a new password at their next sign-in.",
       "tempPasswordSet": "Temporary password set for {{ name }}",
-      "tempPasswordGiveHint": "Give it to them in person or by phone, not by email or chat. They must change it at first sign-in."
+      "tempPasswordGiveHint": "Give it to them in person or by phone, not by email or chat. They must change it at first sign-in.",
+      "businessUnits": "Business units (team)",
+      "businessUnitsHint": "The user can change only styles of the ticked business units, and still views every style. Leave all unticked to let them change every style.",
+      "businessUnitsAdmin": "Admins can change every style: these business units apply only if the Admin role is removed.",
+      "team": "Team: {{units}}",
+      "teamHint": "Changes only these business units' styles"
     },
     "signInPage": {
       "title": "Sign-in page",
@@ -513,6 +521,9 @@
       "colCode": "Code",
       "colSort": "Sort order",
       "colUsedBy": "Used by",
+      "colCountry": "Country of origin",
+      "countryNotSet": "Not set",
+      "countryHint": "Every material from this supplier takes this country, unless a material’s Suppliers tab sets another one for it.",
       "codeFixed": "The code cannot be changed because styles, BOM lines and import files use it.",
       "nameRule": "Enter at most {{ max }} characters (required unless marked optional).",
       "sortHint": "Lists and BOM sections are shown in this order (lowest first).",
@@ -535,7 +546,8 @@
         "suppliers": "SAP suppliers",
         "targetMarkets": "Target markets",
         "trendTags": "Trend tags",
-        "productCategories": "Product categories"
+        "productCategories": "Product categories",
+        "countries": "Countries"
       },
       "names": {
         "customers": "Name",
@@ -551,7 +563,8 @@
         "suppliers": "Name",
         "targetMarkets": "Name",
         "trendTags": "Name",
-        "productCategories": "Name"
+        "productCategories": "Name",
+        "countries": "Name shown"
       },
       "hints": {
         "customers": "Customer on the style header. \"Used by\" counts styles.",
@@ -567,7 +580,8 @@
         "suppliers": "SAP supplier on a BOM line. \"Used by\" counts BOM lines.",
         "targetMarkets": "Who a concept is for (Style Packages > Concepts). \"Used by\" counts concepts.",
         "trendTags": "Trends a concept follows (Style Packages > Concepts). \"Used by\" counts concepts.",
-        "productCategories": "The kind of garment of a concept. The codes match the garment groups of What to offer and the hit rate. \"Used by\" counts concepts."
+        "productCategories": "The kind of garment of a concept. The codes match the garment groups of What to offer and the hit rate. \"Used by\" counts concepts.",
+        "countries": "Countries of origin for SAP suppliers (and a material’s own, when it differs). The name is what every screen shows. \"Used by\" counts suppliers and material exceptions; inactive countries are hidden from the pick lists."
       },
       "codeRules": {
         "customers": "At most {{ max }} characters.",
@@ -583,7 +597,8 @@
         "suppliers": "At most {{ max }} characters.",
         "targetMarkets": "At most {{ max }} letters, digits, - or _, stored upper-case.",
         "trendTags": "At most {{ max }} letters, digits, - or _, stored upper-case.",
-        "productCategories": "At most {{ max }} letters, digits, - or _, stored upper-case."
+        "productCategories": "At most {{ max }} letters, digits, - or _, stored upper-case.",
+        "countries": "The 2-letter ISO code (e.g. VN), stored upper-case."
       },
       "codeExamples": {
         "customers": "ADI",
@@ -599,7 +614,8 @@
         "suppliers": "1100131",
         "targetMarkets": "GENZ",
         "trendTags": "ATHLEISURE",
-        "productCategories": "JACKET"
+        "productCategories": "JACKET",
+        "countries": "VN"
       }
     },
     "translations": {
@@ -2268,7 +2284,125 @@
     "inNamedSeasons": "Styles in year-term seasons",
     "linesWithLco": "BOM lines with LCO consumption",
     "fix": "Fix",
-    "fixLabel": "Fix {{ what }}: {{ count }} missing"
+    "fixLabel": "Fix {{ what }}: {{ count }} missing",
+    "views": {
+      "label": "Dashboard",
+      "library": "Library overview",
+      "designer": "My styles"
+    },
+    "designer": {
+      "title": "My styles",
+      "subtitle": "Your styles, and your team's, and what each still needs before it is complete.",
+      "season": "Season",
+      "allSeasons": "All seasons",
+      "scopeHint": "Active styles you created.",
+      "emptyTitle": "You have not created any styles yet",
+      "emptyHint": "Styles you add (or copy, or make from a concept) show here with what each still needs: sketch, colorways, BOM, colours, consumption and suppliers.",
+      "openConcepts": "Open concepts",
+      "kpi": {
+        "styles": "My styles",
+        "stylesHint": "{{colorways}} colorways · {{lines}} BOM lines",
+        "complete": "Complete",
+        "completeHint": "{{pct}}% of your styles · {{todo}} to finish",
+        "average": "Average completeness",
+        "averageHint": "Checks passed per style",
+        "offered": "Offered in packages",
+        "offeredHint": "{{sampling}} sampling · {{ordered}} ordered"
+      },
+      "missingTitle": "What's missing",
+      "missingHint": "Styles missing each item. Click one to list those styles.",
+      "allComplete": "Nothing missing: every style is complete.",
+      "check": {
+        "picture": {
+          "label": "Sketch or photo",
+          "chip": "No sketch or photo",
+          "hint": "The style has neither a sketch nor a photo."
+        },
+        "productType": {
+          "label": "Product type",
+          "chip": "No product type",
+          "hint": "Set the product type on the style."
+        },
+        "gender": {
+          "label": "Gender",
+          "chip": "No gender",
+          "hint": "Set the gender on the style."
+        },
+        "colorways": {
+          "label": "Colorways",
+          "chip": "No colorways",
+          "hint": "Add at least one colorway (dropped colorways do not count)."
+        },
+        "bom": {
+          "label": "BOM",
+          "chip": "No BOM",
+          "hint": "Add the BOM lines (materials) of the style."
+        },
+        "colorwaysOnBom": {
+          "label": "Colorways on the BOM",
+          "chip": "Colorways not on BOM",
+          "hint": "Colorways that no BOM line has a colour for. The number is how many."
+        },
+        "bomColours": {
+          "label": "Fabric and trim colours",
+          "chip": "Colours missing",
+          "hint": "Fabric and trim lines without a colour for every colorway. The number is how many lines."
+        },
+        "bomDetails": {
+          "label": "BOM line details",
+          "chip": "Line details missing",
+          "hint": "BOM lines without a UOM, a material type or a content class. The number is how many lines."
+        },
+        "consumption": {
+          "label": "LCO consumption",
+          "chip": "No LCO",
+          "hint": "BOM lines without an LCO consumption. The number is how many lines."
+        },
+        "suppliers": {
+          "label": "Suppliers",
+          "chip": "No supplier",
+          "hint": "Fabric, trim and accessory lines without a supplier. The number is how many lines."
+        }
+      },
+      "stylesTitle": "Styles to finish",
+      "stylesHint": "Each tag opens the style where it is fixed.",
+      "searchPlaceholder": "Search style, model, customer",
+      "show": "Show",
+      "show_todo": "To finish",
+      "show_done": "Complete",
+      "show_all": "All",
+      "sort": "Sort",
+      "sortScore": "Least complete first",
+      "sortChanged": "Latest change first",
+      "clearFilter": "Clear filter",
+      "noneToDo": "All your styles here are complete.",
+      "noneFound": "No styles match.",
+      "changed": "Changed {{date}}",
+      "completeness": "Completeness",
+      "offered": "Offered",
+      "outcome": {
+        "Sampling": "Sampling",
+        "Ordered": "Ordered",
+        "Dropped": "Dropped"
+      },
+      "nothingMissing": "Nothing missing",
+      "showMore": "Show more ({{shown}} of {{total}})",
+      "conceptsTitle": "My concepts",
+      "conceptsHint": "Design ideas you own, latest first.",
+      "noConcepts": "No concepts yet.",
+      "conceptStatus": {
+        "Draft": "Draft",
+        "Ready": "Ready",
+        "Dropped": "Dropped"
+      },
+      "pitchesTitle": "My styles in packages",
+      "pitchesHint": "Where your styles were offered and how the client answered.",
+      "noPitches": "None of these styles is in a package yet.",
+      "noAnswer": "No answer yet",
+      "scopeTeam": "Active styles of your team ({{units}}) and the ones you created.",
+      "mineOnly": "Mine only",
+      "changedBy": "Changed {{date}} by {{name}}"
+    }
   },
   "styles": {
     "title": "Styles",
@@ -2420,7 +2554,9 @@
       "tabSimilar": "Similar",
       "techPack": "Tech pack (PDF)",
       "techPackFailed": "The tech pack could not be made. Try again.",
-      "techPackExcel": "Tech pack (Excel)"
+      "techPackExcel": "Tech pack (Excel)",
+      "viewOnlyTeam": "This style belongs to business unit {{unit}}, outside your team: you can view it but not change it.",
+      "noBusinessUnit": "(none)"
     },
     "form": {
       "newTitle": "New style",
@@ -2434,7 +2570,7 @@
       "weave": "Weave",
       "productType": "Product type",
       "gender": "Gender",
-      "businessUnit": "Business unit",
+      "businessUnit": "Business unit *",
       "leadTime": "Garment lead time (days)",
       "sketch": "Sketch",
       "photo": "Photo",
@@ -2447,7 +2583,9 @@
       "saved": "Style saved.",
       "created": "Style created.",
       "active": "Active",
-      "activeHint": "Inactive styles stay in the library and keep their history, but are marked as no longer in use."
+      "activeHint": "Inactive styles stay in the library and keep their history, but are marked as no longer in use.",
+      "businessUnitRequired": "Choose the business unit of the style.",
+      "businessUnitNotYours": "You can only use your business units: {{units}}."
     },
     "colorway": {
       "addTitle": "Add colorway",
@@ -2482,6 +2620,18 @@
       "sapSupplier": "SAP supplier",
       "sapSupplierCode": "SAP supplier code",
       "sapSupplierName": "SAP supplier name",
+      "supplier": "Supplier",
+      "noSupplier": "No supplier",
+      "suppliersLoading": "Looking up this material’s suppliers…",
+      "materialSuppliersHint": "Suppliers this material has been bought from, with country of origin.",
+      "noMaterialSuppliers": "This material has no supplier yet.",
+      "supplierCode": "Supplier code",
+      "supplierName": "Supplier name",
+      "typeSupplier": "Type another supplier",
+      "typeSupplierHint": "Type the supplier code (known suppliers are suggested and fill in the name), or a new code and its name.",
+      "pickMaterialSupplier": "Choose from this material’s {{ count }} supplier(s)",
+      "supplierFromNominated": "Filled in from other BOM lines of this material with nominated supplier {{ code }}. Save to keep it.",
+      "supplierFromOnly": "Filled in with this material’s only supplier. Save to keep it.",
       "code": "Code",
       "name": "Name",
       "colorwaysUsing": "Colorways using this line",
@@ -2845,7 +2995,10 @@
         "weave": "Weave",
         "material": "Material",
         "keywords": "Keywords",
-        "looks": "Looks"
+        "looks": "Looks",
+        "pictures": "Pictures",
+        "withPictures": "with picture or sketch",
+        "withoutPictures": "without picture or sketch"
       },
       "byRules": "Understood with the phrase list. No AI was used.",
       "sourceAi": "AI",
@@ -2863,7 +3016,8 @@
         "customer": "Customer",
         "material": "Material (on the BOM)",
         "styleNo": "Style number",
-        "look": "Look (from pictures)"
+        "look": "Look (from pictures)",
+        "pictures": "Pictures"
       },
       "looks": {
         "title": "Styles that look like this",
@@ -3305,7 +3459,8 @@
         "groupBy": "Counted by",
         "looks": "Looks",
         "look": "Looks like",
-        "guide": "Guide"
+        "guide": "Guide",
+        "pictures": "Pictures"
       },
       "col": {
         "styleNo": "Style",
@@ -3363,7 +3518,8 @@
       "view": {
         "ask": "Ask",
         "saved": "Saved questions",
-        "guides": "How-to guides"
+        "guides": "How-to guides",
+        "synonyms": "Synonyms"
       },
       "feedback": {
         "question": "Was this the right look-up? A thumbs up saves it: next time this question is answered at once, without AI.",
@@ -3375,13 +3531,14 @@
         "askAi": "Ask the AI now"
       },
       "saved": {
-        "hint": "Questions the AI answered, with the look-up and filters it chose (never the answers). Rules are answered at once without AI, on today's data. A thumbs up from any user makes a rule; a thumbs down removes it. Follow-up questions and questions with relative dates (this year, latest) are never saved.",
+        "hint": "Questions the AI answered, with the look-up and filters it chose (never the answers). Rules are answered at once without AI, on today's data. A thumbs up from any user makes a rule; a thumbs down removes it. Follow-up questions and questions with relative dates (this year, latest) are never saved. Unanswered: questions nobody could answer. Add one to a how-to guide, answer it with a look-up, or ignore it.",
         "status": "Status",
         "allStatuses": "All statuses",
         "statusName": {
           "Rule": "Rule (instant)",
           "Recorded": "Recorded (AI)",
-          "Removed": "Removed"
+          "Removed": "Removed",
+          "Unanswered": "Unanswered"
         },
         "search": "Search questions",
         "find": "Find",
@@ -3402,7 +3559,17 @@
         "previous": "Previous",
         "next": "Next",
         "deleteTitle": "Delete this saved question?",
-        "deleteMessage": "“{{ question }}” and its counts are deleted. If it is asked again, the AI answers it and it is recorded again."
+        "deleteMessage": "“{{ question }}” and its counts are deleted. If it is asked again, the AI answers it and it is recorded again.",
+        "lookUp": "Look-up",
+        "chooseLookUp": "Choose the look-up that answers it",
+        "saveAsRule": "Save as a Rule",
+        "answerWithLookUp": "Answer with a look-up",
+        "guide": "How-to guide",
+        "chooseGuide": "Add to a guide…",
+        "addToGuide": "Add to guide",
+        "addedToGuide": "Added to \"{{ title }}\": answered at once from now on.",
+        "ignore": "Ignore",
+        "usageUnanswered": "Asked {{ count }} time(s) · last asked {{ last }}"
       },
       "bubble": {
         "minimize": "Minimize",
@@ -3437,6 +3604,29 @@
           "Seed": "added with the app's guides",
           "Admin": "changed by {{ user }} on {{ date }}"
         }
+      },
+      "readAs": "Read as the library writes it: {{ words }}",
+      "synonyms": {
+        "hint": "Words people use that the library writes differently. Each one is replaced in every question before it is read, by saved questions, how-to guides, the phrase list and the AI alike; the answer says so. A plural (s, es) is matched too.",
+        "word": "Word people use",
+        "kind": "Means",
+        "value": "Library code or words",
+        "kinds": {
+          "productType": "Product type",
+          "customer": "Customer",
+          "season": "Season",
+          "businessUnit": "Business unit",
+          "gender": "Gender",
+          "weaveType": "Weave",
+          "words": "Other words"
+        },
+        "wordsPlaceholder": "e.g. package",
+        "codePlaceholder": "Pick a code",
+        "add": "Save",
+        "none": "No synonyms yet. Add the words people use, e.g. tees = product type TOP, gents = Gender MALE, line plan = package.",
+        "changed": "Changed",
+        "editHint": "Click a synonym to change what it means; saving the same word replaces it.",
+        "saved": "Synonym \"{{ word }}\" saved."
       }
     }
   },
@@ -3500,6 +3690,14 @@
     "multiSupplier": "Bought from {{ count }} sources. Check whether prices and lead times match.",
     "noSupplier": "No SAP supplier",
     "supplierUse": "{{ styles }} styles · {{ lines }} lines",
+    "supplier": "Supplier",
+    "used": "Used",
+    "countryOfOrigin": "Country of origin",
+    "countryOfOriginFor": "Country of origin for {{ supplier }}",
+    "countryNotSet": "Not set",
+    "countrySaved": "Country of origin saved",
+    "supplierCountry": "Supplier’s country: {{ country }}",
+    "countryThisMaterial": "This material only",
     "colourUse": "{{ colorways }} colorways · {{ styles }} styles",
     "noColours": "No material colours recorded.",
     "similarHint": "Materials with the same description, or the same code before the \"_\" version suffix. They may be one material entered twice; check before ordering or merging.",

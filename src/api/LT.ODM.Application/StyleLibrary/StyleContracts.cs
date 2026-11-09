@@ -3,11 +3,14 @@ using LT.ODM.Application.ConceptStudio;
 
 namespace LT.ODM.Application.StyleLibrary;
 
-/// <summary>Who may use the Styles screens (/api/v1/styles). Factory users see styles through Garment Quotation instead.</summary>
+/// <summary>
+/// Who may use the Styles screens (/api/v1/styles) and the features built on the library (packages, concepts, AI Studio).
+/// Designers create styles, so they edit like merchandisers. Factory users see styles through Garment Quotation instead.
+/// </summary>
 public static class StyleRoles
 {
-    public const string Readers = "Admin,Merchandiser,Costing,Viewer";
-    public const string Editors = "Admin,Merchandiser";
+    public const string Readers = "Admin,Merchandiser,Designer,Costing,Viewer";
+    public const string Editors = "Admin,Merchandiser,Designer";
 }
 
 /// <summary>A rule the database refused (duplicate number, changed by someone else, ...). StatusCode is 400, 404 or 409.</summary>
@@ -31,7 +34,10 @@ public sealed record StyleLookupsDto(
     IReadOnlyList<LookupItem> ContentClasses,
     IReadOnlyList<LookupItem> Uoms,
     IReadOnlyList<LookupItem> Suppliers,
-    IReadOnlyList<LookupItem> SeasonTerms);
+    IReadOnlyList<LookupItem> SeasonTerms,
+    IReadOnlyList<LookupItem> Countries,
+    // Business unit teams: the units the signed-in user may give a style (null = any); BusinessUnits stays complete for filters.
+    IReadOnlyList<string>? MyBusinessUnits = null);
 
 /// <summary>
 /// Season, BusinessUnit and ProductType may hold several codes separated by commas (AI Studio search: "jackets" covers JACKET, JACKETS,
@@ -110,7 +116,9 @@ public sealed record StyleCopyLinkDto(string Direction, int StyleId, string Styl
 
 public sealed record StyleDetailDto(
     StyleHeaderDto Style, IReadOnlyList<ColorwayDto> Colorways, IReadOnlyList<BomLineDto> BomLines, IReadOnlyList<StyleFamilyMemberDto> Family,
-    IReadOnlyList<StyleCopyLinkDto>? CopyLinks = null);
+    IReadOnlyList<StyleCopyLinkDto>? CopyLinks = null,
+    // Business unit teams: false when the signed-in user may only view this style.
+    bool CanEdit = true);
 
 /// <summary>Landing page: what is in the library, where it is concentrated, what changed last, and what is missing (Gaps).</summary>
 public sealed record StyleDashboardDto(
@@ -189,7 +197,7 @@ public static partial class StyleValidation
         e.Max("modelName", r.ModelName, 100);
         e.Max("weaveTypeCode", r.WeaveTypeCode, 8);
         e.Max("productTypeCode", r.ProductTypeCode, 40);
-        e.Max("businessUnitCode", r.BusinessUnitCode, 16);
+        e.Required("businessUnitCode", r.BusinessUnitCode, 16, "Choose the business unit of the style.");
         if (!string.IsNullOrWhiteSpace(r.Gender) && !Genders.Contains(r.Gender.Trim().ToUpperInvariant()))
             e.Add("gender", "Choose Male, Female, Unisex or Kids.");
         if (r.GarmentLeadTimeDays is < 0 or > 730) e.Add("garmentLeadTimeDays", "Lead time must be between 0 and 730 days.");

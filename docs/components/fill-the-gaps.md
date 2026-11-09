@@ -1,6 +1,6 @@
 # Fill the gaps
 
-**Where:** Style Library > Fill the gaps (`/styles/gaps`; tabs `?tab=gender|productType|seasons|lco`), and the **Fix** links on the home [Dashboard](dashboard.md). **Who:** read: Admin, Merchandiser, Costing, Viewer. Accept, dismiss, merge, fill and ask AI: Admin, Merchandiser. **AI:** only *Ask AI for the rest* (Text job); everything else is rules.
+**Where:** Style Library > Fill the gaps (`/styles/gaps`; tabs `?tab=gender|productType|seasons|lco`), and the **Fix** links on the home [Dashboard](dashboard.md). **Who:** read: Admin, Merchandiser, Designer, Costing, Viewer. Accept, dismiss, merge, fill and ask AI: Admin, Merchandiser, Designer; for users in a [business unit team](styles.md#business-unit-teams) accepting, dismissing and filling reach only the team's styles, and merging seasons is not allowed (it renames them for every style). **AI:** only *Ask AI for the rest* (Text job); everything else is rules.
 
 What the library is missing, with suggestions a person accepts. Search, filters, the BOM check's product-type comparisons, Similar styles and the dashboard all group by gender, product type and season, so styles without them are invisible to those features. **Nothing changes a style until someone accepts.**
 

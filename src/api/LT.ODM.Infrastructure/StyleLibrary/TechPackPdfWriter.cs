@@ -16,7 +16,7 @@ public sealed class TechPackPdfWriter(IStyleImageStore images) : ITechPackWriter
     /// <summary>Colorways per colour matrix table; more colorways repeat the table with the next ones.</summary>
     private const int MatrixColorways = 4;
 
-    public async Task<byte[]> WriteAsync(StyleDetailDto d, string generatedBy, DateTime generatedUtc, CancellationToken ct = default)
+    public async Task<byte[]> WriteAsync(StyleDetailDto d, string generatedBy, DateTime generatedUtc, TimeZoneInfo? timeZone = null, CancellationToken ct = default)
     {
         // Pictures first (async), drawing after (Skia is synchronous). Sketch and photo large, colorway pictures small.
         var pictures = new Dictionary<string, SKImage>();
@@ -46,7 +46,7 @@ public sealed class TechPackPdfWriter(IStyleImageStore images) : ITechPackWriter
             ColourMatrix(layout, d);
             return layout.Render(
                 $"{d.Style.StyleNo} · {d.Style.CustomerCode} {d.Style.SeasonCode} · Tech pack",
-                $"Generated {generatedUtc:yyyy-MM-dd HH:mm} UTC by {generatedBy}",
+                $"Generated {GeneratedStamp.Format(generatedUtc, timeZone)} by {generatedBy}",
                 new SKDocumentPdfMetadata
                 {
                     Title = $"Tech pack {d.Style.StyleNo}", Author = generatedBy, Creator = "LT ODM", Producer = "LT ODM",
@@ -140,6 +140,7 @@ public sealed class TechPackPdfWriter(IStyleImageStore images) : ITechPackWriter
                 new(c.Status == "DROPPED" ? "Dropped" : "In range", Muted: c.Status == "DROPPED"),
                 new(lineCount[c.ColorwayId].ToString(CultureInfo.InvariantCulture)),
             };
+            // Thumbnail of the colorway's picture when one was added; blank otherwise.
             if (withPictures) cells.Insert(0, new Cell(Image: pictures.GetValueOrDefault(c.ImageUrl ?? ""), Picture: true));
             table.Row(cells, minHeight: withPictures ? 48 : 0);
         }
@@ -148,7 +149,8 @@ public sealed class TechPackPdfWriter(IStyleImageStore images) : ITechPackWriter
 
     private static void Bom(Layout l, StyleDetailDto d)
     {
-        l.Heading("Bill of materials", d.BomLines.Count);
+        // The BOM always starts on its own page, after the header and colorways.
+        l.Heading("Bill of materials", d.BomLines.Count, newPage: true);
         if (d.BomLines.Count == 0)
         {
             l.Note("No BOM lines.");

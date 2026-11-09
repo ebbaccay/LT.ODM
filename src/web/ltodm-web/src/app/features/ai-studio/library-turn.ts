@@ -57,6 +57,9 @@ import { LibraryAssistantSession, LibraryTurnState } from './library-assistant.s
             <span hlmBadge variant="secondary"><span class="opacity-70">{{ 'ai.assistant.arg.' + arg.key | transloco }}:</span>&nbsp;{{ arg.value }}</span>
           }
         </div>
+        @if (a.readAs?.length) {
+          <p class="text-muted-foreground text-xs">{{ 'ai.assistant.readAs' | transloco: { words: a.readAs.join('; ') } }}</p>
+        }
         @if (a.understood) {
           <p class="text-muted-foreground text-xs"><span class="font-medium">{{ 'ai.assistant.understood' | transloco }}</span> {{ a.understood }}</p>
         }

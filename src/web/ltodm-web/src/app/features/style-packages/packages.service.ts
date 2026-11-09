@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { environment } from '@env/environment';
 import { Observable, firstValueFrom, map } from 'rxjs';
 import { Tone } from '@tms/shared/ui/tones';
-import { safeFileName, saveBlob } from '../style-library/style-library.service';
+import { browserTimeZone, safeFileName, saveBlob } from '../style-library/style-library.service';
 import type { ClientIssue, ClientProfile } from './client-profiles.service';
 
 // Style Packages (/api/v1/style-packages): library styles offered to a client.
@@ -400,8 +400,10 @@ export class PackagesService {
   }
 
   /** Offers another customer's style as a new style of the package's customer (know-how only) and adds it. */
-  addCopy(packageId: number, styleId: number, seasonCode: string, styleNo: string, conceptId: number | null = null): Observable<PackageCopyResult> {
-    return this.http.post<PackageCopyResult>(`${this.api}/${packageId}/items/copy`, { styleId, seasonCode, styleNo, conceptId });
+  addCopy(
+    packageId: number, styleId: number, seasonCode: string, styleNo: string, conceptId: number | null = null, businessUnitCode: string | null = null,
+  ): Observable<PackageCopyResult> {
+    return this.http.post<PackageCopyResult>(`${this.api}/${packageId}/items/copy`, { styleId, seasonCode, styleNo, conceptId, businessUnitCode });
   }
 
   /** Brand closeness of the package's copied styles (stored image search vectors; a brand's own styles are not checked). */
@@ -454,7 +456,7 @@ export class PackagesService {
 
   /** Downloads the line sheet for the client: pdf (cards with pictures) or xlsx (one row per style). */
   async downloadLineSheet(packageId: number, name: string, format: 'pdf' | 'xlsx'): Promise<void> {
-    const blob = await firstValueFrom(this.http.get(`${this.api}/${packageId}/line-sheet.${format}`, { responseType: 'blob' }));
+    const blob = await firstValueFrom(this.http.get(`${this.api}/${packageId}/line-sheet.${format}`, { responseType: 'blob', params: { tz: browserTimeZone() } }));
     saveBlob(blob, `${safeFileName(name)}_line_sheet.${format}`);
   }
 }

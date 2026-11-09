@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace LT.ODM.Api.Tests;
 
 /// <summary>ai.Guide in memory: guides, and their questions as the procedures keep them.</summary>
-public sealed class FakeGuideRepository : IGuideRepository
+public sealed class FakeGuideRepository(FakeSavedQuestionRepository? saved = null) : IGuideRepository
 {
     public List<GuideDto> Guides { get; } = [];
     public Dictionary<string, string> QuestionKeys { get; } = [];   // key -> guide code
@@ -25,7 +25,11 @@ public sealed class FakeGuideRepository : IGuideRepository
         Guides.RemoveAll(g => g.Code == guide.Code);
         Guides.Add(guide with { ChangedBy = changedBy, ChangedHow = "Admin" });
         foreach (var k in QuestionKeys.Where(k => k.Value == guide.Code).Select(k => k.Key).ToList()) QuestionKeys.Remove(k);
-        foreach (var q in questions) QuestionKeys[q.QuestionKey] = guide.Code;
+        foreach (var q in questions)
+        {
+            QuestionKeys[q.QuestionKey] = guide.Code;
+            saved?.TakeOverForGuide(q.QuestionKey, q.Question, guide.Code);
+        }
         return Task.CompletedTask;
     }
 
@@ -46,7 +50,7 @@ public sealed partial class HowToGuideTests(ApiFactory factory) : IClassFixture<
         Seasons: [new("2026-FW", "2026-FW"), new("2027-SS", "2027-SS")],
         BusinessUnits: [], ProductTypes: [new("JACKET", "JACKET")],
         WeaveTypes: [], MaterialTypes: [], ContentClasses: [], Uoms: [], Suppliers: [],
-        SeasonTerms: [new("SS", "Spring/Summer"), new("FW", "Fall/Winter")]);
+        SeasonTerms: [new("SS", "Spring/Summer"), new("FW", "Fall/Winter")], Countries: []);
 
     [GeneratedRegex(@"\('(?<code>[a-z_]+)', N'(?<title>(?:[^']|'')*)', N'(?<who>(?:[^']|'')*)',\s*N'(?<intro>(?:[^']|'')*)',\s*N'(?<steps>\[(?:[^']|'')*\])'\)", RegexOptions.Singleline)]
     private static partial Regex GuideRowRx();
@@ -158,7 +162,7 @@ public sealed partial class HowToGuideTests(ApiFactory factory) : IClassFixture<
         Assert.Equal(["step", "what"], a.Table!.Columns);
         Assert.Equal("/packages?new=1&customer=ADI&season=2027-SS", a.Table.RowLinks[0]);
         Assert.Equal("/packages?new=1&customer=ADI&season=2027-SS", Assert.Single(a.Links).Url);
-        Assert.StartsWith("Create a style package (Admin, Merchandiser):", a.Answer);
+        Assert.StartsWith("Create a style package (Admin, Merchandiser, Designer):", a.Answer);
 
         a = await assistant.AskAsync("how do I create a package", []);
         Assert.Equal("/packages?new=1", a.Table!.RowLinks[0]);

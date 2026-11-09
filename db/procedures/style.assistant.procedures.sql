@@ -27,7 +27,8 @@ CREATE OR ALTER PROCEDURE style.usp_Style_Counts
     @Gender           nvarchar(16)  = NULL,
     @Material         nvarchar(100) = NULL,   -- word(s) in a BOM line's material code or description; all on the same line
     @Looks            nvarchar(400) = NULL,   -- picture tags 'attribute:value' separated by commas; a style needs all
-    @IsActive         bit           = NULL
+    @IsActive         bit           = NULL,
+    @HasPicture       bit           = NULL    -- 1 = has a picture or sketch, 0 = has neither, NULL = all (as usp_Style_List)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -70,6 +71,7 @@ BEGIN
           AND (@Looks IS NULL OR NOT EXISTS (SELECT 1 FROM @lookTags l WHERE NOT EXISTS (
                    SELECT 1 FROM style.fn_StyleTags() t WHERE t.StyleId = s.StyleId AND t.Attribute = l.Attribute AND t.Value = l.Value)))
           AND (@IsActive IS NULL OR s.IsActive = @IsActive)
+          AND (@HasPicture IS NULL OR @HasPicture = IIF(s.ImageUrl IS NULL AND s.SketchUrl IS NULL, 0, 1))
           AND (@Material IS NULL OR EXISTS (
                    SELECT 1 FROM style.BomLine b JOIN mat.Material mt ON mt.MaterialId = b.MaterialId
                    WHERE b.StyleId = s.StyleId

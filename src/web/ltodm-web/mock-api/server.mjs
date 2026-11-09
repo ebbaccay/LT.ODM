@@ -5,16 +5,19 @@
 //   npm run mock:api          the mock alone (http://127.0.0.1:4300), e.g. with `ng serve --proxy-config proxy.mock.json`
 //
 // Who you are signed in as (set before starting):
-//   MOCK_ROLES=Admin            comma-separated roles: Admin, Merchandiser, Factory, Costing, Viewer
+//   MOCK_ROLES=Admin            comma-separated roles: Admin, Merchandiser, Designer, Factory, Costing, Viewer
+//                               (Designer opens on the home designer dashboard)
 //   MOCK_GROUP=FTY MOCK_LOCATION=SH02   sign in as a factory user of factory SH02
 //
 // What is mocked: sign-in (any user name and password work), menu and Settings, the TMS procedure hub (/hubs/sp)
-// for the ported screens, Concept Studio AI brief + image upload, Cost Optimization AI ideas, Market Trends AI analysis, SBU product photos, notifications (empty).
+// for the ported screens, Concept Studio AI brief + image upload, Cost Optimization AI ideas, Market Trends AI analysis, SBU product photos, notifications (empty),
+// the home designer dashboard.
 // Changes are kept in memory and reset when the mock restarts.
 import fs from 'node:fs';
 import http from 'node:http';
 import { WebSocketServer } from 'ws';
 import { handleAdmin } from './data/admin.mjs';
+import { handleDashboards } from './data/dashboards.mjs';
 import { cbFixtures } from './data/collection-builder.mjs';
 import { csFixtures, handleConceptStudio, handleImages } from './data/concept-studio.mjs';
 import { coFixtures, handleCostOptimization } from './data/cost-optimization.mjs';
@@ -158,6 +161,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (p === '/api/v1/client-config') return json(200, { agGridLicenseKey: process.env.MOCK_AGGRID_KEY ?? '' });
   if (p === '/health') return json(200, { status: 'Healthy', checks: [{ name: 'sqlserver', status: 'Healthy' }] });
+  if (p.startsWith('/api/v1/dashboards/') && handleDashboards(req, url, json, user.roles)) return;
   if (p.startsWith('/api/v1/navigation') || p.startsWith('/api/v1/admin/')) return void handleAdmin(req, url, parseJson(raw), json, user.roles);
   if (p === '/api/v1/cost-optimization/suggestions') return void handleCostOptimization(parseJson(raw), json);
   if (p === '/api/v1/market-trends/analysis') return void handleMarketTrends(parseJson(raw), json);

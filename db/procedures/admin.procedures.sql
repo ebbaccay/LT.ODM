@@ -154,20 +154,24 @@ CREATE OR ALTER PROCEDURE auth.usp_Role_List
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT r.RoleId, r.Name, r.DisplayName, r.Description,
+    SELECT r.RoleId, r.Name, r.DisplayName, r.Description, r.DashboardKey,
            UserCount = (SELECT COUNT(*) FROM auth.UserRoles ur WHERE ur.RoleId = r.RoleId)
     FROM auth.Roles r
     ORDER BY r.Name;
 END
 GO
 
-/* Insert (@RoleId = 0) or update. The name of an existing role cannot change (it is used in tokens and menu rules). */
+/*
+    Insert (@RoleId = 0) or update. The name of an existing role cannot change (it is used in tokens and menu rules).
+    @DashboardKey: the home page dashboard for the role's users (NULL = the library overview); the API checks the key.
+*/
 CREATE OR ALTER PROCEDURE auth.usp_Role_Save
     @RoleId         int,
     @Name           nvarchar(64),
     @DisplayName    nvarchar(128),
     @Description    nvarchar(256),
-    @ChangedBy      nvarchar(64)
+    @ChangedBy      nvarchar(64),
+    @DashboardKey   varchar(32) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -176,18 +180,18 @@ BEGIN
     BEGIN TRANSACTION;
     IF @RoleId > 0
     BEGIN
-        UPDATE auth.Roles SET DisplayName = @DisplayName, Description = @Description WHERE RoleId = @RoleId;
+        UPDATE auth.Roles SET DisplayName = @DisplayName, Description = @Description, DashboardKey = @DashboardKey WHERE RoleId = @RoleId;
         IF @@ROWCOUNT = 0 THROW 50030, 'Role not found.', 1;
     END
     ELSE
     BEGIN
         IF EXISTS (SELECT 1 FROM auth.Roles WHERE Name = @Name)
             THROW 50031, 'A role with this name already exists.', 1;
-        INSERT auth.Roles (Name, DisplayName, Description) VALUES (@Name, @DisplayName, @Description);
+        INSERT auth.Roles (Name, DisplayName, Description, DashboardKey) VALUES (@Name, @DisplayName, @Description, @DashboardKey);
         SET @RoleId = CAST(SCOPE_IDENTITY() AS int);
     END
 
-    DECLARE @details nvarchar(max) = (SELECT role = @Name FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    DECLARE @details nvarchar(max) = (SELECT role = @Name, dashboard = @DashboardKey FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
     EXEC auth.usp_Audit_Insert NULL, @ChangedBy, 'RoleChanged', NULL, NULL, @details;
     COMMIT TRANSACTION;
 
@@ -225,7 +229,10 @@ BEGIN
            u.LockoutEndUtc,
            Roles = (SELECT STRING_AGG(r.Name, N',') WITHIN GROUP (ORDER BY r.Name)
                     FROM auth.UserRoles ur JOIN auth.Roles r ON r.RoleId = ur.RoleId
-                    WHERE ur.UserId = u.UserId)
+                    WHERE ur.UserId = u.UserId),
+           -- business unit teams (table in tables\style.tables.sql; none = may change every style)
+           BusinessUnits = (SELECT STRING_AGG(ub.BusinessUnitCode, N',') WITHIN GROUP (ORDER BY ub.BusinessUnitCode)
+                            FROM auth.UserBusinessUnit ub WHERE ub.UserId = u.UserId)
     FROM auth.Users u
     ORDER BY u.UserName;
 END
@@ -235,12 +242,15 @@ GO
     Replaces a user's roles and TMS attributes (user group / location) and audits the change.
     Takes effect at the user's next token refresh (within 15 minutes) or sign-in.
 */
+/* @DisplayName: the user's name (first and last) as shown in the app; NULL or blank keeps the current one. */
 CREATE OR ALTER PROCEDURE auth.usp_User_SetAccess
-    @UserId     int,
-    @RoleNames  nvarchar(1000),
-    @UserGroup  nvarchar(16)    = NULL,
-    @Location   nvarchar(32)    = NULL,
-    @ChangedBy  nvarchar(64)
+    @UserId      int,
+    @RoleNames   nvarchar(1000),
+    @UserGroup   nvarchar(16)    = NULL,
+    @Location    nvarchar(32)    = NULL,
+    @ChangedBy   nvarchar(64),
+    @DisplayName nvarchar(128)   = NULL,
+    @BusinessUnits nvarchar(max) = NULL   -- comma-separated codes; NULL = unchanged, '' = none (not limited)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -249,7 +259,8 @@ BEGIN
     BEGIN TRANSACTION;
 
     UPDATE auth.Users
-    SET UserGroup = NULLIF(TRIM(@UserGroup), N''), Location = NULLIF(TRIM(@Location), N'')
+    SET UserGroup = NULLIF(TRIM(@UserGroup), N''), Location = NULLIF(TRIM(@Location), N''),
+        DisplayName = COALESCE(NULLIF(TRIM(@DisplayName), N''), DisplayName)
     WHERE UserId = @UserId;
     IF @@ROWCOUNT = 0 THROW 50040, 'User not found.', 1;
 
@@ -259,8 +270,18 @@ BEGIN
     FROM auth.Roles r
     WHERE r.Name IN (SELECT TRIM(value) FROM STRING_SPLIT(@RoleNames, N',') WHERE TRIM(value) <> N'');
 
+    -- Business unit teams (table in tables\style.tables.sql): unknown codes are ignored.
+    IF @BusinessUnits IS NOT NULL
+    BEGIN
+        DELETE auth.UserBusinessUnit WHERE UserId = @UserId;
+        INSERT auth.UserBusinessUnit (UserId, BusinessUnitCode)
+        SELECT DISTINCT @UserId, bu.BusinessUnitCode
+        FROM STRING_SPLIT(@BusinessUnits, N',') v
+        JOIN ref.BusinessUnit bu ON bu.BusinessUnitCode = TRIM(v.value);
+    END
+
     DECLARE @details nvarchar(max) =
-        (SELECT roles = @RoleNames, userGroup = @UserGroup, location = @Location, changedBy = @ChangedBy
+        (SELECT roles = @RoleNames, userGroup = @UserGroup, location = @Location, businessUnits = @BusinessUnits, displayName = NULLIF(TRIM(@DisplayName), N''), changedBy = @ChangedBy
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
     EXEC auth.usp_Audit_Insert @UserId, NULL, 'AccessChanged', NULL, NULL, @details;
 
@@ -275,6 +296,7 @@ GO
       - without @TokenHash: @PasswordHash is a temporary password the administrator chose and passes on to the user;
         they must change it at first sign-in (MustChangePassword), and it is kept in the history so it cannot be reused.
     Unknown role names are refused (50043) rather than silently dropped.
+    @BusinessUnits: comma-separated codes of the user's team (auth.UserBusinessUnit); NULL or '' = none (not limited).
 */
 CREATE OR ALTER PROCEDURE auth.usp_User_Invite
     @UserName       nvarchar(64),
@@ -286,7 +308,8 @@ CREATE OR ALTER PROCEDURE auth.usp_User_Invite
     @Location       nvarchar(32)    = NULL,
     @TokenHash      binary(32)      = NULL,
     @ExpiresUtc     datetime2(3)    = NULL,
-    @CreatedBy      nvarchar(64)
+    @CreatedBy      nvarchar(64),
+    @BusinessUnits  nvarchar(max)   = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -315,6 +338,12 @@ BEGIN
     INSERT auth.UserRoles (UserId, RoleId)
     SELECT @userId, r.RoleId FROM auth.Roles r JOIN @roles x ON x.Name = r.Name;
 
+    -- Business unit teams (table in tables\style.tables.sql): unknown codes are ignored, as in usp_User_SetAccess.
+    INSERT auth.UserBusinessUnit (UserId, BusinessUnitCode)
+    SELECT DISTINCT @userId, bu.BusinessUnitCode
+    FROM STRING_SPLIT(@BusinessUnits, N',') v
+    JOIN ref.BusinessUnit bu ON bu.BusinessUnitCode = TRIM(v.value);
+
     IF @temporary = 1
         INSERT auth.PasswordHistory (UserId, PasswordHash) VALUES (@userId, @PasswordHash);
     ELSE
@@ -322,7 +351,7 @@ BEGIN
         VALUES (@userId, @TokenHash, @ExpiresUtc, NULL);
 
     DECLARE @details nvarchar(max) =
-        (SELECT roles = @RoleNames, userGroup = @UserGroup, location = @Location, createdBy = @CreatedBy,
+        (SELECT roles = @RoleNames, userGroup = @UserGroup, location = @Location, businessUnits = @BusinessUnits, createdBy = @CreatedBy,
                 temporaryPassword = CAST(@temporary AS bit)
          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
     EXEC auth.usp_Audit_Insert @userId, @UserName, 'UserCreated', NULL, NULL, @details;

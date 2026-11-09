@@ -1,13 +1,16 @@
 # Library assistant
 
-**Where:** AI Studio > Library assistant (`/ai/assistant`). **Who:** Admin, Merchandiser, Costing, Viewer (the Style Library readers). **AI service:** the Text job in Settings > AI connections (for example qwen2.5:7b on the in-house Ollama server). What is sent: [Data sent to AI services](../ai/data-sent.md#ai-studio--library-assistant).
+**Where:** AI Studio > Library assistant (`/ai/assistant`). **Who:** Admin, Merchandiser, Designer, Costing, Viewer (the Style Library readers). **AI service:** the Text job in Settings > AI connections (for example qwen2.5:7b on the in-house Ollama server). What is sent: [Data sent to AI services](../ai/data-sent.md#ai-studio--library-assistant).
 
 Ask questions about the library in your own words: *"How many jackets per season?"*, *"What fabric does S2808MR0000 use?"*, *"Who are our main suppliers for SKE?"*. Answers come from the database. Every answer shows how it was found, the rows behind it, and links to the styles, materials or screens. Questions about how to do something in LT ODM (*"How do I create a style package for ADI?"*) get a [how-to guide](#how-to-guides-fixed-processes): numbered steps with links to the screens.
 
 ## How a question is answered
 
 ```
-question ──► 1. saved question (Rule) for the same question, or a question pattern it fits? ──► its look-up on today's data, no AI
+question ──► 0. synonyms replaced ("tees" → TOP, "gents" → men): every step below reads the replaced question
+                    │
+                    ▼
+             1. saved question (Rule) for the same question, or a question pattern it fits? ──► its look-up on today's data, no AI
                     │ no                                                                         (a how-to guide's question: its steps)
                     ▼
              1a. "how do I ...?" whose words clearly point to one how-to guide? ──► its steps, no AI
@@ -67,7 +70,35 @@ Material words (*recycled, zipper*) and picture looks (*navy, hooded*) stay part
 
 **Adding or changing a pattern:** the `QuestionKey` must be the key `QuestionPatterns` computes for the wording (typed with sample codes, `jackets` for `{productType}`). `LibraryAssistantSeedTests` checks every row, its tool and its arguments.
 
-**Admins: AI Studio > Library assistant > Saved questions.** Each question with its look-up, filters, status (*Rule (instant)*, *Recorded (AI)*, *Removed*), how often the AI answered it, how often it was answered at once, and who rated or changed it. Admins can make or remove a Rule, **correct the filters** (codes not on the library's lists are dropped), and delete a question.
+**Admins: AI Studio > Library assistant > Saved questions.** Each question with its look-up, filters, status (*Unanswered*, *Rule (instant)*, *Recorded (AI)*, *Removed*), how often the AI answered it, how often it was answered at once, and who rated or changed it. Admins can make or remove a Rule, **correct the look-up and filters** (codes not on the library's lists are dropped; filters the chosen look-up does not take are left out), **add the question to a how-to guide**, and delete a question.
+
+### Unanswered questions: what to teach next
+
+A question nobody could answer is kept with status **Unanswered** (look-up `none`, no answer, no user name): the AI found no look-up for it, or AI was off and the phrase list understood none of it. Asked again, it is counted (*Asked N times*). Follow-ups are not kept (they depend on the earlier question). A question whose AI call failed (AI server down) is not kept either: that is an outage, not a gap.
+
+Filter the list by **Unanswered** (most asked first) and for each one:
+
+- **Add to guide**: pick a how-to guide; the question becomes one of the guide's questions (customer and season words taken out) and leaves the list. Asked again, the guide answers it at once.
+- **Answer with a look-up**: choose the look-up and its filters, **Save as a Rule**: answered at once from then on, on today's data.
+- **Ignore**: status *Removed*. Asked again it is counted but stays ignored.
+- **Delete**: gone; asked again it comes back as Unanswered.
+
+When the AI later answers an unanswered question with a look-up (e.g. after a new tool), it becomes *Recorded (AI)* like any other. The *Recorded (AI)* list, most asked first, is the other half of the review: a thumbs up or **Make rule** answers those at once.
+
+### Synonyms: the words people use
+
+**AI Studio > Library assistant > Synonyms** (Admin; table `ai.Synonym`) lists words people use that the library writes differently. Before anything reads a question, each synonym in it is replaced (whole words, a plural *s* / *es* too, longest first), so saved questions, question patterns, how-to guides, the phrase list and the AI all read it the same way. The answer says so: *Read as the library writes it: tees → 001 (Shirt); gents → MALE*.
+
+| Means | Value | Example | Read as |
+|---|---|---|---|
+| Product type | one product type code | *tees* = `086` | that one product type |
+| Other words | any words | *puffer* = `jackets`, *line plan* = `package` | the words, read as usual: *jackets* = every jacket product type |
+| Customer, Season, Business unit, Weave | a code of that list | *adidas originals* = `ADI` | that code |
+| Gender | MALE, FEMALE, KIDS, UNISEX | *gents* = MALE | *men* |
+
+To mean a whole garment group (all jackets), use **Other words** with the plural (*jackets*): the phrase list then finds every product type whose name ends with it. **Product type** points to exactly one code. Codes are checked against the library's lists when saved; a word cannot mean itself. Saving a word that is already listed changes what it means; click a row to load it into the form.
+
+A how-to guide's questions are read through the synonyms too when the guide is saved. A synonym added later that changes a word of a seeded question pattern can stop that pattern matching (the question then goes on to the next step); check the Saved questions list after adding broad synonyms.
 
 ## How-to guides: fixed processes
 
@@ -85,14 +116,14 @@ Some questions are not about data but about how to do something, and the answer 
 
 | Code | Guide | Who |
 |---|---|---|
-| `create_package` | Create a style package | Admin, Merchandiser |
-| `add_styles_to_package` | Add styles to a package | Admin, Merchandiser |
-| `share_package` | Share a package with a client | Admin, Merchandiser |
-| `client_profile` | Set up a client profile | Admin, Merchandiser |
-| `what_to_offer` | Find what to offer a client | Everyone; adding: Admin, Merchandiser |
-| `create_concept` | Work up a concept (LT design idea) | Admin, Merchandiser |
-| `reuse_style` | Reuse a style in another season | Admin, Merchandiser |
-| `new_style` | Add a style | Admin, Merchandiser |
+| `create_package` | Create a style package | Admin, Merchandiser, Designer |
+| `add_styles_to_package` | Add styles to a package | Admin, Merchandiser, Designer |
+| `share_package` | Share a package with a client | Admin, Merchandiser, Designer |
+| `client_profile` | Set up a client profile | Admin, Merchandiser, Designer |
+| `what_to_offer` | Find what to offer a client | Everyone; adding: Admin, Merchandiser, Designer |
+| `create_concept` | Work up a concept (LT design idea) | Admin, Merchandiser, Designer |
+| `reuse_style` | Reuse a style in another season | Admin, Merchandiser, Designer |
+| `new_style` | Add a style | Admin, Merchandiser, Designer |
 | `compare_styles` | Compare two styles | Everyone |
 | `import_styles` | Import styles from Excel | Admin |
 | `bom_check` | Check BOMs before costing | Everyone |
@@ -121,8 +152,10 @@ The conversation belongs to the browser tab, not to the page:
 
 | Tool | Answers | Reads (procedures) | Arguments |
 |---|---|---|---|
-| `style_search` Find styles | which styles / do we have / how many (a total) | `style.usp_Style_List` | customer, seasons, product types, business units, gender, weave, material, looks (picture tags), keywords |
+| `style_search` Find styles | which styles / do we have / how many (a total) | `style.usp_Style_List` | customer, seasons, product types, business units, gender, weave, material, looks (picture tags), keywords, pictures (with / without a picture or sketch) |
 | `style_counts` Count styles | how many per season / customer / product type / business unit / gender / weave | `style.usp_Style_Counts` | the same + groupBy |
+
+**With / without pictures.** The phrase list reads *with images*, *pictures only*, *has a sketch* (only styles with a picture or sketch) and *without pictures*, *no photo* (only styles with neither), so *"product tees with images"* is answered at once without AI. Without such words, answers count every style, with or without pictures, and their **Open in Styles** link opens the list with *pictures=all* so it shows the same styles. A question pattern takes the words out like the other filters (*how many styles per season with pictures* fits *how many styles per season*), but a how-to guide's question keeps them (*how do I search by picture*).
 | `style_detail` Style details and BOM | what fabric, trims, suppliers a style uses | `style.usp_Style_List`, `style.usp_Style_Get` | styleNo |
 | `compare_styles` Compare two styles | what changed between two styles (or since the style it was reused from) | `style.usp_Style_Get` ×2 (Change summary rules) | styleNo, fromStyleNo |
 | `library_totals` Library totals | how big is the library; styles per season and customer | `style.usp_Dashboard_Get` | - |
@@ -186,5 +219,6 @@ Good candidates once the data exists:
 | Endpoint | `LibraryAssistantController` (`GET /api/v1/ai/library-assistant/tools`, `POST /api/v1/ai/library-assistant/ask`, AI rate limit) |
 | SQL | `db/procedures/style.assistant.procedures.sql` (`style.usp_Style_Counts`); `db/tables/ai.tables.sql` (`ai.SavedQuestion`) and `db/procedures/ai.assistant.procedures.sql` (saved questions); the rest are the Styles, Materials and BOM check procedures |
 | Saved questions | `SavedQuestions.cs` (contracts), `QuestionPatterns.cs` (pattern keys, slots, arguments), seed `db/seed/ai.saved-questions.sql`, `src/api/LT.ODM.Infrastructure/StyleLibrary/SavedQuestionRepository.cs`; endpoints `GET popular`, `POST feedback` (readers), `GET/PUT/DELETE saved` (Admin) |
+| Unanswered questions, synonyms | `SavedQuestions.cs` (status `Unanswered`), `Synonyms.cs` (kinds, checks, replacing), `src/api/LT.ODM.Infrastructure/StyleLibrary/SynonymRepository.cs`; table `ai.Synonym`, procedures `ai.usp_SavedQuestion_RecordUnanswered / _Get`, `ai.usp_Synonym_List / _Save / _Delete`; endpoints `POST saved/{id}/to-guide`, `GET/PUT synonyms`, `DELETE synonyms/{id}` (Admin); screen `library-synonyms.ts`; tests `AssistantReviewTests.cs` |
 | How-to guides | `HowToGuides.cs` (contracts, how-to wording, matching by words, link filling), `Tools/HowToTool.cs`, `src/api/LT.ODM.Infrastructure/StyleLibrary/GuideRepository.cs`; table `ai.Guide` in `db/tables/ai.tables.sql`, procedures `ai.usp_Guide_List / _Save / _Delete` in `db/procedures/ai.assistant.procedures.sql`, seed `db/seed/ai.guides.sql` (plain ASCII) and the `how_to` rows of `db/seed/ai.saved-questions.sql`; endpoints `GET guides` (readers), `PUT/DELETE guides/{code}` (Admin); tests `HowToGuideTests.cs` |
 | Screen | `src/web/ltodm-web/src/app/features/ai-studio/library-assistant.ts` (page), `library-assistant.session.ts` (the conversation, app-wide), `library-turn.ts` (one question and answer), `library-assistant-bubble.ts` (chat bubble, in the layout), `library-saved-questions.ts` (Admin list), `library-guides.ts` (Admin: how-to guides) |

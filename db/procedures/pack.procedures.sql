@@ -399,7 +399,8 @@ CREATE OR ALTER PROCEDURE pack.usp_PackageItem_AddCopy
     @SeasonCode nvarchar(16),
     @StyleNo    nvarchar(100),
     @ConceptId  int          = NULL,
-    @ChangedBy  nvarchar(64)
+    @ChangedBy  nvarchar(64),
+    @BusinessUnitCode nvarchar(16) = NULL   -- NULL = the copied style's
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -410,6 +411,8 @@ BEGIN
     IF @StyleNo IS NULL THROW 50400, 'Give the new style its own style number.', 1;
     IF @ConceptId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM concept.Concept WHERE ConceptId = @ConceptId)
         THROW 50404, 'This concept no longer exists.', 1;
+    SET @BusinessUnitCode = COALESCE(NULLIF(LTRIM(RTRIM(@BusinessUnitCode)), N''), (SELECT BusinessUnitCode FROM style.Style WHERE StyleId = @StyleId));
+    EXEC style.usp_AssertBusinessUnit @ChangedBy, @BusinessUnitCode;
 
     BEGIN TRANSACTION;
     DECLARE @customerId int = (SELECT CustomerId FROM pack.Package WITH (UPDLOCK) WHERE PackageId = @PackageId);
@@ -424,7 +427,7 @@ BEGIN
     INSERT style.Style (CustomerId, SeasonCode, StyleNo, Description, WeaveTypeCode, ProductTypeCode, Gender, GarmentLeadTimeDays,
                         BusinessUnitCode, OriginStyleId, CreatedBy)
     SELECT @customerId, @SeasonCode, @StyleNo, Description, WeaveTypeCode, ProductTypeCode, Gender, GarmentLeadTimeDays,
-           BusinessUnitCode, @StyleId, @ChangedBy
+           @BusinessUnitCode, @StyleId, @ChangedBy
     FROM style.Style WHERE StyleId = @StyleId;
     DECLARE @newId int = CAST(SCOPE_IDENTITY() AS int);
 

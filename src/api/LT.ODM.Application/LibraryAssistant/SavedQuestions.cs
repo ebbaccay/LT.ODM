@@ -14,7 +14,11 @@ public static class SavedQuestionStatuses
     public const string Rule = "Rule";
     /// <summary>Taken out (thumbs down or an Admin); the AI is used.</summary>
     public const string Removed = "Removed";
-    public static readonly string[] All = [Recorded, Rule, Removed];
+    /// <summary>Nobody could answer it (the AI found no look-up, or AI was off and the phrase list understood nothing): for Admins to review.</summary>
+    public const string Unanswered = "Unanswered";
+    public static readonly string[] All = [Recorded, Rule, Removed, Unanswered];
+    /// <summary>What an Admin can set (Unanswered is set only by the assistant).</summary>
+    public static readonly string[] Settable = [Recorded, Rule, Removed];
 }
 
 /// <summary>Who may see the saved-question list and change it.</summary>
@@ -38,8 +42,11 @@ public sealed record SavedQuestionDto(
 /// <summary>Helpful: thumbs up (make it a Rule with the tool and arguments shown) or down (remove it).</summary>
 public sealed record LibraryFeedbackRequest(int SavedQuestionId, bool Helpful, string? Tool, IReadOnlyDictionary<string, string>? Arguments);
 
-/// <summary>Admin: the status and corrected arguments (argument name -> text, as shown with answers).</summary>
-public sealed record SaveSavedQuestionRequest(string? Status, IReadOnlyDictionary<string, string>? Arguments);
+/// <summary>Admin: the status and corrected arguments (argument name -> text, as shown with answers); Tool: another look-up (null = keep).</summary>
+public sealed record SaveSavedQuestionRequest(string? Status, IReadOnlyDictionary<string, string>? Arguments, string? Tool = null);
+
+/// <summary>Admin: an unanswered (or any) question becomes one of a how-to guide's questions.</summary>
+public sealed record SavedQuestionToGuideRequest(string? Guide);
 
 /// <summary>ai.usp_SavedQuestion_* (db/procedures/ai.assistant.procedures.sql). 50400 / 50404 -> StyleRuleException.</summary>
 public interface ISavedQuestionRepository
@@ -58,7 +65,13 @@ public interface ISavedQuestionRepository
 
     Task<IReadOnlyList<string>> PopularAsync(int take, CancellationToken ct = default);
 
-    Task SaveAsync(int savedQuestionId, string status, IReadOnlyDictionary<string, string> arguments, string changedBy, CancellationToken ct = default);
+    /// <summary>tool null = keep the saved look-up.</summary>
+    Task SaveAsync(int savedQuestionId, string status, IReadOnlyDictionary<string, string> arguments, string changedBy, string? tool = null, CancellationToken ct = default);
+
+    /// <summary>A question nobody could answer: added as Unanswered, or counted again (an Admin's Ignore stays).</summary>
+    Task RecordUnansweredAsync(string questionKey, string question, CancellationToken ct = default);
+
+    Task<SavedQuestionDto?> GetAsync(int savedQuestionId, CancellationToken ct = default);
 
     Task DeleteAsync(int savedQuestionId, CancellationToken ct = default);
 }

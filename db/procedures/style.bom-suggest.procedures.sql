@@ -298,6 +298,7 @@ CREATE OR ALTER PROCEDURE style.usp_BomLineColour_Fill
 AS
 BEGIN
     SET NOCOUNT ON;
+    EXEC style.usp_AssertCanEdit @ChangedBy, @StyleId = @StyleId;
     SET XACT_ABORT ON;
     DECLARE @filled TABLE (BomLineId int NOT NULL);
 

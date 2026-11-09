@@ -6,7 +6,7 @@ import { AiJobsService } from '../../core/ai/ai-jobs.service';
 import { Paged, StyleListItem } from '../style-library/style-library.service';
 
 // AI Studio (/api/v1/ai): smart search, change summary, BOM check and style renders on the Style Library.
-// Reading: Admin, Merchandiser, Costing, Viewer. Making renders: Admin, Merchandiser (the API checks both).
+// Reading: Admin, Merchandiser, Designer, Costing, Viewer. Making renders: Admin, Merchandiser, Designer (the API checks both).
 
 /** Where AI requests go. leavesNetwork: the provider is a cloud service, so the data sent leaves LT. */
 /** aiOff: all AI turned off. jobOff: this job turned off. cloudBlocked: the job's service is outside LT and cloud AI is not allowed. */
@@ -133,6 +133,8 @@ export interface StyleSearchFilters {
   gender: string | null;
   /** Picture tags (hood:hooded, colour:navy). */
   looks?: string[] | null;
+  /** true = only styles with a picture or sketch ("with images"), false = only styles without, null = all. */
+  hasPicture?: boolean | null;
 }
 
 export interface StyleSearchResult {

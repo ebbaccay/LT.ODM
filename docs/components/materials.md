@@ -1,6 +1,6 @@
 # Materials
 
-**Where:** Style Library > Materials (`/materials`, `/materials/:id`; the old `/boms` address redirects here). **Who:** Admin, Merchandiser, Costing, Viewer. The Description reader's reading and reviewing: Admin, Merchandiser.
+**Where:** Style Library > Materials (`/materials`, `/materials/:id`; the old `/boms` address redirects here). **Who:** Admin, Merchandiser, Designer, Costing, Viewer. The Description reader's reading and reviewing: Admin, Merchandiser, Designer.
 
 The BOM seen by material instead of by style.
 
@@ -23,7 +23,7 @@ Tabs:
 - **Pick styles for a package** opens the Styles list filtered to this material, with picking for a [style package](style-packages.md) turned on (readers who cannot edit see **Styles using it**: the same list without picking).
 - **Where used**: every style and BOM line (newest season first, up to 1,000), with consumption, supplier, colours. A warning icon marks consumption under 0.6× or over 1.6× the usual (median) for that product type; **Unusual consumption** filters to those.
 - **Consumption**: per product type, the range across styles (lowest, middle half, median, highest). Use it to sanity-check a new BOM.
-- **Suppliers**: share of styles per supplier; flags materials bought from several sources.
+- **Suppliers**: share of styles per supplier; flags materials bought from several sources. **Country of origin** per supplier (added 2026-11-05) comes from the supplier master (Settings > Reference lists > SAP suppliers), so it is set once per supplier, not per material. When one material comes from elsewhere (e.g. another mill of the supplier), editors (Admin, Merchandiser, Designer) pick another country on that row: it is kept for this material only (`mat.MaterialSupplier`, shown as *This material only*), and picking *Supplier's country* again removes it. Readers see the country that applies. The BOM line form shows it next to each of the material's suppliers. Countries are ISO two-letter codes in `ref.Country` (about 70 garment sourcing countries; add more there).
 - **Colours**: colours used, with colorway and style counts.
 - **Possibly the same**: materials with the same description, or the same code before the `_` version suffix.
 - **Specification (AI reading)**: the Description reader's result, if any.

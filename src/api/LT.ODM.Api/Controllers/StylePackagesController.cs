@@ -43,14 +43,14 @@ public sealed class StylePackagesController(IPackageRepository packages, IShareT
     /// note for the client only; internal notes and styles of another brand are left out.
     /// </summary>
     [HttpGet("{packageId:int}/line-sheet.{format}")]
-    public async Task<IActionResult> LineSheet(int packageId, string format, [FromServices] IPackageLineSheetWriter writer, CancellationToken ct)
+    public async Task<IActionResult> LineSheet(int packageId, string format, [FromServices] IPackageLineSheetWriter writer, string? tz, CancellationToken ct)
     {
         if (format is not ("pdf" or "xlsx")) return NotFound();
         if (await packages.GetAsync(packageId, ct) is not { } package) return NotFound();
         var name = $"{FileNameSafe(package.Package.Name)}_line_sheet";
         return format == "pdf"
-            ? File(await writer.WritePdfAsync(package, CurrentUserName, DateTime.UtcNow, ct), "application/pdf", name + ".pdf")
-            : File(await writer.WriteExcelAsync(package, CurrentUserName, DateTime.UtcNow, ct), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name + ".xlsx");
+            ? File(await writer.WritePdfAsync(package, CurrentUserName, DateTime.UtcNow, GeneratedStamp.Find(tz), ct), "application/pdf", name + ".pdf")
+            : File(await writer.WriteExcelAsync(package, CurrentUserName, DateTime.UtcNow, GeneratedStamp.Find(tz), ct), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name + ".xlsx");
     }
 
     /// <summary>
@@ -235,7 +235,9 @@ public sealed class StylePackagesController(IPackageRepository packages, IShareT
         else if (season.Length > 16) errors["seasonCode"] = ["A season code has at most 16 characters."];
         if (string.IsNullOrEmpty(styleNo)) errors["styleNo"] = ["Give the new style its own style number."];
         else if (styleNo.Length > 100) errors["styleNo"] = ["A style number has at most 100 characters."];
-        return Run(errors, async () => Ok(await packages.AddCopyAsync(packageId, request.StyleId, season!, styleNo!, CurrentUserName, request.ConceptId, ct)));
+        var unit = string.IsNullOrWhiteSpace(request.BusinessUnitCode) ? null : request.BusinessUnitCode.Trim();
+        if (unit is { Length: > 16 }) errors["businessUnitCode"] = ["A business unit code has at most 16 characters."];
+        return Run(errors, async () => Ok(await packages.AddCopyAsync(packageId, request.StyleId, season!, styleNo!, CurrentUserName, request.ConceptId, unit, ct)));
     }
 
     /// <summary>Notes and offered colourways of one style in the package.</summary>

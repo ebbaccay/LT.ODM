@@ -29,7 +29,7 @@ public interface IConceptRepository
 
     /// <summary>An LT design as a new style of the concept's customer (concept.usp_Concept_DevelopStyle); returns its id and SameBrandBase.</summary>
     Task<(int StyleId, bool? SameBrandBase)> DevelopStyleAsync(int conceptId, string seasonCode, string styleNo, int? baseStyleId, string? sketchUrl,
-        string changedBy, CancellationToken ct = default);
+        string changedBy, string? businessUnitCode = null, CancellationToken ct = default);
 
     // ----- Pictures -----
 

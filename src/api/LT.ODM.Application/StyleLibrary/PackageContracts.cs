@@ -93,7 +93,8 @@ public sealed record PackageItemIdsRequest(IReadOnlyList<int>? PackageItemIds);
 /// Another customer's style offered as a new style of the package's customer: its season and its own style number. ConceptId: the
 /// concept it is offered for.
 /// </summary>
-public sealed record CopyToPackageRequest(int StyleId, string? SeasonCode, string? StyleNo, int? ConceptId = null);
+/// <remarks>BusinessUnitCode: the new style's business unit (null = the copied style's).</remarks>
+public sealed record CopyToPackageRequest(int StyleId, string? SeasonCode, string? StyleNo, int? ConceptId = null, string? BusinessUnitCode = null);
 
 /// <summary>The new style and its place in the package.</summary>
 public sealed record PackageCopyResultDto(int StyleId, int PackageItemId);

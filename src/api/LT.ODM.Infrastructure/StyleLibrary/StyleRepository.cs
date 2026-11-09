@@ -23,7 +23,7 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory, Styl
         using var grid = await conn.QueryMultipleAsync(Proc("style.usp_Style_Lookups", null, ct));
         async Task<IReadOnlyList<LookupItem>> Next() => (await grid.ReadAsync<LookupRow>()).Select(r => new LookupItem(r.Code, r.Name)).ToList();
         return new StyleLookupsDto(await Next(), await Next(), await Next(), await Next(), await Next(), await Next(), await Next(), await Next(),
-            await Next(), await Next());
+            await Next(), await Next(), await Next());
     }
 
     public async Task<PagedResult<StyleListItemDto>> ListAsync(StyleListQuery q, CancellationToken ct = default)
@@ -51,7 +51,7 @@ public sealed class StyleRepository(IDbConnectionFactory connectionFactory, Styl
         return (await conn.QueryAsync<GroupRow>(Proc("style.usp_Style_Counts", new
         {
             GroupBy = groupBy, q.Search, CustomerCode = q.Customer, SeasonCode = q.Season, BusinessUnitCode = q.BusinessUnit, ProductTypeCode = q.ProductType,
-            WeaveTypeCode = q.WeaveType, q.Gender, q.Material, q.IsActive, q.Looks,
+            WeaveTypeCode = q.WeaveType, q.Gender, q.Material, q.IsActive, q.Looks, q.HasPicture,
         }, ct))).Select(r => new StyleCountDto(r.Key, r.Name, r.Styles)).ToList();
     }
 

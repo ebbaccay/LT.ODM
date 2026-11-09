@@ -17,7 +17,7 @@ public sealed partial class PackageLineSheetWriter(IStyleImageStore images, ICon
 {
     private const float CardHeight = 200, CardGap = 14, CardPad = 10, PictureWidth = 150, StoryPictureHeight = 190;
 
-    public async Task<byte[]> WritePdfAsync(PackageDetailDto package, string generatedBy, DateTime generatedUtc, CancellationToken ct = default)
+    public async Task<byte[]> WritePdfAsync(PackageDetailDto package, string generatedBy, DateTime generatedUtc, TimeZoneInfo? timeZone = null, CancellationToken ct = default)
     {
         var items = LineSheetContent.Items(package);
         var pictures = new Dictionary<string, SKImage>();
@@ -68,7 +68,7 @@ public sealed partial class PackageLineSheetWriter(IStyleImageStore images, ICon
             }
             return layout.Render(
                 $"{p.Name} · {p.CustomerCode}{(p.SeasonCode is null ? "" : " " + p.SeasonCode)} · Line sheet",
-                $"Generated {generatedUtc:yyyy-MM-dd HH:mm} UTC by {generatedBy}",
+                $"Generated {GeneratedStamp.Format(generatedUtc, timeZone)} by {generatedBy}",
                 new SKDocumentPdfMetadata
                 {
                     Title = $"Line sheet {p.Name}", Author = generatedBy, Creator = "LT ODM", Producer = "LT ODM", Creation = generatedUtc, Modified = generatedUtc,

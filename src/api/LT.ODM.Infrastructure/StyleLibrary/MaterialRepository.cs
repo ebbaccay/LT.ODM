@@ -1,5 +1,6 @@
 using System.Data;
 using Dapper;
+using Microsoft.Data.SqlClient;
 using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.StyleLibrary;
 
@@ -35,6 +36,28 @@ public sealed class MaterialRepository(IDbConnectionFactory connectionFactory) :
             (await grid.ReadAsync<MaterialSupplierDto>()).ToList(),
             (await grid.ReadAsync<MaterialColourDto>()).ToList(),
             (await grid.ReadAsync<SimilarMaterialDto>()).ToList());
+    }
+
+    public async Task<IReadOnlyList<MaterialSupplierOptionDto>> SupplierOptionsAsync(string materialCode, string? nominatedSupplierCode, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        return (await conn.QueryAsync<MaterialSupplierOptionDto>(Proc("mat.usp_Material_SupplierOptions", new { MaterialCode = materialCode, NominatedSupplierCode = nominatedSupplierCode }, ct))).ToList();
+    }
+
+    public async Task SetSupplierCountryAsync(int materialId, string supplierCode, string? countryCode, string changedBy, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        try
+        {
+            await conn.ExecuteAsync(Proc("mat.usp_MaterialSupplier_SetCountry", new
+            {
+                MaterialId = materialId, SupplierCode = supplierCode, CountryCode = countryCode, ChangedBy = changedBy,
+            }, ct));
+        }
+        catch (SqlException ex) when (ex.Number >= 50000)
+        {
+            throw new StyleRuleException(ex.Number is >= 50400 and <= 50499 ? ex.Number - 50000 : 400, ex.Message);
+        }
     }
 
     // ----- Insights -----

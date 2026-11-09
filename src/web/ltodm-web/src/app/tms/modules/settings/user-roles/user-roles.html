@@ -87,6 +87,11 @@
               } @empty {
                 <span class="text-muted-foreground text-xs italic">{{ 'settings.userRoles.noRoles' | transloco }}</span>
               }
+              @if (u.businessUnits?.length) {
+                <span class="text-muted-foreground w-full text-xs" [title]="'settings.userRoles.teamHint' | transloco">
+                  {{ 'settings.userRoles.team' | transloco: { units: u.businessUnits!.join(', ') } }}
+                </span>
+              }
             </div>
             <span class="text-muted-foreground col-start-1 text-xs lg:col-start-auto lg:text-sm">
               <span class="lg:hidden">{{ 'settings.userRoles.lastLogin' | transloco }}: </span>
@@ -123,6 +128,24 @@
 <app-modal [open]="!!editing" [heading]="('settings.userRoles.assignTitle' | transloco) + ' — ' + (editing?.displayName ?? '')" (closed)="closeDialog()">
   @if (editing) {
     <form id="access-form" class="flex flex-col gap-5" (submit)="$event.preventDefault(); save()">
+      <!-- The user's name (first and last), as shown in the app -->
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="edit-display">{{ 'settings.userRoles.displayName' | transloco }}</label>
+        <input
+          hlmInput
+          id="edit-display"
+          class="h-11 lg:h-9"
+          maxlength="128"
+          autocomplete="off"
+          placeholder="Jane Doe"
+          [value]="form().displayName"
+          [attr.aria-invalid]="!nameValid() || null"
+          (input)="patch('displayName', $any($event.target).value)"
+        />
+        @if (!nameValid()) {
+          <p class="text-destructive text-xs">{{ 'settings.userRoles.displayNameHint' | transloco }}</p>
+        }
+      </div>
       <fieldset class="flex flex-col gap-2">
         <legend class="mb-1 text-sm font-medium">{{ 'settings.userRoles.roles' | transloco }}</legend>
         <p class="text-muted-foreground -mt-1 mb-1 text-xs">{{ 'settings.userRoles.assignHint' | transloco }}</p>
@@ -154,6 +177,33 @@
           <p class="text-muted-foreground text-sm">{{ 'settings.roles.empty' | transloco }}</p>
         }
       </fieldset>
+
+      <!-- Business unit teams: the user changes only these units' styles (none ticked = every style); everyone reads all -->
+      @if (businessUnitList().length) {
+        <fieldset class="flex flex-col gap-2">
+          <legend class="mb-1 text-sm font-medium">{{ 'settings.userRoles.businessUnits' | transloco }}</legend>
+          <p class="text-muted-foreground -mt-1 mb-1 text-xs">{{ 'settings.userRoles.businessUnitsHint' | transloco }}</p>
+          <div class="grid max-h-56 grid-cols-1 gap-x-4 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
+            @for (b of businessUnitList(); track b.code) {
+              <div class="hover:bg-accent/50 flex items-start gap-3 rounded-md px-2 py-1.5">
+                <hlm-checkbox
+                  class="mt-0.5"
+                  [inputId]="'bu-' + b.code"
+                  [checked]="form().businessUnits.has(b.code)"
+                  (checkedChange)="toggleBusinessUnit(b.code, $event)"
+                />
+                <label [for]="'bu-' + b.code" class="flex min-w-0 flex-col text-sm">
+                  <span class="font-mono text-xs">{{ b.code }}</span>
+                  <span class="text-muted-foreground truncate text-xs">{{ b.name }}</span>
+                </label>
+              </div>
+            }
+          </div>
+          @if (form().roles.has('Admin') && form().businessUnits.size) {
+            <p class="text-muted-foreground text-xs">{{ 'settings.userRoles.businessUnitsAdmin' | transloco }}</p>
+          }
+        </fieldset>
+      }
 
       <div class="grid gap-4 sm:grid-cols-2">
         <div class="flex flex-col gap-1.5">
@@ -326,6 +376,33 @@
         <p class="text-muted-foreground text-xs">{{ 'settings.userRoles.noRolesHint' | transloco }}</p>
       }
     </fieldset>
+
+    <!-- Business unit teams, as in Edit access: none ticked = may change every style -->
+    @if (activeBusinessUnits().length) {
+      <fieldset class="flex flex-col gap-2">
+        <legend class="mb-1 text-sm font-medium">{{ 'settings.userRoles.businessUnits' | transloco }}</legend>
+        <p class="text-muted-foreground -mt-1 mb-1 text-xs">{{ 'settings.userRoles.businessUnitsHint' | transloco }}</p>
+        <div class="grid max-h-56 grid-cols-1 gap-x-4 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
+          @for (b of activeBusinessUnits(); track b.code) {
+            <div class="hover:bg-accent/50 flex items-start gap-3 rounded-md px-2 py-1.5">
+              <hlm-checkbox
+                class="mt-0.5"
+                [inputId]="'new-bu-' + b.code"
+                [checked]="nu.businessUnits.has(b.code)"
+                (checkedChange)="toggleNewBusinessUnit(b.code, $event)"
+              />
+              <label [for]="'new-bu-' + b.code" class="flex min-w-0 flex-col text-sm">
+                <span class="font-mono text-xs">{{ b.code }}</span>
+                <span class="text-muted-foreground truncate text-xs">{{ b.name }}</span>
+              </label>
+            </div>
+          }
+        </div>
+        @if (nu.roles.has('Admin') && nu.businessUnits.size) {
+          <p class="text-muted-foreground text-xs">{{ 'settings.userRoles.businessUnitsAdmin' | transloco }}</p>
+        }
+      </fieldset>
+    }
 
     <div class="grid gap-4 sm:grid-cols-2">
       <div class="flex flex-col gap-1.5">

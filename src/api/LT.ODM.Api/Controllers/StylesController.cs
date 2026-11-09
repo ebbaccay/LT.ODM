@@ -10,7 +10,7 @@ namespace LT.ODM.Api.Controllers;
 
 /// <summary>
 /// Styles: list, detail, and manual create / edit / delete of styles, colorways, BOM lines and style history.
-/// Reading: Admin, Merchandiser, Costing, Viewer. Changing: Admin, Merchandiser. Who changed what comes from the
+/// Reading: Admin, Merchandiser, Designer, Costing, Viewer. Changing: Admin, Merchandiser, Designer. Who changed what comes from the
 /// sign-in token. Edits carry the row's RowVer; a change saved by someone else in between comes back as 409.
 /// </summary>
 [ApiController]
@@ -22,8 +22,14 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
 
     // ----- Reads -----
 
+    /// <summary>Pick lists. MyBusinessUnits: the business units the user may give a style (null = any; business unit teams).</summary>
     [HttpGet("lookups")]
-    public Task<StyleLookupsDto> Lookups(CancellationToken ct) => styles.GetLookupsAsync(ct);
+    public async Task<StyleLookupsDto> Lookups([FromServices] IStyleEditScopeRepository scope, CancellationToken ct)
+    {
+        var lookups = await styles.GetLookupsAsync(ct);
+        var mine = await scope.GetBusinessUnitsAsync(CurrentUserName, ct);
+        return mine.Count == 0 ? lookups : lookups with { MyBusinessUnits = mine };
+    }
 
     [HttpGet]
     /// <param name="status">active, inactive, or empty for both.</param>
@@ -45,25 +51,30 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
     [HttpGet("dashboard")]
     public Task<StyleDashboardDto> Dashboard(CancellationToken ct) => styles.GetDashboardAsync(ct);
 
+    /// <summary>The style; CanEdit = false when it belongs to a business unit outside the user's team (view only).</summary>
     [HttpGet("{styleId:int}")]
-    public async Task<IActionResult> Get(int styleId, CancellationToken ct)
-        => await styles.GetAsync(styleId, ct) is { } style ? Ok(style) : NotFound();
+    public async Task<IActionResult> Get(int styleId, [FromServices] IStyleEditScopeRepository scope, CancellationToken ct)
+    {
+        if (await styles.GetAsync(styleId, ct) is not { } style) return NotFound();
+        var mine = new StyleEditScope(await scope.GetBusinessUnitsAsync(CurrentUserName, ct));
+        return Ok(style with { CanEdit = mine.CanEdit(style.Style.BusinessUnitCode, style.Style.CreatedBy, CurrentUserName) });
+    }
 
     /// <summary>The style's tech pack as a PDF download: header, sketch and photo, colorways, BOM and material colours by colorway.</summary>
     [HttpGet("{styleId:int}/tech-pack")]
-    public async Task<IActionResult> TechPack(int styleId, [FromServices] ITechPackWriter writer, CancellationToken ct)
+    public async Task<IActionResult> TechPack(int styleId, [FromServices] ITechPackWriter writer, string? tz, CancellationToken ct)
     {
         if (await styles.GetAsync(styleId, ct) is not { } style) return NotFound();
-        var pdf = await writer.WriteAsync(style, CurrentUserName, DateTime.UtcNow, ct);
+        var pdf = await writer.WriteAsync(style, CurrentUserName, DateTime.UtcNow, GeneratedStamp.Find(tz), ct);
         return File(pdf, "application/pdf", $"{FileNameSafe(style.Style.StyleNo)}_{FileNameSafe(style.Style.SeasonCode)}_techpack.pdf");
     }
 
     /// <summary>The same tech pack as an Excel workbook: facts with sketch and photo, colorways with pictures, BOM, material colours.</summary>
     [HttpGet("{styleId:int}/tech-pack.xlsx")]
-    public async Task<IActionResult> TechPackExcel(int styleId, [FromServices] ITechPackExcelWriter writer, CancellationToken ct)
+    public async Task<IActionResult> TechPackExcel(int styleId, [FromServices] ITechPackExcelWriter writer, string? tz, CancellationToken ct)
     {
         if (await styles.GetAsync(styleId, ct) is not { } style) return NotFound();
-        var xlsx = await writer.WriteAsync(style, CurrentUserName, DateTime.UtcNow, ct);
+        var xlsx = await writer.WriteAsync(style, CurrentUserName, DateTime.UtcNow, GeneratedStamp.Find(tz), ct);
         return File(xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             $"{FileNameSafe(style.Style.StyleNo)}_{FileNameSafe(style.Style.SeasonCode)}_techpack.xlsx");
     }
@@ -216,7 +227,7 @@ public sealed class StylesController(IStyleRepository styles, IStyleImageStore i
             return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["cells"] = ["Pick between 1 and 5,000 colours."] }));
         if (cells.Any(c => c.MaterialColorCode?.Length > 80 || c.MaterialColorDescription?.Length > 150))
             return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["cells"] = ["A colour code has at most 80 characters, a description 150."] }));
-        return Ok(new { filled = await colours.ApplyAsync(styleId, cells, CurrentUserName, ct) });
+        return await Run([], async () => Ok(new { filled = await colours.ApplyAsync(styleId, cells, CurrentUserName, ct) }));
     }
 
     /// <summary>

@@ -35,6 +35,7 @@ BEGIN
     SELECT Code = UomCode, Name FROM ref.Uom ORDER BY UomCode;
     SELECT Code = PartnerCode, Name FROM partner.Partner WHERE PartnerType = 'Supplier' AND IsActive = 1 ORDER BY Name;
     SELECT Code = Term, Name FROM ref.SeasonTerm ORDER BY SortOrder;
+    SELECT Code = CountryCode, Name FROM ref.Country WHERE IsActive = 1 ORDER BY Name;
 END
 GO
 
@@ -461,6 +462,87 @@ GO
 
 /* ---------- Shared helpers for writes ---------- */
 
+/*
+    Business unit teams. A user with business units in auth.UserBusinessUnit may change only styles of those business
+    units (and styles without one that they created); everyone reads the whole library. No rows = not limited, and Admins
+    are never limited. Every style write calls style.usp_AssertCanEdit; new and moved styles call usp_AssertBusinessUnit.
+*/
+CREATE OR ALTER FUNCTION style.fn_UserBusinessUnits (@UserName nvarchar(64))
+RETURNS TABLE
+AS RETURN
+SELECT ub.BusinessUnitCode
+FROM auth.Users u
+JOIN auth.UserBusinessUnit ub ON ub.UserId = u.UserId
+WHERE u.UserName = @UserName
+  AND NOT EXISTS (SELECT 1 FROM auth.UserRoles ur JOIN auth.Roles r ON r.RoleId = ur.RoleId
+                  WHERE ur.UserId = u.UserId AND r.Name = N'Admin');
+GO
+
+/* CanEdit = 1 when @UserName may change a style of @BusinessUnitCode that @CreatedBy created. */
+CREATE OR ALTER FUNCTION style.fn_CanEditStyle (@UserName nvarchar(64), @BusinessUnitCode nvarchar(16), @CreatedBy nvarchar(64))
+RETURNS TABLE
+AS RETURN
+SELECT CanEdit = CAST(CASE
+        WHEN NOT EXISTS (SELECT 1 FROM style.fn_UserBusinessUnits(@UserName)) THEN 1
+        WHEN @BusinessUnitCode IS NULL THEN IIF(@CreatedBy = @UserName, 1, 0)
+        WHEN EXISTS (SELECT 1 FROM style.fn_UserBusinessUnits(@UserName) x WHERE x.BusinessUnitCode = @BusinessUnitCode) THEN 1
+        ELSE 0 END AS bit);
+GO
+
+/* The user's business units (none = may change every style), for the API: pick lists, Settings, "can edit" flags. */
+CREATE OR ALTER PROCEDURE style.usp_EditScope_Get
+    @UserName nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT BusinessUnitCode FROM style.fn_UserBusinessUnits(@UserName) ORDER BY BusinessUnitCode;
+END
+GO
+
+/*
+    THROWs 50403 when @ChangedBy may not change the style: the one owning @ColorwayId or @BomLineId when given (so a
+    colorway or line cannot be reached through another style's id), else @StyleId. A style that does not exist passes
+    (the caller reports 404).
+*/
+CREATE OR ALTER PROCEDURE style.usp_AssertCanEdit
+    @ChangedBy  nvarchar(64),
+    @StyleId    int = NULL,
+    @ColorwayId int = NULL,
+    @BomLineId  int = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM style.fn_UserBusinessUnits(@ChangedBy)) RETURN;   -- not limited
+    DECLARE @id int = COALESCE((SELECT StyleId FROM style.Colorway WHERE ColorwayId = @ColorwayId),
+                               (SELECT StyleId FROM style.BomLine WHERE BomLineId = @BomLineId), @StyleId);
+    DECLARE @no nvarchar(100), @bu nvarchar(16), @createdBy nvarchar(64);
+    SELECT @no = StyleNo, @bu = BusinessUnitCode, @createdBy = CreatedBy FROM style.Style WHERE StyleId = @id;
+    IF @no IS NULL RETURN;
+    IF (SELECT CanEdit FROM style.fn_CanEditStyle(@ChangedBy, @bu, @createdBy)) = 1 RETURN;
+    DECLARE @msg nvarchar(2000) = CONCAT(N'Style ', @no, N' belongs to business unit ', ISNULL(@bu, N'(none)'),
+        N', so you can view it but not change it. You can change styles of: ',
+        (SELECT STRING_AGG(BusinessUnitCode, N', ') WITHIN GROUP (ORDER BY BusinessUnitCode) FROM style.fn_UserBusinessUnits(@ChangedBy)), N'.');
+    THROW 50403, @msg, 1;
+END
+GO
+
+/* A new or moved style needs a business unit (50400), and a limited user may only use their own (50403). */
+CREATE OR ALTER PROCEDURE style.usp_AssertBusinessUnit
+    @ChangedBy        nvarchar(64),
+    @BusinessUnitCode nvarchar(16)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NULLIF(LTRIM(RTRIM(@BusinessUnitCode)), N'') IS NULL
+        THROW 50400, 'Choose the business unit of the style.', 1;
+    IF NOT EXISTS (SELECT 1 FROM style.fn_UserBusinessUnits(@ChangedBy)) RETURN;
+    IF EXISTS (SELECT 1 FROM style.fn_UserBusinessUnits(@ChangedBy) WHERE BusinessUnitCode = @BusinessUnitCode) RETURN;
+    DECLARE @msg nvarchar(2000) = CONCAT(N'You can only use your business units: ',
+        (SELECT STRING_AGG(BusinessUnitCode, N', ') WITHIN GROUP (ORDER BY BusinessUnitCode) FROM style.fn_UserBusinessUnits(@ChangedBy)), N'.');
+    THROW 50403, @msg, 1;
+END
+GO
+
 /* Adds a season typed as 2028-FW if its term is known; THROWs otherwise. Existing seasons pass whatever their name
    (imported ones such as '26FW' keep the source system's name until normalised). */
 CREATE OR ALTER PROCEDURE style.usp_EnsureSeason
@@ -556,6 +638,10 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
+    SET @BusinessUnitCode = NULLIF(LTRIM(RTRIM(@BusinessUnitCode)), N'');
+    EXEC style.usp_AssertCanEdit @ChangedBy, @StyleId = @StyleId;
+    EXEC style.usp_AssertBusinessUnit @ChangedBy, @BusinessUnitCode;
+
     BEGIN TRANSACTION;
 
     IF @StyleId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM style.Style WITH (UPDLOCK) WHERE StyleId = @StyleId)
@@ -614,6 +700,7 @@ CREATE OR ALTER PROCEDURE style.usp_Style_Delete
 AS
 BEGIN
     SET NOCOUNT ON;
+    EXEC style.usp_AssertCanEdit @ChangedBy, @StyleId = @StyleId;
     SET XACT_ABORT ON;
 
     BEGIN TRANSACTION;
@@ -662,6 +749,7 @@ CREATE OR ALTER PROCEDURE style.usp_Style_SwapPictures
 AS
 BEGIN
     SET NOCOUNT ON;
+    EXEC style.usp_AssertCanEdit @ChangedBy, @StyleId = @StyleId;
     SET XACT_ABORT ON;
 
     BEGIN TRANSACTION;
@@ -693,6 +781,7 @@ CREATE OR ALTER PROCEDURE style.usp_Style_Copy
 AS
 BEGIN
     SET NOCOUNT ON;
+    EXEC style.usp_AssertCanEdit @ChangedBy, @StyleId = @StyleId;   -- the copy keeps the business unit
     SET XACT_ABORT ON;
 
     BEGIN TRANSACTION;
@@ -769,6 +858,7 @@ CREATE OR ALTER PROCEDURE style.usp_Colorway_Save
 AS
 BEGIN
     SET NOCOUNT ON;
+    EXEC style.usp_AssertCanEdit @ChangedBy, @StyleId = @StyleId, @ColorwayId = @ColorwayId;
     SET XACT_ABORT ON;
 
     BEGIN TRANSACTION;
@@ -816,6 +906,7 @@ CREATE OR ALTER PROCEDURE style.usp_Colorway_SetImage
 AS
 BEGIN
     SET NOCOUNT ON;
+    EXEC style.usp_AssertCanEdit @ChangedBy, @StyleId = @StyleId, @ColorwayId = @ColorwayId;
     SET XACT_ABORT ON;
 
     BEGIN TRANSACTION;
@@ -837,6 +928,7 @@ CREATE OR ALTER PROCEDURE style.usp_Colorway_Delete
 AS
 BEGIN
     SET NOCOUNT ON;
+    EXEC style.usp_AssertCanEdit @ChangedBy, @ColorwayId = @ColorwayId;
     SET XACT_ABORT ON;
 
     BEGIN TRANSACTION;
@@ -880,6 +972,7 @@ CREATE OR ALTER PROCEDURE style.usp_BomLine_Save
 AS
 BEGIN
     SET NOCOUNT ON;
+    EXEC style.usp_AssertCanEdit @ChangedBy, @StyleId = @StyleId, @BomLineId = @BomLineId;
     SET XACT_ABORT ON;
 
     BEGIN TRANSACTION;
@@ -953,6 +1046,7 @@ CREATE OR ALTER PROCEDURE style.usp_BomLine_Delete
 AS
 BEGIN
     SET NOCOUNT ON;
+    EXEC style.usp_AssertCanEdit @ChangedBy, @BomLineId = @BomLineId;
     SET XACT_ABORT ON;
 
     BEGIN TRANSACTION;
@@ -983,6 +1077,7 @@ CREATE OR ALTER PROCEDURE style.usp_StyleHistory_Set
 AS
 BEGIN
     SET NOCOUNT ON;
+    EXEC style.usp_AssertCanEdit @ChangedBy, @StyleId = @StyleId;
     SET XACT_ABORT ON;
 
     IF @StyleId = @SourceStyleId
@@ -1021,6 +1116,7 @@ CREATE OR ALTER PROCEDURE style.usp_StyleHistory_Remove
 AS
 BEGIN
     SET NOCOUNT ON;
+    EXEC style.usp_AssertCanEdit @ChangedBy, @StyleId = @StyleId;
     SET XACT_ABORT ON;
     BEGIN TRANSACTION;
     DELETE style.StyleHistory WHERE StyleId = @StyleId;

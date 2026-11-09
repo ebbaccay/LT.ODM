@@ -11,7 +11,7 @@ namespace LT.ODM.Api.Controllers;
 
 /// <summary>
 /// AI Studio on the Style Library: smart search, change summary, BOM check and style renders.
-/// Reading: Style Library readers (Admin, Merchandiser, Costing, Viewer). Making or deleting renders: Admin, Merchandiser.
+/// Reading: Style Library readers (Admin, Merchandiser, Designer, Costing, Viewer). Making or deleting renders: Admin, Merchandiser, Designer.
 /// The comparison and the BOM check are rules and work without AI; AI calls are rate limited and answer 503 when no
 /// provider is set up (Settings > AI connections, else appsettings Ai:Provider / Ai:ImageProvider). The slow AI calls
 /// (summaries, explanations, prompt rewrites, renders, material readings) run as AI jobs: 202 with the job id.

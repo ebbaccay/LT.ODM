@@ -345,7 +345,8 @@ CREATE OR ALTER PROCEDURE concept.usp_Concept_DevelopStyle
     @StyleNo     nvarchar(100),
     @BaseStyleId int           = NULL,
     @SketchUrl   nvarchar(500) = NULL,
-    @ChangedBy   nvarchar(64)
+    @ChangedBy   nvarchar(64),
+    @BusinessUnitCode nvarchar(16) = NULL   -- NULL = the base style's
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -354,6 +355,8 @@ BEGIN
     SET @StyleNo = NULLIF(LTRIM(RTRIM(@StyleNo)), N'');
     IF @SeasonCode IS NULL THROW 50400, 'Choose the season of the new style.', 1;
     IF @StyleNo IS NULL THROW 50400, 'Give the new style its own style number.', 1;
+    SET @BusinessUnitCode = COALESCE(NULLIF(LTRIM(RTRIM(@BusinessUnitCode)), N''), (SELECT BusinessUnitCode FROM style.Style WHERE StyleId = @BaseStyleId));
+    EXEC style.usp_AssertBusinessUnit @ChangedBy, @BusinessUnitCode;
 
     BEGIN TRANSACTION;
     DECLARE @customerId int, @brand nvarchar(32), @name nvarchar(150), @idea nvarchar(2000), @gender nvarchar(16);
@@ -374,7 +377,7 @@ BEGIN
     INSERT style.Style (CustomerId, SeasonCode, StyleNo, Description, ModelName, WeaveTypeCode, ProductTypeCode, Gender, GarmentLeadTimeDays,
                         BusinessUnitCode, SketchUrl, OriginStyleId, ConceptId, CreatedBy)
     SELECT @customerId, @SeasonCode, @StyleNo, LEFT(ISNULL(@idea, @name), 400), LEFT(@name, 100), b.WeaveTypeCode, b.ProductTypeCode,
-           ISNULL(@gender, b.Gender), b.GarmentLeadTimeDays, b.BusinessUnitCode, @SketchUrl, IIF(@sameBrand = 0, @BaseStyleId, NULL), @ConceptId, @ChangedBy
+           ISNULL(@gender, b.Gender), b.GarmentLeadTimeDays, @BusinessUnitCode, @SketchUrl, IIF(@sameBrand = 0, @BaseStyleId, NULL), @ConceptId, @ChangedBy
     FROM (SELECT x = 1) one
     LEFT JOIN style.Style b ON b.StyleId = @BaseStyleId;
     DECLARE @newId int = CAST(SCOPE_IDENTITY() AS int);

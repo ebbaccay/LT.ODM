@@ -99,11 +99,12 @@ public sealed class ConceptRepository(IDbConnectionFactory connectionFactory) : 
         => Write(conn => conn.ExecuteAsync(Proc("concept.usp_Concept_Delete", new { ConceptId = conceptId, RowVer = rowVer, ChangedBy = changedBy }, ct)), ct);
 
     public async Task<(int StyleId, bool? SameBrandBase)> DevelopStyleAsync(int conceptId, string seasonCode, string styleNo, int? baseStyleId,
-        string? sketchUrl, string changedBy, CancellationToken ct = default)
+        string? sketchUrl, string changedBy, string? businessUnitCode = null, CancellationToken ct = default)
     {
         var row = await Write(conn => conn.QuerySingleAsync<DevelopRow>(Proc("concept.usp_Concept_DevelopStyle", new
         {
             ConceptId = conceptId, SeasonCode = seasonCode, StyleNo = styleNo, BaseStyleId = baseStyleId, SketchUrl = sketchUrl, ChangedBy = changedBy,
+            BusinessUnitCode = businessUnitCode,
         }, ct)), ct);
         return (row.StyleId, row.SameBrandBase);
     }

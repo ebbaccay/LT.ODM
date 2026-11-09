@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -9,6 +10,8 @@ import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { HlmTextareaImports } from '@spartan-ng/helm/textarea';
 import { Modal } from '@tms/shared/ui/modal';
+import { Subject, catchError, debounceTime, of, switchMap } from 'rxjs';
+import { MaterialSupplierOption, MaterialsService } from '../materials/materials.service';
 import { ImageField } from './image-field';
 import { BomLine, Colorway, StyleLibraryService, StyleLookups, styleError, toNumber } from './style-library.service';
 
@@ -37,7 +40,9 @@ interface ColorwayUse {
 
 /**
  * Add (line null) or edit a BOM line: material, class, suppliers, consumption, UOM and image, plus which of the
- * style's colorways use it and the material colour in each. New material, supplier, type and UOM codes are added.
+ * style's colorways use it and the material colour in each. New material, type and UOM codes are added. The supplier
+ * is picked from the material's own suppliers (with country of origin); a line without one gets the supplier the
+ * material's other lines use; a new line can type it.
  */
 @Component({
   selector: 'app-bom-line-dialog',
@@ -109,13 +114,57 @@ interface ColorwayUse {
             <input hlmInput class="h-11 lg:h-9" maxlength="32" [placeholder]="'styles.line.code' | transloco" [attr.aria-label]="'styles.line.nominatedSupplierCode' | transloco" [value]="f.nominatedSupplierCode" (input)="set('nominatedSupplierCode', $any($event.target).value)" />
             <input hlmInput class="h-11 lg:h-9" maxlength="100" [placeholder]="'styles.line.name' | transloco" [attr.aria-label]="'styles.line.nominatedSupplierName' | transloco" [value]="f.nominatedSupplierName" (input)="set('nominatedSupplierName', $any($event.target).value)" />
           </fieldset>
+          <!-- Supplier to buy from. Editing: only the material's own suppliers (with country of origin). A line imported
+               without one gets the supplier the material's other lines use (same nominated supplier first) until saved.
+               New line: typed (code with suggestions, name), or picked from the material's suppliers when it has any.
+               Stored as the line's SAP supplier. -->
           <fieldset class="flex flex-col gap-2 rounded-md border p-3">
-            <legend class="px-1 text-sm font-medium">{{ 'styles.line.sapSupplier' | transloco }}</legend>
-            <input hlmInput list="bl-suppliers" class="h-11 lg:h-9" maxlength="32" [placeholder]="'styles.line.code' | transloco" [attr.aria-label]="'styles.line.sapSupplierCode' | transloco" autocomplete="off" [value]="f.supplierCode" (input)="onSupplierCode($any($event.target).value)" />
-            <datalist id="bl-suppliers">
-              @for (s of lookups()?.suppliers ?? []; track s.code) { <option [value]="s.code">{{ s.name }}</option> }
-            </datalist>
-            <input hlmInput class="h-11 lg:h-9" maxlength="150" [placeholder]="'styles.line.name' | transloco" [attr.aria-label]="'styles.line.sapSupplierName' | transloco" [readonly]="knownSupplier()" [value]="f.supplierName" (input)="set('supplierName', $any($event.target).value)" />
+            <legend class="px-1 text-sm font-medium">{{ 'styles.line.supplier' | transloco }}</legend>
+            @if (typingSupplier()) {
+              <input hlmInput list="bl-suppliers" class="h-11 lg:h-9" maxlength="32" autocomplete="off" [placeholder]="'styles.line.code' | transloco"
+                [attr.aria-label]="'styles.line.supplierCode' | transloco" [value]="f.supplierCode" (input)="onSupplierCode($any($event.target).value)" />
+              <datalist id="bl-suppliers">
+                @for (o of lookups()?.suppliers ?? []; track o.code) { <option [value]="o.code">{{ o.name }}</option> }
+              </datalist>
+              <input hlmInput class="h-11 lg:h-9" maxlength="150" [placeholder]="'styles.line.name' | transloco" [attr.aria-label]="'styles.line.supplierName' | transloco"
+                [readonly]="knownSupplier()" [value]="f.supplierName" (input)="touchSupplier(); set('supplierName', $any($event.target).value)" />
+              @if (materialSuppliers().length) {
+                <button type="button" class="text-primary self-start text-xs underline-offset-2 hover:underline" (click)="typed.set(false)">
+                  {{ 'styles.line.pickMaterialSupplier' | transloco: { count: materialSuppliers().length } }}
+                </button>
+              }
+            } @else {
+              <label class="sr-only" for="bl-supplier">{{ 'styles.line.supplier' | transloco }}</label>
+              <hlm-native-select selectId="bl-supplier" selectClass="h-11 w-full lg:h-9" [value]="f.supplierCode" (valueChange)="pickSupplier($event ?? '')">
+                <option hlmNativeSelectOption value="" [selected]="!f.supplierCode">{{ 'styles.line.noSupplier' | transloco }}</option>
+                @if (unlistedSupplier(); as u) {
+                  <option hlmNativeSelectOption [value]="u.code" [selected]="true">{{ u.name || u.code }} ({{ u.code }})</option>
+                }
+                @for (o of materialSuppliers(); track o.supplierCode) {
+                  <option hlmNativeSelectOption [value]="o.supplierCode" [selected]="o.supplierCode === f.supplierCode">{{ supplierLabel(o) }}</option>
+                }
+              </hlm-native-select>
+              @if (!line()) {
+                <button type="button" class="text-primary self-start text-xs underline-offset-2 hover:underline" (click)="typed.set(true)">
+                  {{ 'styles.line.typeSupplier' | transloco }}
+                </button>
+              }
+            }
+            <p class="text-xs" [class.text-muted-foreground]="!filledFrom()" [class.text-amber-700]="!!filledFrom()" [class.dark:text-amber-400]="!!filledFrom()">
+              @if (loadingSuppliers()) {
+                {{ 'styles.line.suppliersLoading' | transloco }}
+              } @else if (filledFrom() === 'nominated') {
+                {{ 'styles.line.supplierFromNominated' | transloco: { code: f.nominatedSupplierCode } }}
+              } @else if (filledFrom() === 'only') {
+                {{ 'styles.line.supplierFromOnly' | transloco }}
+              } @else if (typingSupplier()) {
+                {{ 'styles.line.typeSupplierHint' | transloco }}
+              } @else if (materialSuppliers().length) {
+                {{ 'styles.line.materialSuppliersHint' | transloco: { count: materialSuppliers().length } }}
+              } @else {
+                {{ 'styles.line.noMaterialSuppliers' | transloco }}
+              }
+            </p>
           </fieldset>
         </div>
 
@@ -174,12 +223,54 @@ export class BomLineDialog {
   readonly uses = signal<ColorwayUse[]>([]);
   readonly errors = signal<Record<string, string>>({});
   readonly saving = signal(false);
+  /** Suppliers on the material's BOM lines elsewhere (most styles first), with country of origin. */
+  readonly materialSuppliers = signal<MaterialSupplierOption[]>([]);
+  readonly loadingSuppliers = signal(false);
+  /** New line: the user chose to type the supplier (true) or pick from the material's suppliers (false); null = automatic. */
+  readonly typed = signal<boolean | null>(null);
+  /** Typing the supplier: a new line whose material has no suppliers yet, or the user's choice. */
+  readonly typingSupplier = computed(() => {
+    if (this.line()) return false;
+    return this.typed() ?? (!this.loadingSuppliers() && this.materialSuppliers().length === 0);
+  });
   readonly knownSupplier = computed(() => {
     const code = this.form().supplierCode.trim();
     return !!code && (this.lookups()?.suppliers ?? []).some((s) => s.code === code);
   });
+  /** How the supplier was filled in for the user (shown until they change it); null when it was not. */
+  readonly filledFrom = signal<'nominated' | 'only' | null>(null);
+  /** The user chose or typed a supplier: never filled in over it. */
+  private supplierTouched = false;
+  /** The line's current supplier when the material's list does not have it (kept so saving does not drop it). */
+  readonly unlistedSupplier = computed(() => {
+    const code = this.form().supplierCode.trim();
+    if (!code || this.loadingSuppliers() || this.materialSuppliers().some((o) => o.supplierCode === code)) return null;
+    return { code, name: this.form().supplierName };
+  });
+
+  private readonly materials = inject(MaterialsService);
+  private readonly materialCode$ = new Subject<string>();
 
   constructor() {
+    // The supplier list follows the material code (typed or changed).
+    this.materialCode$
+      .pipe(
+        debounceTime(300),
+        switchMap((key) => {
+          const [code, nominated] = key.split('\u0001');
+          this.loadingSuppliers.set(!!code);
+          return code
+            ? this.materials.supplierOptions(code, nominated).pipe(catchError(() => of([] as MaterialSupplierOption[])))
+            : of([] as MaterialSupplierOption[]);
+        }),
+        takeUntilDestroyed(inject(DestroyRef)),
+      )
+      .subscribe((list) => {
+        this.materialSuppliers.set(list);
+        this.loadingSuppliers.set(false);
+        this.fillSupplier(list);
+      });
+
     effect(() => {
       if (!this.open()) return;
       const l = this.line();
@@ -208,7 +299,58 @@ export class BomLineDialog {
         }),
       );
       this.errors.set({});
+      // Re-read the material's suppliers on every open (another dialog may have added one).
+      this.materialSuppliers.set([]);
+      this.typed.set(null);
+      this.filledFrom.set(null);
+      this.supplierTouched = false;
+      this.lastKey = null;
+      this.watchMaterial(l?.materialCode ?? '', l?.nominatedSupplierCode ?? '');
     });
+  }
+
+  private lastKey: string | null = null;
+
+  /** Queues a supplier list read when the material code (or the nominated supplier code) changes. */
+  private watchMaterial(code: string, nominated: string): void {
+    const key = code.trim() + '\u0001' + nominated.trim();
+    if (key === this.lastKey) return;
+    this.lastKey = key;
+    this.materialCode$.next(key);
+  }
+
+  /**
+   * A line without a supplier (typically imported without an SAP supplier) gets the one the material's other lines use:
+   * the supplier most often paired with the same nominated supplier, else the material's only supplier. Only shown in
+   * the form until saved; never over a supplier the user chose.
+   */
+  private fillSupplier(list: MaterialSupplierOption[]): void {
+    const f = this.form();
+    if (this.supplierTouched || (f.supplierCode.trim() && !this.filledFrom())) return;
+    const best = [...list].filter((o) => o.nominatedLines > 0).sort((a, b) => b.nominatedLines - a.nominatedLines)[0];
+    const pick = best ?? (list.length === 1 ? list[0] : undefined);
+    if (!pick) {
+      if (this.filledFrom()) {
+        this.form.update((x) => ({ ...x, supplierCode: '', supplierName: '' }));
+        this.filledFrom.set(null);
+      }
+      return;
+    }
+    this.form.update((x) => ({ ...x, supplierCode: pick.supplierCode, supplierName: pick.supplierName }));
+    this.filledFrom.set(best ? 'nominated' : 'only');
+  }
+
+  /** The user changed the supplier: stop filling it in. */
+  touchSupplier(): void {
+    this.supplierTouched = true;
+    this.filledFrom.set(null);
+  }
+
+  /** Typed supplier code; a known supplier fills in its name. */
+  onSupplierCode(code: string): void {
+    this.touchSupplier();
+    const known = (this.lookups()?.suppliers ?? []).find((s) => s.code === code.trim());
+    this.form.update((f) => ({ ...f, supplierCode: code, supplierName: known ? known.name : f.supplierName }));
   }
 
   private empty(): LineForm {
@@ -221,12 +363,22 @@ export class BomLineDialog {
   set<K extends keyof LineForm>(key: K, value: LineForm[K]): void {
     this.form.update((f) => ({ ...f, [key]: value }));
     if (this.errors()[key]) this.errors.update((e) => ({ ...e, [key]: '' }));
+    if (key === 'materialCode' || key === 'nominatedSupplierCode') this.watchMaterial(this.form().materialCode, this.form().nominatedSupplierCode);
   }
 
-  /** A known SAP supplier fills in its name. */
-  onSupplierCode(code: string): void {
-    const known = (this.lookups()?.suppliers ?? []).find((s) => s.code === code.trim());
-    this.form.update((f) => ({ ...f, supplierCode: code, supplierName: known ? known.name : f.supplierName }));
+  /** The supplier picked from the list; its name goes with it. */
+  pickSupplier(code: string): void {
+    this.touchSupplier();
+    const name =
+      this.materialSuppliers().find((o) => o.supplierCode === code)?.supplierName ??
+      (this.lookups()?.suppliers ?? []).find((s) => s.code === code)?.name ??
+      (code === this.form().supplierCode ? this.form().supplierName : '');
+    this.form.update((f) => ({ ...f, supplierCode: code, supplierName: code ? name : '' }));
+  }
+
+  supplierLabel(o: MaterialSupplierOption): string {
+    const country = o.countryName ?? o.countryCode;
+    return `${o.supplierName} (${o.supplierCode})${country ? ' · ' + country : ''}`;
   }
 
   toggleUse(index: number, used: boolean): void {

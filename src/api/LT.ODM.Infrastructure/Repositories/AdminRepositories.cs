@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.Admin;
+using LT.ODM.Application.Dashboards;
 using LT.ODM.Application.Auth;
 using Microsoft.Data.SqlClient;
 
@@ -116,6 +117,7 @@ public sealed class AccessRepository(IDbConnectionFactory connectionFactory) : I
         public string? DisplayName { get; init; }
         public string? Description { get; init; }
         public int UserCount { get; init; }
+        public string? DashboardKey { get; init; }
     }
 
     private sealed class UserRow
@@ -130,13 +132,14 @@ public sealed class AccessRepository(IDbConnectionFactory connectionFactory) : I
         public DateTime? LastLoginUtc { get; init; }
         public DateTime? LockoutEndUtc { get; init; }
         public string? Roles { get; init; }
+        public string? BusinessUnits { get; init; }
     }
 
     public async Task<IReadOnlyList<RoleDto>> GetRolesAsync(CancellationToken ct = default)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
         var rows = await conn.QueryAsync<RoleRow>(MenuRepository.Proc("auth.usp_Role_List", null, ct));
-        return rows.Select(r => new RoleDto(r.RoleId, r.Name, r.DisplayName, r.Description, r.UserCount)).ToList();
+        return rows.Select(r => new RoleDto(r.RoleId, r.Name, r.DisplayName, r.Description, r.UserCount, r.DashboardKey)).ToList();
     }
 
     public async Task<int> SaveRoleAsync(SaveRoleRequest r, string changedBy, CancellationToken ct = default)
@@ -144,7 +147,7 @@ public sealed class AccessRepository(IDbConnectionFactory connectionFactory) : I
         await using var conn = await connectionFactory.OpenAsync(ct);
         return await MenuRepository.RuleErrors(() => conn.QuerySingleAsync<int>(MenuRepository.Proc("auth.usp_Role_Save", new
         {
-            r.RoleId, r.Name, r.DisplayName, r.Description, ChangedBy = changedBy,
+            r.RoleId, r.Name, r.DisplayName, r.Description, ChangedBy = changedBy, DashboardKey = DashboardKeys.Normalize(r.DashboardKey),
         }, ct)));
     }
 
@@ -161,7 +164,7 @@ public sealed class AccessRepository(IDbConnectionFactory connectionFactory) : I
         return rows.Select(r => new UserAccessDto(r.UserId, r.UserName, r.DisplayName, r.Email, r.IsActive, r.UserGroup, r.Location,
             r.LastLoginUtc is { } l ? DateTime.SpecifyKind(l, DateTimeKind.Utc) : null,
             r.LockoutEndUtc is { } e ? DateTime.SpecifyKind(e, DateTimeKind.Utc) : null,
-            MenuRepository.Split(r.Roles))).ToList();
+            MenuRepository.Split(r.Roles), MenuRepository.Split(r.BusinessUnits))).ToList();
     }
 
     public async Task SetUserAccessAsync(int userId, SetUserAccessRequest r, string changedBy, CancellationToken ct = default)
@@ -170,6 +173,8 @@ public sealed class AccessRepository(IDbConnectionFactory connectionFactory) : I
         await MenuRepository.RuleErrors(() => conn.ExecuteAsync(MenuRepository.Proc("auth.usp_User_SetAccess", new
         {
             UserId = userId, RoleNames = string.Join(',', r.Roles), r.UserGroup, r.Location, ChangedBy = changedBy,
+            DisplayName = string.IsNullOrWhiteSpace(r.DisplayName) ? null : r.DisplayName.Trim(),
+            BusinessUnits = r.BusinessUnits is null ? null : string.Join(',', r.BusinessUnits.Select(u => u.Trim()).Distinct(StringComparer.OrdinalIgnoreCase)),
         }, ct)));
     }
 
@@ -180,6 +185,7 @@ public sealed class AccessRepository(IDbConnectionFactory connectionFactory) : I
         {
             r.UserName, r.Email, r.DisplayName, PasswordHash = passwordHash, RoleNames = string.Join(',', r.Roles),
             r.UserGroup, r.Location, TokenHash = tokenHash, ExpiresUtc = expiresUtc, CreatedBy = createdBy,
+            BusinessUnits = r.BusinessUnits is null ? null : string.Join(',', r.BusinessUnits.Select(u => u.Trim()).Distinct(StringComparer.OrdinalIgnoreCase)),
         }, ct)));
     }
 
@@ -222,8 +228,9 @@ public sealed class ReferenceDataRepository(IDbConnectionFactory connectionFacto
     public async Task<IReadOnlyList<RefListItemDto>> GetAsync(string list, CancellationToken ct = default)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
-        var rows = await MenuRepository.RuleErrors(() => conn.QueryAsync<RefListItemDto>(MenuRepository.Proc("ref.usp_RefList_Get", new { List = list }, ct)));
-        return rows.ToList();
+        // A row class (not the record): only the suppliers list returns the country columns.
+        var rows = await MenuRepository.RuleErrors(() => conn.QueryAsync<RefListRow>(MenuRepository.Proc("ref.usp_RefList_Get", new { List = list }, ct)));
+        return rows.Select(r => new RefListItemDto(r.Code, r.Name, r.SortOrder, r.IsActive, r.UsageCount, r.CountryCode, r.CountryName)).ToList();
     }
 
     public async Task SaveAsync(string list, SaveRefListItemRequest r, string changedBy, CancellationToken ct = default)
@@ -231,7 +238,7 @@ public sealed class ReferenceDataRepository(IDbConnectionFactory connectionFacto
         await using var conn = await connectionFactory.OpenAsync(ct);
         await MenuRepository.RuleErrors(() => conn.ExecuteAsync(MenuRepository.Proc("ref.usp_RefList_Save", new
         {
-            List = list, r.IsNew, r.Code, r.Name, r.SortOrder, r.IsActive, ChangedBy = changedBy,
+            List = list, r.IsNew, r.Code, r.Name, r.SortOrder, r.IsActive, ChangedBy = changedBy, r.CountryCode,
         }, ct)));
         dashboard.Invalidate();   // pick-list names are shown on the dashboard
     }
@@ -241,5 +248,16 @@ public sealed class ReferenceDataRepository(IDbConnectionFactory connectionFacto
         await using var conn = await connectionFactory.OpenAsync(ct);
         await MenuRepository.RuleErrors(() => conn.ExecuteAsync(MenuRepository.Proc("ref.usp_RefList_Delete", new { List = list, Code = code }, ct)));
         dashboard.Invalidate();
+    }
+
+    private sealed class RefListRow
+    {
+        public string Code { get; init; } = "";
+        public string? Name { get; init; }
+        public int? SortOrder { get; init; }
+        public bool? IsActive { get; init; }
+        public int UsageCount { get; init; }
+        public string? CountryCode { get; init; }
+        public string? CountryName { get; init; }
     }
 }

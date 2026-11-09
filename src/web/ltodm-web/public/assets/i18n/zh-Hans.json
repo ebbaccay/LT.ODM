@@ -162,7 +162,10 @@
       "colDisplayName": "显示名称",
       "colUsers": "用户数",
       "nameFixed": "角色名称已保存在登录令牌和菜单规则中，不能修改。",
-      "saved": "角色已保存"
+      "saved": "角色已保存",
+      "colDashboard": "首页仪表板",
+      "dashboardDefault": "款式库概览（默认）",
+      "dashboardHint": "拥有此角色的用户在首页看到的内容。选择了仪表板的角色优先于保持默认的角色。只有管理员可以切换到其他仪表板。"
     },
     "userRoles": {
       "title": "用户角色",
@@ -227,7 +230,12 @@
       "setTempPassword": "设置临时密码",
       "setTempPasswordHint": "用户无法接收邮件时使用。其当前密码和未使用的链接将失效，用户会被登出，下次登录时必须设置新密码。",
       "tempPasswordSet": "已为 {{ name }} 设置临时密码",
-      "tempPasswordGiveHint": "请当面或通过电话告知，不要通过邮件或聊天发送。用户首次登录时必须修改。"
+      "tempPasswordGiveHint": "请当面或通过电话告知，不要通过邮件或聊天发送。用户首次登录时必须修改。",
+      "businessUnits": "业务单元（团队）",
+      "businessUnitsHint": "用户只能修改所勾选业务单元的款式，但仍可查看所有款式。全部不勾选则可修改所有款式。",
+      "businessUnitsAdmin": "管理员可以修改所有款式：只有取消管理员角色后，这些业务单元才会生效。",
+      "team": "团队：{{units}}",
+      "teamHint": "只修改这些业务单元的款式"
     },
     "signInPage": {
       "title": "登录页面",
@@ -387,7 +395,7 @@
           "customer": "客户",
           "productType": "产品类型",
           "weaveType": "织法",
-          "businessUnit": "事业部",
+          "businessUnit": "业务单元",
           "gender": "性别",
           "status": "Article 状态",
           "contentClass": "内容类别",
@@ -513,6 +521,9 @@
       "colCode": "代码",
       "colSort": "排序",
       "colUsedBy": "使用数",
+      "colCountry": "原产国",
+      "countryNotSet": "未设置",
+      "countryHint": "此供应商的所有物料都使用该国家，除非在某物料的“供应商”标签中为它单独设置。",
       "codeFixed": "代码不可更改，因为款式、BOM 行和导入文件都在使用它。",
       "nameRule": "最多 {{ max }} 个字符（除标明可选外为必填）。",
       "sortHint": "列表和 BOM 分类按此顺序显示（从小到大）。",
@@ -535,7 +546,8 @@
         "suppliers": "SAP 供应商",
         "targetMarkets": "目标市场",
         "trendTags": "趋势标签",
-        "productCategories": "产品类别"
+        "productCategories": "产品类别",
+        "countries": "国家"
       },
       "names": {
         "customers": "名称",
@@ -551,7 +563,8 @@
         "suppliers": "名称",
         "targetMarkets": "名称",
         "trendTags": "名称",
-        "productCategories": "名称"
+        "productCategories": "名称",
+        "countries": "显示名称"
       },
       "hints": {
         "customers": "款式表头上的客户。\"使用数\"为款式数量。",
@@ -567,7 +580,8 @@
         "suppliers": "BOM 行上的 SAP 供应商。\"使用数\"为 BOM 行数量。",
         "targetMarkets": "概念面向的人群（款式包 > 概念）。“使用数”统计概念。",
         "trendTags": "概念遵循的趋势（款式包 > 概念）。“使用数”统计概念。",
-        "productCategories": "概念的服装类别。代码与“推荐款式”和命中率的服装分组相同。“使用数”统计概念。"
+        "productCategories": "概念的服装类别。代码与“推荐款式”和命中率的服装分组相同。“使用数”统计概念。",
+        "countries": "SAP 供应商的原产国（以及某物料单独设置的原产国）。名称即各页面显示的内容。“使用次数”统计供应商和物料例外；停用的国家不会出现在选择列表中。"
       },
       "codeRules": {
         "customers": "最多 {{ max }} 个字符。",
@@ -583,7 +597,8 @@
         "suppliers": "最多 {{ max }} 个字符。",
         "targetMarkets": "最多 {{ max }} 个字母、数字、- 或 _，以大写保存。",
         "trendTags": "最多 {{ max }} 个字母、数字、- 或 _，以大写保存。",
-        "productCategories": "最多 {{ max }} 个字母、数字、- 或 _，以大写保存。"
+        "productCategories": "最多 {{ max }} 个字母、数字、- 或 _，以大写保存。",
+        "countries": "2 位 ISO 代码（例如 VN），大写保存。"
       },
       "codeExamples": {
         "customers": "ADI",
@@ -599,7 +614,8 @@
         "suppliers": "1100131",
         "targetMarkets": "GENZ",
         "trendTags": "ATHLEISURE",
-        "productCategories": "JACKET"
+        "productCategories": "JACKET",
+        "countries": "VN"
       }
     },
     "translations": {
@@ -2268,7 +2284,125 @@
     "inNamedSeasons": "使用“年份-季节”命名季节的款式",
     "linesWithLco": "已填 LCO 用量的 BOM 行",
     "fix": "补齐",
-    "fixLabel": "补齐{{ what }}：缺 {{ count }}"
+    "fixLabel": "补齐{{ what }}：缺 {{ count }}",
+    "views": {
+      "label": "仪表板",
+      "library": "款式库概览",
+      "designer": "我的款式"
+    },
+    "designer": {
+      "title": "我的款式",
+      "subtitle": "您和您团队的款式，以及每款完成前仍需补充的内容。",
+      "season": "季节",
+      "allSeasons": "所有季节",
+      "scopeHint": "您创建的有效款式。",
+      "emptyTitle": "您还没有创建任何款式",
+      "emptyHint": "您添加（或复制、或由概念生成）的款式会显示在这里，并列出每款仍需补充的内容：草图、配色、BOM、颜色、用量和供应商。",
+      "openConcepts": "打开概念",
+      "kpi": {
+        "styles": "我的款式",
+        "stylesHint": "{{colorways}} 个配色 · {{lines}} 行 BOM",
+        "complete": "已完成",
+        "completeHint": "占您款式的 {{pct}}% · 待完成 {{todo}} 款",
+        "average": "平均完成度",
+        "averageHint": "每款通过的检查项",
+        "offered": "已加入方案",
+        "offeredHint": "{{sampling}} 款打样 · {{ordered}} 款下单"
+      },
+      "missingTitle": "缺少的内容",
+      "missingHint": "缺少各项内容的款式数。点击可列出这些款式。",
+      "allComplete": "没有缺少内容：所有款式均已完成。",
+      "check": {
+        "picture": {
+          "label": "草图或照片",
+          "chip": "无草图或照片",
+          "hint": "该款式既没有草图也没有照片。"
+        },
+        "productType": {
+          "label": "产品类型",
+          "chip": "无产品类型",
+          "hint": "请在款式上设置产品类型。"
+        },
+        "gender": {
+          "label": "性别",
+          "chip": "无性别",
+          "hint": "请在款式上设置性别。"
+        },
+        "colorways": {
+          "label": "配色",
+          "chip": "无配色",
+          "hint": "至少添加一个配色（已取消的配色不计）。"
+        },
+        "bom": {
+          "label": "BOM",
+          "chip": "无 BOM",
+          "hint": "添加该款式的 BOM 行（物料）。"
+        },
+        "colorwaysOnBom": {
+          "label": "BOM 上的配色",
+          "chip": "配色未在 BOM 上",
+          "hint": "没有任何 BOM 行为其指定颜色的配色。数字为配色数量。"
+        },
+        "bomColours": {
+          "label": "面料和辅料颜色",
+          "chip": "缺少颜色",
+          "hint": "未为每个配色指定颜色的面料和辅料行。数字为行数。"
+        },
+        "bomDetails": {
+          "label": "BOM 行详情",
+          "chip": "行详情缺失",
+          "hint": "缺少单位、物料类型或成分类别的 BOM 行。数字为行数。"
+        },
+        "consumption": {
+          "label": "LCO 用量",
+          "chip": "无 LCO",
+          "hint": "没有 LCO 用量的 BOM 行。数字为行数。"
+        },
+        "suppliers": {
+          "label": "供应商",
+          "chip": "无供应商",
+          "hint": "没有供应商的面料、辅料和配件行。数字为行数。"
+        }
+      },
+      "stylesTitle": "待完成的款式",
+      "stylesHint": "点击标签可打开款式中对应的修改位置。",
+      "searchPlaceholder": "搜索款号、型号、客户",
+      "show": "显示",
+      "show_todo": "待完成",
+      "show_done": "已完成",
+      "show_all": "全部",
+      "sort": "排序",
+      "sortScore": "完成度低的在前",
+      "sortChanged": "最近修改的在前",
+      "clearFilter": "清除筛选",
+      "noneToDo": "此处您的所有款式均已完成。",
+      "noneFound": "没有匹配的款式。",
+      "changed": "修改于 {{date}}",
+      "completeness": "完成度",
+      "offered": "已提供",
+      "outcome": {
+        "Sampling": "打样",
+        "Ordered": "已下单",
+        "Dropped": "已放弃"
+      },
+      "nothingMissing": "没有缺少内容",
+      "showMore": "显示更多（{{shown}} / {{total}}）",
+      "conceptsTitle": "我的概念",
+      "conceptsHint": "您负责的设计概念，最新的在前。",
+      "noConcepts": "暂无概念。",
+      "conceptStatus": {
+        "Draft": "草稿",
+        "Ready": "就绪",
+        "Dropped": "已放弃"
+      },
+      "pitchesTitle": "我在方案中的款式",
+      "pitchesHint": "您的款式在哪些方案中提供，以及客户的反馈。",
+      "noPitches": "这些款式尚未加入任何方案。",
+      "noAnswer": "尚无反馈",
+      "scopeTeam": "您团队（{{units}}）的有效款式，以及您创建的款式。",
+      "mineOnly": "仅我的",
+      "changedBy": "{{name}} 修改于 {{date}}"
+    }
   },
   "styles": {
     "title": "款式",
@@ -2420,7 +2554,9 @@
       "tabSimilar": "相似款",
       "techPack": "技术包 (PDF)",
       "techPackFailed": "无法生成技术包，请重试。",
-      "techPackExcel": "技术包 (Excel)"
+      "techPackExcel": "技术包 (Excel)",
+      "viewOnlyTeam": "此款式属于业务单元 {{unit}}，不在您的团队范围内：您可以查看，但不能修改。",
+      "noBusinessUnit": "（无）"
     },
     "form": {
       "newTitle": "新建款式",
@@ -2434,7 +2570,7 @@
       "weave": "织造类型",
       "productType": "产品类型",
       "gender": "性别",
-      "businessUnit": "业务单元",
+      "businessUnit": "业务单元 *",
       "leadTime": "成衣交期（天）",
       "sketch": "款式图",
       "photo": "照片",
@@ -2447,7 +2583,9 @@
       "saved": "款式已保存。",
       "created": "款式已创建。",
       "active": "启用",
-      "activeHint": "停用的款式仍保留在款式库中并保留其历史，但标记为不再使用。"
+      "activeHint": "停用的款式仍保留在款式库中并保留其历史，但标记为不再使用。",
+      "businessUnitRequired": "请选择款式的业务单元。",
+      "businessUnitNotYours": "您只能使用自己的业务单元：{{units}}。"
     },
     "colorway": {
       "addTitle": "添加配色",
@@ -2482,6 +2620,18 @@
       "sapSupplier": "SAP 供应商",
       "sapSupplierCode": "SAP 供应商代码",
       "sapSupplierName": "SAP 供应商名称",
+      "supplier": "供应商",
+      "noSupplier": "无供应商",
+      "suppliersLoading": "正在查找此物料的供应商…",
+      "materialSuppliersHint": "此物料曾采购的供应商，并标出原产国。",
+      "noMaterialSuppliers": "此物料尚无供应商。",
+      "supplierCode": "供应商代码",
+      "supplierName": "供应商名称",
+      "typeSupplier": "输入其他供应商",
+      "typeSupplierHint": "输入供应商代码（已知供应商会提示并自动填入名称），或输入新代码及名称。",
+      "pickMaterialSupplier": "从此物料的 {{ count }} 个供应商中选择",
+      "supplierFromNominated": "已根据此物料其他指定供应商为 {{ code }} 的物料行填入。保存后生效。",
+      "supplierFromOnly": "已填入此物料唯一的供应商。保存后生效。",
       "code": "代码",
       "name": "名称",
       "colorwaysUsing": "使用此物料行的配色",
@@ -2840,12 +2990,15 @@
         "customer": "客户",
         "seasons": "季节",
         "productTypes": "产品类型",
-        "businessUnit": "事业部",
+        "businessUnit": "业务单元",
         "gender": "性别",
         "weave": "织法",
         "material": "物料",
         "keywords": "关键词",
-        "looks": "外观"
+        "looks": "外观",
+        "pictures": "图片",
+        "withPictures": "有图片或草图",
+        "withoutPictures": "无图片或草图"
       },
       "byRules": "已通过词库理解，未使用 AI。",
       "sourceAi": "AI",
@@ -2863,7 +3016,8 @@
         "customer": "客户",
         "material": "物料（物料清单）",
         "styleNo": "款号",
-        "look": "外观（来自图片）"
+        "look": "外观（来自图片）",
+        "pictures": "图片"
       },
       "looks": {
         "title": "外观相似的款式",
@@ -2930,7 +3084,7 @@
         "productType": "产品类型",
         "weaveType": "织法",
         "gender": "性别",
-        "businessUnit": "事业部",
+        "businessUnit": "业务单元",
         "leadTimeDays": "交期（天）",
         "colorwayName": "名称",
         "status": "状态",
@@ -3305,7 +3459,8 @@
         "groupBy": "统计依据",
         "looks": "外观",
         "look": "看起来像",
-        "guide": "指南"
+        "guide": "指南",
+        "pictures": "图片"
       },
       "col": {
         "styleNo": "款式",
@@ -3363,7 +3518,8 @@
       "view": {
         "ask": "提问",
         "saved": "已保存的问题",
-        "guides": "操作指南"
+        "guides": "操作指南",
+        "synonyms": "同义词"
       },
       "feedback": {
         "question": "查询方式正确吗？点赞即可保存：下次同一问题无需 AI 即时回答。",
@@ -3375,13 +3531,14 @@
         "askAi": "现在询问 AI"
       },
       "saved": {
-        "hint": "AI 回答过的问题，以及它选择的查询和筛选条件（从不保存答案）。规则会根据当天数据即时回答，无需 AI。任何用户点赞即成为规则；点踩则移除。追问和含相对日期（今年、最新）的问题不会保存。",
+        "hint": "AI 回答过的问题，以及它选择的查询和筛选条件（从不保存答案）。规则会根据当天数据即时回答，无需 AI。任何用户点赞即成为规则；点踩则移除。追问和含相对日期（今年、最新）的问题不会保存。未回答：没有人能回答的问题。可以将其加入操作指南、指定查询来回答，或忽略。",
         "status": "状态",
         "allStatuses": "全部状态",
         "statusName": {
           "Rule": "规则（即时）",
           "Recorded": "已记录（AI）",
-          "Removed": "已移除"
+          "Removed": "已移除",
+          "Unanswered": "未回答"
         },
         "search": "搜索问题",
         "find": "查找",
@@ -3402,7 +3559,17 @@
         "previous": "上一页",
         "next": "下一页",
         "deleteTitle": "删除此已保存的问题？",
-        "deleteMessage": "将删除“{{ question }}”及其计数。若再次提问，将由 AI 回答并重新记录。"
+        "deleteMessage": "将删除“{{ question }}”及其计数。若再次提问，将由 AI 回答并重新记录。",
+        "lookUp": "查询",
+        "chooseLookUp": "选择回答它的查询",
+        "saveAsRule": "保存为规则",
+        "answerWithLookUp": "用查询回答",
+        "guide": "操作指南",
+        "chooseGuide": "加入指南…",
+        "addToGuide": "加入指南",
+        "addedToGuide": "已加入“{{ title }}”：今后会立即回答。",
+        "ignore": "忽略",
+        "usageUnanswered": "被问 {{ count }} 次 · 最近一次 {{ last }}"
       },
       "bubble": {
         "minimize": "最小化",
@@ -3437,6 +3604,29 @@
           "Seed": "随应用的指南添加",
           "Admin": "由 {{ user }} 于 {{ date }} 修改"
         }
+      },
+      "readAs": "按款式库的写法理解：{{ words }}",
+      "synonyms": {
+        "hint": "用户常用、但款式库写法不同的词。每个问题在被读取之前都会先替换这些词，保存的问题、操作指南、词库和 AI 都按同样方式理解；答案中会注明。复数形式（s、es）也会匹配。",
+        "word": "用户使用的词",
+        "kind": "含义",
+        "value": "款式库代码或词语",
+        "kinds": {
+          "productType": "产品类型",
+          "customer": "客户",
+          "season": "季节",
+          "businessUnit": "业务部门",
+          "gender": "性别",
+          "weaveType": "织法",
+          "words": "其他词语"
+        },
+        "wordsPlaceholder": "例如 package",
+        "codePlaceholder": "选择代码",
+        "add": "保存",
+        "none": "还没有同义词。添加用户常用的词，例如 tees = 产品类型 TOP，gents = 性别 MALE，line plan = package。",
+        "changed": "更改",
+        "editHint": "点击同义词可更改其含义；保存相同的词会替换它。",
+        "saved": "同义词“{{ word }}”已保存。"
       }
     }
   },
@@ -3500,6 +3690,14 @@
     "multiSupplier": "从 {{ count }} 个来源采购。请核对价格和交期是否一致。",
     "noSupplier": "无 SAP 供应商",
     "supplierUse": "{{ styles }} 个款式 · {{ lines }} 条物料行",
+    "supplier": "供应商",
+    "used": "使用",
+    "countryOfOrigin": "原产国",
+    "countryOfOriginFor": "{{ supplier }} 的原产国",
+    "countryNotSet": "未设置",
+    "countrySaved": "已保存原产国",
+    "supplierCountry": "供应商国家：{{ country }}",
+    "countryThisMaterial": "仅此物料",
     "colourUse": "{{ colorways }} 个配色 · {{ styles }} 个款式",
     "noColours": "没有物料颜色记录。",
     "similarHint": "描述相同，或“_”版本后缀前编号相同的物料。可能是同一物料录入了两次；订购或合并前请核实。",

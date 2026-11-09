@@ -37,6 +37,9 @@ import {
   StyleDashboard,
   StyleLibraryService,
 } from '../../features/style-library/style-library.service';
+import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
+import { DASHBOARD_TEXT, DashboardChoice, DashboardKey, DashboardsService, isDashboardKey } from './dashboards.service';
+import { DesignerDashboard } from './designer-dashboard';
 
 /** Translation key plus its parameters (translated in the template, so it follows language changes). */
 interface Text {
@@ -54,8 +57,13 @@ interface RankRow {
   link: { path: string; query: Record<string, string> | null } | null;
 }
 
+/** The dashboard an Admin picked with the switcher, for this browser tab (the role's default applies again after sign-out). */
+const VIEW_KEY = 'ltodm.home.dashboard';
+
 /**
- * Landing page: the Style Library at a glance (styles, colorways, BOM lines; where they are concentrated, how
+ * Landing page. Which dashboard opens is set per role in Settings > Roles (GET /api/v1/dashboards/mine): the library
+ * overview below, or the designer dashboard (DesignerDashboard: the user's own styles and what they miss). Users see only
+ * their roles' dashboard; Admins can switch between all of them. The library overview: the Style Library at a glance (styles, colorways, BOM lines; where they are concentrated, how
  * complete the data is, and what changed last). Users who cannot read the library (factories) get the welcome only.
  */
 @Component({
@@ -69,9 +77,11 @@ interface RankRow {
     RouterLink,
     NgIcon,
     AuthImgDirective,
+    DesignerDashboard,
     HlmBadgeImports,
     HlmButtonImports,
     HlmCardImports,
+    HlmNativeSelectImports,
     HlmSkeletonImports,
     TranslocoPipe,
   ],
@@ -96,6 +106,18 @@ interface RankRow {
 export class Home implements OnInit {
   private readonly svc = inject(StyleLibraryService);
   private readonly auth = inject(AuthService);
+  private readonly dashboards = inject(DashboardsService);
+
+  /** Which dashboards the user may open; null until known. */
+  protected readonly choice = signal<DashboardChoice | null>(null);
+  /** The dashboard shown; null until the choice is known. */
+  protected readonly view = signal<DashboardKey | null>(null);
+  /** Bumped to make the designer dashboard load again; designerBusy follows its loading. */
+  protected readonly designerReload = signal(0);
+  protected readonly designerBusy = signal(false);
+  /** Heading and subtitle of the dashboard shown (the library texts while the choice loads). */
+  protected readonly text = computed(() => DASHBOARD_TEXT[this.view() ?? 'library']);
+  protected readonly busy = computed(() => (this.view() === 'designer' ? this.designerBusy() : this.loading()));
 
   protected readonly health = toSignal(inject(HealthService).getHealth());
   protected readonly canRead = this.svc.canRead;
@@ -238,7 +260,37 @@ export class Home implements OnInit {
   );
 
   ngOnInit(): void {
-    if (this.canRead()) this.load();
+    if (!this.canRead()) return;
+    this.dashboards.mine().subscribe({
+      next: (c) => {
+        this.choice.set(c);
+        const saved = readView();
+        this.show(saved && c.available.includes(saved) ? saved : (c.defaultKey ?? 'library'));
+      },
+      // Older API or a failed call: the library overview, as before.
+      error: () => this.show('library'),
+    });
+  }
+
+  /** Switches dashboard (remembered for this browser tab). */
+  switchTo(key: DashboardKey): void {
+    if (key === this.view() || !this.choice()?.available.includes(key)) return;
+    try {
+      sessionStorage.setItem(VIEW_KEY, key);
+    } catch {
+      /* storage blocked: not remembered */
+    }
+    this.show(key);
+  }
+
+  refresh(): void {
+    if (this.view() === 'designer') this.designerReload.update((n) => n + 1);
+    else this.load();
+  }
+
+  private show(key: DashboardKey): void {
+    this.view.set(key);
+    if (key === 'library' && !this.data() && !this.loading()) this.load();
   }
 
   load(): void {
@@ -280,6 +332,15 @@ export class Home implements OnInit {
       pct: (value(c) / max) * 100,
       link: filterKey && c.code ? { path: '/styles', query: { [filterKey]: c.code } } : null,
     }));
+  }
+}
+
+function readView(): DashboardKey | null {
+  try {
+    const v = sessionStorage.getItem(VIEW_KEY);
+    return isDashboardKey(v) ? v : null;
+  } catch {
+    return null;
   }
 }
 

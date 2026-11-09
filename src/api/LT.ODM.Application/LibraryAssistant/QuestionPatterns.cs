@@ -31,6 +31,7 @@ public static partial class QuestionPatterns
     {
         [WordKinds.Customer] = "customer", [WordKinds.Season] = "seasons", [WordKinds.ProductType] = "productTypes",
         [WordKinds.BusinessUnit] = "businessUnits", [WordKinds.Gender] = "gender", [WordKinds.Weave] = "weaveType",
+        [WordKinds.Picture] = "pictures",
     };
 
     /// <summary>Counting by a dimension ignores a filter on it ("men vs women styles" counts every gender).</summary>
@@ -41,8 +42,8 @@ public static partial class QuestionPatterns
     };
 
     /// <summary>
-    /// Key: the filter words taken out. KeyKeepingProductTypes: the same with product type words kept as words ("top suppliers":
-    /// TOP is also a product type). Slots: slot -> code. Filters: the arguments the removed words fill, for each key.
+    /// Key: the filter words taken out. KeyKeepingProductTypes: the same with product type and picture words kept as words
+    /// ("top suppliers": TOP is also a product type; "search by picture": not a filter on pictures). Slots: slot -> code. Filters: the arguments the removed words fill, for each key.
     /// Read: what the phrase list read from the question with the codes replaced.
     /// </summary>
     public sealed record Reading(
@@ -83,7 +84,8 @@ public static partial class QuestionPatterns
             foreach (var w in words)
             {
                 if (slotOf.TryGetValue(w.Text, out var slot)) kept.Add(slot);
-                else if (FilterArgument.TryGetValue(w.Kind, out var argument) && !(keepProductTypes && w.Kind == WordKinds.ProductType)) filters.Add(argument);
+                // The second reading keeps product type and picture words as words ("top suppliers", "search by picture").
+                else if (FilterArgument.TryGetValue(w.Kind, out var argument) && !(keepProductTypes && w.Kind is WordKinds.ProductType or WordKinds.Picture)) filters.Add(argument);
                 else if (!Joining.Contains(w.Text)) kept.Add(Singular(w.Text));
             }
             var key = string.Join(' ', kept);
@@ -126,7 +128,8 @@ public static partial class QuestionPatterns
             ProductTypes: asked.Contains("productTypes") ? f.ProductTypes : [],
             WeaveType: asked.Contains("weaveType") ? f.WeaveType : null,
             Gender: asked.Contains("gender") ? f.Gender : null,
-            Looks: []);
+            Looks: [],
+            HasPicture: asked.Contains("pictures") ? f.HasPicture : null);
         return LibraryToolArgs.FromDisplay(own, lookups).Fill(read, parameters);
     }
 }

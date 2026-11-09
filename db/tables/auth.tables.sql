@@ -77,6 +77,11 @@ GO
 IF COL_LENGTH(N'auth.Roles', N'DisplayName') IS NULL
     ALTER TABLE auth.Roles ADD DisplayName nvarchar(128) NULL;
 GO
+/* The home page dashboard for the role's users (DashboardKeys in the API: library, designer); NULL = the library overview. */
+IF COL_LENGTH(N'auth.Roles', N'DashboardKey') IS NULL
+    ALTER TABLE auth.Roles ADD DashboardKey varchar(32) NULL
+        CONSTRAINT CK_auth_Roles_DashboardKey CHECK (REGEXP_LIKE(DashboardKey, '^[a-z][a-z0-9-]{1,31}$'));
+GO
 
 IF OBJECT_ID(N'auth.UserRoles', N'U') IS NULL
 CREATE TABLE auth.UserRoles

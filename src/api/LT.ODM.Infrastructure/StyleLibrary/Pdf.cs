@@ -85,7 +85,8 @@ internal static class Pdf
             for (var i = 0; i < cells.Count; i++)
             {
                 var c = cells[i];
-                if (c.Picture) l.Picture(c.Image, null, x + Pad, y + 4, height - 8, height - 8);
+                // A picture cell without a picture stays blank (no empty frame).
+                if (c.Picture && c.Image is not null) l.Picture(c.Image, null, x + Pad, y + 4, height - 8, height - 8);
                 var ty = y + Pad + 8.5f;
                 foreach (var text in wrapped[i].Main)
                 {

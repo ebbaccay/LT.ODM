@@ -12,7 +12,8 @@ namespace LT.ODM.Application.Concepts;
 /// SeasonCode and StyleNo: the new style's, typed by the user. BaseStyleId: one of the concept's inspiration styles to start the
 /// BOM from (null = no BOM yet). ConceptImageId: the concept picture to use as its sketch (null = none).
 /// </summary>
-public sealed record DevelopStyleRequest(string? SeasonCode, string? StyleNo, int? BaseStyleId, int? ConceptImageId);
+/// <remarks>BusinessUnitCode: the new style's business unit (null = the base style's; required one way or the other).</remarks>
+public sealed record DevelopStyleRequest(string? SeasonCode, string? StyleNo, int? BaseStyleId, int? ConceptImageId, string? BusinessUnitCode = null);
 
 /// <summary>SameBrandBase: the BOM came whole from the customer's own brand (true), as know-how from another brand (false), or none (null).</summary>
 public sealed record DevelopedStyleResultDto(int StyleId, bool? SameBrandBase, string? SketchUrl);
@@ -49,7 +50,8 @@ public sealed class ConceptStyleDeveloper(
             sketchUrl = StyleImagePrefix + await styleImages.SaveAsync(picture, kind, ct);
         }
 
-        var (styleId, sameBrand) = await concepts.DevelopStyleAsync(conceptId, r.SeasonCode!, r.StyleNo!, r.BaseStyleId, sketchUrl, changedBy, ct);
+        var (styleId, sameBrand) = await concepts.DevelopStyleAsync(conceptId, r.SeasonCode!, r.StyleNo!, r.BaseStyleId, sketchUrl, changedBy,
+            string.IsNullOrWhiteSpace(r.BusinessUnitCode) ? null : r.BusinessUnitCode.Trim(), ct);
 
         if (sketchUrl is not null && model.Info.IsAvailable && await connections.AiEnabledAsync(ct)
             && styleImages.Open(sketchUrl[StyleImagePrefix.Length..]) is { } stored)

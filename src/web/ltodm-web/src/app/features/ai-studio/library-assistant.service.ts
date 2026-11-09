@@ -52,9 +52,24 @@ export interface LibraryAnswer {
   answerFromFacts: boolean;
   /** Set when the answer can get a thumbs up / down (an AI answer that was recorded, or a saved question). */
   savedQuestionId: number | null;
+  /** Synonyms read differently ("tees → TOP"); null or empty when none. */
+  readAs?: string[] | null;
 }
 
-export type SavedQuestionStatus = 'Recorded' | 'Rule' | 'Removed';
+/** Unanswered: nobody could answer it (set by the assistant, for Admins to review). */
+export type SavedQuestionStatus = 'Recorded' | 'Rule' | 'Removed' | 'Unanswered';
+
+export type SynonymKind = 'productType' | 'customer' | 'season' | 'businessUnit' | 'gender' | 'weaveType' | 'words';
+
+/** word: as people type it; value: a code of the kind's list, or plain words for 'words'. */
+export interface Synonym {
+  synonymId: number;
+  word: string;
+  kind: SynonymKind;
+  value: string;
+  changedBy: string | null;
+  changedUtc: string | null;
+}
 
 /**
  * askCount: answered by the AI; ruleHits: answered from the saved look-up. changedHow: Feedback, Admin or Seed.
@@ -131,8 +146,26 @@ export class LibraryAssistantService {
     return this.http.get<Paged<SavedQuestion>>(`${this.api}/saved`, { params });
   }
 
-  saveSaved(id: number, status: SavedQuestionStatus, args: Record<string, string>): Observable<unknown> {
-    return this.http.put(`${this.api}/saved/${id}`, { status, arguments: args });
+  /** tool: another look-up (e.g. to answer an unanswered question); omitted = keep. */
+  saveSaved(id: number, status: Exclude<SavedQuestionStatus, 'Unanswered'>, args: Record<string, string>, tool?: string): Observable<unknown> {
+    return this.http.put(`${this.api}/saved/${id}`, { status, arguments: args, tool: tool ?? null });
+  }
+
+  /** The question becomes one of a how-to guide's questions. */
+  savedToGuide(id: number, guide: string): Observable<unknown> {
+    return this.http.post(`${this.api}/saved/${id}/to-guide`, { guide });
+  }
+
+  synonyms(): Observable<Synonym[]> {
+    return this.http.get<Synonym[]>(`${this.api}/synonyms`);
+  }
+
+  saveSynonym(word: string, kind: SynonymKind, value: string): Observable<unknown> {
+    return this.http.put(`${this.api}/synonyms`, { word, kind, value });
+  }
+
+  deleteSynonym(id: number): Observable<unknown> {
+    return this.http.delete(`${this.api}/synonyms/${id}`);
   }
 
   deleteSaved(id: number): Observable<unknown> {

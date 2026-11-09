@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -23,6 +23,7 @@ interface ItemForm {
   name: string;
   sortOrder: string;
   isActive: boolean;
+  countryCode: string;
 }
 
 /**
@@ -58,15 +59,34 @@ export class ReferenceLists implements OnInit {
   readonly filtered = computed(() => {
     const q = this.search().trim().toLowerCase();
     if (!q) return this.items();
-    return this.items().filter((i) => i.code.toLowerCase().includes(q) || (i.name ?? '').toLowerCase().includes(q));
+    return this.items().filter(
+      (i) => i.code.toLowerCase().includes(q) || (i.name ?? '').toLowerCase().includes(q) || (i.countryName ?? '').toLowerCase().includes(q),
+    );
   });
 
   readonly saving = signal(false);
   readonly dialogOpen = signal(false);
   readonly editing = signal<RefListItem | null>(null);
   readonly touched = signal(false);
-  readonly form = signal<ItemForm>({ code: '', name: '', sortOrder: '', isActive: true });
-
+  readonly form = signal<ItemForm>({ code: '', name: '', sortOrder: '', isActive: true, countryCode: '' });
+  /** Countries for the suppliers' country of origin. */
+  private readonly lookups = toSignal(this.styles.lookups(), { initialValue: null });
+  readonly countries = computed(() => this.lookups()?.countries ?? []);
+  /** Active countries only are listed (lookups); a code missing here is inactive. */
+  activeCountry = (code: string) => this.countries().some((c) => c.code === code);
+  /** Row layout: sort and country columns only where the list has them (whole class names, so Tailwind finds them). */
+  readonly gridCols = computed(() => {
+    const l = this.list();
+    if (l?.hasSortOrder) return 'grid-cols-[4rem_minmax(0,8rem)_minmax(0,1fr)_6rem_6rem]';
+    if (l?.hasCountry) return 'grid-cols-[minmax(0,10rem)_minmax(0,1fr)_minmax(0,11rem)_6rem_6rem]';
+    return 'grid-cols-[minmax(0,10rem)_minmax(0,1fr)_6rem_6rem]';
+  });
+  readonly rowCols = computed(() => {
+    const l = this.list();
+    if (l?.hasSortOrder) return 'sm:grid-cols-[4rem_minmax(0,8rem)_minmax(0,1fr)_6rem_6rem]';
+    if (l?.hasCountry) return 'sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_minmax(0,11rem)_6rem_6rem]';
+    return 'sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_6rem_6rem]';
+  });
   /** Code in the case the API stores it (what the user sees while typing). */
   readonly code = computed(() => this.applyCase(this.form().code.trim()));
   readonly codeValid = computed(() => {
@@ -129,14 +149,14 @@ export class ReferenceLists implements OnInit {
   openAdd(): void {
     const next = Math.max(0, ...this.items().map((i) => i.sortOrder ?? 0)) + 1;
     this.editing.set(null);
-    this.form.set({ code: '', name: '', sortOrder: String(next), isActive: true });
+    this.form.set({ code: '', name: '', sortOrder: String(next), isActive: true, countryCode: '' });
     this.touched.set(false);
     this.dialogOpen.set(true);
   }
 
   openEdit(i: RefListItem): void {
     this.editing.set(i);
-    this.form.set({ code: i.code, name: i.name ?? '', sortOrder: String(i.sortOrder ?? ''), isActive: i.isActive ?? true });
+    this.form.set({ code: i.code, name: i.name ?? '', sortOrder: String(i.sortOrder ?? ''), isActive: i.isActive ?? true, countryCode: i.countryCode ?? '' });
     this.touched.set(false);
     this.dialogOpen.set(true);
   }
@@ -162,6 +182,7 @@ export class ReferenceLists implements OnInit {
         name: f.name.trim(),
         sortOrder: l.hasSortOrder ? +f.sortOrder : null,
         isActive: l.hasIsActive ? f.isActive : null,
+        countryCode: l.hasCountry ? f.countryCode || null : null,
       })
       .subscribe({
         next: () => {

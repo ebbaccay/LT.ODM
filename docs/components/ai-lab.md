@@ -1,6 +1,6 @@
 # AI Lab
 
-**Where:** AI Studio > AI Lab (`/ai/lab`). **Who:** Admin, Merchandiser, Costing, Viewer.
+**Where:** AI Studio > AI Lab (`/ai/lab`). **Who:** Admin, Merchandiser, Designer, Costing, Viewer.
 
 A showcase of AI capabilities planned for production. **The demo results are written by hand** (style numbers start with `DEMO-`) and no AI model is called on this page. Beside each demo, live numbers from the library show how ready the data is.
 

@@ -4,10 +4,11 @@ import { environment } from '@env/environment';
 import { translate } from '@jsverse/transloco';
 import { Observable, firstValueFrom, map, shareReplay } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
+import { LIBRARY_EDITORS, LIBRARY_READERS, hasAnyRole } from '../../core/auth/library-roles';
 import type { GapSummary } from './style-gaps.service';
 
 // Style Library: styles, colorways, BOM lines and style history (/api/v1/styles).
-// Reading: Admin, Merchandiser, Costing, Viewer. Changing: Admin, Merchandiser (the API checks both).
+// Reading: Admin, Merchandiser, Designer, Costing, Viewer. Changing: Admin, Merchandiser, Designer (the API checks both).
 
 export interface LookupItem {
   code: string;
@@ -25,6 +26,10 @@ export interface StyleLookups {
   uoms: LookupItem[];
   suppliers: LookupItem[];
   seasonTerms: LookupItem[];
+  /** ISO alpha-2 codes (country of origin of a material per supplier). */
+  countries: LookupItem[];
+  /** Business unit teams: the units the user may give a style (null = any). businessUnits stays complete for filters. */
+  myBusinessUnits?: string[] | null;
 }
 
 export interface StyleListItem {
@@ -270,6 +275,8 @@ export interface StyleDetail {
   bomLines: BomLine[];
   family: FamilyMember[];
   copyLinks: StyleCopyLink[] | null;
+  /** Business unit teams: false when the user may only view this style (another team's business unit). */
+  canEdit?: boolean;
 }
 
 export interface SaveStyleRequest {
@@ -555,19 +562,11 @@ export class StyleLibraryService {
     }
   }
 
-  /** Admins, merchandisers, costing and viewers can see the library (the API enforces it). */
-  readonly canRead = computed(() =>
-    (this.auth.user()?.roles ?? []).some((r) =>
-      ['admin', 'merchandiser', 'costing', 'viewer'].includes(r.toLowerCase()),
-    ),
-  );
+  /** Admins, merchandisers, designers, costing and viewers can see the library (the API enforces it). */
+  readonly canRead = computed(() => hasAnyRole(this.auth.user()?.roles, LIBRARY_READERS));
 
-  /** Admins and merchandisers can create, edit and delete (the API enforces it). */
-  readonly canEdit = computed(() =>
-    (this.auth.user()?.roles ?? []).some((r) =>
-      ['admin', 'merchandiser'].includes(r.toLowerCase()),
-    ),
-  );
+  /** Admins, merchandisers and designers can create, edit and delete (the API enforces it). */
+  readonly canEdit = computed(() => hasAnyRole(this.auth.user()?.roles, LIBRARY_EDITORS));
 
   private lookups$?: Observable<StyleLookups>;
 
@@ -732,7 +731,7 @@ export class StyleLibraryService {
    * (the same as an Excel workbook, with the pictures).
    */
   async downloadTechPack(styleId: number, styleNo: string, seasonCode: string, format: 'pdf' | 'xlsx' = 'pdf'): Promise<void> {
-    const url = format === 'pdf' ? `${this.api}/${styleId}/tech-pack` : `${this.api}/${styleId}/tech-pack.xlsx`;
+    const url = (format === 'pdf' ? `${this.api}/${styleId}/tech-pack` : `${this.api}/${styleId}/tech-pack.xlsx`) + `?tz=${encodeURIComponent(browserTimeZone())}`;
     const blob = await firstValueFrom(this.http.get(url, { responseType: 'blob' }));
     saveBlob(blob, `${safeFileName(styleNo)}_${safeFileName(seasonCode)}_techpack.${format}`);
   }
@@ -748,6 +747,30 @@ export class StyleLibraryService {
 }
 
 /** Field errors (400 ValidationProblem) and a message for the toast. */
+/** Business unit teams: the units the user may give a new style (all when not in a team). */
+export function businessUnitChoices(lookups: StyleLookups | null): LookupItem[] {
+  const all = lookups?.businessUnits ?? [];
+  const mine = lookups?.myBusinessUnits;
+  return mine ? all.filter((b) => mine.includes(b.code)) : all;
+}
+
+/** The unit to fill in for a new style: the team's only unit, else none (the user picks). */
+export function defaultBusinessUnit(lookups: StyleLookups | null): string {
+  const mine = lookups?.myBusinessUnits;
+  return mine?.length === 1 ? mine[0] : '';
+}
+
+/**
+ * Translation key and params of what is wrong with a new style's business unit, or null: required, and a team member may
+ * only use their own units (the database checks both).
+ */
+export function businessUnitProblem(code: string, lookups: StyleLookups | null): { key: string; params?: Record<string, string> } | null {
+  const mine = lookups?.myBusinessUnits;
+  if (!code.trim()) return { key: 'styles.form.businessUnitRequired' };
+  if (mine && !mine.includes(code.trim())) return { key: 'styles.form.businessUnitNotYours', params: { units: mine.join(', ') } };
+  return null;
+}
+
 export function styleError(err: unknown): { message: string; fields: Record<string, string> } {
   if (err instanceof HttpErrorResponse) {
     const body = err.error as { title?: string; errors?: Record<string, string[]> } | null;
@@ -782,6 +805,15 @@ export function safeFileName(text: string): string {
 }
 
 /** Plain number for inputs; null when blank or not a number. */
+/** The browser's IANA time zone (e.g. Asia/Ho_Chi_Minh), sent with downloads so their "generated" time is the reader's local time. */
+export function browserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export function toNumber(value: string): number | null {
   const text = value.trim();
   if (!text) return null;

@@ -1,4 +1,4 @@
-<section class="flex flex-col gap-5" [attr.aria-busy]="loading()">
+<section class="flex flex-col gap-5" [attr.aria-busy]="busy()">
   <!-- Header -->
   <header class="flex flex-wrap items-end justify-between gap-3">
     <div>
@@ -11,28 +11,45 @@
         }}
       </p>
       <h1
-        class="from-foreground via-foreground to-dash-1 w-fit bg-linear-to-r bg-clip-text text-3xl font-semibold tracking-tight text-transparent"
+        class="from-foreground via-foreground to-dash-1 w-fit bg-linear-to-r bg-clip-text pb-1 text-3xl font-semibold tracking-tight text-transparent"
       >
-        {{ 'home.title' | transloco }}
+        {{ text().title | transloco }}
       </h1>
       <p class="text-muted-foreground mt-1 text-sm">
-        {{ (canRead() ? 'home.subtitle' : 'home.subtitleNoLibrary') | transloco }}
+        {{ (canRead() ? text().subtitle : 'home.subtitleNoLibrary') | transloco }}
       </p>
     </div>
-    <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+    <div class="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+      <!-- Dashboard switcher: Admins only (others get just their role's dashboard; Settings > Roles). Its own row at the
+           top right, fixed width and flush with the right edge, so it stays put while the buttons below change with the
+           dashboard. Focus is let go after a pick so no focus box stays around it. -->
+      @if (canRead() && (choice()?.available?.length ?? 0) > 1) {
+        <select
+          hlmNativeSelect
+          class="h-11 w-full sm:w-52 lg:h-9"
+          [attr.aria-label]="'home.views.label' | transloco"
+          [value]="view() ?? ''"
+          (change)="switchTo($any($event.target).value); $any($event.target).blur()"
+        >
+          @for (key of choice()!.available; track key) {
+            <option [value]="key" [selected]="view() === key">{{ 'home.views.' + key | transloco }}</option>
+          }
+        </select>
+      }
+      <div class="flex flex-wrap items-center gap-2 sm:justify-end">
       @if (canRead()) {
         <button
           hlmBtn
           variant="outline"
           type="button"
           class="h-11 lg:h-9"
-          (click)="load()"
-          [disabled]="loading()"
+          (click)="refresh()"
+          [disabled]="busy()"
         >
-          <ng-icon name="lucideRefreshCw" [class.animate-spin]="loading()" />
+          <ng-icon name="lucideRefreshCw" [class.animate-spin]="busy()" />
           {{ 'home.refresh' | transloco }}
         </button>
-        @if (isAdmin()) {
+        @if (isAdmin() && view() === 'library') {
           <a hlmBtn variant="outline" class="h-11 lg:h-9" routerLink="/settings/import">
             <ng-icon name="lucideUpload" />
             {{ 'home.importStyles' | transloco }}
@@ -43,10 +60,25 @@
           <ng-icon name="lucideArrowRight" />
         </a>
       }
+      </div>
     </div>
   </header>
 
-  @if (canRead()) {
+  @if (canRead() && view() === 'designer') {
+    <!-- Loaded only when shown, so the library overview's first download stays small -->
+    @defer (on immediate) {
+      <app-designer-dashboard [reload]="designerReload()" (busy)="designerBusy.set($event)" />
+    } @placeholder {
+      <hlm-skeleton class="h-28 w-full" />
+    }
+  } @else if (canRead() && view() === null) {
+    <!-- Waiting for which dashboard to open -->
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <hlm-skeleton class="h-28 w-full" />
+      }
+    </div>
+  } @else if (canRead()) {
     @if (error(); as message) {
       <div
         class="border-destructive/40 bg-destructive/5 text-destructive flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm"

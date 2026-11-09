@@ -20,10 +20,11 @@ public sealed record StyleSearchRequest(string? Query, bool SkipLook = false);
 /// <summary>
 /// Filters read from the request (phrase list or AI); every code is one of the library's codes. BusinessUnit may hold
 /// several codes separated by commas ("running" = RUA,RUB,RUX); Material may hold several words, all on one BOM line.
+/// HasPicture: true = only styles with a picture or sketch ("with images"), false = only styles without ("no pictures"), null = all.
 /// </summary>
 public sealed record StyleSearchFiltersDto(
     string? Search, string? Material, string? Customer, IReadOnlyList<string> Seasons, string? BusinessUnit,
-    IReadOnlyList<string> ProductTypes, string? WeaveType, string? Gender, IReadOnlyList<string>? Looks = null);
+    IReadOnlyList<string> ProductTypes, string? WeaveType, string? Gender, IReadOnlyList<string>? Looks = null, bool? HasPicture = null);
 
 /// <summary>How the request was read.</summary>
 public static class StyleSearchSources

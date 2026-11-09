@@ -105,10 +105,11 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
         }, ct))).ToList(), ct);
 
     public Task<PackageCopyResultDto> AddCopyAsync(int packageId, int styleId, string seasonCode, string styleNo, string changedBy, int? conceptId = null,
-        CancellationToken ct = default)
+        string? businessUnitCode = null, CancellationToken ct = default)
         => Write(conn => conn.QuerySingleAsync<PackageCopyResultDto>(Proc("pack.usp_PackageItem_AddCopy", new
         {
             PackageId = packageId, StyleId = styleId, SeasonCode = seasonCode, StyleNo = styleNo, ConceptId = conceptId, ChangedBy = changedBy,
+            BusinessUnitCode = businessUnitCode,
         }, ct)), ct);
 
     public async Task<IReadOnlyList<PackageClosenessItemDto>> ClosenessAsync(int packageId, string model, CancellationToken ct = default)

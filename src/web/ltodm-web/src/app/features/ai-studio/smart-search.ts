@@ -257,6 +257,7 @@ export class SmartSearch {
     add('ai.search.chip.weave', f.weaveType);
     add('ai.search.chip.material', f.material);
     add('ai.search.chip.looks', (f.looks ?? []).join(', '));
+    add('ai.search.chip.pictures', f.hasPicture == null ? null : this.transloco.translate(f.hasPicture ? 'ai.search.chip.withPictures' : 'ai.search.chip.withoutPictures'));
     add('ai.search.chip.keywords', f.search);
     return list;
   });
@@ -276,6 +277,8 @@ export class SmartSearch {
     set('gender', f.gender);
     set('material', f.material);
     set('looks', (f.looks ?? []).join(','));
+    // The Styles list shows only styles with a picture unless pictures=all (it has no "without" view).
+    if (f.hasPicture !== true) p['pictures'] = 'all';
     return p;
   });
 

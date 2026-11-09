@@ -52,8 +52,9 @@ The repository [README](../README.md) covers the code layout, local development 
 |---|---|---|
 | `Admin` | IT / system owner | Everything, including Settings |
 | `Merchandiser` | Office merchandisers | Style Library (edit), AI Studio (incl. renders, reviews and the image search index), Manage Offerings, SBU module |
+| `Designer` | Designers | Style Library, Style Packages, Concepts and AI Studio (edit, like Merchandiser); home opens on **My styles** (the [designer dashboard](components/dashboard.md#designer-dashboard-my-styles)) |
 | `Costing` | Costing team | Style Library and AI Studio (read only) |
 | `Viewer` | Read-only office users | Style Library and AI Studio (read only), Product Matching, Customer Proposal, Market Trends |
 | `Factory` | Factory users (user group `FTY`) | Garment Quotation, Quotation Dashboard, SBU offers for their own factory |
 
-The menu shows each user only the pages their roles allow. Settings > Menu changes what is shown; the API checks roles on every call regardless.
+Each role sets the home page dashboard its users see (Settings > Roles > *Home dashboard*); only Admins can switch to other dashboards. The menu shows each user only the pages their roles allow. Settings > Menu changes what is shown; the API checks roles on every call regardless.

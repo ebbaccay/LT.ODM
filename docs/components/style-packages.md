@@ -1,6 +1,6 @@
 # Style Packages
 
-**Where:** Style Packages > Packages (`/packages`, `/packages/:id`), What to offer (`/packages/offer`) and Hit rate (`/packages/hit-rate`); LT's own design ideas are worked up in [Concepts](concepts.md) (`/concepts`) and offered from there. **Who:** reading: Admin, Merchandiser, Costing, Viewer (the Style Library readers); changing: Admin, Merchandiser. **Status:** roadmap 5.8 (tables, procedures), 5.9 (API, pages, Add to package), 5.10 (card facts), 5.11 (line sheet) and 5.12 (copies of another brand's style) built 2026-10-28; not browser-tested. See [Roadmap section 5](../ROADMAP.md#5-odm-pitch-workflow-business-goal).
+**Where:** Style Packages > Packages (`/packages`, `/packages/:id`), What to offer (`/packages/offer`) and Hit rate (`/packages/hit-rate`); LT's own design ideas are worked up in [Concepts](concepts.md) (`/concepts`) and offered from there. **Who:** reading: Admin, Merchandiser, Designer, Costing, Viewer (the Style Library readers); changing: Admin, Merchandiser, Designer. **Status:** roadmap 5.8 (tables, procedures), 5.9 (API, pages, Add to package), 5.10 (card facts), 5.11 (line sheet) and 5.12 (copies of another brand's style) built 2026-10-28; not browser-tested. See [Roadmap section 5](../ROADMAP.md#5-odm-pitch-workflow-business-goal).
 
 A style package is a set of proven library styles offered to one client: what LT pitches to a brand for a season. It replaces the old TMS Collection Builder / Customer Proposal for library styles; the old pages stay as they are for reference. There are no prices yet: costs come with the Costing module (roadmap 5.19).
 
@@ -59,7 +59,7 @@ A link the client opens **without signing in** (roadmap 5.16), on the package pa
 
 ## Client profiles
 
-Style Packages > **Client profiles** (`/packages/clients`, roadmap 5.13) lists every brand, and every customer without a brand, that has styles or packages: one profile per client, shared by all accounts of a brand (the profile's key is the brand code, else the customer code). Clients with a profile come first. **Set up profile** / **Edit profile** (Admin, Merchandiser; readers see it):
+Style Packages > **Client profiles** (`/packages/clients`, roadmap 5.13) lists every brand, and every customer without a brand, that has styles or packages: one profile per client, shared by all accounts of a brand (the profile's key is the brand code, else the customer code). Clients with a profile come first. **Set up profile** / **Edit profile** (Admin, Merchandiser, Designer; readers see it):
 
 - **FOB price band** (lowest, highest, currency): kept for when costs are on packages (roadmap 5.19); shown on What to offer.
 - **Minimum recycled %:** the share of a style's fabric BOM lines written as recycled (`mat.fn_IsRecycled`) must be at least this; a style without fabric lines is pointed out too (nothing to judge).
@@ -122,13 +122,14 @@ What the client receives, in English (it goes to brands), from the package page:
 - **Excel:** the package in the first rows, then one row per style (No., **picture**, style number, season, model, description, product type, gender, weave, main fabric, other fabrics, trims, recycled, colourways, lead time, note, **Price**) with the headings frozen and filtered. The picture (photo, else sketch) is shrunk to its cell and anchored to it, so it moves with sorting and filtering; rows are taller when the sheet has pictures. No. and lead time are numbers. Price is empty until costing comes (roadmap 5.19).
 - **Story pages** (roadmap 5.22): before the cards, one per concept of the package's styles with a story for the client (styles offered for the concept, or LT designs developed from it): *The story*, the concept's name, trend tags, the story text, up to 4 pictures marked for the client, and the styles it covers. The Excel has them on a second sheet, **Stories** (concept, story, trends, styles; no pictures).
 - Never on it: internal notes, colourways not offered (or no longer on the style), and styles that are no longer of the package's brand.
+- The *generated* time is in the reader's time zone with its offset (e.g. *2026-11-05 14:29 (UTC+07:00)*): the browser sends its zone (`?tz=`, IANA name); without it the server's zone is used (`GeneratedStamp`). The same goes for the tech pack.
 
 ## Copying another brand's style
 
-Another brand's style is never offered as it is. When **Add to package** reports styles of another brand, each gets a small form: **Season** (the package's season to start with) and **New style number** (yours to give), then **Copy and add**. The copy:
+Another brand's style is never offered as it is. When **Add to package** reports styles of another brand, each gets a small form: **Season** (the package's season to start with), **New style number** (yours to give) and **Business unit** (required: the copied style's unit belongs to the other brand; a [business unit team](styles.md#business-unit-teams) member picks one of their own), then **Copy and add**. The copy:
 
 - is a new style of the package's customer, linked to **exactly the style picked** (`style.Style.OriginStyleId`): a suffixed version such as `S2508MR1212_SS27` stays the reference, and its earlier versions are followed through that style's own history;
-- keeps the know-how: description, product type, weave, gender, lead time, business unit and the fabric, trim and accessory BOM lines (materials, consumption, suppliers);
+- keeps the know-how: description, product type, weave, gender, lead time and the fabric, trim and accessory BOM lines (materials, consumption, suppliers);
 - leaves the brand's identity behind: pictures, colourways (their codes and names are the brand's), model code and name, labels / packaging / artwork lines and BOM line pictures;
 - shows **Copied from** on its page, and the original shows **Copied to** (both link to the other style). Style history (carry-over, variant) stays for reuse within one customer.
 

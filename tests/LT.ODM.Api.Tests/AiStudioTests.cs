@@ -211,7 +211,7 @@ public sealed class AiStudioTests(ApiFactory factory) : IClassFixture<ApiFactory
 
     private static readonly StyleLookupsDto SeasonLibrary = new(
         [new LookupItem("ADI", "adidas")], [new LookupItem("2027-SS", "2027-SS")], [], [new LookupItem("JACKET", "JACKET")], [], [], [], [], [],
-        [new LookupItem("SS", "Spring/Summer")]);
+        [new LookupItem("SS", "Spring/Summer")], []);
 
     [Fact]
     public async Task Ai_search_keeps_what_the_phrase_list_understood_and_only_adds_to_it()
@@ -309,7 +309,7 @@ public sealed class AiStudioTests(ApiFactory factory) : IClassFixture<ApiFactory
             new("PANTS1/1", "PANTS (1/1)"), new("DRESS", "DRESS"), new("HOODED SWEAT", "HOODED SWEAT"), new("PFLEECEHZP", "POLARFLEECE-HALF ZIP"),
         ],
         WeaveTypes: [new("KNT", "Knit"), new("WVN", "Woven")], MaterialTypes: [], ContentClasses: [], Uoms: [], Suppliers: [],
-        SeasonTerms: [new("SP", "Spring"), new("SS", "Spring/Summer"), new("SU", "Summer"), new("FA", "Fall"), new("FW", "Fall/Winter"), new("WI", "Winter")]);
+        SeasonTerms: [new("SP", "Spring"), new("SS", "Spring/Summer"), new("SU", "Summer"), new("FA", "Fall"), new("FW", "Fall/Winter"), new("WI", "Winter")], Countries: []);
 
     [Fact]
     public void Phrase_list_reads_common_requests_without_ai()

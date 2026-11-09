@@ -7,6 +7,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowLeft,
   lucideArrowLeftRight,
+  lucideEye,
   lucideCalculator,
   lucideCopy,
   lucideDownload,
@@ -80,7 +81,7 @@ interface BomSection {
   ],
   providers: [
     provideIcons({
-      lucideArrowLeft, lucideArrowLeftRight, lucideCalculator, lucideCopy, lucideDownload, lucideFileSpreadsheet, lucideFileText, lucideGitBranch, lucideGitCompareArrows, lucideImage, lucideLink, lucidePackage, lucidePackagePlus, lucidePalette, lucidePencil, lucidePlus, lucideImages, lucideSearch, lucideShieldAlert,
+      lucideArrowLeft, lucideArrowLeftRight, lucideEye, lucideCalculator, lucideCopy, lucideDownload, lucideFileSpreadsheet, lucideFileText, lucideGitBranch, lucideGitCompareArrows, lucideImage, lucideLink, lucidePackage, lucidePackagePlus, lucidePalette, lucidePencil, lucidePlus, lucideImages, lucideSearch, lucideShieldAlert,
       lucideTrash2, lucideUnlink, lucideWandSparkles,
     }),
   ],
@@ -96,7 +97,10 @@ export class StyleDetail implements OnInit {
   private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly canEdit = this.svc.canEdit;
+  /** An editor role, and (business unit teams) the style is in one of the user's business units; else view only. */
+  readonly canEdit = computed(() => this.svc.canEdit() && this.detail()?.canEdit !== false);
+  /** An editor who may only view this style because it belongs to another team's business unit. */
+  readonly otherTeam = computed(() => this.svc.canEdit() && this.detail()?.canEdit === false);
   /** The Styles list's last filters, for the back link. */
   readonly listParams = this.svc.listParams;
   readonly toneBadge = toneBadge;

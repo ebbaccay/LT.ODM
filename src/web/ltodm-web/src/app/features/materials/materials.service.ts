@@ -5,7 +5,7 @@ import { Observable } from 'rxjs';
 import { AiJobsService } from '../../core/ai/ai-jobs.service';
 import { Paged } from '../style-library/style-library.service';
 
-// Materials (/api/v1/materials): the BOM seen by material. Read only; same readers as Styles.
+// Materials (/api/v1/materials): the BOM seen by material. Same readers as Styles; editors set a supplier's country of origin.
 
 export interface MaterialListItem {
   materialId: number;
@@ -92,13 +92,39 @@ export interface MaterialDetail {
   /** At most 1000, newest season first; header.lines counts them all. */
   uses: MaterialUse[];
   benchmarks: MaterialBenchmark[];
-  /** supplierCode '' = no SAP supplier on those lines. */
-  suppliers: { supplierCode: string; supplierName: string | null; styles: number; lines: number }[];
+  /** supplierCode '' = no SAP supplier on those lines. countryCode = country of origin entered for the pair (ISO alpha-2). */
+  suppliers: MaterialSupplier[];
   colours: { materialColorCode: string | null; materialColorDescription: string | null; colorways: number; styles: number }[];
   similar: { materialId: number; materialCode: string; description: string | null; reason: 'SameDescription' | 'SameBaseCode'; styles: number }[];
 }
 
 // ----- Insights (views on the Materials page) -----
+
+export interface MaterialSupplier {
+  supplierCode: string;
+  supplierName: string | null;
+  styles: number;
+  lines: number;
+  /** The country that applies: this material's own, else the supplier's. */
+  countryCode: string | null;
+  countryName: string | null;
+  /** Set for this material only (differs from the supplier's). */
+  materialCountryCode: string | null;
+  /** The supplier's own country (Settings > Reference lists > SAP suppliers). */
+  supplierCountryCode: string | null;
+  supplierCountryName: string | null;
+}
+
+/** A supplier of a material, for the BOM line form (most styles first). */
+export interface MaterialSupplierOption {
+  supplierCode: string;
+  supplierName: string;
+  countryCode: string | null;
+  countryName: string | null;
+  styles: number;
+  /** Lines where this supplier went with the asked nominated supplier code. */
+  nominatedLines: number;
+}
 
 export type MaterialView = 'all' | 'trims' | 'suppliers' | 'duplicates' | 'recycled' | 'colours' | 'reader';
 
@@ -216,6 +242,18 @@ export class MaterialsService {
 
   get(materialId: number): Observable<MaterialDetail> {
     return this.http.get<MaterialDetail>(`${this.api}/${materialId}`);
+  }
+
+  /** Suppliers of a material by its code (empty for a new code); nominated = the line's nominated supplier code. */
+  supplierOptions(materialCode: string, nominated = ''): Observable<MaterialSupplierOption[]> {
+    const params: Record<string, string> = { code: materialCode };
+    if (nominated) params['nominated'] = nominated;
+    return this.http.get<MaterialSupplierOption[]>(`${this.api}/supplier-options`, { params });
+  }
+
+  /** This material's own country of origin from one supplier (null = follow the supplier's country). Editors only. */
+  setSupplierCountry(materialId: number, supplierCode: string, countryCode: string | null): Observable<void> {
+    return this.http.put<void>(`${this.api}/${materialId}/suppliers/${encodeURIComponent(supplierCode)}/country`, { countryCode });
   }
 
   standardTrims(filter: InsightFilter): Observable<StandardTrims> {

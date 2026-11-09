@@ -34,7 +34,7 @@ WHERE Route = 'boms' AND NOT EXISTS (SELECT 1 FROM nav.Items x WHERE x.Route = '
 INSERT nav.ItemRoles (ItemId, RoleId)
 SELECT i.ItemId, r.RoleId
 FROM nav.Items i
-JOIN auth.Roles r ON r.Name IN (N'Admin', N'Merchandiser', N'Costing', N'Viewer')
+JOIN auth.Roles r ON r.Name IN (N'Admin', N'Merchandiser', N'Designer', N'Costing', N'Viewer')
 WHERE i.Route = 'materials' AND NOT EXISTS (SELECT 1 FROM nav.ItemRoles x WHERE x.ItemId = i.ItemId);
 
 -- Settings > Content classes grew into Settings > Reference lists (all Styles pick lists).
@@ -64,23 +64,23 @@ DECLARE @items TABLE (GroupText nvarchar(100), Text nvarchar(100), Route varchar
 INSERT @items VALUES
     (N'nav.home',             N'nav.dashboard',               '',                     'lucideLayoutDashboard',  10,   N''),
     (N'nav.home',             N'nav.quotationDashboard',      'dashboard',            'lucideChartColumn',      20,   N'Admin,Merchandiser,Factory'),
-    (N'nav.styleLibrary',     N'nav.styles',                  'styles',               'lucideImages',           10,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.styleLibrary',     N'nav.materials',               'materials',            'lucideListTree',         20,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.styleLibrary',     N'nav.fillGaps',                'styles/gaps',          'lucideClipboardCheck',   25,   N'Admin,Merchandiser,Costing,Viewer'),
+    (N'nav.styleLibrary',     N'nav.styles',                  'styles',               'lucideImages',           10,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.styleLibrary',     N'nav.materials',               'materials',            'lucideListTree',         20,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.styleLibrary',     N'nav.fillGaps',                'styles/gaps',          'lucideClipboardCheck',   25,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
     (N'nav.styleLibrary',     N'nav.workmanship',             'workmanship',          'lucideTimer',            30,   N''),
     (N'nav.styleLibrary',     N'nav.costing',                 'costing',              'lucideCalculator',       40,   N''),
-    (N'nav.stylePackages',    N'nav.packages',                'packages',             'lucidePackage',          10,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.stylePackages',    N'nav.offer',                   'packages/offer',       'lucideLightbulb',        20,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.stylePackages',    N'nav.concepts',                'concepts',             'lucidePalette',          25,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.stylePackages',    N'nav.hitRate',                 'packages/hit-rate',    'lucideChartColumn',      30,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.stylePackages',    N'nav.clientProfiles',          'packages/clients',     'lucideClipboardCheck',   40,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.aiStudio',         N'nav.aiSearch',                'ai/search',            'lucideScanSearch',       10,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.aiStudio',         N'nav.aiImageSearch',           'ai/image-search',      'lucideScanEye',          15,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.aiStudio',         N'nav.aiAssistant',             'ai/assistant',         'lucideMessagesSquare',   17,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.aiStudio',         N'nav.aiCompare',              'ai/compare',           'lucideGitCompareArrows', 20,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.aiStudio',         N'nav.aiBomCheck',              'ai/bom-check',         'lucideShieldAlert',      30,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.aiStudio',         N'nav.aiRender',                'ai/render',            'lucideWandSparkles',     40,   N'Admin,Merchandiser,Costing,Viewer'),
-    (N'nav.aiStudio',         N'nav.aiLab',                   'ai/lab',               'lucideFlaskConical',     50,   N'Admin,Merchandiser,Costing,Viewer'),
+    (N'nav.stylePackages',    N'nav.packages',                'packages',             'lucidePackage',          10,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.stylePackages',    N'nav.offer',                   'packages/offer',       'lucideLightbulb',        20,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.stylePackages',    N'nav.concepts',                'concepts',             'lucidePalette',          25,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.stylePackages',    N'nav.hitRate',                 'packages/hit-rate',    'lucideChartColumn',      30,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.stylePackages',    N'nav.clientProfiles',          'packages/clients',     'lucideClipboardCheck',   40,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.aiStudio',         N'nav.aiSearch',                'ai/search',            'lucideScanSearch',       10,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.aiStudio',         N'nav.aiImageSearch',           'ai/image-search',      'lucideScanEye',          15,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.aiStudio',         N'nav.aiAssistant',             'ai/assistant',         'lucideMessagesSquare',   17,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.aiStudio',         N'nav.aiCompare',              'ai/compare',           'lucideGitCompareArrows', 20,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.aiStudio',         N'nav.aiBomCheck',              'ai/bom-check',         'lucideShieldAlert',      30,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.aiStudio',         N'nav.aiRender',                'ai/render',            'lucideWandSparkles',     40,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
+    (N'nav.aiStudio',         N'nav.aiLab',                   'ai/lab',               'lucideFlaskConical',     50,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
     (N'nav.manageOfferings',  N'nav.garmentQuotation',        'garment-quotation',    'lucideReceipt',          10,   N'Admin,Merchandiser,Factory'),
     (N'nav.manageOfferings',  N'nav.conceptStudio',           'concept-studio',       'lucideLightbulb',        20,   N'Admin,Merchandiser'),
     (N'nav.manageOfferings',  N'nav.sbuSubmission',           'order-management',     'lucideSend',             30,   N'Admin,Merchandiser'),
@@ -121,6 +121,17 @@ FROM @added a
 JOIN @items i ON i.Route = a.Route
 CROSS APPLY STRING_SPLIT(i.Roles, N',') s
 JOIN auth.Roles r ON r.Name = TRIM(s.value);
+
+-- Designer (role added 2026-11): on its first run, it gets the Style Library readers' pages that already existed
+-- (pages open to every signed-in user stay that way). Skipped once the role has any menu rule, so Settings > Menu wins.
+IF NOT EXISTS (SELECT 1 FROM nav.ItemRoles ir JOIN auth.Roles r ON r.RoleId = ir.RoleId WHERE r.Name = N'Designer')
+    INSERT nav.ItemRoles (ItemId, RoleId)
+    SELECT i.ItemId, d.RoleId
+    FROM nav.Items i
+    JOIN @items s ON s.Route = i.Route AND s.Roles LIKE N'%Designer%'
+    JOIN auth.Roles d ON d.Name = N'Designer'
+    WHERE EXISTS (SELECT 1 FROM nav.ItemRoles x WHERE x.ItemId = i.ItemId)
+      AND NOT EXISTS (SELECT 1 FROM nav.ItemRoles x WHERE x.ItemId = i.ItemId AND x.RoleId = d.RoleId);
 
 COMMIT TRANSACTION;
 GO

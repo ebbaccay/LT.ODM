@@ -12,7 +12,14 @@ import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { Modal } from '@tms/shared/ui/modal';
 import { toneBadge } from '@tms/shared/ui/tones';
 import { Subject, debounceTime } from 'rxjs';
-import { StyleLibraryService, StyleLookups, styleError } from '../style-library/style-library.service';
+import {
+  StyleLibraryService,
+  StyleLookups,
+  businessUnitChoices,
+  businessUnitProblem,
+  defaultBusinessUnit,
+  styleError,
+} from '../style-library/style-library.service';
 import { PackageAddResult, PackageListItem, PackageSource, PackagesService, STATUS_TONE } from './packages.service';
 
 /**
@@ -30,6 +37,9 @@ import { PackageAddResult, PackageListItem, PackageSource, PackagesService, STAT
       @if (results(); as r) {
         <datalist id="ap-seasons">
           @for (s of lookups()?.seasons ?? []; track s.code) { <option [value]="s.code">{{ s.code === s.name ? '' : s.name }}</option> }
+        </datalist>
+        <datalist id="ap-bus">
+          @for (b of businessUnits(); track b.code) { <option [value]="b.code">{{ b.name }}</option> }
         </datalist>
         <!-- What happened to each style -->
         <div class="flex flex-col gap-3 text-sm">
@@ -61,7 +71,7 @@ import { PackageAddResult, PackageListItem, PackageSource, PackagesService, STAT
                       <ng-icon name="lucideCircleCheck" />{{ 'packages.copy.done' | transloco: { styleNo: c!.styleNo } }}
                     </span>
                   } @else {
-                    <div class="grid gap-2 sm:grid-cols-[8rem_minmax(0,1fr)_auto] sm:items-start">
+                    <div class="grid gap-2 sm:grid-cols-[8rem_minmax(0,1fr)_7rem_auto] sm:items-start">
                       <div class="flex flex-col gap-1">
                         <label hlmLabel class="text-xs" [for]="'cp-season-' + r.styleId">{{ 'packages.copy.season' | transloco }}</label>
                         <input hlmInput [id]="'cp-season-' + r.styleId" list="ap-seasons" class="h-11 lg:h-9" maxlength="16" autocomplete="off" placeholder="2028-SS"
@@ -71,6 +81,12 @@ import { PackageAddResult, PackageListItem, PackageSource, PackagesService, STAT
                         <label hlmLabel class="text-xs" [for]="'cp-no-' + r.styleId">{{ 'packages.copy.styleNo' | transloco }}</label>
                         <input hlmInput [id]="'cp-no-' + r.styleId" class="h-11 font-mono lg:h-9" maxlength="100" autocomplete="off"
                                [value]="c?.styleNo ?? ''" (input)="setCopy(r.styleId, 'styleNo', $any($event.target).value)" />
+                      </div>
+                      <!-- The copy's business unit: required (the source's belongs to the other brand) -->
+                      <div class="flex flex-col gap-1">
+                        <label hlmLabel class="text-xs" [for]="'cp-bu-' + r.styleId">{{ 'styles.form.businessUnit' | transloco }}</label>
+                        <input hlmInput [id]="'cp-bu-' + r.styleId" list="ap-bus" class="h-11 lg:h-9" maxlength="16" autocomplete="off"
+                               [value]="c?.businessUnitCode ?? ''" (input)="setCopy(r.styleId, 'businessUnitCode', $any($event.target).value)" />
                       </div>
                       <button hlmBtn variant="outline" type="button" class="h-11 sm:mt-5 lg:h-9" [disabled]="c?.saving" (click)="copy(r)">
                         @if (c?.saving) { <hlm-spinner class="size-4" /> }
@@ -213,7 +229,11 @@ export class AddToPackageDialog {
   readonly targetName = signal('');
   readonly searchInput = new Subject<string>();
   /** Copies of another brand's styles being made, by source style id. */
-  readonly copies = signal<Record<number, { seasonCode: string; styleNo: string; saving?: boolean; done?: boolean; error?: string }>>({});
+  readonly copies = signal<
+    Record<number, { seasonCode: string; styleNo: string; businessUnitCode?: string; saving?: boolean; done?: boolean; error?: string }>
+  >({});
+  /** Business unit teams: the units the user may give the copies. */
+  readonly businessUnits = computed(() => businessUnitChoices(this.lookups()));
   private targetSeason: string | null = null;
 
   readonly added = computed(() => (this.results() ?? []).filter((r) => r.result === 'Added'));
@@ -248,7 +268,7 @@ export class AddToPackageDialog {
     return names.length > 5 ? `${names.slice(0, 5).join(', ')} +${names.length - 5}` : names.join(', ');
   }
 
-  setCopy(styleId: number, key: 'seasonCode' | 'styleNo', value: string): void {
+  setCopy(styleId: number, key: 'seasonCode' | 'styleNo' | 'businessUnitCode', value: string): void {
     this.copies.update((c) => ({ ...c, [styleId]: { ...c[styleId], [key]: value, error: undefined } }));
   }
 
@@ -259,12 +279,18 @@ export class AddToPackageDialog {
     if (!packageId || !c || c.saving) return;
     const seasonCode = c.seasonCode.trim().toUpperCase();
     const styleNo = c.styleNo.trim();
+    const businessUnitCode = (c.businessUnitCode ?? '').trim();
     if (!seasonCode || !styleNo) {
       this.copies.update((x) => ({ ...x, [r.styleId]: { ...c, error: this.transloco.translate('packages.copy.required') } }));
       return;
     }
+    const unitProblem = businessUnitProblem(businessUnitCode, this.lookups());
+    if (unitProblem) {
+      this.copies.update((x) => ({ ...x, [r.styleId]: { ...c, error: this.transloco.translate(unitProblem.key, unitProblem.params) } }));
+      return;
+    }
     this.copies.update((x) => ({ ...x, [r.styleId]: { ...c, saving: true, error: undefined } }));
-    this.svc.addCopy(packageId, r.styleId, seasonCode, styleNo, this.conceptId()).subscribe({
+    this.svc.addCopy(packageId, r.styleId, seasonCode, styleNo, this.conceptId(), businessUnitCode).subscribe({
       next: () => {
         this.copies.update((x) => ({ ...x, [r.styleId]: { seasonCode, styleNo, done: true } }));
         this.styles.refreshLookups();
@@ -337,7 +363,8 @@ export class AddToPackageDialog {
         this.targetName.set(name);
         this.results.set(results);
         // Copies start in the package's season; the style number is the user's to give.
-        this.copies.set(Object.fromEntries(results.filter((r) => r.result === 'OtherBrand').map((r) => [r.styleId, { seasonCode: this.targetSeason ?? '', styleNo: '' }])));
+        const unit = defaultBusinessUnit(this.lookups());
+        this.copies.set(Object.fromEntries(results.filter((r) => r.result === 'OtherBrand').map((r) => [r.styleId, { seasonCode: this.targetSeason ?? '', styleNo: '', businessUnitCode: unit }])));
         const n = results.filter((r) => r.result === 'Added').length;
         if (n) this.stylesAdded.emit(n);
       },

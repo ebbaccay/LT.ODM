@@ -64,8 +64,11 @@ public sealed class FakeAccessRepository : IAccessRepository
 {
     public List<(int UserId, SetUserAccessRequest Request, string ChangedBy)> AccessChanges { get; } = [];
 
+    /// <summary>What Settings > Roles lists (and the home page reads each role's dashboard from).</summary>
+    public List<RoleDto> Roles { get; } = [new RoleDto(1, "Admin", "Administrator", null, 1)];
+
     public Task<IReadOnlyList<RoleDto>> GetRolesAsync(CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<RoleDto>>([new RoleDto(1, "Admin", "Administrator", null, 1)]);
+        => Task.FromResult<IReadOnlyList<RoleDto>>([.. Roles]);
 
     public Task<int> SaveRoleAsync(SaveRoleRequest request, string changedBy, CancellationToken ct = default) => Task.FromResult(5);
 
@@ -217,7 +220,7 @@ public sealed class AdminTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         var (admin, me) = await SignInAsync("Admin");
         var lists = await admin.GetFromJsonAsync<RefListInfoDto[]>("/api/v1/admin/ref-lists");
-        Assert.Equal(14, lists!.Length);   // brands added 2026-10-15; concept lists 2026-10-28
+        Assert.Equal(15, lists!.Length);   // brands added 2026-10-15; concept lists 2026-10-28; countries 2026-11-05
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/v1/admin/ref-lists/users")).StatusCode);
         Assert.Equal("FAB", Assert.Single((await admin.GetFromJsonAsync<RefListItemDto[]>("/api/v1/admin/ref-lists/contentClasses"))!).Code);
 
@@ -241,6 +244,25 @@ public sealed class AdminTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal(("PCS".ToLowerInvariant(), (int?)null), (factory.RefData.Saved.Last().Request.Code, factory.RefData.Saved.Last().Request.SortOrder));
         Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/v1/admin/ref-lists/seasons", new { isNew = true, code = "2028-fw", name = "" })).StatusCode);
         Assert.Equal(("2028-FW", (bool?)true), (factory.RefData.Saved.Last().Request.Code, factory.RefData.Saved.Last().Request.IsActive));
+
+        // Suppliers carry a country of origin (upper-cased, two letters); other lists drop it.
+        Assert.True(lists.Single(l => l.Key == "suppliers").HasCountry);
+        Assert.False(lists.Single(l => l.Key == "customers").HasCountry);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await admin.PostAsJsonAsync("/api/v1/admin/ref-lists/suppliers", new { isNew = false, code = "1115288", name = "Avery", countryCode = "Cambodia" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await admin.PostAsJsonAsync("/api/v1/admin/ref-lists/suppliers", new { isNew = false, code = "1115288", name = "Avery", countryCode = " kh " })).StatusCode);
+        Assert.Equal("KH", factory.RefData.Saved.Last().Request.CountryCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await admin.PostAsJsonAsync("/api/v1/admin/ref-lists/customers", new { isNew = true, code = "NEW", name = "New", countryCode = "KH" })).StatusCode);
+        Assert.Null(factory.RefData.Saved.Last().Request.CountryCode);
+        // Countries: 2-letter ISO codes, upper-cased; the name is free.
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await admin.PostAsJsonAsync("/api/v1/admin/ref-lists/countries", new { isNew = true, code = "VNM", name = "Vietnam" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await admin.PostAsJsonAsync("/api/v1/admin/ref-lists/countries", new { isNew = true, code = "bn", name = "Brunei" })).StatusCode);
+        Assert.Equal(("countries", "BN", (bool?)true), (factory.RefData.Saved.Last().List, factory.RefData.Saved.Last().Request.Code,
+            factory.RefData.Saved.Last().Request.IsActive));
 
         var dup = await admin.PostAsJsonAsync("/api/v1/admin/ref-lists/contentClasses", new { isNew = true, code = "FAB", name = "Fabric", sortOrder = 1 });
         Assert.Equal(HttpStatusCode.BadRequest, dup.StatusCode);
@@ -270,12 +292,13 @@ public sealed class AdminTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var response = await admin.PostAsJsonAsync("/api/v1/admin/users", new
         {
             userName = " fty.dg02 ", email = "dg02@factory.test", displayName = "Dongguan 02", roles = new[] { "Factory" }, userGroup = "FTY", location = " DG02 ",
-            password = "ignored-if-sent",
+            password = "ignored-if-sent", businessUnits = new[] { "RUA", "FTB" },
         });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var invite = factory.Access.Invites.Last();
         Assert.Equal("fty.dg02", invite.Request.UserName);
+        Assert.Equal(["RUA", "FTB"], invite.Request.BusinessUnits!);
         Assert.Equal("DG02", invite.Request.Location);
         Assert.Equal(me.UserName, invite.CreatedBy);
         Assert.Equal(32, invite.TokenHash!.Length);
@@ -287,6 +310,10 @@ public sealed class AdminTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.NotEmpty(token);
         Assert.Equal(invite.TokenHash, System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Uri.UnescapeDataString(token))));
         Assert.Contains("fty.dg02", mail.TextBody);
+
+        var badUnits = await admin.PostAsJsonAsync("/api/v1/admin/users", new { userName = "bu.user", email = "bu@company.test", displayName = "BU", roles = Array.Empty<string>(), businessUnits = new[] { "A,B" } });
+        Assert.Equal(HttpStatusCode.BadRequest, badUnits.StatusCode);
+        Assert.Contains("businessUnits", await badUnits.Content.ReadAsStringAsync());
 
         var taken = await admin.PostAsJsonAsync("/api/v1/admin/users", new { userName = "taken", email = "t@company.test", displayName = "T", roles = Array.Empty<string>() });
         Assert.Equal(HttpStatusCode.BadRequest, taken.StatusCode);

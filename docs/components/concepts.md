@@ -1,6 +1,6 @@
 # Concepts
 
-**Where:** Style Packages > Concepts (`/concepts`, `/concepts/:id`). **Who:** reading: Admin, Merchandiser, Costing, Viewer (the Style Library readers); changing: Admin, Merchandiser. **Status:** roadmap 5.6 (pick lists), 5.7 (concepts), 5.1 (design provenance) and 5.2 (brand closeness check) built 2026-10-28; not browser-tested. See [Roadmap section 5](../ROADMAP.md#5-odm-pitch-workflow-business-goal).
+**Where:** Style Packages > Concepts (`/concepts`, `/concepts/:id`). **Who:** reading: Admin, Merchandiser, Designer, Costing, Viewer (the Style Library readers); changing: Admin, Merchandiser, Designer. **Status:** roadmap 5.6 (pick lists), 5.7 (concepts), 5.1 (design provenance) and 5.2 (brand closeness check) built 2026-10-28; not browser-tested. See [Roadmap section 5](../ROADMAP.md#5-odm-pitch-workflow-business-goal).
 
 A concept is one of LT's own design ideas, worked up before it is offered to a brand: inspiration pictures, the library styles it takes from, and an AI brief. Each picture is checked for closeness to other brands' designs (the ODM pitch guardrail: a brand's past styles may inspire pitches to that same brand; across brands only know-how goes, never the look). The concept's styles are then offered in a [style package](style-packages.md), and each package item remembers the concept. The old TMS [Concept Studio](concept-studio.md) stays as it is for reference (decision 1: nothing is copied from it).
 
@@ -49,6 +49,7 @@ Library styles to start the concept from, shown **at once, without AI** (changed
 **Develop as style** (roadmap 5.21, decided 2026-10-29) turns the concept into an **LT original design**: a new style of the **concept's customer** from the start, since the offered product becomes the brand's design once they adopt it (a concept needs a customer first). The dialog asks for:
 
 - **Season** (the concept's to start with) and **style number** (yours to give; unique for the customer and season);
+- **Business unit** (required; a [business unit team](styles.md#business-unit-teams) member picks one of their own, filled in when they have one);
 - **Start the BOM from:** one of the concept's inspiration styles, or *No BOM yet*. The customer's own brand gives its **whole BOM** (with its product type, weave, lead time and business unit); another brand's style gives **know-how only**, as a package copy (fabric, trim and accessory lines; no labels, artwork, colourways or pictures) and is recorded as its origin (`style.Style.OriginStyleId`, *BOM know-how from* on the concept);
 - **Sketch:** one of the concept's pictures (or none). It is copied into the style library, so it is the style's sketch on the style page, line sheets, the client's page and image search, and its look-alike vector is read at once (when the image model can run), so the closeness check covers it without waiting for indexing.
 

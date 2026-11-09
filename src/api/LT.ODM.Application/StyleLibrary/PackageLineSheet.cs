@@ -8,9 +8,9 @@ namespace LT.ODM.Application.StyleLibrary;
 /// </summary>
 public interface IPackageLineSheetWriter
 {
-    Task<byte[]> WritePdfAsync(PackageDetailDto package, string generatedBy, DateTime generatedUtc, CancellationToken ct = default);
+    Task<byte[]> WritePdfAsync(PackageDetailDto package, string generatedBy, DateTime generatedUtc, TimeZoneInfo? timeZone = null, CancellationToken ct = default);
 
-    Task<byte[]> WriteExcelAsync(PackageDetailDto package, string generatedBy, DateTime generatedUtc, CancellationToken ct = default);
+    Task<byte[]> WriteExcelAsync(PackageDetailDto package, string generatedBy, DateTime generatedUtc, TimeZoneInfo? timeZone = null, CancellationToken ct = default);
 }
 
 /// <summary>What goes on a line sheet, shared by the PDF and Excel writers.</summary>

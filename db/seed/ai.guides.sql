@@ -20,7 +20,7 @@ GO
 INSERT ai.Guide (Code, Title, Who, Intro, Steps, ChangedBy, ChangedHow)
 SELECT v.Code, v.Title, v.Who, v.Intro, v.Steps, N'seed', 'Seed'
 FROM (VALUES
-    ('create_package', N'Create a style package', N'Admin, Merchandiser',
+    ('create_package', N'Create a style package', N'Admin, Merchandiser, Designer',
      N'A package is the set of library styles you pitch to one client for a season.',
      N'[
         {"text":"Open Style Packages > Packages and click New package: give it a name, the customer and (optional) the season.","url":"/packages?new=1&customer={customer}&season={season}"},
@@ -29,7 +29,7 @@ FROM (VALUES
         {"text":"Check the amber line (styles that break the client profile: recycled share, restricted materials, preferred mills) and the red banner (copies that look too close to another brand''s design).","url":null},
         {"text":"Download the Line sheet (PDF) or Excel, or share it with the client: ask me \u201chow do I share a package with a client?\u201d","url":null}
      ]'),
-    ('add_styles_to_package', N'Add styles to a package', N'Admin, Merchandiser',
+    ('add_styles_to_package', N'Add styles to a package', N'Admin, Merchandiser, Designer',
      N'Styles can go into a package from several places; another brand''s style goes in as a copy with its own style number.',
      N'[
         {"text":"Styles list: tick the styles (picks are kept while you search, filter and page) and click Add to package in the bar at the bottom.","url":"/styles?pick=1&customer={customer}"},
@@ -38,7 +38,7 @@ FROM (VALUES
         {"text":"What to offer: tick suggestions for the client and click Add to package.","url":"/packages/offer?customer={customer}"},
         {"text":"Pick an open package (the only one for the styles'' customer is chosen for you) or start a new one. The dialog then says what happened to each style.","url":null}
      ]'),
-    ('share_package', N'Share a package with a client', N'Admin, Merchandiser',
+    ('share_package', N'Share a package with a client', N'Admin, Merchandiser, Designer',
      N'The client opens a link without signing in, sees the styles as on the line sheet, and answers per style.',
      N'[
         {"text":"Open the package.","url":"/packages?customer={customer}"},
@@ -47,7 +47,7 @@ FROM (VALUES
         {"text":"Answers show on the package page and in the bell. The first visit turns the package to Viewed, a sample request to Sampling; set Ordered or Closed yourself with Edit.","url":null},
         {"text":"Revoke stops a link at once (the answers stay).","url":null}
      ]'),
-    ('client_profile', N'Set up a client profile', N'Admin, Merchandiser',
+    ('client_profile', N'Set up a client profile', N'Admin, Merchandiser, Designer',
      N'One profile per brand: the rules its packages are checked against, and its pitch dates.',
      N'[
         {"text":"Open Style Packages > Client profiles.","url":"/packages/clients"},
@@ -55,7 +55,7 @@ FROM (VALUES
         {"text":"Fill in the rules: minimum recycled %, restricted materials and substances (comma separated, e.g. PVC, PFAS), preferred mills; and the FOB price band, pitch dates, LT account manager and notes.","url":null},
         {"text":"Save. Package pages and What to offer now point out the styles that break the rules; the account manager gets pitch-date reminders in the bell.","url":null}
      ]'),
-    ('what_to_offer', N'Find what to offer a client', N'Everyone; adding to a package: Admin, Merchandiser',
+    ('what_to_offer', N'Find what to offer a client', N'Everyone; adding to a package: Admin, Merchandiser, Designer',
      N'Suggestions from the library alone (rules, no AI), learning from what this client liked or dropped before.',
      N'[
         {"text":"Open Style Packages > What to offer and choose the customer.","url":"/packages/offer?customer={customer}"},
@@ -63,7 +63,7 @@ FROM (VALUES
         {"text":"Keep Hide styles that break them on to follow the client profile''s rules.","url":null},
         {"text":"Tick the styles you want and click Add to package.","url":null}
      ]'),
-    ('create_concept', N'Work up a concept (LT design idea)', N'Admin, Merchandiser',
+    ('create_concept', N'Work up a concept (LT design idea)', N'Admin, Merchandiser, Designer',
      N'A concept is LT''s own design idea: pictures, the library styles it takes from, and a story for the client.',
      N'[
         {"text":"Open Style Packages > Concepts and click New concept: name, customer (optional), season, product category, trend tags, gender, target price and the idea.","url":"/concepts"},
@@ -72,14 +72,14 @@ FROM (VALUES
         {"text":"Write the Story for the client and tick Show to the client on up to 4 pictures.","url":null},
         {"text":"Set the status to Ready, then Offer in a package, or Develop as style to make it an LT design (needs a customer).","url":null}
      ]'),
-    ('reuse_style', N'Reuse a style in another season', N'Admin, Merchandiser',
+    ('reuse_style', N'Reuse a style in another season', N'Admin, Merchandiser, Designer',
      N'Reuse copies a style with its colourways, BOM and pictures, and records the carry-over in its history.',
      N'[
         {"text":"Find the style on the Styles list and open it.","url":"/styles?customer={customer}"},
         {"text":"Click Reuse in another season and choose the new season, or make it a variant.","url":null},
         {"text":"Check the copy and change what is new; the History tab shows Changes from the style it was reused from.","url":null}
      ]'),
-    ('new_style', N'Add a style', N'Admin, Merchandiser',
+    ('new_style', N'Add a style', N'Admin, Merchandiser, Designer',
      N'For one style. Many styles at once come from the Excel import (ask me "how do I import styles?").',
      N'[
         {"text":"Open Style Library > Styles and click New style.","url":"/styles"},
@@ -124,4 +124,9 @@ FROM (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM ai.Guide g WHERE g.Code = v.Code);
 
 PRINT CONCAT('Library assistant how-to guides: ', @@ROWCOUNT, ' added.');
+GO
+
+-- Designer role (2026-11) edits like Merchandiser: seeded guides not changed by an Admin say so too.
+UPDATE ai.Guide SET Who = REPLACE(Who, N'Admin, Merchandiser', N'Admin, Merchandiser, Designer')
+WHERE ChangedHow = 'Seed' AND Who LIKE N'%Admin, Merchandiser%' AND Who NOT LIKE N'%Designer%';
 GO

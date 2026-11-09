@@ -177,6 +177,8 @@ export interface DevelopStyle {
   styleNo: string;
   baseStyleId: number | null;
   conceptImageId: number | null;
+  /** The new style's business unit (required in the dialog; the API falls back to the base style's). */
+  businessUnitCode?: string | null;
 }
 
 /** A concept of a style (style page): kind Developed = the style is an LT design from it; Inspired = it inspired it. */

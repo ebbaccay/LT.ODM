@@ -14,7 +14,7 @@ public sealed class FakeStyleRepository : IStyleRepository
 
     public List<(string Action, int? Id, object? Request, string ChangedBy)> Writes { get; } = [];
 
-    public StyleLookupsDto Lookups { get; init; } = new([new LookupItem("ADI", "adidas")], [], [], [], [], [], [], [], [], []);
+    public StyleLookupsDto Lookups { get; init; } = new([new LookupItem("ADI", "adidas")], [], [], [], [], [], [], [], [], [], []);
 
     public Task<StyleLookupsDto> GetLookupsAsync(CancellationToken ct = default) => Task.FromResult(Lookups);
 
@@ -122,7 +122,7 @@ public sealed class StylesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     private static object Style(string styleNo = "S1_SS27", string? rowVer = null, string season = "2027-SS", string? gender = "FEMALE")
-        => new { rowVer, customerCode = "ADI", seasonCode = season, styleNo, modelName = "Model", gender };
+        => new { rowVer, customerCode = "ADI", seasonCode = season, styleNo, modelName = "Model", gender, businessUnitCode = "FTB" };
 
     [Fact]
     public async Task Viewers_read_editors_change_factories_do_neither()
@@ -163,8 +163,12 @@ public sealed class StylesTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Contains("e.g. 2027-SS", body);
         Assert.Contains("\"gender\"", body);
 
+        var noUnit = await admin.PostAsJsonAsync("/api/v1/styles", new { customerCode = "ADI", seasonCode = "2027-SS", styleNo = "S3" });
+        Assert.Equal(HttpStatusCode.BadRequest, noUnit.StatusCode);
+        Assert.Contains("\"businessUnitCode\"", await noUnit.Content.ReadAsStringAsync());
+
         var image = await admin.PostAsJsonAsync("/api/v1/styles",
-            new { customerCode = "ADI", seasonCode = "2027-SS", styleNo = "S2", imageUrl = "javascript:alert(1)" });
+            new { customerCode = "ADI", seasonCode = "2027-SS", styleNo = "S2", businessUnitCode = "FTB", imageUrl = "javascript:alert(1)" });
         Assert.Equal(HttpStatusCode.BadRequest, image.StatusCode);
         Assert.Contains("\"imageUrl\"", await image.Content.ReadAsStringAsync());
     }
@@ -266,7 +270,7 @@ public sealed class StylesTests(ApiFactory factory) : IClassFixture<ApiFactory>
         await admin.GetAsync("/api/v1/styles");
         Assert.Null(factory.Styles.LastListQuery!.IsActive);
 
-        var body = new { rowVer = RowVer, customerCode = "ADI", seasonCode = "2027-SS", styleNo = "S1", isActive = false };
+        var body = new { rowVer = RowVer, customerCode = "ADI", seasonCode = "2027-SS", styleNo = "S1", businessUnitCode = "FTB", isActive = false };
         Assert.Equal(HttpStatusCode.OK, (await admin.PutAsJsonAsync("/api/v1/styles/5", body)).StatusCode);
         Assert.False(((SaveStyleRequest)factory.Styles.Writes.Last().Request!).IsActive);
     }

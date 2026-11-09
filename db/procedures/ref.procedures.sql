@@ -14,10 +14,11 @@
       seasonTerms     ref.SeasonTerm                 2-4 letters          Name           SortOrder        seasons
       customers       partner.Partner (Customer)     as typed             Name           IsActive         styles
       brands          ref.Brand                      upper-case           Name           IsActive         customers
-      suppliers       partner.Partner (Supplier)     as typed             Name           IsActive         BOM lines
+      suppliers       partner.Partner (Supplier)     as typed             Name           IsActive, Country BOM lines
       targetMarkets   ref.TargetMarket               upper-case           Name           IsActive         concepts
       trendTags       ref.TrendTag                   upper-case           Name           IsActive         concepts
       productCategories ref.ProductCategory          upper-case           Name           IsActive         concepts
+      countries       ref.Country                    2 letters (ISO)      Name           IsActive         suppliers, material exceptions
 
     Codes are the keys styles, BOM lines and the workbook import use, so they cannot change once created (the API
     applies the case rules above). A row still in use cannot be deleted: make it inactive instead where the list
@@ -36,7 +37,7 @@ DROP PROCEDURE IF EXISTS ref.usp_ContentClass_Save;
 DROP PROCEDURE IF EXISTS ref.usp_ContentClass_Delete;
 GO
 
-/* Every row of one list: Code, Name, SortOrder (or NULL), IsActive (or NULL), UsageCount. */
+/* Every row of one list: Code, Name, SortOrder (or NULL), IsActive (or NULL), UsageCount; suppliers also CountryCode, CountryName. */
 CREATE OR ALTER PROCEDURE ref.usp_RefList_Get
     @List varchar(32)
 AS
@@ -88,8 +89,10 @@ BEGIN
         FROM ref.Brand x ORDER BY x.BrandCode;
     ELSE IF @List = 'suppliers'
         SELECT Code = x.PartnerCode, x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
-               UsageCount = (SELECT COUNT(*) FROM style.BomLine b WHERE b.SupplierId = x.PartnerId)
-        FROM partner.Partner x WHERE x.PartnerType = 'Supplier' ORDER BY x.PartnerCode;
+               UsageCount = (SELECT COUNT(*) FROM style.BomLine b WHERE b.SupplierId = x.PartnerId),
+               x.CountryCode, CountryName = co.Name
+        FROM partner.Partner x LEFT JOIN ref.Country co ON co.CountryCode = x.CountryCode
+        WHERE x.PartnerType = 'Supplier' ORDER BY x.PartnerCode;
     ELSE IF @List = 'targetMarkets'
         SELECT Code = x.TargetMarketCode, x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
                UsageCount = (SELECT COUNT(*) FROM concept.Concept c WHERE c.TargetMarketCode = x.TargetMarketCode)
@@ -102,14 +105,19 @@ BEGIN
         SELECT Code = x.ProductCategoryCode, x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
                UsageCount = (SELECT COUNT(*) FROM concept.Concept c WHERE c.ProductCategoryCode = x.ProductCategoryCode)
         FROM ref.ProductCategory x ORDER BY x.ProductCategoryCode;
+    ELSE IF @List = 'countries'
+        SELECT Code = RTRIM(x.CountryCode), x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
+               UsageCount = (SELECT COUNT(*) FROM partner.Partner p WHERE p.CountryCode = x.CountryCode)
+                          + (SELECT COUNT(*) FROM mat.MaterialSupplier m WHERE m.CountryCode = x.CountryCode)
+        FROM ref.Country x ORDER BY x.Name;
     ELSE
         THROW 50070, 'Unknown reference list.', 1;
 END
 GO
 
 /*
-    Insert (@IsNew = 1) or update one row. The code itself never changes; @SortOrder and @IsActive are ignored by
-    lists without them. Single-statement writes: the primary and unique keys still refuse a duplicate that slips
+    Insert (@IsNew = 1) or update one row. The code itself never changes; @SortOrder, @IsActive and @CountryCode
+    (suppliers: country of origin, NULL = not set) are ignored by lists without them. Single-statement writes: the primary and unique keys still refuse a duplicate that slips
     past the checks.
 */
 CREATE OR ALTER PROCEDURE ref.usp_RefList_Save
@@ -119,7 +127,8 @@ CREATE OR ALTER PROCEDURE ref.usp_RefList_Save
     @Name       nvarchar(150),
     @SortOrder  int = NULL,
     @IsActive   bit = NULL,
-    @ChangedBy  nvarchar(64)
+    @ChangedBy  nvarchar(64),
+    @CountryCode char(2) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -141,11 +150,16 @@ BEGIN
         WHEN @List = 'targetMarkets'  THEN IIF(EXISTS (SELECT 1 FROM ref.TargetMarket WHERE TargetMarketCode = @Code), 1, 0)
         WHEN @List = 'trendTags'      THEN IIF(EXISTS (SELECT 1 FROM ref.TrendTag WHERE TrendTagCode = @Code), 1, 0)
         WHEN @List = 'productCategories' THEN IIF(EXISTS (SELECT 1 FROM ref.ProductCategory WHERE ProductCategoryCode = @Code), 1, 0)
+        WHEN @List = 'countries'      THEN IIF(EXISTS (SELECT 1 FROM ref.Country WHERE CountryCode = @Code), 1, 0)
         WHEN @partnerType IS NOT NULL THEN IIF(EXISTS (SELECT 1 FROM partner.Partner WHERE PartnerType = @partnerType AND PartnerCode = @Code), 1, 0)
     END;
     IF @exists IS NULL THROW 50070, 'Unknown reference list.', 1;
     IF @IsNew = 1 AND @exists = 1 THROW 50071, 'This code already exists in the list.', 1;
     IF @IsNew = 0 AND @exists = 0 THROW 50072, 'This code was not found. It may have been deleted; reload the list.', 1;
+
+    SET @CountryCode = IIF(@List = 'suppliers', NULLIF(UPPER(TRIM(@CountryCode)), ''), NULL);
+    IF @CountryCode IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ref.Country WHERE CountryCode = @CountryCode)
+        THROW 50076, 'Choose a country from the list.', 1;
 
     IF @List = 'seasonTerms'
        AND EXISTS (SELECT 1 FROM ref.SeasonTerm WHERE SortOrder = @SortOrder AND Term <> @Code)
@@ -214,12 +228,20 @@ BEGIN
         IF @IsNew = 1 INSERT ref.ProductCategory (ProductCategoryCode, Name, IsActive) VALUES (@Code, @Name, @IsActive);
         ELSE UPDATE ref.ProductCategory SET Name = @Name, IsActive = @IsActive WHERE ProductCategoryCode = @Code;
     END
+    ELSE IF @List = 'countries'
+    BEGIN
+        IF @IsNew = 1 INSERT ref.Country (CountryCode, Name, IsActive) VALUES (@Code, @Name, @IsActive);
+        ELSE UPDATE ref.Country SET Name = @Name, IsActive = @IsActive WHERE CountryCode = @Code;
+    END
     ELSE
     BEGIN
         IF @IsNew = 1
-            INSERT partner.Partner (PartnerType, PartnerCode, Name, IsActive, CreatedBy) VALUES (@partnerType, @Code, @Name, @IsActive, @ChangedBy);
+            INSERT partner.Partner (PartnerType, PartnerCode, Name, IsActive, CountryCode, CreatedBy)
+            VALUES (@partnerType, @Code, @Name, @IsActive, @CountryCode, @ChangedBy);
         ELSE
-            UPDATE partner.Partner SET Name = @Name, IsActive = @IsActive, UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
+            UPDATE partner.Partner
+            SET Name = @Name, IsActive = @IsActive, UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME(),
+                CountryCode = IIF(@List = 'suppliers', @CountryCode, CountryCode)
             WHERE PartnerType = @partnerType AND PartnerCode = @Code;
     END
 END
@@ -254,6 +276,8 @@ BEGIN
         WHEN @List = 'targetMarkets'  THEN IIF(EXISTS (SELECT 1 FROM concept.Concept WHERE TargetMarketCode = @Code), 1, 0)
         WHEN @List = 'trendTags'      THEN IIF(EXISTS (SELECT 1 FROM concept.ConceptTag WHERE TrendTagCode = @Code), 1, 0)
         WHEN @List = 'productCategories' THEN IIF(EXISTS (SELECT 1 FROM concept.Concept WHERE ProductCategoryCode = @Code), 1, 0)
+        WHEN @List = 'countries'      THEN IIF(EXISTS (SELECT 1 FROM partner.Partner WHERE CountryCode = @Code)
+                                               OR EXISTS (SELECT 1 FROM mat.MaterialSupplier WHERE CountryCode = @Code), 1, 0)
     END;
     IF @used IS NULL THROW 50070, 'Unknown reference list.', 1;
     IF @used = 1
@@ -271,6 +295,7 @@ BEGIN
     ELSE IF @List = 'targetMarkets' DELETE ref.TargetMarket WHERE TargetMarketCode = @Code;
     ELSE IF @List = 'trendTags'     DELETE ref.TrendTag WHERE TrendTagCode = @Code;
     ELSE IF @List = 'productCategories' DELETE ref.ProductCategory WHERE ProductCategoryCode = @Code;
+    ELSE IF @List = 'countries'     DELETE ref.Country WHERE CountryCode = @Code;
     ELSE                            DELETE partner.Partner WHERE PartnerId = @partnerId;
 END
 GO

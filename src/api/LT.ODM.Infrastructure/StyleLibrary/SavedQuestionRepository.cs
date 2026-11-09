@@ -49,11 +49,23 @@ public sealed class SavedQuestionRepository(IDbConnectionFactory connectionFacto
         return (await conn.QueryAsync<string>(Proc("ai.usp_SavedQuestion_Popular", new { Take = take }, ct))).ToList();
     }
 
-    public Task SaveAsync(int savedQuestionId, string status, IReadOnlyDictionary<string, string> arguments, string changedBy, CancellationToken ct = default)
+    public Task SaveAsync(int savedQuestionId, string status, IReadOnlyDictionary<string, string> arguments, string changedBy, string? tool = null,
+        CancellationToken ct = default)
         => ExecAsync("ai.usp_SavedQuestion_Save", new
         {
-            SavedQuestionId = savedQuestionId, Status = status, Arguments = JsonSerializer.Serialize(arguments), ChangedBy = changedBy,
+            SavedQuestionId = savedQuestionId, Status = status, Arguments = JsonSerializer.Serialize(arguments), ChangedBy = changedBy, Tool = tool,
         }, ct);
+
+    public Task RecordUnansweredAsync(string questionKey, string question, CancellationToken ct = default)
+        => ExecAsync("ai.usp_SavedQuestion_RecordUnanswered", new { QuestionKey = questionKey, Question = question }, ct);
+
+    public async Task<SavedQuestionDto?> GetAsync(int savedQuestionId, CancellationToken ct = default)
+    {
+        await using var conn = await connectionFactory.OpenAsync(ct);
+        var r = await conn.QuerySingleOrDefaultAsync<Row>(Proc("ai.usp_SavedQuestion_Get", new { SavedQuestionId = savedQuestionId }, ct));
+        return r is null ? null : new SavedQuestionDto(r.SavedQuestionId, r.Question, r.Tool, Args(r.Arguments), r.Status, r.AskCount, r.RuleHits,
+            Utc(r.LastAskedUtc), Utc(r.CreatedUtc), r.ChangedBy, r.ChangedUtc is { } c ? Utc(c) : null, r.ChangedHow, r.IsPattern);
+    }
 
     public Task DeleteAsync(int savedQuestionId, CancellationToken ct = default)
         => ExecAsync("ai.usp_SavedQuestion_Delete", new { SavedQuestionId = savedQuestionId }, ct);

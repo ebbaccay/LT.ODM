@@ -15,7 +15,7 @@ At least 12 characters with upper case, lower case, a number and a symbol; no co
 
 ## New users
 
-An Admin adds users in **Settings > User roles > Add user**: name, user name, email, roles, user group, location, and how the user gets a password:
+An Admin adds users in **Settings > User roles > Add user**: name, user name, email, roles, business units (team; none ticked = may change every style), user group, location, and how the user gets a password:
 
 - **Email a link to set it** (normal): the user receives an email with a link (valid 72 hours) to choose their own password. Until then the account cannot sign in. **Send password link** (envelope icon) sends a fresh link; older links stop working.
 - **Set a temporary password** (when email is not available, e.g. before SMTP is set up): the Admin types a password that meets the password rules. No email is sent. The Admin gives the password to the user in person or by phone. At first sign-in the user must choose their own password before they can use the app, and they cannot keep the temporary one.
@@ -38,6 +38,7 @@ Factory users have user group `FTY` and their factory code as location. The syst
 |---|---|
 | `Admin` | Everything, including Settings. Cannot remove their own Admin role |
 | `Merchandiser` | Office work: Style Library editing, AI Studio including renders, Manage Offerings, SBU module |
+| `Designer` | Creates styles: Style Library, packages, concepts and AI Studio with the same editing rights as Merchandiser (not Manage Offerings or the SBU module). Home opens on the designer dashboard |
 | `Costing` | Read the Style Library and AI Studio |
 | `Viewer` | Read-only office user |
 | `Factory` | Garment Quotation and offers for their own factory |

@@ -2,8 +2,12 @@
     LT ODM Style Library - Materials (/api/v1/materials): the BOM seen by material instead of by style.
 
     usp_Material_List  materials with how widely they are used (styles, lines, seasons, customers, suppliers)
-    usp_Material_Get   one material: where it is used, consumption per product type, suppliers, colours and
-                       materials that may be the same thing (same description, or same code before the version suffix)
+    usp_Material_Get   one material: where it is used, consumption per product type, suppliers (with country of
+                       origin), colours and materials that may be the same thing (same description, or same code
+                       before the version suffix)
+    usp_Material_SupplierOptions   a material's suppliers by material code (BOM line form)
+    usp_MaterialSupplier_SetCountry  a material's own country of origin from one supplier, when it differs from the
+                                     supplier's (Suppliers tab); the supplier's country is set in Reference lists
 
     Usage numbers come from BOM lines. Consumption compared = brand consumption, else LT's (LCO), totalled per style
     (a fabric on a body and a pocket line is one use) - the same basis as the AI Studio BOM check.
@@ -165,12 +169,18 @@ BEGIN
     FROM typed
     ORDER BY Styles DESC, ProductTypeCode;
 
-    -- 4. Suppliers (no SAP supplier = empty code)
-    SELECT SupplierCode = ISNULL(p.PartnerCode, N''), SupplierName = p.Name, Styles = COUNT(DISTINCT b.StyleId), Lines = COUNT(*)
+    -- 4. Suppliers (no SAP supplier = empty code). Country of origin: this material's own (MaterialCountryCode) else the
+    --    supplier's (SupplierCountryCode); CountryCode / CountryName = the one that applies.
+    SELECT SupplierCode = ISNULL(p.PartnerCode, N''), SupplierName = p.Name, Styles = COUNT(DISTINCT b.StyleId), Lines = COUNT(*),
+           CountryCode = COALESCE(ms.CountryCode, p.CountryCode), CountryName = co.Name,
+           MaterialCountryCode = ms.CountryCode, SupplierCountryCode = p.CountryCode, SupplierCountryName = sc.Name
     FROM style.BomLine b
     LEFT JOIN partner.Partner p ON p.PartnerId = b.SupplierId
+    LEFT JOIN mat.MaterialSupplier ms ON ms.MaterialId = b.MaterialId AND ms.SupplierId = b.SupplierId
+    LEFT JOIN ref.Country co ON co.CountryCode = COALESCE(ms.CountryCode, p.CountryCode)
+    LEFT JOIN ref.Country sc ON sc.CountryCode = p.CountryCode
     WHERE b.MaterialId = @MaterialId
-    GROUP BY p.PartnerCode, p.Name
+    GROUP BY p.PartnerCode, p.Name, ms.CountryCode, p.CountryCode, co.Name, sc.Name
     ORDER BY COUNT(DISTINCT b.StyleId) DESC;
 
     -- 5. Material colours
@@ -194,6 +204,66 @@ BEGIN
       AND ((@desc IS NOT NULL AND LEN(@desc) >= 8 AND UPPER(REPLACE(TRIM(m.Description), N' ', N'')) = @desc)
            OR (LEN(@base) >= 5 AND (m.MaterialCode = @base OR m.MaterialCode LIKE REPLACE(REPLACE(@base, N'[', N'[[]'), N'%', N'[%]') + N'[_]%')))
     ORDER BY CASE WHEN UPPER(REPLACE(TRIM(m.Description), N' ', N'')) = @desc THEN 0 ELSE 1 END, m.MaterialCode;
+END
+GO
+
+/*
+    Suppliers of a material by its code, for the BOM line form's supplier list: the SAP suppliers on the material's BOM
+    lines (most styles first) with the country of origin (this material's own, else the supplier's). Empty for a new or
+    unknown code.
+    NominatedLines = lines where the supplier went with @NominatedSupplierCode (the brand's nominated supplier): the form
+    fills in the most frequent one for an imported line that came without an SAP supplier.
+*/
+CREATE OR ALTER PROCEDURE mat.usp_Material_SupplierOptions
+    @MaterialCode          nvarchar(64),
+    @NominatedSupplierCode nvarchar(32) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @materialId int = (SELECT MaterialId FROM mat.Material WHERE MaterialCode = TRIM(@MaterialCode));
+    SET @NominatedSupplierCode = NULLIF(TRIM(@NominatedSupplierCode), N'');
+
+    SELECT SupplierCode = p.PartnerCode, SupplierName = p.Name, CountryCode = COALESCE(ms.CountryCode, p.CountryCode), CountryName = co.Name,
+           Styles = COUNT(DISTINCT b.StyleId), NominatedLines = SUM(IIF(b.NominatedSupplierCode = @NominatedSupplierCode, 1, 0))
+    FROM style.BomLine b
+    JOIN partner.Partner p ON p.PartnerId = b.SupplierId
+    LEFT JOIN mat.MaterialSupplier ms ON ms.MaterialId = b.MaterialId AND ms.SupplierId = b.SupplierId
+    LEFT JOIN ref.Country co ON co.CountryCode = COALESCE(ms.CountryCode, p.CountryCode)
+    WHERE b.MaterialId = @materialId
+    GROUP BY p.PartnerCode, p.Name, ms.CountryCode, p.CountryCode, co.Name
+    ORDER BY COUNT(DISTINCT b.StyleId) DESC, p.Name;
+END
+GO
+
+/*
+    Sets this material's own country of origin from one supplier, when it differs from the supplier's (master) country.
+    @CountryCode NULL, or the supplier's own country, clears it: the material then follows the supplier. The supplier must
+    be on one of the material's BOM lines. Errors: 50404 material or supplier not found, 50400 unknown country or supplier
+    not used.
+*/
+CREATE OR ALTER PROCEDURE mat.usp_MaterialSupplier_SetCountry
+    @MaterialId   int,
+    @SupplierCode nvarchar(32),
+    @CountryCode  char(2) = NULL,
+    @ChangedBy    nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    IF NOT EXISTS (SELECT 1 FROM mat.Material WHERE MaterialId = @MaterialId) THROW 50404, 'Material not found.', 1;
+    DECLARE @supplierId int = (SELECT PartnerId FROM partner.Partner WHERE PartnerType = 'Supplier' AND PartnerCode = @SupplierCode);
+    IF @supplierId IS NULL THROW 50404, 'Supplier not found.', 1;
+    IF NOT EXISTS (SELECT 1 FROM style.BomLine WHERE MaterialId = @MaterialId AND SupplierId = @supplierId)
+        THROW 50400, 'This supplier is not on any BOM line of the material.', 1;
+    SET @CountryCode = NULLIF(UPPER(TRIM(@CountryCode)), '');
+    IF @CountryCode IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ref.Country WHERE CountryCode = @CountryCode)
+        THROW 50400, 'Unknown country.', 1;
+    IF @CountryCode = (SELECT CountryCode FROM partner.Partner WHERE PartnerId = @supplierId) SET @CountryCode = NULL;
+
+    MERGE mat.MaterialSupplier WITH (HOLDLOCK) AS t
+    USING (SELECT MaterialId = @MaterialId, SupplierId = @supplierId) AS s ON t.MaterialId = s.MaterialId AND t.SupplierId = s.SupplierId
+    WHEN MATCHED THEN UPDATE SET CountryCode = @CountryCode, UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
+    WHEN NOT MATCHED THEN INSERT (MaterialId, SupplierId, CountryCode, UpdatedBy) VALUES (@MaterialId, @supplierId, @CountryCode, @ChangedBy);
 END
 GO
 

@@ -17,7 +17,7 @@ public static partial class StyleQueryParser
     {
         public bool HasCriteria => Filters.Search is not null || Filters.Material is not null || Filters.Customer is not null
             || Filters.Seasons.Count > 0 || Filters.BusinessUnit is not null || Filters.ProductTypes.Count > 0 || Filters.WeaveType is not null
-            || Filters.Gender is not null || Filters.Looks is { Count: > 0 };
+            || Filters.Gender is not null || Filters.Looks is { Count: > 0 } || Filters.HasPicture is not null;
 
         public bool Complete => HasCriteria && Unmatched.Count == 0;
     }
@@ -45,6 +45,14 @@ public static partial class StyleQueryParser
         "velour", "twill", "denim", "canvas", "lace", "zipper", "zip", "elastic", "drawcord", "cord", "snap", "button", "velcro", "reflective",
         "tape", "padding", "insulation", "brushed", "waterproof", "stretch",
     };
+
+    /// <summary>"with images", "pictures only", "has a sketch" = styles with a picture or sketch; after "without" / "no" / "missing": without.</summary>
+    internal static readonly HashSet<string> PictureWords = new(StringComparer.Ordinal)
+    {
+        "image", "images", "picture", "pictures", "photo", "photos", "pic", "pics", "sketch", "sketches", "pictured", "photographed",
+    };
+
+    private static readonly HashSet<string> NoPictureWords = new(StringComparer.Ordinal) { "without", "no", "missing", "lacking" };
 
     /// <summary>Season term words; codes (SS, FW, ...) come from the library's season terms.</summary>
     private static readonly Dictionary<string, string> TermWords = new(StringComparer.Ordinal)
@@ -99,7 +107,8 @@ public static partial class StyleQueryParser
     public static class WordKinds
     {
         public const string Season = "season", BusinessUnit = "businessUnit", ProductType = "productType", Look = "look", Gender = "gender",
-            Weave = "weave", Material = "material", Customer = "customer", Filler = "filler", StyleNo = "styleNo", Unmatched = "unmatched";
+            Weave = "weave", Material = "material", Customer = "customer", Filler = "filler", StyleNo = "styleNo", Unmatched = "unmatched",
+            Picture = "picture";
     }
 
     /// <summary>A word of the request (lower case, possessive removed) and what it was read as.</summary>
@@ -138,6 +147,21 @@ public static partial class StyleQueryParser
 
         var productTypes = ReadProductTypes(tokens, used, lookups.ProductTypes, unmatched);
         Took(WordKinds.ProductType);
+
+        // Pictures: "with images" / "pictures only" (has a picture or sketch), "without pictures" / "no sketch" (has neither).
+        bool? hasPicture = null;
+        for (var i = 0; i < tokens.Count; i++)
+        {
+            if (used[i] || !PictureWords.Contains(tokens[i])) continue;
+            // "without pictures" (1 word before) or "without a picture" / "no any sketch" (2 words before)
+            var back = i > 0 && !used[i - 1] && NoPictureWords.Contains(tokens[i - 1]) ? 1
+                : i > 1 && !used[i - 2] && NoPictureWords.Contains(tokens[i - 2]) && tokens[i - 1] is "a" or "any" ? 2 : 0;
+            var without = back > 0;
+            for (var k = i - back; k <= i; k++) used[k] = true;
+            if (hasPicture is not null && hasPicture != !without) unmatched.Add(tokens[i]);   // "with and without pictures": AI
+            else hasPicture = !without;
+        }
+        Took(WordKinds.Picture);
 
         // Picture looks ("hooded", "full zip", "striped", "navy"), after product types so "hooded sweat" stays a product type.
         var looks = new List<string>();
@@ -178,7 +202,8 @@ public static partial class StyleQueryParser
             ProductTypes: productTypes,
             WeaveType: weave is not null && lookups.WeaveTypes.Count > 0 && !lookups.WeaveTypes.Any(x => x.Code == weave) ? null : weave,
             Gender: gender,
-            Looks: looks.Distinct().ToList());
+            Looks: looks.Distinct().ToList(),
+            HasPicture: hasPicture);
         return (new Result(filters, unmatched.Distinct().ToList()),
             tokens.Select((t, k) => new Word(t, kinds[k] ?? WordKinds.Unmatched)).ToList());
     }
@@ -328,6 +353,7 @@ public static partial class StyleQueryParser
             new("productType", Sorted(productWords.Concat(["tee", "hoodie", "leggings"]))),
             new("detail", ["long sleeve", "short sleeve", "sleeveless", "midweight", "1/2", "3/4", "7/8"]),
             new("weave", ["knit", "woven"]),
+            new("pictures", ["with images", "with pictures", "pictures only", "has a sketch", "without pictures", "no picture"]),
             new("look", PictureTagVocabulary.Attributes.SelectMany(a => a.Values.Select(v => v.Words.FirstOrDefault())).OfType<string>().ToList()),
             // A unit's first word, unless it is read as a gender or a customer first ("kids", "adidas").
             new("businessUnit", Sorted(l.BusinessUnits.Select(b => Words(b.Name) is { Length: > 0 } w && w[0].Length >= 4 ? w[0] : b.Code.ToLowerInvariant())

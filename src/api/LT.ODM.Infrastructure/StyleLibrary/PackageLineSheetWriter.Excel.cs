@@ -23,7 +23,7 @@ public sealed partial class PackageLineSheetWriter
         ("Lead time (days)", 12), ("Note", 50), ("Price", 12),
     ];
 
-    public async Task<byte[]> WriteExcelAsync(PackageDetailDto package, string generatedBy, DateTime generatedUtc, CancellationToken ct = default)
+    public async Task<byte[]> WriteExcelAsync(PackageDetailDto package, string generatedBy, DateTime generatedUtc, TimeZoneInfo? timeZone = null, CancellationToken ct = default)
     {
         var p = package.Package;
         var items = LineSheetContent.Items(package);
@@ -37,7 +37,7 @@ public sealed partial class PackageLineSheetWriter
         sheet.Row(2, [Cell.Of(string.Join(" · ", new[]
         {
             $"{p.CustomerName} ({p.CustomerCode})", p.SeasonCode is null ? null : $"Season {p.SeasonCode}", $"{items.Count} styles",
-            $"generated {generatedUtc:yyyy-MM-dd HH:mm} UTC by {generatedBy}",
+            $"generated {GeneratedStamp.Format(generatedUtc, timeZone)} by {generatedBy}",
         }.Where(v => v is not null)))]);
         if (!string.IsNullOrWhiteSpace(p.Description)) sheet.Row(3, [Cell.Of(p.Description)]);
         sheet.Row(HeadingRow, Columns.Select(c => Cell.Of(c.Title, Heading)));

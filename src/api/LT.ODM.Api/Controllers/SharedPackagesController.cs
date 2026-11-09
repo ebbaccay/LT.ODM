@@ -87,11 +87,11 @@ public sealed class SharedPackagesController(IPackageRepository packages, IPacka
     /// <summary>The line sheet PDF, as the package page makes it (not counted as an opening).</summary>
     [HttpGet("line-sheet.pdf")]
     [EnableRateLimiting(RateLimitPolicies.Share)]
-    public async Task<IActionResult> LineSheet(string token, [FromServices] IPackageLineSheetWriter writer, CancellationToken ct)
+    public async Task<IActionResult> LineSheet(string token, [FromServices] IPackageLineSheetWriter writer, string? tz, CancellationToken ct)
     {
         if (await OpenAsync(token, count: false, ct) is not { } share || await packages.GetAsync(share.PackageId, ct) is not { } package) return NotFound();
         NoStore();
-        var pdf = await writer.WritePdfAsync(package, $"share link: {share.Label}", DateTime.UtcNow, ct);
+        var pdf = await writer.WritePdfAsync(package, $"share link: {share.Label}", DateTime.UtcNow, GeneratedStamp.Find(tz), ct);
         var name = string.Concat(package.Package.Name.Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '_'));
         return File(pdf, "application/pdf", $"{name}_line_sheet.pdf");
     }

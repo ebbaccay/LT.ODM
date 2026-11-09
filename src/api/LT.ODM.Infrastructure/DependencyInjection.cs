@@ -1,5 +1,6 @@
 using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.Concepts;
+using LT.ODM.Application.Dashboards;
 using LT.ODM.Application.ConceptStudio;
 using LT.ODM.Application.CostOptimization;
 using LT.ODM.Application.Ai;
@@ -40,10 +41,12 @@ public static class DependencyInjection
         services.AddScoped<IStyleImportRepository, StyleImportRepository>();
         services.AddScoped<IStyleRepository, StyleRepository>();
         services.AddScoped<IStyleGapRepository, StyleGapRepository>();
+        services.AddScoped<IStyleEditScopeRepository, StyleEditScopeRepository>();   // business unit teams
         services.AddScoped<IPackageRepository, PackageRepository>();
         services.AddScoped<IClientProfileRepository, ClientProfileRepository>();   // client profiles, follow-up reminders
         services.AddScoped<IConceptRepository, ConceptRepository>();
         services.AddSingleton<StyleDashboardCache>();
+        services.AddScoped<IDesignerDashboardRepository, LT.ODM.Infrastructure.Dashboards.DesignerDashboardRepository>();   // home: designer dashboard
         services.AddScoped<IMaterialRepository, MaterialRepository>();
 
         services.AddSingleton<EmailQueue>();
@@ -132,6 +135,7 @@ public static class DependencyInjection
         services.AddScoped<ILibraryTool, BomCheckTool>();
         services.AddScoped<ILibraryTool, LookAlikeTool>();
         services.AddScoped<IGuideRepository, GuideRepository>();
+        services.AddScoped<ISynonymRepository, SynonymRepository>();   // synonyms read before every question (ai.Synonym)
         services.AddScoped<ILibraryTool, HowToTool>();   // how-to guides (ai.Guide)
         // Image search's look-alike model runs inside the API (ONNX Runtime, CPU); loaded on first use, shared by all requests.
         services.Configure<ImageModelOptions>(configuration.GetSection(ImageModelOptions.SectionName));

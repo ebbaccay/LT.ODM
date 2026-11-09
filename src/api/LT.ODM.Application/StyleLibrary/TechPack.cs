@@ -7,7 +7,7 @@ namespace LT.ODM.Application.StyleLibrary;
 /// </summary>
 public interface ITechPackWriter
 {
-    Task<byte[]> WriteAsync(StyleDetailDto style, string generatedBy, DateTime generatedUtc, CancellationToken ct = default);
+    Task<byte[]> WriteAsync(StyleDetailDto style, string generatedBy, DateTime generatedUtc, TimeZoneInfo? timeZone = null, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -16,5 +16,5 @@ public interface ITechPackWriter
 /// </summary>
 public interface ITechPackExcelWriter
 {
-    Task<byte[]> WriteAsync(StyleDetailDto style, string generatedBy, DateTime generatedUtc, CancellationToken ct = default);
+    Task<byte[]> WriteAsync(StyleDetailDto style, string generatedBy, DateTime generatedUtc, TimeZoneInfo? timeZone = null, CancellationToken ct = default);
 }

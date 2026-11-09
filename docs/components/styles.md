@@ -1,6 +1,6 @@
 # Styles (Style Library)
 
-**Where:** Style Library > Styles (`/styles`, `/styles/:id`, `/styles/:id/compare`). **Who:** read: Admin, Merchandiser, Costing, Viewer. Change: Admin, Merchandiser. Factory users have no access (they see styles through Garment Quotation).
+**Where:** Style Library > Styles (`/styles`, `/styles/:id`, `/styles/:id/compare`). **Who:** read: Admin, Merchandiser, Designer, Costing, Viewer. Change: Admin, Merchandiser, Designer; users in a business unit team change only their team's styles ([business unit teams](#business-unit-teams)). Factory users have no access (they see styles through Garment Quotation).
 
 ## Concepts
 
@@ -26,7 +26,7 @@ Search by style number, model or description, by a colorway (code or name), or b
 - Click a sketch, photo, colorway or BOM line image to see it large; **Download** saves it (named after the style, e.g. `S2808MR0000_sketch.jpg`).
 - **Colorways** tab, **BOM** tab (by section; pick a colorway to see its material colours; search by part, material code or description, material type, section, supplier, material colour or colorway code, every word must match; an LCO filled from a suggestion shows *estimate*), **History** tab (the style's family: same base number and model, plus linked styles), **Similar** tab (below).
 - Material codes on the BOM open the material's page ([Materials](materials.md)).
-- **Tech pack (PDF)** (everyone who can read the style) downloads `<style>_<season>_techpack.pdf`, A4 landscape: style facts with the sketch and photo, the colorways (with their pictures when there are any), the BOM by section (part, material code and description, type, nominated and SAP supplier, LCO and brand consumption, colorways used), and each BOM line's material colour per colorway (4 colorways per table; more colorways repeat the table). Every page shows the style, who made the file and when, and page x of y. Labels are in English. Text is searchable; text the main font cannot show (e.g. Chinese) is drawn as outlines to keep the file small (about 1.3 MB plus pictures).
+- **Tech pack (PDF)** (everyone who can read the style) downloads `<style>_<season>_techpack.pdf`, A4 landscape: style facts with the sketch and photo, the colorways (a thumbnail of each colorway's picture on its row when pictures were added; rows without one stay blank), the BOM by section, always starting on a new page, (part, material code and description, type, nominated and SAP supplier, LCO and brand consumption, colorways used), and each BOM line's material colour per colorway (4 colorways per table; more colorways repeat the table). Every page shows the style, who made the file and when (in the reader's time zone with its offset, e.g. *2026-11-05 14:29 (UTC+07:00)*; the browser sends its zone as `?tz=`, otherwise the server's zone is used), and page x of y. Labels are in English. Text is searchable; text the main font cannot show (e.g. Chinese) is drawn as outlines to keep the file small (about 1.3 MB plus pictures).
 - **Tech pack (Excel)** (everyone who can read the style) downloads `<style>_<season>_techpack.xlsx` with the same content in four sheets: **Tech pack** (the facts, with the sketch and photo beside them), **Colorways** (one row each, its picture in the row), **BOM** (one row per line with its section; LCO and brand consumption and the allowance are numbers, to calculate with; estimated LCOs are marked) and **Material colours** (each BOM line's colour per colorway, one column per colorway). Headings are frozen and filtered. Pictures are shrunk into their cells and stored in the workbook (`TechPackExcelWriter`, shared workbook writer `Xlsx.cs`).
 - AI shortcuts: **What changed** (if reused), **Check BOM**, **AI render** ([AI Studio](ai-studio.md)), **Design prompt** (below).
 
@@ -64,7 +64,7 @@ What changed between a style and an earlier one, opened from the **History** tab
 - On the page, pick another family member or any style to compare with, or **Swap** the two.
 - The differences are worked out by rules from the style data (header fields, colorways, BOM lines), the same as AI Studio's [Change summary](ai-studio.md#change-summary-aicomparestyleid), so it **works without an AI service**. The **AI summary** card appears only when the Text job is set up in Settings > AI connections.
 
-## Suggest from picture (Admin, Merchandiser)
+## Suggest from picture (Admin, Merchandiser, Designer)
 
 In the style form, once a sketch or photo is uploaded, **Suggest from picture** reads it (the photo when there is one) with the image model built into the API (Marqo-FashionSigLIP; well under a second, nothing sent anywhere; `POST /api/v1/styles/describe-picture`). Nothing changes until a suggestion is used:
 
@@ -86,7 +86,7 @@ What it was measured on (2026-10-21, the library's 135 indexed pictures, 124 of 
 
 Needs the built-in image model and its text part (AI Studio > Image search); otherwise the button explains it cannot run. The thresholds should be checked again once more pictures are indexed.
 
-## Suggest BOM (Admin, Merchandiser)
+## Suggest BOM (Admin, Merchandiser, Designer)
 
 For a new style (or one with a partial BOM): **Suggest BOM** on the BOM tab (also offered on an empty BOM) builds BOM lines from the library, by rules, in about a second, with nothing sent to an AI service (`GET /api/v1/styles/{id}/bom-suggestion`). Set the product type, weave, gender and description first: they decide what counts as similar.
 
@@ -97,7 +97,7 @@ For a new style (or one with a partial BOM): **Suggest BOM** on the BOM tab (als
 
 Lines with confidence 60% or more start ticked; materials already on the BOM are shown but cannot be ticked. **Add N lines** saves the ticked lines (with the option picked) as ordinary BOM lines for every colorway, colours empty, to be filled per colorway. Checked on 60 library styles that already have a BOM (2026-10-21): 59% of their materials were among the suggestion's options (fabrics 38%; new styles often get a new fabric), and 54% of the lines that would start ticked were really on the BOM, so every line needs a look before it is added.
 
-## Suggest colours (Admin, Merchandiser)
+## Suggest colours (Admin, Merchandiser, Designer)
 
 On the BOM tab of a style with BOM lines, **Suggest colours** (without colorways it says to add them first, with a button to the Colorways tab) fills the material colour grid (`GET /api/v1/styles/{id}/colour-suggestion`), by rules, in about a second. For each line x colorway **without** a colour:
 
@@ -106,7 +106,9 @@ On the BOM tab of a style with BOM lines, **Suggest colours** (without colorways
 
 Confidence is the share of the lines seen that had the colour, lowered below 5 lines. Checked on 80 library styles without earlier versions, their 10,263 filled colours hidden (2026-10-21): a colour was suggested for 80% of the cells and was right for 93%. From confidence 80 (55% of cells) 99% were right: these start ticked; 40-79 (about 80% right) are shown unticked; below 40 is not shown. **Fill N colours** writes only cells that are still empty; colours already set are never changed.
 
-## Editing (Admin, Merchandiser)
+## Editing (Admin, Merchandiser, Designer)
+
+- **Business unit** is required on every style (new or edited). A user in a business unit team picks from their own units; with one unit it is filled in.
 
 - A new colorway joins every BOM line that all the style's other colorways use (every line when it is the first colorway), colours empty; lines kept to some colorways stay as they are.
 - Create, edit and delete styles, colorways and BOM lines; upload sketches, photos and images (JPEG, PNG, GIF, WebP up to 10 MB) with the upload button or by **dropping the file on the image box**. Images are made smaller on the server (at most 1600 px, JPEG for photos, PNG for sketches; see [Compression](../installation/08-file-storage.md#compression)) and stored as files on the server under `style-library` ([File storage](../installation/08-file-storage.md)).
@@ -115,7 +117,8 @@ Confidence is the share of the lines seen that had the colour, lowered below 5 l
 - Untick **Active** in Edit style to mark a style inactive (and tick it again to bring it back). Using an AI render as the photo keeps the style's status.
 - **Reuse** copies a style to another season or as a variant (colorways, BOM and images) and records the carry-over.
 - Set or remove history links by hand. Links made by the import (same base number and model) and by number (`S2808MR0000A` from `S2808MR0000`) are automatic; manual links are never replaced.
-- New customer, season, business unit, product type, material, supplier, material type and unit codes typed in forms are added to their lists (clean them up in Settings > Reference lists).
+- **Supplier** on a BOM line (added 2026-11-05). **Editing a line:** picked from a list of only the suppliers this material has been bought from on BOM lines (most styles first, with the [country of origin](materials.md#material-page) set on the material's Suppliers tab). A line without a supplier (2,249 imported lines came with a nominated supplier but no SAP supplier; `db/fixes/style.supplier-from-nominated.sql` saved one for 1,005 of them, see [One-off fixes](../installation/02-database.md#one-off-fixes)) is filled in from the material's other lines: the supplier most often used with the same nominated supplier code, else the material's only supplier. The form says so, and it is stored only when the line is saved; a supplier the user picks or types is never replaced. **New line:** the supplier is typed (code, with known suppliers suggested and their name filled in, or a new code and name, added to the supplier list), or picked from the material's suppliers when it has any (*Type another supplier* / *Choose from this material's suppliers* switch between them). The list follows the material code and nominated supplier code as they are typed. It is saved as the line's SAP supplier; a line whose supplier is not in the list keeps it. The nominated supplier (the brand's) is still typed.
+- New customer, season, business unit, product type, material, material type and unit codes typed in forms are added to their lists (clean them up in Settings > Reference lists).
 - **Add to package** (style page, Similar tab) and **Pick for a package** (Styles list: tick styles, then Add to package) put styles in a [style package](style-packages.md); another brand's style is offered there as a copy with its own style number. The style page lists the packages the style is in, and **Copied from** / **Copied to** for such copies. It also lists the [concepts](concepts.md) the style inspired (design provenance), and for an LT design the concept it was developed from (*LT design from concept*).
 - A style in a style package cannot be deleted until it is taken out of its packages; the message names them.
 - If someone else saved the record first, the save is refused and the screen asks to reload.
@@ -123,3 +126,17 @@ Confidence is the share of the lines seen that had the colour, lowered below 5 l
 ## Loading styles in bulk
 
 See **Settings > Import** in [Settings](settings.md).
+
+## Business unit teams
+
+Users can work in teams by business unit (decided 2026-11-05). In Settings > User roles > *Add user* or *Edit access* an Admin ticks the business units a user belongs to.
+
+- **Everyone views every style.** A team only limits what the user can **change**.
+- **A user with business units** changes only styles of those units: the style header, colorways, BOM lines (and Suggest BOM / Suggest colours), pictures, history links, delete and *Reuse in another season* (a copy keeps the business unit). Another team's style opens view only, with a note saying whose it is; its edit buttons are hidden.
+- **New styles** (the style form, *Develop as style* on a concept, copies into a package) must get one of the user's own units. They cannot type a new business unit code.
+- A style without a business unit (from before the field was required) can be changed by the person who created it, who then has to give it one of their units.
+- **A user with no business units ticked** changes every style, as before. **Admins** always change every style, even with units ticked.
+- [Fill the gaps](fill-the-gaps.md): accepting, dismissing and filling LCO reach only the team's styles; merging seasons renames them for every style, so team users cannot do it.
+- The [designer dashboard](dashboard.md#designer-dashboard-my-styles) lists the team's styles with the user's own.
+
+**How it is enforced.** In the database: `style.fn_UserBusinessUnits` (the user's units; none for Admins), `style.fn_CanEditStyle`, and `style.usp_AssertCanEdit` / `usp_AssertBusinessUnit` at the start of every style write (error 50403, shown as 403 with the reason). A colorway or BOM line is checked against the style it belongs to, whatever style the address names. Teams are stored in `auth.UserBusinessUnit` (`tables/style.tables.sql`). The API adds `canEdit` to a style and `myBusinessUnits` to the pick lists (the full business unit list stays for filters); `StyleEditScope` holds the same rule for the screens. Not limited: AI renders (pictures beside a style, the style itself is unchanged) and the Admin-only imports.

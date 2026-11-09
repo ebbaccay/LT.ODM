@@ -115,6 +115,22 @@ CREATE TABLE ref.BusinessUnit
 );
 GO
 
+/*
+    Business unit teams (Settings > User roles > Edit access): a user with business units here may change only styles of
+    those business units; everyone still reads the whole library. No rows = every style, and Admins are never limited
+    (style.fn_UserBusinessUnits). Removing a user or a business unit removes its rows.
+*/
+IF OBJECT_ID(N'auth.UserBusinessUnit', N'U') IS NULL
+CREATE TABLE auth.UserBusinessUnit
+(
+    UserId           int          NOT NULL,
+    BusinessUnitCode nvarchar(16) NOT NULL,
+    CONSTRAINT PK_auth_UserBusinessUnit PRIMARY KEY CLUSTERED (UserId, BusinessUnitCode),
+    CONSTRAINT FK_auth_UserBusinessUnit_Users FOREIGN KEY (UserId) REFERENCES auth.Users (UserId) ON DELETE CASCADE,
+    CONSTRAINT FK_auth_UserBusinessUnit_BusinessUnit FOREIGN KEY (BusinessUnitCode) REFERENCES ref.BusinessUnit (BusinessUnitCode) ON DELETE CASCADE
+);
+GO
+
 IF OBJECT_ID(N'ref.ProductType', N'U') IS NULL
 CREATE TABLE ref.ProductType
 (
@@ -286,6 +302,73 @@ CREATE TABLE mat.Material
     CONSTRAINT FK_mat_Material_Type FOREIGN KEY (MaterialTypeCode) REFERENCES ref.MaterialType (MaterialTypeCode),
     CONSTRAINT FK_mat_Material_Class FOREIGN KEY (ContentClassCode) REFERENCES ref.ContentClass (ContentClassCode)
 );
+GO
+
+/*
+    Countries (added 2026-11-05): ISO 3166-1 alpha-2 codes, for the country of origin of suppliers (and of a material
+    from a supplier). Maintained in Settings > Reference lists > Countries (names, new countries, inactive ones hidden
+    from pick lists). The usual garment sourcing countries below are added once, when the table is empty; after that
+    the list is never changed by a deploy.
+*/
+IF OBJECT_ID(N'ref.Country', N'U') IS NULL
+CREATE TABLE ref.Country
+(
+    CountryCode char(2)       NOT NULL,
+    Name        nvarchar(100) NOT NULL,
+    IsActive    bit           NOT NULL CONSTRAINT DF_ref_Country_IsActive DEFAULT (1),
+    CONSTRAINT PK_ref_Country PRIMARY KEY CLUSTERED (CountryCode),
+    CONSTRAINT CK_ref_Country_Code CHECK (CountryCode LIKE '[A-Z][A-Z]')
+);
+GO
+IF NOT EXISTS (SELECT 1 FROM ref.Country)
+INSERT ref.Country (CountryCode, Name)
+SELECT v.CountryCode, v.Name
+FROM (VALUES
+    ('AU', N'Australia'), ('AT', N'Austria'), ('BD', N'Bangladesh'), ('BE', N'Belgium'), ('BR', N'Brazil'), ('BG', N'Bulgaria'),
+    ('KH', N'Cambodia'), ('CA', N'Canada'), ('CN', N'China'), ('CO', N'Colombia'), ('HR', N'Croatia'), ('CZ', N'Czechia'),
+    ('DK', N'Denmark'), ('EG', N'Egypt'), ('SV', N'El Salvador'), ('ET', N'Ethiopia'), ('FI', N'Finland'), ('FR', N'France'),
+    ('DE', N'Germany'), ('GT', N'Guatemala'), ('HT', N'Haiti'), ('HN', N'Honduras'), ('HK', N'Hong Kong'), ('HU', N'Hungary'),
+    ('IN', N'India'), ('ID', N'Indonesia'), ('IE', N'Ireland'), ('IL', N'Israel'), ('IT', N'Italy'), ('JP', N'Japan'),
+    ('JO', N'Jordan'), ('KE', N'Kenya'), ('KR', N'South Korea'), ('LA', N'Laos'), ('LS', N'Lesotho'), ('MG', N'Madagascar'),
+    ('MY', N'Malaysia'), ('MU', N'Mauritius'), ('MX', N'Mexico'), ('MD', N'Moldova'), ('MA', N'Morocco'), ('MM', N'Myanmar'),
+    ('NL', N'Netherlands'), ('NZ', N'New Zealand'), ('NI', N'Nicaragua'), ('MK', N'North Macedonia'), ('NO', N'Norway'),
+    ('PK', N'Pakistan'), ('PE', N'Peru'), ('PH', N'Philippines'), ('PL', N'Poland'), ('PT', N'Portugal'), ('RO', N'Romania'),
+    ('RS', N'Serbia'), ('SG', N'Singapore'), ('SK', N'Slovakia'), ('SI', N'Slovenia'), ('ZA', N'South Africa'), ('ES', N'Spain'),
+    ('LK', N'Sri Lanka'), ('SE', N'Sweden'), ('CH', N'Switzerland'), ('TW', N'Taiwan'), ('TH', N'Thailand'), ('TN', N'Tunisia'),
+    ('TR', N'Turkey'), ('AE', N'United Arab Emirates'), ('GB', N'United Kingdom'), ('US', N'United States'), ('UZ', N'Uzbekistan'),
+    ('VN', N'Vietnam')
+) v (CountryCode, Name);
+GO
+
+/* Added 2026-11-05: a supplier's country of origin (Settings > Reference lists > SAP suppliers). Every material from the
+   supplier takes it, unless mat.MaterialSupplier holds another country for that one material. */
+IF COL_LENGTH(N'partner.Partner', N'CountryCode') IS NULL
+    ALTER TABLE partner.Partner ADD CountryCode char(2) NULL CONSTRAINT FK_partner_Partner_Country REFERENCES ref.Country (CountryCode);
+GO
+
+/*
+    Material per supplier (added 2026-11-05): facts about a material as bought from one supplier (SAP vendor), set on the
+    material's Suppliers tab. Which suppliers a material has still comes from the BOM lines; a row here only holds what was
+    entered for the pair (removed with the material or the supplier). CountryCode = country of origin for this material
+    only, when it differs from the supplier's own (partner.Partner.CountryCode); NULL = the supplier's country.
+*/
+IF OBJECT_ID(N'mat.MaterialSupplier', N'U') IS NULL
+CREATE TABLE mat.MaterialSupplier
+(
+    MaterialId  int           NOT NULL,
+    SupplierId  int           NOT NULL,
+    CountryCode char(2)       NULL,
+    UpdatedBy   nvarchar(64)  NOT NULL,
+    UpdatedUtc  datetime2(3)  NOT NULL CONSTRAINT DF_mat_MaterialSupplier_UpdatedUtc DEFAULT (SYSUTCDATETIME()),
+
+    CONSTRAINT PK_mat_MaterialSupplier PRIMARY KEY CLUSTERED (MaterialId, SupplierId),
+    CONSTRAINT FK_mat_MaterialSupplier_Material FOREIGN KEY (MaterialId) REFERENCES mat.Material (MaterialId) ON DELETE CASCADE,
+    CONSTRAINT FK_mat_MaterialSupplier_Supplier FOREIGN KEY (SupplierId) REFERENCES partner.Partner (PartnerId) ON DELETE CASCADE,
+    CONSTRAINT FK_mat_MaterialSupplier_Country FOREIGN KEY (CountryCode) REFERENCES ref.Country (CountryCode)
+);
+GO
+IF INDEXPROPERTY(OBJECT_ID(N'mat.MaterialSupplier'), N'IX_mat_MaterialSupplier_Country', 'IndexId') IS NULL
+    CREATE INDEX IX_mat_MaterialSupplier_Country ON mat.MaterialSupplier (CountryCode) WHERE CountryCode IS NOT NULL;
 GO
 
 /* ================================ style ================================ */

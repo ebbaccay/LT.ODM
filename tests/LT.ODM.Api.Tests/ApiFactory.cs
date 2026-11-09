@@ -3,6 +3,7 @@ using LT.ODM.Application.Ai;
 using LT.ODM.Application.LibraryAssistant;
 using LT.ODM.Application.ConceptStudio;
 using LT.ODM.Application.CostOptimization;
+using LT.ODM.Application.Dashboards;
 using LT.ODM.Application.MarketTrends;
 using LT.ODM.Application.StyleAi;
 using LT.ODM.Application.StyleLibrary;
@@ -44,9 +45,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public FakeImageEmbeddingModel ImageModel { get; } = new();
     public FakeSavedQuestionRepository SavedQuestions { get; } = new();
     public FakeGuideRepository Guides { get; } = new();
+    public FakeSynonymRepository Synonyms { get; } = new();
     public FakeAiJobRepository AiJobs { get; } = new();
     public FakePictureTagRepository PictureTags { get; } = new();
     public FakeStyleImageImportRepository ImageImports { get; } = new();
+    public FakeDesignerDashboardRepository DesignerDashboard { get; } = new();
+    public FakeStyleEditScopeRepository EditScope { get; } = new();
     /// <summary>Uploaded images go to a temp folder that is deleted with the factory.</summary>
     public string FilesRoot { get; } = Path.Combine(Path.GetTempPath(), "ltodm-tests-" + Guid.NewGuid().ToString("N"));
     /// <summary>Stands in for wwwroot/assets/i18n; tests write the &lt;lang&gt;.json files they need.</summary>
@@ -127,12 +131,18 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<ISavedQuestionRepository>(SavedQuestions);
             services.RemoveAll<IGuideRepository>();
             services.AddSingleton<IGuideRepository>(Guides);
+            services.RemoveAll<ISynonymRepository>();
+            services.AddSingleton<ISynonymRepository>(Synonyms);
             services.RemoveAll<IAiJobRepository>();
             services.AddSingleton<IAiJobRepository>(AiJobs);
             services.RemoveAll<IPictureTagRepository>();
             services.AddSingleton<IPictureTagRepository>(PictureTags);
             services.RemoveAll<IStyleImageImportRepository>();
             services.AddSingleton<IStyleImageImportRepository>(ImageImports);
+            services.RemoveAll<IDesignerDashboardRepository>();
+            services.AddSingleton<IDesignerDashboardRepository>(DesignerDashboard);
+            services.RemoveAll<IStyleEditScopeRepository>();
+            services.AddSingleton<IStyleEditScopeRepository>(EditScope);
         });
     }
 

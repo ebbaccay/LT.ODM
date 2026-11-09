@@ -65,7 +65,7 @@ public sealed class FakeConceptRepository : IConceptRepository
     public (int ConceptId, string Season, string StyleNo, int? BaseStyleId, string? SketchUrl)? LastDevelop { get; private set; }
 
     public Task<(int StyleId, bool? SameBrandBase)> DevelopStyleAsync(int conceptId, string seasonCode, string styleNo, int? baseStyleId, string? sketchUrl,
-        string changedBy, CancellationToken ct = default)
+        string changedBy, string? businessUnitCode = null, CancellationToken ct = default)
     {
         if (styleNo == "TAKEN") throw new StyleRuleException(409, "The customer already has a style with this number in this season.");
         LastDevelop = (conceptId, seasonCode, styleNo, baseStyleId, sketchUrl);

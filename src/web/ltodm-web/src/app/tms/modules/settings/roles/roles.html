@@ -30,25 +30,29 @@
       </div>
     } @else {
       <!-- Header row (sm and up); rows stack into cards on phones -->
-      <div class="text-muted-foreground hidden grid-cols-[minmax(0,10rem)_minmax(0,12rem)_minmax(0,1fr)_5rem_6rem] gap-4 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase sm:grid">
+      <div class="text-muted-foreground hidden grid-cols-[minmax(0,10rem)_minmax(0,12rem)_minmax(0,1fr)_minmax(0,9rem)_5rem_6rem] gap-4 border-b px-5 py-3 text-xs font-medium tracking-wide uppercase sm:grid">
         <span>{{ 'settings.roles.colName' | transloco }}</span>
         <span>{{ 'settings.roles.colDisplayName' | transloco }}</span>
         <span>{{ 'common.description' | transloco }}</span>
+        <span>{{ 'settings.roles.colDashboard' | transloco }}</span>
         <span class="text-right">{{ 'settings.roles.colUsers' | transloco }}</span>
         <span class="sr-only">{{ 'actions.edit' | transloco }}</span>
       </div>
       <ul class="divide-y" role="list">
         @for (role of roles(); track role.roleId) {
-          <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-3 sm:grid-cols-[minmax(0,10rem)_minmax(0,12rem)_minmax(0,1fr)_5rem_6rem]">
+          <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-3 sm:grid-cols-[minmax(0,10rem)_minmax(0,12rem)_minmax(0,1fr)_minmax(0,9rem)_5rem_6rem]">
             <span class="min-w-0">
               <code class="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{{ role.name }}</code>
             </span>
             <span class="col-start-1 truncate text-sm font-medium sm:col-start-auto">{{ role.displayName || role.name }}</span>
             <span class="text-muted-foreground col-start-1 truncate text-sm sm:col-start-auto">{{ role.description || '—' }}</span>
+            <span class="text-muted-foreground col-start-1 truncate text-sm sm:col-start-auto">
+              <span class="sm:hidden">{{ 'settings.roles.colDashboard' | transloco }}: </span>{{ 'home.views.' + (role.dashboardKey || 'library') | transloco }}
+            </span>
             <span class="text-muted-foreground col-start-1 text-sm sm:col-start-auto sm:text-right">
               <span class="sm:hidden">{{ 'settings.roles.colUsers' | transloco }}: </span>{{ role.userCount }}
             </span>
-            <div class="col-start-2 row-span-4 row-start-1 flex justify-end gap-1 sm:col-start-auto sm:row-span-1 sm:row-start-auto">
+            <div class="col-start-2 row-span-5 row-start-1 flex justify-end gap-1 sm:col-start-auto sm:row-span-1 sm:row-start-auto">
               <button hlmBtn variant="ghost" size="icon" type="button" class="size-11 lg:size-9" (click)="openEdit(role)" [attr.aria-label]="('actions.edit' | transloco) + ' ' + role.name">
                 <ng-icon name="lucidePencil" />
               </button>
@@ -102,6 +106,23 @@
         [value]="form().description"
         (input)="patch('description', $any($event.target).value)"
       />
+    </div>
+    <div class="flex flex-col gap-1.5">
+      <label hlmLabel for="role-dashboard">{{ 'settings.roles.colDashboard' | transloco }}</label>
+      <select
+        hlmNativeSelect
+        id="role-dashboard"
+        class="h-11 lg:h-9"
+        aria-describedby="role-dashboard-hint"
+        [value]="form().dashboardKey"
+        (change)="patch('dashboardKey', $any($event.target).value)"
+      >
+        <option value="">{{ 'settings.roles.dashboardDefault' | transloco }}</option>
+        @for (key of dashboards; track key) {
+          <option [value]="key">{{ 'home.views.' + key | transloco }}</option>
+        }
+      </select>
+      <p id="role-dashboard-hint" class="text-muted-foreground text-xs">{{ 'settings.roles.dashboardHint' | transloco }}</p>
     </div>
   </form>
   <ng-container footer>

@@ -1,5 +1,5 @@
 import { Location } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterRenderEffect, computed, inject, signal, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
@@ -16,6 +16,7 @@ import { LibraryAssistantService } from './library-assistant.service';
 import { LibraryAssistantSession } from './library-assistant.session';
 import { LibraryGuides } from './library-guides';
 import { LibrarySavedQuestions } from './library-saved-questions';
+import { LibrarySynonyms } from './library-synonyms';
 import { LibraryTurn } from './library-turn';
 
 /**
@@ -27,7 +28,7 @@ import { LibraryTurn } from './library-turn';
 @Component({
   selector: 'app-library-assistant',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgIcon, AiProviderBanner, LibraryGuides, LibrarySavedQuestions, LibraryTurn, HlmButtonImports, HlmCardImports, HlmInputImports, HlmSpinnerImports, TranslocoPipe],
+  imports: [NgIcon, AiProviderBanner, LibraryGuides, LibrarySavedQuestions, LibrarySynonyms, LibraryTurn, HlmButtonImports, HlmCardImports, HlmInputImports, HlmSpinnerImports, TranslocoPipe],
   providers: [provideIcons({ lucideEraser, lucideMessagesSquare, lucideMinimize2, lucideSend, lucideZap })],
   template: `
     <section class="flex flex-col gap-5">
@@ -67,6 +68,8 @@ import { LibraryTurn } from './library-turn';
         <app-library-saved-questions [tools]="tools()" />
       } @else if (view() === 'guides') {
         <app-library-guides />
+      } @else if (view() === 'synonyms') {
+        <app-library-synonyms />
       } @else {
         <app-ai-provider-banner uses="text" />
 
@@ -97,9 +100,9 @@ import { LibraryTurn } from './library-turn';
           </section>
         }
 
-        <ol class="flex flex-col gap-4" role="list" aria-live="polite">
+        <ol #turnList class="flex flex-col gap-4" role="list" aria-live="polite">
           @for (t of session.turns(); track t.id) {
-            <li><app-library-turn [turn]="t" /></li>
+            <li class="scroll-mt-20 [&_article]:scroll-mt-20"><app-library-turn [turn]="t" /></li>
           }
         </ol>
 
@@ -134,9 +137,12 @@ export class LibraryAssistant {
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly box = viewChild<ElementRef<HTMLInputElement>>('box');
+  private readonly turnList = viewChild<ElementRef<HTMLElement>>('turnList');
+  /** The newest turn and its state when the page last scrolled ("12:asked", "12:answered"). */
+  private scrolledFor = '';
 
-  readonly views = ['ask', 'saved', 'guides'] as const;
-  readonly view = signal<'ask' | 'saved' | 'guides'>('ask');
+  readonly views = ['ask', 'saved', 'guides', 'synonyms'] as const;
+  readonly view = signal<'ask' | 'saved' | 'guides' | 'synonyms'>('ask');
   readonly isAdmin = computed(() => (this.auth.user()?.roles ?? []).some((r) => r.toLowerCase() === 'admin'));
   readonly tools = toSignal(this.svc.tools().pipe(catchError(() => of([]))), { initialValue: [] });
   readonly popular = toSignal(this.svc.popular().pipe(catchError(() => of([]))), { initialValue: [] });
@@ -147,6 +153,21 @@ export class LibraryAssistant {
     this.session.panelOpen.set(false);
     this.session.seen();
     inject(DestroyRef).onDestroy(() => this.session.onPage.set(false));
+
+    // Bring the newest turn into view: the question when it is asked, then the top of its answer when it arrives (a long
+    // table is read from its first row). Show all, thumbs and other changes to a turn do not move the page.
+    afterRenderEffect(() => {
+      const last = this.session.turns().at(-1);
+      const list = this.turnList()?.nativeElement;
+      if (!last || !list) return;
+      const done = !!(last.answer || last.error || last.cancelled);
+      const key = `${last.id}:${done ? 'answered' : 'asked'}`;
+      if (key === this.scrolledFor) return;
+      this.scrolledFor = key;
+      const item = list.lastElementChild as HTMLElement | null;
+      const target = (done && item?.querySelector<HTMLElement>('article')) || item;
+      target?.scrollIntoView({ behavior: 'smooth', block: done ? 'start' : 'nearest' });
+    });
   }
 
   submit(event: Event): void {

@@ -1,0 +1,408 @@
+<div class="flex flex-col gap-5" [attr.aria-busy]="loading()">
+  @if (failed()) {
+    <div
+      class="border-destructive/40 bg-destructive/5 text-destructive flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm"
+      role="alert"
+    >
+      {{ 'home.loadFailed' | transloco }}
+      <button hlmBtn variant="outline" size="sm" type="button" (click)="load()">
+        {{ 'home.tryAgain' | transloco }}
+      </button>
+    </div>
+  }
+
+  @if (isEmpty()) {
+    <!-- No styles created by this user yet -->
+    <section hlmCard class="items-center gap-3 py-12 text-center">
+      <span class="from-dash-1 to-dash-2 flex size-14 items-center justify-center rounded-full bg-linear-to-br text-white shadow-lg">
+        <ng-icon name="lucideShirt" size="28" />
+      </span>
+      <h2 class="text-lg font-semibold">{{ 'home.designer.emptyTitle' | transloco }}</h2>
+      <p class="text-muted-foreground max-w-md text-sm">{{ 'home.designer.emptyHint' | transloco }}</p>
+      <div class="flex flex-wrap justify-center gap-2">
+        @if (canEdit()) {
+          <button hlmBtn type="button" class="h-11 lg:h-9" (click)="openCreate()">
+            <ng-icon name="lucidePlus" /> {{ 'styles.newStyle' | transloco }}
+          </button>
+        }
+        <a hlmBtn variant="outline" class="h-11 lg:h-9" routerLink="/concepts">
+          <ng-icon name="lucideLightbulb" /> {{ 'home.designer.openConcepts' | transloco }}
+        </a>
+      </div>
+    </section>
+  } @else {
+    <!-- Season and new style -->
+    <div class="flex flex-wrap items-center gap-2">
+      <select
+        hlmNativeSelect
+        class="h-11 w-full sm:w-56 lg:h-9"
+        [attr.aria-label]="'home.designer.season' | transloco"
+        [value]="season() ?? ''"
+        (change)="setSeason($any($event.target).value)"
+      >
+        <option value="">{{ 'home.designer.allSeasons' | transloco }}</option>
+        @for (s of data()?.seasons ?? []; track s.seasonCode) {
+          <option [value]="s.seasonCode">{{ s.seasonCode }} ({{ s.styles | number }})</option>
+        }
+      </select>
+      <span class="text-muted-foreground text-xs">
+        @if (team().length) {
+          {{ 'home.designer.scopeTeam' | transloco: { units: team().join(', ') } }}
+        } @else {
+          {{ 'home.designer.scopeHint' | transloco }}
+        }
+      </span>
+      @if (canEdit()) {
+        <button hlmBtn type="button" class="ml-auto h-11 lg:h-9" (click)="openCreate()">
+          <ng-icon name="lucidePlus" /> {{ 'styles.newStyle' | transloco }}
+        </button>
+      }
+    </div>
+
+    <!-- KPI tiles -->
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      @if (data()) {
+        @for (k of kpis(); track k.label) {
+          <section hlmCard class="relative gap-0 overflow-hidden py-5">
+            <span
+              class="pointer-events-none absolute -top-10 -right-10 size-32 rounded-full opacity-25 blur-2xl dark:opacity-35"
+              [class]="k.glow"
+              aria-hidden="true"
+            ></span>
+            <div class="flex items-start justify-between gap-3 px-5">
+              <div class="flex min-w-0 flex-col gap-1">
+                <span class="text-muted-foreground text-xs font-medium tracking-wide uppercase">{{ k.label | transloco }}</span>
+                <span class="text-3xl font-semibold tracking-tight tabular-nums">{{ k.value | number }}{{ k.suffix }}</span>
+                <span class="text-muted-foreground truncate text-xs">{{ k.hint.key | transloco: k.hint.params }}</span>
+              </div>
+              <span
+                class="relative flex size-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br text-white shadow-md"
+                [class]="k.iconBg"
+              >
+                <ng-icon [name]="k.icon" size="20" />
+              </span>
+            </div>
+          </section>
+        }
+      } @else {
+        @for (i of [1, 2, 3, 4]; track i) {
+          <section hlmCard class="gap-2 px-5 py-5">
+            <hlm-skeleton class="h-3 w-20" />
+            <hlm-skeleton class="h-8 w-24" />
+            <hlm-skeleton class="h-3 w-32" />
+          </section>
+        }
+      }
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <!-- What's missing -->
+      <section hlmCard class="min-w-0">
+        <div hlmCardHeader>
+          <h2 hlmCardTitle>{{ 'home.designer.missingTitle' | transloco }}</h2>
+          <p hlmCardDescription>{{ 'home.designer.missingHint' | transloco }}</p>
+        </div>
+        <div hlmCardContent>
+          @if (data()) {
+            @if (gaps().length === 0) {
+              <p class="text-muted-foreground flex flex-col items-center gap-2 py-8 text-center text-sm">
+                <ng-icon name="lucideCircleCheck" size="28" class="text-emerald-500" />
+                {{ 'home.designer.allComplete' | transloco }}
+              </p>
+            } @else {
+              <ul class="flex flex-col gap-1" role="list">
+                @for (g of gaps(); track g.check) {
+                  <li>
+                    <button
+                      type="button"
+                      class="hover:bg-muted/60 group w-full rounded-md px-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      [class.bg-muted]="check() === g.check"
+                      [attr.aria-pressed]="check() === g.check"
+                      [title]="'home.designer.check.' + g.check + '.hint' | transloco"
+                      (click)="toggleCheck(g.check)"
+                    >
+                      <span class="flex items-baseline justify-between gap-3 text-sm">
+                        <span class="min-w-0 truncate group-hover:underline">{{ 'home.designer.check.' + g.check + '.label' | transloco }}</span>
+                        <span class="shrink-0 tabular-nums">
+                          <span class="font-medium">{{ g.styles | number }}</span>
+                          <span class="text-muted-foreground text-xs"> {{ 'home.unitStyles' | transloco }}</span>
+                        </span>
+                      </span>
+                      <span class="bg-muted mt-1.5 block h-1.5 overflow-hidden rounded-full">
+                        <span class="bg-dash-3 block h-full rounded-full opacity-85 group-hover:opacity-100" [style.width.%]="g.pct"></span>
+                      </span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          } @else {
+            @for (i of [1, 2, 3, 4, 5]; track i) {
+              <hlm-skeleton class="mb-3 h-7 w-full" />
+            }
+          }
+        </div>
+      </section>
+
+      <!-- Styles to finish -->
+      <section hlmCard class="min-w-0 xl:col-span-2">
+        <div hlmCardHeader>
+          <h2 hlmCardTitle class="flex flex-wrap items-center gap-2">
+            {{ 'home.designer.stylesTitle' | transloco }}
+            @if (data()) {
+              <span hlmBadge variant="secondary">{{ filtered().length | number }}</span>
+            }
+          </h2>
+          <p hlmCardDescription>{{ 'home.designer.stylesHint' | transloco }}</p>
+        </div>
+        <div hlmCardContent class="flex flex-col gap-3">
+          <!-- Filters -->
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="relative w-full sm:w-auto sm:max-w-64 sm:min-w-0 sm:flex-1">
+              <ng-icon name="lucideSearch" class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
+              <input
+                hlmInput
+                type="search"
+                class="h-11 w-full pl-9 lg:h-9"
+                [placeholder]="'home.designer.searchPlaceholder' | transloco"
+                [attr.aria-label]="'home.designer.searchPlaceholder' | transloco"
+                [value]="search()"
+                (input)="setSearch($any($event.target).value)"
+              />
+            </div>
+            <div class="inline-flex rounded-md border p-0.5" role="group" [attr.aria-label]="'home.designer.show' | transloco">
+              @for (o of ['todo', 'done', 'all']; track o) {
+                <button
+                  type="button"
+                  class="h-10 rounded px-3 text-sm lg:h-8"
+                  [class]="show() === o ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'"
+                  [attr.aria-pressed]="show() === o"
+                  (click)="setShow($any(o))"
+                >
+                  {{ 'home.designer.show_' + o | transloco }}
+                </button>
+              }
+            </div>
+            <select
+              hlmNativeSelect
+              class="h-11 lg:h-9"
+              [attr.aria-label]="'home.designer.sort' | transloco"
+              [value]="sort()"
+              (change)="setSort($any($event.target).value)"
+            >
+              <option value="score">{{ 'home.designer.sortScore' | transloco }}</option>
+              <option value="changed">{{ 'home.designer.sortChanged' | transloco }}</option>
+            </select>
+            @if (team().length) {
+              <button
+                type="button"
+                class="h-11 rounded-md border px-3 text-sm lg:h-9"
+                [class]="mineOnly() ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'"
+                [attr.aria-pressed]="mineOnly()"
+                (click)="toggleMine()"
+              >
+                {{ 'home.designer.mineOnly' | transloco }}
+              </button>
+            }
+            @if (check(); as c) {
+              <button hlmBtn variant="secondary" size="sm" type="button" class="h-11 lg:h-8" (click)="toggleCheck(c)">
+                {{ 'home.designer.check.' + c + '.label' | transloco }}
+                <ng-icon name="lucideX" [attr.aria-label]="'home.designer.clearFilter' | transloco" />
+              </button>
+            }
+          </div>
+
+          @if (data()) {
+            @if (filtered().length === 0) {
+              <p class="text-muted-foreground py-10 text-center text-sm">
+                {{ (show() === 'todo' && !check() && !search() ? 'home.designer.noneToDo' : 'home.designer.noneFound') | transloco }}
+              </p>
+            } @else {
+              <ul class="divide-y" role="list">
+                @for (s of visible(); track s.styleId) {
+                  <li class="flex items-start gap-3 py-3">
+                    <a
+                      [routerLink]="['/styles', s.styleId]"
+                      class="bg-muted flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border"
+                      [attr.aria-label]="s.styleNo"
+                    >
+                      @let thumb = s.imageUrl || s.sketchUrl;
+                      @if (thumb && !brokenImages().has(s.styleId)) {
+                        <img [appAuthSrc]="thumb" alt="" class="size-full object-cover" loading="lazy" (loadError)="markBroken(s.styleId)" />
+                      } @else {
+                        <ng-icon name="lucideShirt" class="text-muted-foreground" size="22" />
+                      }
+                    </a>
+                    <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+                      <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                        <span class="min-w-0">
+                          <a [routerLink]="['/styles', s.styleId]" class="font-mono text-sm font-medium hover:underline">{{ s.styleNo }}</a>
+                          <span class="text-muted-foreground ml-2 text-xs">
+                            {{ s.customerCode }} · {{ s.seasonCode }}@if (team().length && s.businessUnitCode) { · {{ s.businessUnitCode }} }
+                            @if (s.modelName || s.description) {
+                              · {{ s.modelName || s.description }}
+                            }
+                          </span>
+                        </span>
+                        <span class="text-muted-foreground shrink-0 text-[11px]">
+                          @if (team().length && s.lastChangedBy) {
+                            {{ 'home.designer.changedBy' | transloco: { date: (s.lastChangedUtc | date: 'mediumDate'), name: s.lastChangedBy } }}
+                          } @else {
+                            {{ 'home.designer.changed' | transloco: { date: (s.lastChangedUtc | date: 'mediumDate') } }}
+                          }
+                        </span>
+                      </div>
+                      <!-- Completeness -->
+                      <div class="flex items-center gap-2">
+                        <div
+                          class="bg-muted h-1.5 max-w-48 flex-1 overflow-hidden rounded-full"
+                          role="progressbar"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          [attr.aria-valuenow]="s.score"
+                          [attr.aria-label]="'home.designer.completeness' | transloco"
+                        >
+                          <div class="h-full rounded-full" [class]="scoreTone(s.score)" [style.width.%]="s.score"></div>
+                        </div>
+                        <span class="text-xs font-medium tabular-nums">{{ s.score }}%</span>
+                        <span class="text-muted-foreground text-[11px]">
+                          {{ 'home.recentCounts' | transloco: { colorways: s.colorways, lines: s.bomLines } }}
+                        </span>
+                        @if (s.outcome) {
+                          <span hlmBadge variant="outline" class="text-[11px]">{{ 'home.designer.outcome.' + s.outcome | transloco }}</span>
+                        } @else if (s.packages > 0) {
+                          <span hlmBadge variant="outline" class="text-[11px]">{{ 'home.designer.offered' | transloco }}</span>
+                        }
+                      </div>
+                      <!-- What is missing: each chip opens the style on the tab that fixes it -->
+                      @if (s.missing.length) {
+                        <div class="flex flex-wrap gap-1.5">
+                          @for (m of s.missing; track m.check) {
+                            <a
+                              [routerLink]="['/styles', s.styleId]"
+                              [queryParams]="fixTab(m.check)"
+                              class="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-800 hover:bg-amber-500/20 dark:text-amber-300"
+                              [title]="'home.designer.check.' + m.check + '.hint' | transloco"
+                            >
+                              {{ 'home.designer.check.' + m.check + '.chip' | transloco }}
+                              @if (m.count) {
+                                <span class="font-semibold tabular-nums">{{ m.count | number }}</span>
+                              }
+                            </a>
+                          }
+                        </div>
+                      } @else {
+                        <span class="flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400">
+                          <ng-icon name="lucideCircleCheck" /> {{ 'home.designer.nothingMissing' | transloco }}
+                        </span>
+                      }
+                    </div>
+                  </li>
+                }
+              </ul>
+              @if (filtered().length > visible().length) {
+                <button hlmBtn variant="outline" type="button" class="h-11 self-center lg:h-9" (click)="showMore()">
+                  {{ 'home.designer.showMore' | transloco: { shown: visible().length, total: (filtered().length | number) } }}
+                </button>
+              }
+            }
+          } @else {
+            @for (i of [1, 2, 3, 4]; track i) {
+              <hlm-skeleton class="h-16 w-full" />
+            }
+          }
+        </div>
+      </section>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <!-- My concepts -->
+      <section hlmCard class="min-w-0">
+        <div hlmCardHeader>
+          <h2 hlmCardTitle class="flex items-center gap-2">
+            <ng-icon name="lucideLightbulb" class="text-dash-2" />
+            {{ 'home.designer.conceptsTitle' | transloco }}
+          </h2>
+          <p hlmCardDescription>{{ 'home.designer.conceptsHint' | transloco }}</p>
+        </div>
+        <div hlmCardContent>
+          @if (data(); as d) {
+            @if (d.concepts.length === 0) {
+              <p class="text-muted-foreground py-6 text-center text-sm">
+                {{ 'home.designer.noConcepts' | transloco }}
+                <a routerLink="/concepts" class="text-primary ml-1 font-medium underline-offset-2 hover:underline">{{ 'home.designer.openConcepts' | transloco }}</a>
+              </p>
+            } @else {
+              <ul class="divide-y" role="list">
+                @for (c of d.concepts; track c.conceptId) {
+                  <li>
+                    <a [routerLink]="['/concepts', c.conceptId]" class="hover:bg-muted/50 flex items-center justify-between gap-3 rounded-md px-2 py-2.5">
+                      <span class="min-w-0">
+                        <span class="block truncate text-sm font-medium">{{ c.name }}</span>
+                        <span class="text-muted-foreground block truncate text-xs">
+                          {{ c.customerCode || '—' }} · {{ c.seasonCode || '—' }} ·
+                          {{ 'home.nStyles' | transloco: { count: c.styles } }}
+                        </span>
+                      </span>
+                      <span hlmBadge [variant]="c.status === 'Ready' ? 'default' : 'secondary'" class="shrink-0">
+                        {{ 'home.designer.conceptStatus.' + c.status | transloco }}
+                      </span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            }
+          } @else {
+            @for (i of [1, 2, 3]; track i) {
+              <hlm-skeleton class="mb-3 h-10 w-full" />
+            }
+          }
+        </div>
+      </section>
+
+      <!-- My styles in packages -->
+      <section hlmCard class="min-w-0">
+        <div hlmCardHeader>
+          <h2 hlmCardTitle class="flex items-center gap-2">
+            <ng-icon name="lucidePackage" class="text-dash-4" />
+            {{ 'home.designer.pitchesTitle' | transloco }}
+          </h2>
+          <p hlmCardDescription>{{ 'home.designer.pitchesHint' | transloco }}</p>
+        </div>
+        <div hlmCardContent>
+          @if (data(); as d) {
+            @if (d.pitches.length === 0) {
+              <p class="text-muted-foreground py-6 text-center text-sm">{{ 'home.designer.noPitches' | transloco }}</p>
+            } @else {
+              <ul class="divide-y" role="list">
+                @for (p of d.pitches; track p.packageId + '-' + p.styleId) {
+                  <li class="flex items-center justify-between gap-3 px-2 py-2.5">
+                    <span class="min-w-0">
+                      <a [routerLink]="['/styles', p.styleId]" class="block truncate font-mono text-sm font-medium hover:underline">{{ p.styleNo }}</a>
+                      <a [routerLink]="['/packages', p.packageId]" class="text-muted-foreground block truncate text-xs hover:underline">
+                        {{ p.packageName }} · {{ p.customerCode || '—' }} · {{ p.atUtc | date: 'mediumDate' }}
+                      </a>
+                    </span>
+                    <span
+                      hlmBadge
+                      [variant]="p.outcome === 'Ordered' ? 'default' : p.outcome === 'Dropped' ? 'destructive' : 'secondary'"
+                      class="shrink-0"
+                    >
+                      {{ (p.outcome ? 'home.designer.outcome.' + p.outcome : 'home.designer.noAnswer') | transloco }}
+                    </span>
+                  </li>
+                }
+              </ul>
+            }
+          } @else {
+            @for (i of [1, 2, 3]; track i) {
+              <hlm-skeleton class="mb-3 h-10 w-full" />
+            }
+          }
+        </div>
+      </section>
+    </div>
+  }
+</div>
+
+<app-style-form-dialog [open]="createOpen()" [lookups]="lookups()" (closed)="createOpen.set(false)" (saved)="onCreated($event)" />

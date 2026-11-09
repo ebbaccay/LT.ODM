@@ -30,7 +30,7 @@ public sealed class FakeSavedQuestionRepository : ISavedQuestionRepository
     /// <summary>A seeded pattern, as db/seed/ai.saved-questions.sql adds it.</summary>
     public void Seed(string patternKey, string question, string tool, IReadOnlyDictionary<string, string> arguments)
     {
-        var id = Rows.Count + 1;
+        var id = Rows.Count == 0 ? 1 : Rows.Max(r => r.SavedQuestionId) + 1;
         keys[id] = patternKey;
         Rows.Add(new SavedQuestionDto(id, question, tool, arguments, SavedQuestionStatuses.Rule, 0, 0, DateTime.UtcNow, DateTime.UtcNow, "Seed", DateTime.UtcNow, "Seed", true));
     }
@@ -40,7 +40,7 @@ public sealed class FakeSavedQuestionRepository : ISavedQuestionRepository
         var i = Rows.FindIndex(r => keys[r.SavedQuestionId] == questionKey);
         if (i < 0)
         {
-            var id = Rows.Count + 1;
+            var id = Rows.Count == 0 ? 1 : Rows.Max(r => r.SavedQuestionId) + 1;
             keys[id] = questionKey;
             Rows.Add(new SavedQuestionDto(id, question, tool, arguments, SavedQuestionStatuses.Recorded, 1, 0, DateTime.UtcNow, DateTime.UtcNow, null, null, null));
             return Task.FromResult(id);
@@ -69,11 +69,38 @@ public sealed class FakeSavedQuestionRepository : ISavedQuestionRepository
     public Task<IReadOnlyList<string>> PopularAsync(int take, CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<string>>(Rows.Where(r => r.Status == SavedQuestionStatuses.Rule).Take(take).Select(r => r.Question).ToList());
 
-    public Task SaveAsync(int savedQuestionId, string status, IReadOnlyDictionary<string, string> arguments, string changedBy, CancellationToken ct = default)
+    public Task SaveAsync(int savedQuestionId, string status, IReadOnlyDictionary<string, string> arguments, string changedBy, string? tool = null,
+        CancellationToken ct = default)
     {
         var i = Find(savedQuestionId);
-        Rows[i] = Rows[i] with { Status = status, Arguments = arguments, ChangedBy = changedBy, ChangedHow = "Admin" };
+        Rows[i] = Rows[i] with { Status = status, Arguments = arguments, Tool = tool ?? Rows[i].Tool, ChangedBy = changedBy, ChangedHow = "Admin" };
         return Task.CompletedTask;
+    }
+
+    public Task RecordUnansweredAsync(string questionKey, string question, CancellationToken ct = default)
+    {
+        var i = Rows.FindIndex(r => keys[r.SavedQuestionId] == questionKey);
+        if (i >= 0) Rows[i] = Rows[i] with { AskCount = Rows[i].AskCount + 1 };
+        else
+        {
+            var id = Rows.Count == 0 ? 1 : Rows.Max(r => r.SavedQuestionId) + 1;
+            keys[id] = questionKey;
+            Rows.Add(new SavedQuestionDto(id, question, "none", new Dictionary<string, string>(), SavedQuestionStatuses.Unanswered, 1, 0, DateTime.UtcNow, DateTime.UtcNow,
+                null, null, null));
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task<SavedQuestionDto?> GetAsync(int savedQuestionId, CancellationToken ct = default)
+        => Task.FromResult(Rows.FirstOrDefault(r => r.SavedQuestionId == savedQuestionId));
+
+    /// <summary>What usp_Guide_Save does to ai.SavedQuestion: the guide's wordings become pattern Rules (taking over a key that is not a Rule).</summary>
+    public void TakeOverForGuide(string questionKey, string question, string guide)
+    {
+        var i = Rows.FindIndex(r => keys[r.SavedQuestionId] == questionKey);
+        var args = new Dictionary<string, string> { ["guide"] = guide };
+        if (i >= 0) Rows[i] = Rows[i] with { Tool = HowToGuides.ToolName, Arguments = args, Status = SavedQuestionStatuses.Rule, IsPattern = true };
+        else Seed(questionKey, question, HowToGuides.ToolName, args);
     }
 
     public Task DeleteAsync(int savedQuestionId, CancellationToken ct = default)
@@ -93,7 +120,7 @@ public sealed class SavedQuestionTests(ApiFactory factory) : IClassFixture<ApiFa
     private static readonly StyleLookupsDto Library = new(
         Customers: [new("ADI", "ADI")], Seasons: [new("2027-SS", "2027-SS")], BusinessUnits: [],
         ProductTypes: [new("JACKET", "JACKET"), new("DRESS", "DRESS")],
-        WeaveTypes: [], MaterialTypes: [], ContentClasses: [], Uoms: [], Suppliers: [], SeasonTerms: [new("SS", "Spring/Summer")]);
+        WeaveTypes: [], MaterialTypes: [], ContentClasses: [], Uoms: [], Suppliers: [], SeasonTerms: [new("SS", "Spring/Summer")], Countries: []);
 
     private const string Plan = """{ "tool": "style_counts", "understood": "Jackets per season.", "productTypes": ["JACKET"], "groupBy": "season" }""";
 

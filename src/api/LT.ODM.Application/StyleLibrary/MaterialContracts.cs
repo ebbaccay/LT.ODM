@@ -26,8 +26,22 @@ public sealed record MaterialBenchmarkDto(
     string? ProductTypeCode, string? ProductTypeName, string UomCode, int Styles, decimal MinValue, decimal P25, decimal Median, decimal P75,
     decimal MaxValue);
 
-/// <summary>SupplierCode is empty for lines without an SAP supplier.</summary>
-public sealed record MaterialSupplierDto(string SupplierCode, string? SupplierName, int Styles, int Lines);
+/// <summary>
+/// SupplierCode is empty for lines without an SAP supplier. Country of origin (ISO alpha-2): MaterialCountryCode = set for this material
+/// only, SupplierCountryCode = the supplier's own (Reference lists); CountryCode / CountryName = the one that applies.
+/// </summary>
+public sealed record MaterialSupplierDto(string SupplierCode, string? SupplierName, int Styles, int Lines, string? CountryCode, string? CountryName,
+    string? MaterialCountryCode, string? SupplierCountryCode, string? SupplierCountryName);
+
+/// <summary>
+/// A supplier of a material, offered on the BOM line form (most styles first). NominatedLines = the material's lines where this
+/// supplier went with the asked nominated supplier code (used to fill in a line imported without an SAP supplier).
+/// </summary>
+public sealed record MaterialSupplierOptionDto(string SupplierCode, string SupplierName, string? CountryCode, string? CountryName, int Styles,
+    int NominatedLines);
+
+/// <summary>This material's own country of origin from the supplier; null, empty or the supplier's own country = follow the supplier.</summary>
+public sealed record SetMaterialSupplierCountryRequest(string? CountryCode);
 
 public sealed record MaterialColourDto(string? MaterialColorCode, string? MaterialColorDescription, int Colorways, int Styles);
 
@@ -86,6 +100,10 @@ public interface IMaterialRepository
 {
     Task<PagedResult<MaterialListItemDto>> ListAsync(MaterialListQuery query, CancellationToken ct = default);
     Task<MaterialDetailDto?> GetAsync(int materialId, CancellationToken ct = default);
+    Task<IReadOnlyList<MaterialSupplierOptionDto>> SupplierOptionsAsync(string materialCode, string? nominatedSupplierCode, CancellationToken ct = default);
+
+    /// <summary>Throws StyleRuleException (400 unknown country or supplier not on the material, 404 not found).</summary>
+    Task SetSupplierCountryAsync(int materialId, string supplierCode, string? countryCode, string changedBy, CancellationToken ct = default);
 
     Task<StandardTrimsDto> StandardTrimsAsync(MaterialInsightQuery query, CancellationToken ct = default);
     Task<SupplierConcentrationDto> SuppliersAsync(MaterialInsightQuery query, CancellationToken ct = default);

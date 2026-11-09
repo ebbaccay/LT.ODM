@@ -1,12 +1,14 @@
 using LT.ODM.Application.StyleLibrary;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace LT.ODM.Api.Controllers;
 
 /// <summary>
 /// Materials: the BOM seen by material - where each material is used, consumption per product type, suppliers,
-/// colours and possible duplicates. Read only; same readers as Styles (Admin, Merchandiser, Costing, Viewer).
+/// colours and possible duplicates. Same readers as Styles (Admin, Merchandiser, Designer, Costing, Viewer); the country of origin
+/// per supplier is set by the Styles editors (Admin, Merchandiser, Designer).
 /// </summary>
 [ApiController]
 [Route("api/v1/materials")]
@@ -22,6 +24,37 @@ public sealed class MaterialsController(IMaterialRepository materials) : Control
     [HttpGet("{materialId:int}")]
     public async Task<IActionResult> Get(int materialId, CancellationToken ct)
         => await materials.GetAsync(materialId, ct) is { } material ? Ok(material) : NotFound();
+
+    /// <summary>
+    /// Suppliers of a material by its code (BOM line form's supplier list), with country of origin. Empty for a new code.
+    /// nominated = the line's nominated supplier code: each option says on how many lines it went with it.
+    /// </summary>
+    [HttpGet("supplier-options")]
+    public async Task<IReadOnlyList<MaterialSupplierOptionDto>> SupplierOptions(string? code, string? nominated, CancellationToken ct)
+        => Clean(code, 64) is { } c ? await materials.SupplierOptionsAsync(c, Clean(nominated, 32), ct) : [];
+
+    /// <summary>
+    /// This material's own country of origin from one of its suppliers (ISO alpha-2), when it differs from the supplier's country
+    /// (set in Reference lists); empty = follow the supplier.
+    /// </summary>
+    [HttpPut("{materialId:int}/suppliers/{supplierCode}/country")]
+    [Authorize(Roles = StyleRoles.Editors)]
+    public async Task<IActionResult> SetSupplierCountry(int materialId, string supplierCode, SetMaterialSupplierCountryRequest request, CancellationToken ct)
+    {
+        var country = Clean(request.CountryCode, 3)?.ToUpperInvariant();
+        if (country is not null && (country.Length != 2 || !country.All(char.IsAsciiLetterUpper)))
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["countryCode"] = ["Choose a country from the list."] }));
+        try
+        {
+            await materials.SetSupplierCountryAsync(materialId, supplierCode.Trim(), country,
+                User.FindFirst(JwtRegisteredClaimNames.PreferredUsername)?.Value ?? "", ct);
+            return NoContent();
+        }
+        catch (StyleRuleException ex)
+        {
+            return Problem(statusCode: ex.StatusCode, title: ex.Message);
+        }
+    }
 
     // ----- Insights (views on the Materials page; customer / season / section narrow them where they apply) -----
 

@@ -21,7 +21,7 @@ cd db
 $s = "SQLSERVER\INSTANCE"; $d = "LTODM"
 function run($f) { sqlcmd -S $s -d $d -E -b -I -i $f; if ($LASTEXITCODE) { throw "Failed: $f" } }
 
-# Sign-in, roles, menu (auth + nav schemas, base roles, default menu)
+# Sign-in, roles, menu (auth + nav schemas, base roles incl. Designer, default menu)
 run deploy-auth.sql
 run procedures\usp_Health_Ping.sql
 
@@ -31,7 +31,7 @@ run procedures\style.import.procedures.sql     # Settings > Import (incl. New co
 run procedures\style.procedures.sql            # Styles screens and home dashboard
 run procedures\style.gaps.procedures.sql       # Fill the gaps, Similar styles (the dashboard calls usp_Gaps_Summary)
 run procedures\ref.procedures.sql              # Settings > Reference lists
-run procedures\mat.procedures.sql              # Materials and its views
+run procedures\mat.procedures.sql              # Materials and its views, supplier country of origin
 run procedures\mat.spec.procedures.sql         # Materials > Description reader (creates mat.MaterialSpec)
 run procedures\style.bom-suggest.procedures.sql  # Style page > Suggest BOM (after style.gaps and mat.spec)
 run procedures\style.ai.procedures.sql         # AI Studio: BOM check, renders, concept matching, image search
@@ -44,6 +44,7 @@ run tables\concept.tables.sql                 # concepts (before pack: package i
 run tables\pack.tables.sql
 run procedures\pack.procedures.sql            # packages and their styles
 run procedures\concept.procedures.sql         # concepts, brand closeness check
+run procedures\style.designer-dashboard.procedures.sql  # Home: designer dashboard (needs the concept and pack tables)
 
 # AI connections (ai schema)
 run tables\ai.tables.sql
@@ -74,6 +75,12 @@ run tms\concept-studio.team-visibility.sql     # concept team visibility rules
 ### One-off fixes
 
 `fixes\style.null-text.sql` repairs data loaded by an early import that stored the text `NULL`. Run it once on a database that had such an import; it is harmless otherwise.
+
+`fixes\style.supplier-from-nominated.sql` (2026-11-05) gives BOM lines imported with a nominated supplier but no SAP supplier the SAP supplier the library already pairs with it: first the one the same material's other lines use with that nominated supplier, else the one the nominated supplier goes to on 95%+ of all its lines (at least 3). Ambiguous lines stay empty for the BOM line form. It prints the lines filled per rule and how many are still empty. Safe to run again (e.g. after an import): it only touches lines without a supplier. On the laptop DB it filled 1,005 of 2,249 lines (291 same material, 714 by nominated supplier); 1,244 stay empty.
+
+`fixes\partner.supplier-country.sql` (2026-11-05) gives SAP suppliers without a country of origin a first one: from the supplier's own name when it names exactly one country ("... (CAMBODIA) TRADING CO., LTD"), else from the nominated supplier names on its BOM lines ("SUE'S (VIETNAM)", "(VNM)"; the country on 90%+ of them). It never changes a country already set and is safe to run again. On the laptop DB it filled 212 of 346 suppliers (49 by own name, 163 by nominated names); check them in Settings > Reference lists > SAP suppliers.
+
+`fixesef.country-active-in-use.sql` (2026-11-05) keeps active only the countries in use in Settings > Reference lists > Countries: countries of origin of SAP suppliers and material exceptions, and, when those tables are in the database, iPLEX style and material origin and TMS SBU products (codes, names and a few old spellings such as HKG are matched; used countries missing from the list are added). iPLEX partner addresses are not counted. Run it **once**: it sets every country, so a later run would undo changes made in Settings. On the laptop DB: 16 active (Bangladesh, Cambodia, China, Colombia, Estonia, Hong Kong, India, Indonesia, Japan, Malaysia, Montenegro, Singapore, South Africa, Taiwan, Thailand, Vietnam), 57 inactive.
 
 ## 3. Permissions for the application
 

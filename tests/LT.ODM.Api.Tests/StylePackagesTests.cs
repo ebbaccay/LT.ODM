@@ -89,7 +89,7 @@ public sealed class FakePackageRepository : IPackageRepository
     public int? LastConceptId { get; private set; }
 
     public Task<PackageCopyResultDto> AddCopyAsync(int packageId, int styleId, string seasonCode, string styleNo, string changedBy, int? conceptId = null,
-        CancellationToken ct = default)
+        string? businessUnitCode = null, CancellationToken ct = default)
     {
         LastConceptId = conceptId;
         if (styleNo == "TAKEN") throw new StyleRuleException(409, "The package customer already has a style with this number in this season.");

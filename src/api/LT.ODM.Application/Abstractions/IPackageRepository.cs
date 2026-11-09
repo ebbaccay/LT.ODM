@@ -28,7 +28,7 @@ public interface IPackageRepository
         int? conceptId = null, CancellationToken ct = default);
     /// <summary>Copies another customer's style as a new style of the package's customer (know-how only) and adds it.</summary>
     Task<PackageCopyResultDto> AddCopyAsync(int packageId, int styleId, string seasonCode, string styleNo, string changedBy, int? conceptId = null,
-        CancellationToken ct = default);
+        string? businessUnitCode = null, CancellationToken ct = default);
 
     /// <summary>
     /// The package's copied styles and the closest other-brand picture by the image search vectors of <paramref name="model"/>

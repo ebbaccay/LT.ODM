@@ -25,7 +25,7 @@ export interface PackageNotice {
 }
 
 /** Roles that can read style packages (the API checks the same). */
-const READERS = ['admin', 'merchandiser', 'costing', 'viewer'];
+const READERS = ['admin', 'merchandiser', 'designer', 'costing', 'viewer'];
 
 /**
  * Style Packages notices for the bell: kept on the server (so they wait while the user is away) and pushed live through

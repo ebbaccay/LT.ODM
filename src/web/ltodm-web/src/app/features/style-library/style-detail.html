@@ -13,6 +13,13 @@
       <p class="text-muted-foreground text-sm">{{ 'styles.detail.notFoundHint' | transloco }} <a routerLink="/styles" [queryParams]="listParams()" class="text-primary underline-offset-2 hover:underline">{{ 'styles.detail.backToStyles' | transloco }}</a></p>
     </section>
   } @else if (style(); as s) {
+    @if (otherTeam()) {
+      <!-- Business unit teams: another team's style can be viewed, not changed (or reused: a copy keeps its business unit) -->
+      <p class="text-muted-foreground flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm" role="note">
+        <ng-icon name="lucideEye" class="shrink-0" />
+        {{ 'styles.detail.viewOnlyTeam' | transloco: { unit: s.businessUnitCode || ('styles.detail.noBusinessUnit' | transloco) } }}
+      </p>
+    }
     <!-- Header -->
     <section hlmCard class="gap-5 p-5 lg:flex-row">
       <div class="grid shrink-0 grid-cols-2 gap-3 lg:w-80">

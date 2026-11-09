@@ -9,6 +9,9 @@
     usp_SavedQuestion_Popular   the most used Rules (suggested questions)
     usp_SavedQuestion_Save      Admin: status and corrected arguments (RowVer-free: last save wins)
     usp_SavedQuestion_Delete    Admin
+    usp_SavedQuestion_RecordUnanswered  a question nobody could answer: Unanswered, for Admins to review
+    usp_SavedQuestion_Get       one saved question
+    usp_Synonym_List / _Save / _Delete  synonyms (ai.Synonym), read before every question
     usp_Guide_List              how-to guides (ai.Guide) and the questions that open them (pattern Rules, tool how_to)
     usp_Guide_Save              Admin: add or change a guide and replace its questions
     usp_Guide_Delete            Admin: a guide and its questions
@@ -62,10 +65,12 @@ BEGIN
         SET @id = SCOPE_IDENTITY();
     END
     ELSE
-        -- The AI's latest choice replaces an unconfirmed one; a Rule keeps what was confirmed.
+        -- The AI's latest choice replaces an unconfirmed one; a Rule keeps what was confirmed. An unanswered question
+        -- the AI now answers becomes Recorded.
         UPDATE ai.SavedQuestion
         SET AskCount = AskCount + 1, LastAskedUtc = SYSUTCDATETIME(), Question = @Question,
-            Tool = IIF(Status = 'Rule', Tool, @Tool), Arguments = IIF(Status = 'Rule', Arguments, @Arguments)
+            Tool = IIF(Status = 'Rule', Tool, @Tool), Arguments = IIF(Status = 'Rule', Arguments, @Arguments),
+            Status = IIF(Status = 'Unanswered', 'Recorded', Status)
         WHERE SavedQuestionId = @id;
     COMMIT;
     SELECT SavedQuestionId = @id;
@@ -126,13 +131,15 @@ CREATE OR ALTER PROCEDURE ai.usp_SavedQuestion_Save
     @SavedQuestionId int,
     @Status          varchar(16),
     @Arguments       nvarchar(max),
-    @ChangedBy       nvarchar(64)
+    @ChangedBy       nvarchar(64),
+    @Tool            varchar(40) = NULL   -- another look-up (checked by the API); NULL = keep
 AS
 BEGIN
     SET NOCOUNT ON;
     IF @Status NOT IN ('Recorded', 'Rule', 'Removed') THROW 50400, N'Status must be Recorded, Rule or Removed.', 1;
     UPDATE ai.SavedQuestion
-    SET Status = @Status, Arguments = @Arguments, ChangedBy = @ChangedBy, ChangedUtc = SYSUTCDATETIME(), ChangedHow = 'Admin'
+    SET Status = @Status, Arguments = @Arguments, Tool = COALESCE(@Tool, Tool),
+        ChangedBy = @ChangedBy, ChangedUtc = SYSUTCDATETIME(), ChangedHow = 'Admin'
     WHERE SavedQuestionId = @SavedQuestionId;
     IF @@ROWCOUNT = 0 THROW 50404, N'The saved question was not found. It may have been deleted.', 1;
 END
@@ -145,6 +152,76 @@ BEGIN
     SET NOCOUNT ON;
     DELETE ai.SavedQuestion WHERE SavedQuestionId = @SavedQuestionId;
     IF @@ROWCOUNT = 0 THROW 50404, N'The saved question was not found. It may have been deleted.', 1;
+END
+GO
+
+/*
+    A question nobody could answer: added as Unanswered (Tool 'none'), or counted again. A row that already exists keeps
+    its status (an Admin's Ignore = Removed stays; a Rule or recorded answer is not overwritten).
+*/
+CREATE OR ALTER PROCEDURE ai.usp_SavedQuestion_RecordUnanswered
+    @QuestionKey nvarchar(300),
+    @Question    nvarchar(500)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    BEGIN TRAN;
+    UPDATE ai.SavedQuestion WITH (UPDLOCK, HOLDLOCK)
+    SET AskCount = AskCount + 1, LastAskedUtc = SYSUTCDATETIME(), Question = IIF(Status = 'Unanswered', @Question, Question)
+    WHERE QuestionKey = @QuestionKey;
+    IF @@ROWCOUNT = 0
+        INSERT ai.SavedQuestion (QuestionKey, Question, Tool, Arguments, Status) VALUES (@QuestionKey, @Question, 'none', N'{}', 'Unanswered');
+    COMMIT;
+END
+GO
+
+CREATE OR ALTER PROCEDURE ai.usp_SavedQuestion_Get
+    @SavedQuestionId int
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT SavedQuestionId, Question, Tool, Arguments, Status, AskCount, RuleHits, LastAskedUtc, CreatedUtc, ChangedBy, ChangedUtc, ChangedHow,
+           IsPattern, QuestionKey
+    FROM ai.SavedQuestion WHERE SavedQuestionId = @SavedQuestionId;
+END
+GO
+
+/* Synonyms (ai.Synonym): checked by the API (word form, value on its kind's list). */
+CREATE OR ALTER PROCEDURE ai.usp_Synonym_List
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT SynonymId, Word, Kind, Value, ChangedBy, ChangedUtc FROM ai.Synonym ORDER BY Word;
+END
+GO
+
+CREATE OR ALTER PROCEDURE ai.usp_Synonym_Save
+    @Word      nvarchar(60),
+    @Kind      varchar(16),
+    @Value     nvarchar(100),
+    @ChangedBy nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    BEGIN TRAN;
+    UPDATE ai.Synonym WITH (UPDLOCK, HOLDLOCK)
+    SET Kind = @Kind, Value = @Value, ChangedBy = @ChangedBy, ChangedUtc = SYSUTCDATETIME()
+    WHERE Word = @Word;
+    IF @@ROWCOUNT = 0
+        INSERT ai.Synonym (Word, Kind, Value, ChangedBy) VALUES (@Word, @Kind, @Value, @ChangedBy);
+    COMMIT;
+END
+GO
+
+CREATE OR ALTER PROCEDURE ai.usp_Synonym_Delete
+    @SynonymId int
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DELETE ai.Synonym WHERE SynonymId = @SynonymId;
+    IF @@ROWCOUNT = 0 THROW 50404, N'The synonym was not found. It may have been deleted.', 1;
 END
 GO
 

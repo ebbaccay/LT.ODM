@@ -18,6 +18,9 @@
     ai.Guide:       Library assistant how-to guides: a fixed process (create a style package, share it, ...) as numbered
                     steps with links to the screens. Seeded by seed\ai.guides.sql; Admins edit them. Its questions are
                     ai.SavedQuestion patterns with Tool 'how_to'.
+    ai.Synonym:     Library assistant synonyms: a word people use and what the library calls it (a code, or plain
+                    words), replaced in every question before it is read. Admins keep the list.
+                    ai.SavedQuestion Status 'Unanswered' (Tool 'none'): questions nobody could answer, for Admins.
     ai.Job:         slow AI work run in the background (renders, summaries, explanations, readers): who asked, status,
                     the input and the result (JSON, as the API returns it). Finished jobs are deleted after
                     ai.Policy.JobKeepDays (default 7). One row per job; nothing is re-run after an API restart.
@@ -139,12 +142,37 @@ CREATE TABLE ai.SavedQuestion
 
     CONSTRAINT PK_ai_SavedQuestion PRIMARY KEY CLUSTERED (SavedQuestionId),
     CONSTRAINT UQ_ai_SavedQuestion_Key UNIQUE (QuestionKey),
-    CONSTRAINT CK_ai_SavedQuestion_Status CHECK (Status IN ('Recorded', 'Rule', 'Removed')),
+    CONSTRAINT CK_ai_SavedQuestion_Status CHECK (Status IN ('Recorded', 'Rule', 'Removed', 'Unanswered')),
     CONSTRAINT CK_ai_SavedQuestion_Arguments CHECK (ISJSON(Arguments) = 1)
 );
 GO
 IF COL_LENGTH(N'ai.SavedQuestion', N'IsPattern') IS NULL
     ALTER TABLE ai.SavedQuestion ADD IsPattern bit NOT NULL CONSTRAINT DF_ai_SavedQuestion_IsPattern DEFAULT (0);
+GO
+
+-- Unanswered (2026-11-04): questions nobody could answer, kept for Admins to review (Tool 'none').
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_ai_SavedQuestion_Status' AND definition LIKE N'%Unanswered%')
+BEGIN
+    ALTER TABLE ai.SavedQuestion DROP CONSTRAINT CK_ai_SavedQuestion_Status;
+    ALTER TABLE ai.SavedQuestion ADD CONSTRAINT CK_ai_SavedQuestion_Status CHECK (Status IN ('Recorded', 'Rule', 'Removed', 'Unanswered'));
+END
+GO
+
+-- Synonyms: words people use that the library writes differently ("tees" = product type TOP). Read before every question.
+IF OBJECT_ID(N'ai.Synonym', N'U') IS NULL
+CREATE TABLE ai.Synonym
+(
+    SynonymId  int IDENTITY(1, 1) NOT NULL,
+    Word       nvarchar(60)   NOT NULL,   -- lower case, as people type it: tees, puffer jacket
+    Kind       varchar(16)    NOT NULL,   -- productType | customer | season | businessUnit | gender | weaveType | words
+    Value      nvarchar(100)  NOT NULL,   -- a code of that list (checked by the API), or plain words for 'words'
+    ChangedBy  nvarchar(64)   NULL,
+    ChangedUtc datetime2(3)   NOT NULL CONSTRAINT DF_ai_Synonym_ChangedUtc DEFAULT (SYSUTCDATETIME()),
+
+    CONSTRAINT PK_ai_Synonym PRIMARY KEY CLUSTERED (SynonymId),
+    CONSTRAINT UQ_ai_Synonym_Word UNIQUE (Word),
+    CONSTRAINT CK_ai_Synonym_Kind CHECK (Kind IN ('productType', 'customer', 'season', 'businessUnit', 'gender', 'weaveType', 'words'))
+);
 GO
 
 -- How-to guides: fixed processes as numbered steps with links to the screens (Library assistant, tool how_to). The

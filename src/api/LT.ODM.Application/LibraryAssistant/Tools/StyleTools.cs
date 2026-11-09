@@ -9,7 +9,7 @@ namespace LT.ODM.Application.LibraryAssistant.Tools;
 
 internal static class ToolKit
 {
-    public static readonly string[] StyleFilters = ["customer", "seasons", "productTypes", "businessUnits", "gender", "weaveType", "material", "looks", "keywords"];
+    public static readonly string[] StyleFilters = ["customer", "seasons", "productTypes", "businessUnits", "gender", "weaveType", "material", "looks", "keywords", "pictures"];
 
     public static LibraryTableDto Table(string[] columns, IEnumerable<(IReadOnlyList<string?> Row, string? Link)> rows, int total)
     {

@@ -17,12 +17,16 @@ import { AuthService } from '../../../../core/auth/auth.service';
 import { evaluatePassword } from '../../../../core/auth/password-rules';
 import { PasswordInput } from '../../../../features/auth/password-input';
 import { PasswordStrength } from '../../../../features/auth/password-strength';
-import { RoleDto, SettingsAdminService, UserAccessDto, adminErrorMessage } from '@services/settings-admin.service';
+import { RefListItem, RoleDto, SettingsAdminService, UserAccessDto, adminErrorMessage } from '@services/settings-admin.service';
 import { ConfirmDialogService } from '@tms/shared/confirm-dialog/confirm-dialog.service';
 import { Modal } from '@tms/shared/ui/modal';
 
 interface AccessForm {
+  /** The user's name (first and last) as shown in the app. */
+  displayName: string;
   roles: Set<string>;
+  /** Business unit teams: units whose styles the user may change (none = every style). */
+  businessUnits: Set<string>;
   userGroup: string;
   location: string;
 }
@@ -73,7 +77,16 @@ export class UserRoles implements OnInit {
 
   // Edit access dialog
   readonly editingUser = signal<UserAccessDto | null>(null);
-  readonly form = signal<AccessForm>({ roles: new Set(), userGroup: '', location: '' });
+  readonly form = signal<AccessForm>({ displayName: '', roles: new Set(), businessUnits: new Set(), userGroup: '', location: '' });
+  /** Business units (Settings > Reference lists) to build teams from. */
+  readonly businessUnitList = signal<RefListItem[]>([]);
+  /** A new user can join active units only (Edit access lists them all: a user may already be in an inactive one). */
+  readonly activeBusinessUnits = computed(() => this.businessUnitList().filter((b) => b.isActive !== false));
+  /** Same rule as Add user and AdminValidation.Access: a name of at most 128 characters. */
+  readonly nameValid = computed(() => {
+    const name = this.form().displayName.trim();
+    return name.length > 0 && name.length <= 128;
+  });
 
   // Add user dialog
   readonly createOpen = signal(false);
@@ -133,6 +146,8 @@ export class UserRoles implements OnInit {
     };
     this.svc.getRoles().subscribe({ next: (r) => (this.availableRoles.set(r), done()), error: fail });
     this.svc.getUsers().subscribe({ next: (u) => (this.users.set(u), done()), error: fail });
+    // Business units for teams; without them the dialog simply has no team list.
+    this.svc.getRefList('businessUnits').subscribe({ next: (b) => this.businessUnitList.set(b), error: () => this.businessUnitList.set([]) });
   }
 
   roleLabel = (name: string) => {
@@ -146,7 +161,13 @@ export class UserRoles implements OnInit {
 
   openAccess(user: UserAccessDto): void {
     this.editingUser.set(user);
-    this.form.set({ roles: new Set(user.roles), userGroup: user.userGroup ?? '', location: user.location ?? '' });
+    this.form.set({
+      displayName: user.displayName,
+      roles: new Set(user.roles),
+      businessUnits: new Set(user.businessUnits ?? []),
+      userGroup: user.userGroup ?? '',
+      location: user.location ?? '',
+    });
   }
 
   closeDialog(): void {
@@ -158,18 +179,24 @@ export class UserRoles implements OnInit {
     this.form.update((f) => ({ ...f, roles: toggled(f.roles, name, checked) }));
   }
 
-  patch(field: 'userGroup' | 'location', value: string): void {
+  toggleBusinessUnit(code: string, checked: boolean): void {
+    this.form.update((f) => ({ ...f, businessUnits: toggled(f.businessUnits, code, checked) }));
+  }
+
+  patch(field: 'displayName' | 'userGroup' | 'location', value: string): void {
     this.form.update((f) => ({ ...f, [field]: value }));
   }
 
   save(): void {
     const user = this.editingUser();
-    if (!user || this.saving()) return;
+    if (!user || this.saving() || !this.nameValid()) return;
     const f = this.form();
     this.saving.set(true);
     this.svc
       .setUserAccess(user.userId, {
+        displayName: f.displayName.trim(),
         roles: [...f.roles],
+        businessUnits: [...f.businessUnits],
         userGroup: f.userGroup.trim() || null,
         location: f.location.trim() || null,
       })
@@ -295,6 +322,10 @@ export class UserRoles implements OnInit {
     this.newUser.update((u) => ({ ...u, roles: toggled(u.roles, name, checked) }));
   }
 
+  toggleNewBusinessUnit(code: string, checked: boolean): void {
+    this.newUser.update((u) => ({ ...u, businessUnits: toggled(u.businessUnits, code, checked) }));
+  }
+
   create(): void {
     this.createTouched.set(true);
     if (!this.newUserValid() || this.saving()) return;
@@ -310,6 +341,7 @@ export class UserRoles implements OnInit {
         userGroup: u.userGroup.trim() || null,
         location: u.location.trim() || null,
         temporaryPassword: temporary ? this.newPassword.value : null,
+        businessUnits: [...u.businessUnits],
       })
       .subscribe({
         next: () => {
@@ -350,7 +382,7 @@ export class UserRoles implements OnInit {
   onSearch = (e: Event) => this.searchQuery.set((e.target as HTMLInputElement).value);
 
   private emptyNewUser(): NewUserForm {
-    return { userName: '', email: '', displayName: '', roles: new Set(), userGroup: '', location: '', passwordMode: 'link' };
+    return { userName: '', email: '', displayName: '', roles: new Set(), businessUnits: new Set(), userGroup: '', location: '', passwordMode: 'link' };
   }
 }
 

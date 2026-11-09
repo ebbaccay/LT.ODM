@@ -60,7 +60,7 @@ public sealed class LibraryAssistantController(LibraryAssistantService assistant
     public async Task<IActionResult> List(string? status, string? search, int skip = 0, int take = 50, CancellationToken ct = default)
     {
         if (status is not null && !SavedQuestionStatuses.All.Contains(status))
-            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["status"] = ["Status must be Recorded, Rule or Removed."] }));
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["status"] = ["Status must be Recorded, Rule, Removed or Unanswered."] }));
         return Ok(await saved.ListAsync(status, Clip(search, 100), Math.Max(0, skip), Math.Clamp(take, 1, 200), ct));
     }
 
@@ -79,6 +79,40 @@ public sealed class LibraryAssistantController(LibraryAssistantService assistant
         => Run(async () =>
         {
             await saved.DeleteAsync(id, ct);
+            return NoContent();
+        }, ct);
+
+    /// <summary>Admin: the question becomes one of a how-to guide's questions (e.g. an unanswered one).</summary>
+    [HttpPost("saved/{id:int}/to-guide")]
+    [Authorize(Roles = SavedQuestionRoles.Admins)]
+    public Task<IActionResult> ToGuide(int id, SavedQuestionToGuideRequest request, CancellationToken ct)
+        => Run(async () =>
+        {
+            await assistant.AddToGuideAsync(id, request, CurrentUserName, ct);
+            return NoContent();
+        }, ct);
+
+    // ----- Synonyms (Admin) -----
+
+    [HttpGet("synonyms")]
+    [Authorize(Roles = SavedQuestionRoles.Admins)]
+    public Task<IReadOnlyList<SynonymDto>> ListSynonyms(CancellationToken ct) => assistant.SynonymsAsync(ct);
+
+    [HttpPut("synonyms")]
+    [Authorize(Roles = SavedQuestionRoles.Admins)]
+    public Task<IActionResult> SaveSynonym(SaveSynonymRequest request, CancellationToken ct)
+        => Run(async () =>
+        {
+            await assistant.SaveSynonymAsync(request, CurrentUserName, ct);
+            return NoContent();
+        }, ct);
+
+    [HttpDelete("synonyms/{id:int}")]
+    [Authorize(Roles = SavedQuestionRoles.Admins)]
+    public Task<IActionResult> DeleteSynonym(int id, CancellationToken ct)
+        => Run(async () =>
+        {
+            await assistant.DeleteSynonymAsync(id, ct);
             return NoContent();
         }, ct);
 

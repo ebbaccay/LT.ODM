@@ -6,13 +6,13 @@ const G = [
 ];
 const I = [
   ['nav.home', 'nav.dashboard', '', 'lucideLayoutDashboard', 10, ''], ['nav.home', 'nav.quotationDashboard', 'dashboard', 'lucideChartColumn', 20, 'Admin,Merchandiser,Factory'],
-  ['nav.styleLibrary', 'nav.styles', 'styles', 'lucideImages', 10, ''], ['nav.styleLibrary', 'nav.materials', 'materials', 'lucideListTree', 20, 'Admin,Merchandiser,Costing,Viewer'],
+  ['nav.styleLibrary', 'nav.styles', 'styles', 'lucideImages', 10, ''], ['nav.styleLibrary', 'nav.materials', 'materials', 'lucideListTree', 20, 'Admin,Merchandiser,Designer,Costing,Viewer'],
   ['nav.styleLibrary', 'nav.workmanship', 'workmanship', 'lucideTimer', 30, ''], ['nav.styleLibrary', 'nav.costing', 'costing', 'lucideCalculator', 40, ''],
-  ['nav.aiStudio', 'nav.aiSearch', 'ai/search', 'lucideScanSearch', 10, 'Admin,Merchandiser,Costing,Viewer'],
-  ['nav.aiStudio', 'nav.aiCompare', 'ai/compare', 'lucideGitCompareArrows', 20, 'Admin,Merchandiser,Costing,Viewer'],
-  ['nav.aiStudio', 'nav.aiBomCheck', 'ai/bom-check', 'lucideShieldAlert', 30, 'Admin,Merchandiser,Costing,Viewer'],
-  ['nav.aiStudio', 'nav.aiRender', 'ai/render', 'lucideWandSparkles', 40, 'Admin,Merchandiser,Costing,Viewer'],
-  ['nav.aiStudio', 'nav.aiLab', 'ai/lab', 'lucideFlaskConical', 50, 'Admin,Merchandiser,Costing,Viewer'],
+  ['nav.aiStudio', 'nav.aiSearch', 'ai/search', 'lucideScanSearch', 10, 'Admin,Merchandiser,Designer,Costing,Viewer'],
+  ['nav.aiStudio', 'nav.aiCompare', 'ai/compare', 'lucideGitCompareArrows', 20, 'Admin,Merchandiser,Designer,Costing,Viewer'],
+  ['nav.aiStudio', 'nav.aiBomCheck', 'ai/bom-check', 'lucideShieldAlert', 30, 'Admin,Merchandiser,Designer,Costing,Viewer'],
+  ['nav.aiStudio', 'nav.aiRender', 'ai/render', 'lucideWandSparkles', 40, 'Admin,Merchandiser,Designer,Costing,Viewer'],
+  ['nav.aiStudio', 'nav.aiLab', 'ai/lab', 'lucideFlaskConical', 50, 'Admin,Merchandiser,Designer,Costing,Viewer'],
   ['nav.manageOfferings', 'nav.garmentQuotation', 'garment-quotation', 'lucideReceipt', 10, 'Admin,Merchandiser,Factory'],
   ['nav.manageOfferings', 'nav.conceptStudio', 'concept-studio', 'lucideLightbulb', 20, 'Admin,Merchandiser'],
   ['nav.manageOfferings', 'nav.sbuSubmission', 'order-management', 'lucideSend', 30, 'Admin,Merchandiser'],
@@ -35,12 +35,13 @@ let id = 1;
 const groups = G.map(([text, icon, slot, sortOrder]) => ({ groupId: id++, text, icon, slot, sortOrder, isVisible: true, items: [] }));
 for (const [g, text, route, icon, sortOrder, roles] of I)
   groups.find((x) => x.text === g).items.push({ itemId: id++, text, route, icon, sortOrder, isVisible: true, allowedRoles: roles ? roles.split(',') : [] });
-const roles = [
-  { roleId: 1, name: 'Admin', displayName: 'Administrator', description: 'Full access, including Settings.', userCount: 2 },
-  { roleId: 2, name: 'Merchandiser', displayName: 'Merchandiser', description: 'Quotations, concepts and offerings.', userCount: 14 },
-  { roleId: 3, name: 'Factory', displayName: 'Factory', description: 'Factory users: quotations for their factory.', userCount: 9 },
-  { roleId: 4, name: 'Costing', displayName: 'Costing', description: null, userCount: 3 },
-  { roleId: 5, name: 'Viewer', displayName: 'Viewer', description: 'Read-only access.', userCount: 5 },
+export const roles = [
+  { roleId: 1, name: 'Admin', displayName: 'Administrator', description: 'Full access, including Settings.', userCount: 2, dashboardKey: null },
+  { roleId: 2, name: 'Merchandiser', displayName: 'Merchandiser', description: 'Quotations, concepts and offerings.', userCount: 14, dashboardKey: null },
+  { roleId: 3, name: 'Factory', displayName: 'Factory', description: 'Factory users: quotations for their factory.', userCount: 9, dashboardKey: null },
+  { roleId: 4, name: 'Costing', displayName: 'Costing', description: null, userCount: 3, dashboardKey: null },
+  { roleId: 5, name: 'Viewer', displayName: 'Viewer', description: 'Read-only access.', userCount: 5, dashboardKey: null },
+  { roleId: 6, name: 'Designer', displayName: 'Designer', description: 'Creates styles: sketches, colorways and BOMs.', userCount: 4, dashboardKey: 'designer' },
 ];
 const users = [
   { userId: 1, userName: 'jdoe', displayName: 'Jane Doe', email: 'jane.doe@example.test', isActive: true, userGroup: null, location: null, lastLoginUtc: '2026-10-05T07:12:00Z', lockoutEndUtc: null, roles: ['Admin'] },
@@ -95,7 +96,7 @@ export function handleAdmin(req, url, body, json, userRoles) {
     if (!body.roleId && !/^[A-Za-z][A-Za-z0-9_]{1,63}$/.test(body.name))
       return json(400, { title: 'One or more validation errors occurred.', errors: { name: ['Use 2-64 letters, digits or underscores, starting with a letter (e.g. Merchandiser).'] } }), true;
     const r = roles.find((x) => x.roleId === body.roleId);
-    if (r) Object.assign(r, { displayName: body.displayName, description: body.description });
+    if (r) Object.assign(r, { displayName: body.displayName, description: body.description, dashboardKey: body.dashboardKey ?? null });
     else roles.push({ ...body, roleId: roles.length + 10, userCount: 0 });
     return json(200, { roleId: 1 }), true;
   }
@@ -134,7 +135,11 @@ export function handleAdmin(req, url, body, json, userRoles) {
   if (p.endsWith('/access') && m === 'PUT') {
     const uid = Number(p.split('/')[5]);
     if (uid === 1 && !body.roles.includes('Admin')) return json(400, { title: 'One or more validation errors occurred.', errors: { roles: ['You cannot remove your own Admin role. Ask another administrator.'] } }), true;
-    Object.assign(users.find((x) => x.userId === uid), { roles: body.roles, userGroup: body.userGroup, location: body.location });
+    const u = users.find((x) => x.userId === uid);
+    Object.assign(u, {
+      roles: body.roles, userGroup: body.userGroup, location: body.location, displayName: body.displayName?.trim() || u.displayName,
+      businessUnits: body.businessUnits ?? u.businessUnits ?? [],   // business unit teams (null = unchanged)
+    });
     return json(204), true;
   }
   if (p.endsWith('/admin/ref-lists') && m === 'GET') return json(200, refLists), true;

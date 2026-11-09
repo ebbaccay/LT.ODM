@@ -25,6 +25,20 @@ public sealed class FakeMaterialRepository : IMaterialRepository
             [], [new MaterialBenchmarkDto("JACKET", "JACKET", "yd", 5, 1.1m, 1.3m, 1.4m, 1.5m, 1.9m)], [], [],
             [new SimilarMaterialDto(2, "70038500_1", "Ripstop", "SameDescription", 5)]));
 
+    public (int MaterialId, string SupplierCode, string? CountryCode, string ChangedBy)? LastCountry { get; private set; }
+
+    public Task<IReadOnlyList<MaterialSupplierOptionDto>> SupplierOptionsAsync(string materialCode, string? nominatedSupplierCode, CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<MaterialSupplierOptionDto>>(materialCode == "70038500"
+            ? [new MaterialSupplierOptionDto("1116441", "HUATEX VIETNAM", "VN", "Vietnam", 5, nominatedSupplierCode == "299002" ? 3 : 0)]
+            : []);
+
+    public Task SetSupplierCountryAsync(int materialId, string supplierCode, string? countryCode, string changedBy, CancellationToken ct = default)
+    {
+        if (supplierCode == "999") throw new StyleRuleException(400, "This supplier is not on any BOM line of the material.");
+        LastCountry = (materialId, supplierCode, countryCode, changedBy);
+        return Task.CompletedTask;
+    }
+
     public MaterialInsightQuery? LastInsight { get; private set; }
 
     private Task<T> Insight<T>(MaterialInsightQuery q, T result)
@@ -79,6 +93,35 @@ public sealed class MaterialsTests(ApiFactory factory) : IClassFixture<ApiFactor
         var detail = await costing.GetFromJsonAsync<MaterialDetailDto>("/api/v1/materials/7");
         Assert.Equal(1.4m, Assert.Single(detail!.Benchmarks).Median);
         Assert.Equal(HttpStatusCode.NotFound, (await costing.GetAsync("/api/v1/materials/404")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Supplier_options_are_read_by_material_code_and_country_is_set_by_editors()
+    {
+        var viewer = await SignInAsync("Viewer");
+        var options = await viewer.GetFromJsonAsync<List<MaterialSupplierOptionDto>>("/api/v1/materials/supplier-options?code=%2070038500%20");
+        Assert.Equal("VN", Assert.Single(options!).CountryCode);
+        var nominated = await viewer.GetFromJsonAsync<List<MaterialSupplierOptionDto>>("/api/v1/materials/supplier-options?code=70038500&nominated=%20299002%20");
+        Assert.Equal(3, Assert.Single(nominated!).NominatedLines);
+        Assert.Empty((await viewer.GetFromJsonAsync<List<MaterialSupplierOptionDto>>("/api/v1/materials/supplier-options"))!);
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await viewer.PutAsJsonAsync("/api/v1/materials/7/suppliers/1116441/country", new { countryCode = "VN" })).StatusCode);
+
+        var designer = await SignInAsync("Designer");
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await designer.PutAsJsonAsync("/api/v1/materials/7/suppliers/1116441/country", new { countryCode = "Vietnam" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await designer.PutAsJsonAsync("/api/v1/materials/7/suppliers/999/country", new { countryCode = "VN" })).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await designer.PutAsJsonAsync("/api/v1/materials/7/suppliers/1116441/country", new { countryCode = " vn " })).StatusCode);
+        Assert.Equal((7, "1116441", "VN"), (factory.Materials.LastCountry!.Value.MaterialId, factory.Materials.LastCountry.Value.SupplierCode,
+            factory.Materials.LastCountry.Value.CountryCode));
+
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await designer.PutAsJsonAsync("/api/v1/materials/7/suppliers/1116441/country", new { countryCode = "" })).StatusCode);
+        Assert.Null(factory.Materials.LastCountry!.Value.CountryCode);
     }
 
     [Fact]

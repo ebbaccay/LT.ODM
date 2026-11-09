@@ -16,7 +16,7 @@ public sealed class TechPackExcelWriter(IStyleImageStore images) : ITechPackExce
     private const int BigPicture = 260, SmallBoxWidth = 120, SmallBoxHeight = 124;   // pixels
     private const double PictureRowHeight = 100;   // points
 
-    public async Task<byte[]> WriteAsync(StyleDetailDto d, string generatedBy, DateTime generatedUtc, CancellationToken ct = default)
+    public async Task<byte[]> WriteAsync(StyleDetailDto d, string generatedBy, DateTime generatedUtc, TimeZoneInfo? timeZone = null, CancellationToken ct = default)
     {
         var s = d.Style;
         var book = new Xlsx();
@@ -27,7 +27,7 @@ public sealed class TechPackExcelWriter(IStyleImageStore images) : ITechPackExce
         sheet.Row(2, [Cell.Of(string.Join(" · ", new[]
         {
             $"{s.CustomerName} ({s.CustomerCode})", $"Season {s.SeasonCode}", s.IsActive ? null : "inactive",
-            $"generated {generatedUtc:yyyy-MM-dd HH:mm} UTC by {generatedBy}",
+            $"generated {GeneratedStamp.Format(generatedUtc, timeZone)} by {generatedBy}",
         }.Where(v => v is not null)))]);
         sheet.Row(4, [Cell.Of("Style", Section), Cell.Of("", Section), Cell.Empty, Cell.Of("Sketch", Section), Cell.Of("Photo", Section)]);
         var facts = new (string Label, Cell Value)[]

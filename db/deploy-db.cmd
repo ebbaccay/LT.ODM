@@ -58,6 +58,7 @@ $scripts = @(
     'tables\pack.tables.sql',                          # Style Packages tables (pack schema)
     'procedures\pack.procedures.sql',                  # Style Packages
     'procedures\concept.procedures.sql',               # Concepts, brand closeness check
+    'procedures\style.designer-dashboard.procedures.sql', # Home: designer dashboard (after concept and pack tables)
     'tables\ai.tables.sql',                            # AI connections
     'procedures\ai.procedures.sql',
     'procedures\ai.assistant.procedures.sql',          # Library assistant saved questions

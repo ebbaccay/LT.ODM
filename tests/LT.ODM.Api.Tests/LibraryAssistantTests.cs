@@ -20,7 +20,7 @@ public sealed class LibraryAssistantTests(ApiFactory factory) : IClassFixture<Ap
         BusinessUnits: [new("RUA", "Running A")],
         ProductTypes: [new("JACKET", "JACKET"), new("JACKETS", "JACKETS"), new("DRESS", "DRESS")],
         WeaveTypes: [new("KNT", "Knit"), new("WVN", "Woven")], MaterialTypes: [], ContentClasses: [], Uoms: [], Suppliers: [],
-        SeasonTerms: [new("SS", "Spring/Summer"), new("FW", "Fall/Winter")]);
+        SeasonTerms: [new("SS", "Spring/Summer"), new("FW", "Fall/Winter")], Countries: []);
 
     private static (LibraryAssistantService Service, FakeAiJsonClient Text, FakeStyleRepository Styles) Assistant() => Assistant(new FakeSavedQuestionRepository());
 

@@ -53,10 +53,12 @@ public static class LibrarySources
 /// Source: rules / saved / ai / none. Understood: the AI's one-line reading. Arguments: the checked arguments, for display and follow-ups.
 /// AnswerFromFacts: the AI's wording failed the number check (or AI was not used), so the code's sentence is shown.
 /// SavedQuestionId: set when the answer can get a thumbs up / down (an AI answer that was recorded, or a saved Rule).
+/// ReadAs: synonyms that were read differently ("tees → TOP"); empty when none.
 /// </summary>
 public sealed record LibraryAnswerDto(
     string Answer, string Source, string? Tool, string? Understood, IReadOnlyDictionary<string, string> Arguments, LibraryTableDto? Table,
-    IReadOnlyList<LibraryLinkDto> Links, IReadOnlyList<string> Unmatched, bool AnswerFromFacts, int? SavedQuestionId = null);
+    IReadOnlyList<LibraryLinkDto> Links, IReadOnlyList<string> Unmatched, bool AnswerFromFacts, int? SavedQuestionId = null,
+    IReadOnlyList<string>? ReadAs = null);
 
 /// <summary>A capability, for the screen's "What can I ask?" list.</summary>
 public sealed record LibraryToolInfoDto(string Name, string Description, string Example, IReadOnlyList<string> Parameters);

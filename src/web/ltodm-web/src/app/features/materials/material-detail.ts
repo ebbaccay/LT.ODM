@@ -1,9 +1,9 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { TranslocoPipe } from '@jsverse/transloco';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideArrowLeft, lucideCopy, lucidePackagePlus, lucideTriangleAlert } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
@@ -13,7 +13,7 @@ import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { StyleLibraryService, styleError } from '../style-library/style-library.service';
-import { MaterialBenchmark, MaterialDetail as Detail, MaterialSpec, MaterialUse, MaterialsService } from './materials.service';
+import { MaterialBenchmark, MaterialDetail as Detail, MaterialSpec, MaterialSupplier, MaterialUse, MaterialsService } from './materials.service';
 
 type Tab = 'uses' | 'consumption' | 'suppliers' | 'colours' | 'similar';
 
@@ -39,8 +39,16 @@ export class MaterialDetailPage implements OnInit {
   private readonly svc = inject(MaterialsService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
-  /** Editors open the Styles list with picking for a style package turned on. */
-  readonly canEdit = inject(StyleLibraryService).canEdit;
+  private readonly library = inject(StyleLibraryService);
+  private readonly transloco = inject(TranslocoService);
+  /** Editors open the Styles list with picking for a style package turned on, and set suppliers' country of origin. */
+  readonly canEdit = this.library.canEdit;
+  readonly countries = computed(() => this.lookups()?.countries ?? []);
+  /** Active countries only are listed (lookups); a code missing here is inactive. */
+  activeCountry = (code: string) => this.countries().some((c) => c.code === code);
+  private readonly lookups = toSignal(this.library.lookups(), { initialValue: null });
+  /** Supplier code whose country is being saved. */
+  readonly savingCountry = signal<string | null>(null);
 
   readonly detail = signal<Detail | null>(null);
   /** The AI reading of the description (Materials > Description reader), if any. */
@@ -100,6 +108,35 @@ export class MaterialDetailPage implements OnInit {
         this.loading.set(false);
         if (e instanceof HttpErrorResponse && e.status === 404) this.notFound.set(true);
         else toast.error(styleError(e).message);
+      },
+    });
+  }
+
+  /**
+   * Sets this material's own country of origin from one supplier ('' = follow the supplier's country, set in Reference
+   * lists); the row shows it straight away.
+   */
+  setCountry(s: MaterialSupplier, code: string): void {
+    const d = this.detail();
+    if (!d || !s.supplierCode || (s.materialCountryCode ?? '') === code) return;
+    const previous = { countryCode: s.countryCode, countryName: s.countryName, materialCountryCode: s.materialCountryCode };
+    const patch = (row: Pick<MaterialSupplier, 'countryCode' | 'countryName' | 'materialCountryCode'>) =>
+      this.detail.update((x) => x && { ...x, suppliers: x.suppliers.map((r) => (r.supplierCode === s.supplierCode ? { ...r, ...row } : r)) });
+    patch(
+      code
+        ? { countryCode: code, countryName: this.countries().find((c) => c.code === code)?.name ?? null, materialCountryCode: code }
+        : { countryCode: s.supplierCountryCode, countryName: s.supplierCountryName, materialCountryCode: null },
+    );
+    this.savingCountry.set(s.supplierCode);
+    this.svc.setSupplierCountry(d.header.materialId, s.supplierCode, code || null).subscribe({
+      next: () => {
+        this.savingCountry.set(null);
+        toast.success(this.transloco.translate('materials.countrySaved'));
+      },
+      error: (e) => {
+        this.savingCountry.set(null);
+        patch(previous);
+        toast.error(styleError(e).message);
       },
     });
   }

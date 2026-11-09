@@ -123,7 +123,7 @@ public sealed class StyleAiAssistant(
 
     private Task<PagedResult<StyleListItemDto>> ListAsync(StyleSearchFiltersDto f, int take, CancellationToken ct)
         => styles.ListAsync(new StyleListQuery(f.Search, f.Customer, Join(f.Seasons), f.BusinessUnit, Join(f.ProductTypes), f.WeaveType, f.Gender,
-            0, take, f.Material, Looks: f.Looks is { Count: > 0 } looks ? string.Join(',', looks) : null), ct);
+            0, take, f.Material, Looks: f.Looks is { Count: > 0 } looks ? string.Join(',', looks) : null, HasPicture: f.HasPicture), ct);
 
     /// <summary>Requests to show as examples; only those the phrase list fully understands and that find styles are shown.</summary>
     private static readonly string[] ExampleTemplates =

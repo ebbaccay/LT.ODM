@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard, roleGuard } from './core/auth/auth.guards';
+import { LIBRARY_READERS } from './core/auth/library-roles';
 import { agGridGuard } from './core/grid/ag-grid.guard';
 import { AuthShell } from './features/auth/auth-shell';
 import { AppLayout } from './layout/component/app.layout';
@@ -18,10 +19,10 @@ export const routes: Routes = [
     canActivateChild: [authGuard],
     children: [
       { path: '', component: Home, title: 'titles.dashboard' },
-      // Style Library (the API checks the same roles; Admin and Merchandiser can also edit).
+      // Style Library (the API checks the same roles; Admin, Merchandiser and Designer can also edit).
       {
         path: 'styles',
-        canActivate: [roleGuard('Admin', 'Merchandiser', 'Costing', 'Viewer')],
+        canActivate: [roleGuard(...LIBRARY_READERS)],
         children: [
           { path: '', loadComponent: () => import('./features/style-library/styles-list').then((m) => m.StylesList), title: 'titles.styles' },
           // Fill the gaps: suggested genders, product types, season merges and LCO figures to accept (before ':id').
@@ -42,7 +43,7 @@ export const routes: Routes = [
       // Style Packages: library styles offered to a client (same readers; Admin and Merchandiser change them).
       {
         path: 'packages',
-        canActivate: [roleGuard('Admin', 'Merchandiser', 'Costing', 'Viewer')],
+        canActivate: [roleGuard(...LIBRARY_READERS)],
         children: [
           { path: '', loadComponent: () => import('./features/style-packages/packages-list').then((m) => m.PackagesList), title: 'titles.packages' },
           // What to offer a customer (rules, no AI); before ':id'.
@@ -55,7 +56,7 @@ export const routes: Routes = [
       // Concepts: LT's own design ideas, checked for closeness to other brands' designs before they are offered (Style Packages menu).
       {
         path: 'concepts',
-        canActivate: [roleGuard('Admin', 'Merchandiser', 'Costing', 'Viewer')],
+        canActivate: [roleGuard(...LIBRARY_READERS)],
         children: [
           { path: '', loadComponent: () => import('./features/concepts/concepts-list').then((m) => m.ConceptsList), title: 'titles.concepts' },
           { path: ':id', loadComponent: () => import('./features/concepts/concept-detail').then((m) => m.ConceptDetailPage), title: 'titles.concept' },
@@ -64,7 +65,7 @@ export const routes: Routes = [
       // AI Studio on the Style Library (same readers; the API lets only Admin and Merchandiser make renders).
       {
         path: 'ai',
-        canActivate: [roleGuard('Admin', 'Merchandiser', 'Costing', 'Viewer')],
+        canActivate: [roleGuard(...LIBRARY_READERS)],
         children: [
           { path: '', pathMatch: 'full', redirectTo: 'search' },
           { path: 'search', loadComponent: () => import('./features/ai-studio/smart-search').then((m) => m.SmartSearch), title: 'titles.aiSearch' },
@@ -83,7 +84,7 @@ export const routes: Routes = [
       // The BOM seen by material (the old BOMs placeholder now points here).
       {
         path: 'materials',
-        canActivate: [roleGuard('Admin', 'Merchandiser', 'Costing', 'Viewer')],
+        canActivate: [roleGuard(...LIBRARY_READERS)],
         children: [
           { path: '', loadComponent: () => import('./features/materials/materials-list').then((m) => m.MaterialsList), title: 'titles.materials' },
           {

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -11,7 +11,7 @@ import { HlmTextareaImports } from '@spartan-ng/helm/textarea';
 import { Modal } from '@tms/shared/ui/modal';
 import { ImageField } from './image-field';
 import { PictureSuggest } from './picture-suggest';
-import { GENDERS, SaveStyleRequest, StyleHeader, StyleLibraryService, StyleLookups, styleError, toNumber } from './style-library.service';
+import { businessUnitChoices, businessUnitProblem, defaultBusinessUnit, GENDERS, SaveStyleRequest, StyleHeader, StyleLibraryService, StyleLookups, styleError, toNumber } from './style-library.service';
 
 type Form = Omit<SaveStyleRequest, 'rowVer' | 'garmentLeadTimeDays'> & { garmentLeadTimeDays: string };
 
@@ -80,7 +80,7 @@ const EMPTY: Form = {
         <div class="grid gap-4 sm:grid-cols-3">
           <div class="flex flex-col gap-1.5">
             <label hlmLabel for="sf-weave">{{ 'styles.form.weave' | transloco }}</label>
-            <hlm-native-select selectId="sf-weave" selectClass="h-11 w-full lg:h-9" [value]="f.weaveTypeCode ?? ''" (valueChange)="set('weaveTypeCode', $event ?? '')">
+            <hlm-native-select class="w-full" selectId="sf-weave" selectClass="h-11 w-full lg:h-9" [value]="f.weaveTypeCode ?? ''" (valueChange)="set('weaveTypeCode', $event ?? '')">
               <option hlmNativeSelectOption value="">—</option>
               @for (w of lookups()?.weaveTypes ?? []; track w.code) { <option hlmNativeSelectOption [value]="w.code">{{ w.name }}</option> }
             </hlm-native-select>
@@ -95,7 +95,7 @@ const EMPTY: Form = {
           </div>
           <div class="flex flex-col gap-1.5">
             <label hlmLabel for="sf-gender">{{ 'styles.form.gender' | transloco }}</label>
-            <hlm-native-select selectId="sf-gender" selectClass="h-11 w-full lg:h-9" [value]="f.gender ?? ''" (valueChange)="set('gender', $event ?? '')">
+            <hlm-native-select class="w-full" selectId="sf-gender" selectClass="h-11 w-full lg:h-9" [value]="f.gender ?? ''" (valueChange)="set('gender', $event ?? '')">
               <option hlmNativeSelectOption value="">—</option>
               @for (g of genders; track g.code) { <option hlmNativeSelectOption [value]="g.code">{{ 'styles.gender.' + g.code | transloco }}</option> }
             </hlm-native-select>
@@ -107,10 +107,12 @@ const EMPTY: Form = {
           <div class="flex flex-col gap-1.5 sm:col-span-2">
             <label hlmLabel for="sf-bu">{{ 'styles.form.businessUnit' | transloco }}</label>
             <input hlmInput id="sf-bu" list="sf-bus" class="h-11 lg:h-9" maxlength="16" autocomplete="off"
-              [value]="f.businessUnitCode ?? ''" (input)="set('businessUnitCode', $any($event.target).value)" />
+              [value]="f.businessUnitCode ?? ''" (input)="set('businessUnitCode', $any($event.target).value)" [attr.aria-invalid]="!!e['businessUnitCode']" />
+            <!-- Users in business unit teams only get their own units (the database checks it too) -->
             <datalist id="sf-bus">
-              @for (b of lookups()?.businessUnits ?? []; track b.code) { <option [value]="b.code">{{ b.name }}</option> }
+              @for (b of businessUnitOptions(); track b.code) { <option [value]="b.code">{{ b.name }}</option> }
             </datalist>
+            @if (e['businessUnitCode']) { <p class="text-destructive text-xs">{{ e['businessUnitCode'] }}</p> }
           </div>
           <div class="flex flex-col gap-1.5">
             <label hlmLabel for="sf-lead">{{ 'styles.form.leadTime' | transloco }}</label>
@@ -159,6 +161,8 @@ export class StyleFormDialog {
   readonly saved = output<number>();
 
   readonly genders = GENDERS;
+  /** Business unit teams: the units this user may give a style. */
+  readonly businessUnitOptions = computed(() => businessUnitChoices(this.lookups()));
   readonly form = signal<Form>({ ...EMPTY });
   readonly errors = signal<Record<string, string>>({});
   readonly saving = signal(false);
@@ -177,7 +181,8 @@ export class StyleFormDialog {
               garmentLeadTimeDays: s.garmentLeadTimeDays?.toString() ?? '', businessUnitCode: s.businessUnitCode, sketchUrl: s.sketchUrl,
               imageUrl: s.imageUrl, isActive: s.isActive,
             }
-          : { ...EMPTY },
+          // A team with one business unit gets it filled in.
+          : { ...EMPTY, businessUnitCode: untracked(() => defaultBusinessUnit(this.lookups())) || null },
       );
     });
   }
@@ -213,6 +218,10 @@ export class StyleFormDialog {
     // A season from the list (imported ones keep names like 26FW), or a new one typed as year-term.
     if (!/^[0-9]{4}-[A-Z]{2,4}$/.test(request.seasonCode) && !(this.lookups()?.seasons ?? []).some((s) => s.code === request.seasonCode)) missing['seasonCode'] = this.transloco.translate('styles.form.seasonInvalid', { example: '2027-SS' });
     if (!request.styleNo) missing['styleNo'] = this.transloco.translate('styles.form.styleNoRequired');
+    // Required; a business unit team member may only use their own units. An existing style keeps its unit as it is.
+    const unitProblem = businessUnitProblem(request.businessUnitCode ?? '', this.lookups());
+    if (unitProblem && !(this.style() && request.businessUnitCode === this.style()!.businessUnitCode))
+      missing['businessUnitCode'] = this.transloco.translate(unitProblem.key, unitProblem.params);
     if (Object.keys(missing).length) {
       this.errors.set(missing);
       return;

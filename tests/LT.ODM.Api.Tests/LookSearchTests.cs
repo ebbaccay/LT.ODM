@@ -9,7 +9,7 @@ namespace LT.ODM.Api.Tests;
 public sealed class LookSearchTests
 {
     private static readonly StyleLookupsDto Library = new([new("ADI", "ADI")], [new("2027-SS", "2027-SS")], [],
-        [new("JACKET", "JACKET"), new("DRESS", "DRESS")], [], [], [], [], [], [new("SS", "Spring/Summer")]);
+        [new("JACKET", "JACKET"), new("DRESS", "DRESS")], [], [], [], [], [], [new("SS", "Spring/Summer")], []);
 
     private sealed class NoImages : IStyleImageStore
     {
@@ -85,7 +85,7 @@ public sealed class LookSearchTests
     [Fact]
     public void A_hooded_sweatshirt_is_filed_as_hooded_sweat()
     {
-        var l = new StyleLookupsDto([], [], [], [new("HOODED SWEAT", "HOODED SWEAT"), new("SWEATSHIRTLS", "SWEATSHIRT (LONG SLEEVE)")], [], [], [], [], [], []);
+        var l = new StyleLookupsDto([], [], [], [new("HOODED SWEAT", "HOODED SWEAT"), new("SWEATSHIRTLS", "SWEATSHIRT (LONG SLEEVE)")], [], [], [], [], [], [], []);
         Assert.Equal(["HOODED SWEAT"], StyleQueryParser.Parse("navy hooded sweatshirt with a print", l).Filters.ProductTypes);
         Assert.Equal(["HOODED SWEAT", "SWEATSHIRTLS"], StyleQueryParser.Parse("sweatshirts", l).Filters.ProductTypes.Order());
     }

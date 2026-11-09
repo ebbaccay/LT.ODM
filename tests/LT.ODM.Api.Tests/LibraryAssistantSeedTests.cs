@@ -16,7 +16,7 @@ public sealed partial class LibraryAssistantSeedTests(ApiFactory factory) : ICla
         BusinessUnits: [new("RUA", "Running A"), new("TO", "TomWell Other Merch Team")],
         ProductTypes: [new("JACKET", "JACKET"), new("JACKETS", "JACKETS"), new("DRESS", "DRESS"), new("TRACKTOP", "TRACK TOP")],
         WeaveTypes: [new("KNT", "Knit"), new("WVN", "Woven")], MaterialTypes: [], ContentClasses: [], Uoms: [], Suppliers: [],
-        SeasonTerms: [new("SS", "Spring/Summer"), new("FW", "Fall/Winter")]);
+        SeasonTerms: [new("SS", "Spring/Summer"), new("FW", "Fall/Winter")], Countries: []);
 
     /// <summary>A tool that only records the arguments it was given.</summary>
     private sealed class StubTool(string name, IReadOnlyList<string> parameters) : ILibraryTool

@@ -8,15 +8,19 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
+import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { RoleDto, SettingsAdminService, adminErrorMessage } from '@services/settings-admin.service';
 import { ConfirmDialogService } from '@tms/shared/confirm-dialog/confirm-dialog.service';
 import { Modal } from '@tms/shared/ui/modal';
+import { DASHBOARD_KEYS } from '../../../../pages/home/dashboards.service';
 
 interface RoleForm {
   name: string;
   displayName: string;
   description: string;
+  /** '' = the library overview (stored as NULL). */
+  dashboardKey: string;
 }
 
 /** Same rule as auth.Roles CK_auth_Roles_Name and AdminValidation.Role. */
@@ -27,7 +31,8 @@ const ROLE_NAME = /^[A-Za-z][A-Za-z0-9_]{1,63}$/;
   selector: 'app-roles',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    TranslocoPipe, NgIcon, Modal, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmInputImports, HlmLabelImports, HlmSkeletonImports,
+    TranslocoPipe, NgIcon, Modal, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmInputImports, HlmLabelImports, HlmNativeSelectImports,
+    HlmSkeletonImports,
   ],
   providers: [provideIcons({ lucidePlus, lucidePencil, lucideTrash2, lucideShieldCheck })],
   templateUrl: './roles.html',
@@ -43,7 +48,9 @@ export class Roles implements OnInit {
   readonly dialogOpen = signal(false);
   readonly editingRole = signal<RoleDto | null>(null);
   readonly touched = signal(false);
-  readonly form = signal<RoleForm>({ name: '', displayName: '', description: '' });
+  readonly form = signal<RoleForm>({ name: '', displayName: '', description: '', dashboardKey: '' });
+  /** Home page dashboards a role can open with; the library overview is the default (''). */
+  readonly dashboards = DASHBOARD_KEYS.filter((k) => k !== 'library');
 
   readonly nameValid = computed(() => !!this.editingRole() || ROLE_NAME.test(this.form().name.trim()));
   readonly showNameError = computed(() => this.touched() && !this.nameValid());
@@ -69,14 +76,19 @@ export class Roles implements OnInit {
 
   openAdd(): void {
     this.editingRole.set(null);
-    this.form.set({ name: '', displayName: '', description: '' });
+    this.form.set({ name: '', displayName: '', description: '', dashboardKey: '' });
     this.touched.set(false);
     this.dialogOpen.set(true);
   }
 
   openEdit(role: RoleDto): void {
     this.editingRole.set(role);
-    this.form.set({ name: role.name, displayName: role.displayName ?? '', description: role.description ?? '' });
+    this.form.set({
+      name: role.name,
+      displayName: role.displayName ?? '',
+      description: role.description ?? '',
+      dashboardKey: role.dashboardKey && role.dashboardKey !== 'library' ? role.dashboardKey : '',
+    });
     this.touched.set(false);
     this.dialogOpen.set(true);
   }
@@ -100,6 +112,7 @@ export class Roles implements OnInit {
         name: f.name.trim(),
         displayName: f.displayName.trim() || null,
         description: f.description.trim() || null,
+        dashboardKey: f.dashboardKey || null,
       })
       .subscribe({
         next: () => {

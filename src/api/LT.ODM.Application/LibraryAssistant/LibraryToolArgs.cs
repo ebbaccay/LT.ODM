@@ -31,6 +31,7 @@ public sealed class LibraryToolArgs
         ["looks"] = "what the garment looks like in its pictures, as tags (hood:hooded, closure:fullZip, pattern:striped, colour:navy); only styles with pictures have them",
         ["look"] = "a short description of how the garment looks, in the question's words (e.g. navy hooded windbreaker with contrast zips)",
         ["guide"] = "the task a how-to question is about, in the question's words (e.g. create a style package)",
+        ["pictures"] = "with = only styles that have a picture or sketch; without = only styles that have neither",
     };
 
     public StyleLookupsDto Lookups { get; private init; } = null!;
@@ -49,6 +50,8 @@ public sealed class LibraryToolArgs
     public IReadOnlyList<string> Looks { get; private init; } = [];
     public string? Look { get; private init; }
     public string? Guide { get; private init; }
+    /// <summary>true = only styles with a picture or sketch, false = only styles with neither, null = all.</summary>
+    public bool? HasPicture { get; private init; }
 
     /// <summary>The schema of one argument (codes limited to the library's lists).</summary>
     public static JsonObject Schema(string name, StyleLookupsDto l) => name switch
@@ -61,6 +64,7 @@ public sealed class LibraryToolArgs
         "weaveType" => Str(null, l.WeaveTypes.Select(c => c.Code)),
         "groupBy" => Str(null, StyleCountGroups.All),
         "looks" => Arr(Str(null, PictureTagVocabulary.Codes)),
+        "pictures" => Str(null, ["with", "without"]),
         _ => Str(),
     };
 
@@ -86,6 +90,7 @@ public sealed class LibraryToolArgs
             Looks = KnownAll(e, "looks", LookItems),
             Look = Words(Text(e, "look", 120)),
             Guide = Words(Text(e, "guide", 120)),
+            HasPicture = Text(e, "pictures", 10).Trim().ToLowerInvariant() switch { "with" => true, "without" => false, _ => null },
         };
     }
 
@@ -124,6 +129,7 @@ public sealed class LibraryToolArgs
         Material = f.Material,
         StyleNo = f.Search,
         Looks = f.Looks ?? [],
+        HasPicture = f.HasPicture,
     };
 
     /// <summary>
@@ -163,6 +169,15 @@ public sealed class LibraryToolArgs
         // A look tag is supported when one of its words is in the question ("hooded", "navy", "full zip").
         bool LookSaid(string tag) => (f.Looks?.Contains(tag) ?? false) || earlier.Contains(tag)
             || PictureTagVocabulary.Phrases.Any(p => p.Tag == tag && q.Contains(" " + string.Join(' ', p.Words) + " ", StringComparison.Ordinal));
+        // A picture filter needs a picture word in the question ("with images"), or an earlier turn that used it.
+        bool? KeepPicture()
+        {
+            if (HasPicture is null) return null;
+            if (HasPicture == f.HasPicture || qWords.Overlaps(StyleQueryParser.PictureWords) || earlier.Contains(HasPicture.Value ? "with" : "without"))
+                return HasPicture;
+            removed.Add("pictures");
+            return null;
+        }
         var grounded = new LibraryToolArgs
         {
             Lookups = Lookups,
@@ -181,6 +196,7 @@ public sealed class LibraryToolArgs
             GroupBy = GroupBy,
             Looks = KeepAll("looks", Looks, LookSaid),
             Guide = Guide,   // words only, matched to a guide by the tool; never a filter
+            HasPicture = KeepPicture(),
             Look = Keep("look", Look, Look is not null && Look.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries).Count(w => q.Contains(w, StringComparison.Ordinal)) * 2 >= Look.Split(' ').Length),
         };
         dropped = removed;
@@ -212,12 +228,14 @@ public sealed class LibraryToolArgs
             Looks = Looks.Count > 0 || !Takes("looks") ? Looks : f.Looks ?? [],
             Look = Look,
             Guide = Guide,
+            HasPicture = HasPicture ?? (Takes("pictures") ? f.HasPicture : null),
         };
     }
 
     /// <summary>The style list filters these arguments describe. A style number searches like the Styles list.</summary>
     public StyleListQuery ListQuery(int take) => new(
-        StyleNo ?? Keywords, Customer, Join(Seasons), Join(BusinessUnits), Join(ProductTypes), WeaveType, Gender, 0, take, Material, Looks: Join(Looks));
+        StyleNo ?? Keywords, Customer, Join(Seasons), Join(BusinessUnits), Join(ProductTypes), WeaveType, Gender, 0, take, Material, Looks: Join(Looks),
+        HasPicture: HasPicture);
 
     /// <summary>The same filters as Styles list address parameters.</summary>
     public string StylesUrl()
@@ -233,6 +251,8 @@ public sealed class LibraryToolArgs
         Add("gender", Gender);
         Add("material", Material);
         Add("looks", Join(Looks));
+        // The Styles list shows only styles with a picture unless pictures=all (it has no "without" view).
+        if (HasPicture != true) Add("pictures", "all");
         return "/styles" + (p.Count > 0 ? "?" + string.Join('&', p) : "");
     }
 
@@ -256,13 +276,15 @@ public sealed class LibraryToolArgs
         Add("looks", Join(Looks, ", "));
         Add("look", Look);
         Add("guide", Guide);
+        Add("pictures", HasPicture is null ? null : HasPicture.Value ? "with" : "without");
         return d;
     }
 
     /// <summary>A short description of the filters for the code-written answer ("ADI, 2027-SS, JACKET").</summary>
     public string Scope()
     {
-        var parts = new[] { Customer, Join(Seasons, ", "), Join(BusinessUnits, ", "), Join(ProductTypes, ", "), Gender, WeaveType, Material, Join(Looks, ", "), StyleNo ?? Keywords }
+        var parts = new[] { Customer, Join(Seasons, ", "), Join(BusinessUnits, ", "), Join(ProductTypes, ", "), Gender, WeaveType, Material, Join(Looks, ", "), StyleNo ?? Keywords,
+                HasPicture is null ? null : HasPicture.Value ? "with pictures" : "without pictures" }
             .Where(p => !string.IsNullOrEmpty(p)).ToList();
         return parts.Count == 0 ? "the whole library" : string.Join("; ", parts);
     }

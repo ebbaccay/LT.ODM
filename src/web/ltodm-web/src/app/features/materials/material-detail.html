@@ -202,12 +202,48 @@
           @if (d.suppliers.length > 1) {
             <p class="text-sm">{{ 'materials.multiSupplier' | transloco: { count: d.suppliers.length } }}</p>
           }
+          <div class="text-muted-foreground hidden grid-cols-[minmax(0,1fr)_13rem_auto] gap-3 text-xs font-medium sm:grid" aria-hidden="true">
+            <span>{{ 'materials.supplier' | transloco }}</span>
+            <span>{{ 'materials.countryOfOrigin' | transloco }}</span>
+            <span class="text-right">{{ 'materials.used' | transloco }}</span>
+          </div>
           <ul class="flex flex-col gap-3" role="list">
-            @for (s of d.suppliers; track s.supplierCode) {
+            @for (s of d.suppliers; track s.supplierCode; let i = $index) {
               <li class="flex flex-col gap-1">
-                <div class="flex items-baseline justify-between gap-3 text-sm">
+                <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-sm sm:grid-cols-[minmax(0,1fr)_13rem_auto]">
                   <span class="min-w-0 truncate">{{ s.supplierName || ('materials.noSupplier' | transloco) }} <span class="text-muted-foreground text-xs">{{ s.supplierCode }}</span></span>
-                  <span class="text-muted-foreground shrink-0 text-xs tabular-nums">{{ 'materials.supplierUse' | transloco: { styles: s.styles, lines: s.lines } }}</span>
+                  <div class="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:row-start-auto">
+                    @if (!s.supplierCode) {
+                      <span class="text-muted-foreground text-xs">—</span>
+                    } @else if (canEdit()) {
+                      <label class="sr-only" [for]="'coo-' + i">{{ 'materials.countryOfOriginFor' | transloco: { supplier: s.supplierName || s.supplierCode } }}</label>
+                      <!-- '' = follow the supplier's country (Reference lists); another country = this material only. -->
+                      <hlm-native-select [selectId]="'coo-' + i" selectClass="h-11 w-full lg:h-8" [value]="s.materialCountryCode ?? ''" [disabled]="savingCountry() === s.supplierCode"
+                        (valueChange)="setCountry(s, $event ?? '')">
+                        <option hlmNativeSelectOption value="" [selected]="!s.materialCountryCode">
+                          {{ s.supplierCountryCode ? ('materials.supplierCountry' | transloco: { country: s.supplierCountryName || s.supplierCountryCode }) : ('materials.countryNotSet' | transloco) }}
+                        </option>
+                        <!-- This material's country stays choosable when it was made inactive. -->
+                        @if (s.materialCountryCode && !activeCountry(s.materialCountryCode)) {
+                          <option hlmNativeSelectOption [value]="s.materialCountryCode" [selected]="true">{{ s.countryName || s.materialCountryCode }} ({{ s.materialCountryCode }})</option>
+                        }
+                        @for (c of countries(); track c.code) {
+                          @if (c.code !== s.supplierCountryCode) {
+                            <option hlmNativeSelectOption [value]="c.code" [selected]="c.code === s.materialCountryCode">{{ c.name }} ({{ c.code }})</option>
+                          }
+                        }
+                      </hlm-native-select>
+                      @if (s.materialCountryCode) {
+                        <span class="text-muted-foreground mt-0.5 block text-xs">{{ 'materials.countryThisMaterial' | transloco }}</span>
+                      }
+                    } @else {
+                      <span class="text-xs" [class.text-muted-foreground]="!s.countryCode">
+                        <span class="text-muted-foreground sm:hidden">{{ 'materials.countryOfOrigin' | transloco }}: </span>{{ s.countryName || s.countryCode || ('materials.countryNotSet' | transloco) }}
+                        @if (s.materialCountryCode) { <span class="text-muted-foreground">· {{ 'materials.countryThisMaterial' | transloco }}</span> }
+                      </span>
+                    }
+                  </div>
+                  <span class="text-muted-foreground shrink-0 text-right text-xs tabular-nums">{{ 'materials.supplierUse' | transloco: { styles: s.styles, lines: s.lines } }}</span>
                 </div>
                 <div class="bg-muted h-2 overflow-hidden rounded-full">
                   <div class="h-full rounded-full" [class]="s.supplierCode ? 'bg-primary' : 'bg-amber-500'" [style.width.%]="(s.styles / supplierMax()) * 100"></div>

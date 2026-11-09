@@ -30,8 +30,15 @@ public sealed class ColourSuggestionRepository(IDbConnectionFactory connectionFa
     public async Task<int> ApplyAsync(int styleId, IReadOnlyList<ColourCellRequest> cells, string changedBy, CancellationToken ct = default)
     {
         await using var conn = await connectionFactory.OpenAsync(ct);
-        return await conn.QuerySingleAsync<int>(Proc("style.usp_BomLineColour_Fill",
-            new { StyleId = styleId, Cells = JsonSerializer.Serialize(cells, Json), ChangedBy = changedBy }, ct));
+        try
+        {
+            return await conn.QuerySingleAsync<int>(Proc("style.usp_BomLineColour_Fill",
+                new { StyleId = styleId, Cells = JsonSerializer.Serialize(cells, Json), ChangedBy = changedBy }, ct));
+        }
+        catch (SqlException ex) when (ex.Number >= 50000)
+        {
+            throw new StyleRuleException(ex.Number is >= 50400 and <= 50499 ? ex.Number - 50000 : 400, ex.Message);
+        }
     }
 
     private static CommandDefinition Proc(string name, object? parameters, CancellationToken ct)
