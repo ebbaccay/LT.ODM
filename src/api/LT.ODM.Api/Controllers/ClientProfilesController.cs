@@ -1,4 +1,5 @@
 using LT.ODM.Application.Abstractions;
+using LT.ODM.Application.Costing;
 using LT.ODM.Application.StyleLibrary;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -52,10 +53,13 @@ public sealed class ClientProfilesController(IClientProfileRepository profiles) 
 
     /// <summary>The package's styles against its client's profile (no issues and clientKey null when the client has none).</summary>
     [HttpGet("api/v1/style-packages/{packageId:int}/client-check")]
-    public async Task<IActionResult> CheckPackage(int packageId, [FromServices] IPackageRepository packages, CancellationToken ct)
+    public async Task<IActionResult> CheckPackage(int packageId, [FromServices] IPackageRepository packages, [FromServices] ICostingRepository costing, CancellationToken ct)
     {
         if (await packages.GetAsync(packageId, ct) is not { } package) return NotFound();
-        return Ok(await profiles.CheckAsync(package.Package.CustomerCode, package.Items.Select(i => i.StyleId).ToList(), ct));
+        var check = await profiles.CheckAsync(package.Package.CustomerCode, package.Items.Select(i => i.StyleId).ToList(), ct);
+        // The price band only for those who may see prices.
+        if (check.ClientKey is null || !(User.IsInRole(CostingRoles.CostAdmin) || User.IsInRole(CostingRoles.CostTeam) || User.IsInRole(CostingRoles.Merchandiser))) return Ok(check);
+        return Ok(check with { Issues = [.. check.Issues, .. await costing.QuoteIssuesAsync(packageId, ct)] });
     }
 
     // ----- Follow-up reminders (roadmap 5.24) -----

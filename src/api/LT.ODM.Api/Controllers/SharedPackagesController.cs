@@ -1,4 +1,5 @@
 using LT.ODM.Application.Abstractions;
+using LT.ODM.Application.Costing;
 using LT.ODM.Application.StyleLibrary;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,7 +17,7 @@ namespace LT.ODM.Api.Controllers;
 [ApiController]
 [Route("api/v1/share/{token}")]
 [AllowAnonymous]
-public sealed class SharedPackagesController(IPackageRepository packages, IPackageNotifier notifier, ILogger<SharedPackagesController> logger) : ControllerBase
+public sealed class SharedPackagesController(IPackageRepository packages, ICostingRepository costing, IPackageNotifier notifier, ILogger<SharedPackagesController> logger) : ControllerBase
 {
     /// <summary>
     /// The package as the client sees it, with the answers of <paramref name="name"/> (the person visiting; several people
@@ -28,7 +29,7 @@ public sealed class SharedPackagesController(IPackageRepository packages, IPacka
     {
         if (await OpenAsync(token, count: true, ct) is not { } share || await packages.GetAsync(share.PackageId, ct) is not { } package) return NotFound();
         NoStore();
-        return Ok(SharedPackageView.Build(package, share, name is { Length: > 100 } ? name[..100] : name));
+        return Ok(SharedPackageView.Build(await WithPricesAsync(package, share, ct), share, name is { Length: > 100 } ? name[..100] : name));
     }
 
     /// <summary>
@@ -91,10 +92,14 @@ public sealed class SharedPackagesController(IPackageRepository packages, IPacka
     {
         if (await OpenAsync(token, count: false, ct) is not { } share || await packages.GetAsync(share.PackageId, ct) is not { } package) return NotFound();
         NoStore();
-        var pdf = await writer.WritePdfAsync(package, $"share link: {share.Label}", DateTime.UtcNow, GeneratedStamp.Find(tz), ct);
+        var pdf = await writer.WritePdfAsync(await WithPricesAsync(package, share, ct), $"share link: {share.Label}", DateTime.UtcNow, GeneratedStamp.Find(tz), ct);
         var name = string.Concat(package.Package.Name.Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '_'));
         return File(pdf, "application/pdf", $"{name}_line_sheet.pdf");
     }
+
+    /// <summary>The quotes go to the client only through a link made to show them.</summary>
+    private async Task<PackageDetailDto> WithPricesAsync(PackageDetailDto package, OpenedShare share, CancellationToken ct)
+        => share.ShowPrices ? QuoteRules.Apply(package, await costing.QuotedPricesAsync(share.PackageId, ct)) : package;
 
     private Task<OpenedShare?> OpenAsync(string token, bool count, CancellationToken ct)
         => ShareTokens.LooksValid(token)

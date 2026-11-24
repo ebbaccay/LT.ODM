@@ -30,6 +30,10 @@ Search by style number, model or description, by a colorway (code or name), or b
 - **Tech pack (Excel)** (everyone who can read the style) downloads `<style>_<season>_techpack.xlsx` with the same content in four sheets: **Tech pack** (the facts, with the sketch and photo beside them), **Colorways** (one row each, its picture in the row), **BOM** (one row per line with its section; LCO and brand consumption and the allowance are numbers, to calculate with; estimated LCOs are marked) and **Material colours** (each BOM line's colour per colorway, one column per colorway). Headings are frozen and filtered. Pictures are shrunk into their cells and stored in the workbook (`TechPackExcelWriter`, shared workbook writer `Xlsx.cs`).
 - AI shortcuts: **What changed** (if reused), **Check BOM**, **AI render** ([AI Studio](ai-studio.md)), **Design prompt** (below).
 
+## Prices by IO
+
+Admin, Merchandiser, Designer and Costing also have a **Prices by IO** tab: what the garment has cost across its IOs (latest FOB, range, average weighted by quantity) and a line per IO. See [Costing](costing.md).
+
 ## Similar styles (Similar tab)
 
 "Have we made this before, and what did we use?" Styles like the one open, worked out from the library when the tab opens (no AI; about 0.3 s). Every reader can use it.

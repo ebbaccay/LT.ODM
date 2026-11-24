@@ -521,3 +521,100 @@ BEGIN
     COMMIT TRANSACTION;
 END
 GO
+
+/* ---------- Help > Video tutorials: hidden and deleted videos (table nav.TrainingVideoState) ---------- */
+
+CREATE OR ALTER PROCEDURE nav.usp_TrainingVideoState_List
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT FileName, State, ChangedBy, ChangedUtc FROM nav.TrainingVideoState;
+END
+GO
+
+/*
+    Hides, deletes (from the list) or shows again a video by its file name. @State NULL = shown as usual (removes the row).
+    The API checks that the file is a video in the folder and that the user is an Admin.
+*/
+CREATE OR ALTER PROCEDURE nav.usp_TrainingVideoState_Set
+    @FileName  nvarchar(130),
+    @State     varchar(8) = NULL,
+    @ChangedBy nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    SET @FileName = NULLIF(LTRIM(RTRIM(@FileName)), N'');
+    IF @FileName IS NULL THROW 50400, 'Choose a video.', 1;
+    IF @State IS NOT NULL AND @State NOT IN ('Hidden', 'Deleted') THROW 50400, 'Unknown state: use Hidden, Deleted or none.', 1;
+
+    BEGIN TRANSACTION;
+    IF @State IS NULL
+        DELETE nav.TrainingVideoState WHERE FileName = @FileName;
+    ELSE IF EXISTS (SELECT 1 FROM nav.TrainingVideoState WITH (UPDLOCK, HOLDLOCK) WHERE FileName = @FileName)
+        UPDATE nav.TrainingVideoState SET State = @State, ChangedBy = @ChangedBy, ChangedUtc = SYSUTCDATETIME() WHERE FileName = @FileName;
+    ELSE
+        INSERT nav.TrainingVideoState (FileName, State, ChangedBy) VALUES (@FileName, @State, @ChangedBy);
+    COMMIT TRANSACTION;
+END
+GO
+
+/* ---------- Help > Video tutorials: edited details and uploaded videos (table nav.TrainingVideo) ---------- */
+
+CREATE OR ALTER PROCEDURE nav.usp_TrainingVideo_List
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT FileName, Title, Description, DurationSeconds, Roles, UploadFile, CreatedBy, CreatedUtc, UpdatedBy, UpdatedUtc
+    FROM nav.TrainingVideo;
+END
+GO
+
+/*
+    Saves a video's whole row (the API merges the change into what is there). A row with nothing left (no details, no
+    upload) is removed: the video is then exactly as the release ships it.
+*/
+CREATE OR ALTER PROCEDURE nav.usp_TrainingVideo_Save
+    @FileName        nvarchar(130),
+    @Title           nvarchar(200)  = NULL,
+    @Description     nvarchar(1000) = NULL,
+    @DurationSeconds int            = NULL,
+    @Roles           nvarchar(400)  = NULL,
+    @UploadFile      nvarchar(64)   = NULL,
+    @ChangedBy       nvarchar(64)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    SET @FileName = NULLIF(LTRIM(RTRIM(@FileName)), N'');
+    IF @FileName IS NULL THROW 50400, 'Choose a video.', 1;
+    IF @DurationSeconds <= 0 SET @DurationSeconds = NULL;
+
+    BEGIN TRANSACTION;
+    IF @Title IS NULL AND @Description IS NULL AND @DurationSeconds IS NULL AND @Roles IS NULL AND @UploadFile IS NULL
+        DELETE nav.TrainingVideo WHERE FileName = @FileName;
+    ELSE IF EXISTS (SELECT 1 FROM nav.TrainingVideo WITH (UPDLOCK, HOLDLOCK) WHERE FileName = @FileName)
+        UPDATE nav.TrainingVideo
+        SET Title = @Title, Description = @Description, DurationSeconds = @DurationSeconds, Roles = @Roles, UploadFile = @UploadFile,
+            UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
+        WHERE FileName = @FileName;
+    ELSE
+        INSERT nav.TrainingVideo (FileName, Title, Description, DurationSeconds, Roles, UploadFile, CreatedBy)
+        VALUES (@FileName, @Title, @Description, @DurationSeconds, @Roles, @UploadFile, @ChangedBy);
+    COMMIT TRANSACTION;
+END
+GO
+
+/* Removes everything kept for a video: its details, upload reference and hidden / deleted mark (an uploaded video deleted for good). */
+CREATE OR ALTER PROCEDURE nav.usp_TrainingVideo_Delete
+    @FileName nvarchar(130)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    BEGIN TRANSACTION;
+    DELETE nav.TrainingVideoState WHERE FileName = @FileName;
+    DELETE nav.TrainingVideo WHERE FileName = @FileName;
+    COMMIT TRANSACTION;
+END
+GO

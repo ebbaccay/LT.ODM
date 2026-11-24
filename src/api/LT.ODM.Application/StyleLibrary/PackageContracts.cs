@@ -56,7 +56,12 @@ public sealed record PackageItemDto(
     string? SketchUrl, bool IsActive, bool OtherBrand, int FabricLines, int RecycledFabricLines, string CreatedBy, DateTime CreatedUtc,
     string? UpdatedBy, DateTime? UpdatedUtc, byte[] RowVer, IReadOnlyList<PackageColorwayDto> Colorways, IReadOnlyList<PackageMaterialDto> Materials,
     IReadOnlyList<PackageFeedbackDto>? Feedback = null, string? Outcome = null, string? OutcomeBy = null, DateTime? OutcomeUtc = null,
-    int? ConceptId = null, string? ConceptName = null, int? OriginStyleId = null, int? StyleConceptId = null);
+    int? ConceptId = null, string? ConceptName = null, int? OriginStyleId = null, int? StyleConceptId = null)
+{
+    /// <summary>The quote, set only on a line sheet or share link that shows prices (roadmap 5.19).</summary>
+    public decimal? QuotedFob { get; init; }
+    public string? QuotedCurrency { get; init; }
+}
 
 /// <summary>Stories: the concept story pages for the client (roadmap 5.22), in the order of their first style.</summary>
 public sealed record PackageDetailDto(PackageHeaderDto Package, IReadOnlyList<PackageItemDto> Items, IReadOnlyList<PackageStoryDto>? Stories = null);

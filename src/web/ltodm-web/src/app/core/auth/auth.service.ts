@@ -10,8 +10,12 @@ import { AuthResponse, DEFAULT_PASSWORD_POLICY, PasswordPolicy, ProblemDetails, 
  * Session handling:
  * - the access token (15 min JWT) lives only in memory, never in localStorage/sessionStorage;
  * - the refresh token is an HttpOnly cookie the browser sends to /api/v1/auth only;
- * - on page load the session is restored with POST /auth/refresh.
+ * - on page load the session is restored with POST /auth/refresh;
+ * - only a 401 from that call ends the session: a server that cannot answer (restart, release being copied) does not.
  */
+const REFRESH_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000];
+const REFRESH_AGAIN_WHEN_UNAVAILABLE_MS = 30_000;
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
@@ -25,6 +29,8 @@ export class AuthService {
   readonly user = signal<UserProfile | null>(null);
   readonly isAuthenticated = computed(() => this.user() !== null);
   readonly passwordPolicy = signal<PasswordPolicy>(DEFAULT_PASSWORD_POLICY);
+  /** The last refresh could not reach a working server, so whether the session is still valid is unknown. */
+  readonly serverUnavailable = signal(false);
 
   getAccessToken(): string | null {
     return this.accessToken;
@@ -37,7 +43,9 @@ export class AuthService {
 
   /** Signed in, or able to restore the session from the refresh cookie. */
   async ensureSession(): Promise<boolean> {
-    return this.accessToken ? true : this.refresh();
+    if (this.accessToken) return true;
+    // The retries have just run out: going to the login page should not wait through them again.
+    return this.serverUnavailable() ? false : this.refresh();
   }
 
   /** Single flight: concurrent callers share one refresh request. */
@@ -46,7 +54,7 @@ export class AuthService {
     return this.refreshing;
   }
 
-  private async doRefresh(retry = true): Promise<boolean> {
+  private async doRefresh(retry = true, unavailableDelays = REFRESH_RETRY_DELAYS_MS): Promise<boolean> {
     try {
       this.setSession(await firstValueFrom(this.http.post<AuthResponse>(`${this.base}/refresh`, null)));
       return true;
@@ -54,7 +62,17 @@ export class AuthService {
       // 409: another tab rotated the token a moment ago; the browser now has the new cookie.
       if (retry && e instanceof HttpErrorResponse && e.status === 409) {
         await new Promise((r) => setTimeout(r, 250));
-        return this.doRefresh(false);
+        return this.doRefresh(false, unavailableDelays);
+      }
+      if (e instanceof HttpErrorResponse && e.status !== 401 && e.status !== 409) {
+        if (unavailableDelays.length > 0) {
+          await new Promise((r) => setTimeout(r, unavailableDelays[0]));
+          return this.doRefresh(retry, unavailableDelays.slice(1));
+        }
+        // The cookie is untouched. With the app open, stay signed in and keep trying.
+        this.serverUnavailable.set(true);
+        if (this.accessToken) this.scheduleRefresh(REFRESH_AGAIN_WHEN_UNAVAILABLE_MS);
+        return false;
       }
       this.clearSession();
       return false;
@@ -74,6 +92,7 @@ export class AuthService {
 
   /** Called when the API rejects the session (e.g. expired, revoked elsewhere). */
   async sessionExpired(): Promise<void> {
+    if (this.serverUnavailable()) return;
     await this.clearLocalData();
     await this.router.navigate(['/login'], {
       queryParams: { returnUrl: this.router.url },
@@ -109,17 +128,23 @@ export class AuthService {
   private setSession(response: AuthResponse): void {
     this.accessToken = response.accessToken;
     this.user.set(response.user);
+    this.serverUnavailable.set(false);
 
     // Refresh one minute before the access token expires.
-    clearTimeout(this.refreshTimer);
     const ms = new Date(response.accessTokenExpiresUtc).getTime() - Date.now() - 60_000;
-    this.refreshTimer = setTimeout(() => void this.refresh(), Math.max(ms, 5_000));
+    this.scheduleRefresh(Math.max(ms, 5_000));
+  }
+
+  private scheduleRefresh(ms: number): void {
+    clearTimeout(this.refreshTimer);
+    this.refreshTimer = setTimeout(() => void this.refresh(), ms);
   }
 
   private clearSession(): void {
     clearTimeout(this.refreshTimer);
     this.accessToken = null;
     this.user.set(null);
+    this.serverUnavailable.set(false);
   }
 
   private async clearLocalData(): Promise<void> {

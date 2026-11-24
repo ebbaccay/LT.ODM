@@ -240,6 +240,7 @@ export interface PackageShare {
   comments: number;
   /** Active and kept encrypted: Copy link can show it again (links made before 2026-10-28 cannot). */
   canCopy: boolean;
+  showPrices: boolean;
 }
 
 /** A new link's secret: shown once (only its fingerprint is kept). */
@@ -441,8 +442,8 @@ export class PackagesService {
     return this.http.get<PackageShare[]>(`${this.api}/${packageId}/shares`);
   }
 
-  createShare(packageId: number, label: string, expiresInDays: number): Observable<CreatedShare> {
-    return this.http.post<CreatedShare>(`${this.api}/${packageId}/shares`, { label, expiresInDays });
+  createShare(packageId: number, label: string, expiresInDays: number, showPrices = false): Observable<CreatedShare> {
+    return this.http.post<CreatedShare>(`${this.api}/${packageId}/shares`, { label, showPrices, expiresInDays });
   }
 
   /** An active link's secret again, to re-send it (editors). */
@@ -455,8 +456,8 @@ export class PackagesService {
   }
 
   /** Downloads the line sheet for the client: pdf (cards with pictures) or xlsx (one row per style). */
-  async downloadLineSheet(packageId: number, name: string, format: 'pdf' | 'xlsx'): Promise<void> {
-    const blob = await firstValueFrom(this.http.get(`${this.api}/${packageId}/line-sheet.${format}`, { responseType: 'blob', params: { tz: browserTimeZone() } }));
+  async downloadLineSheet(packageId: number, name: string, format: 'pdf' | 'xlsx', prices = false): Promise<void> {
+    const blob = await firstValueFrom(this.http.get(`${this.api}/${packageId}/line-sheet.${format}${prices ? '?prices=true' : ''}`, { responseType: 'blob', params: { tz: browserTimeZone() } }));
     saveBlob(blob, `${safeFileName(name)}_line_sheet.${format}`);
   }
 }

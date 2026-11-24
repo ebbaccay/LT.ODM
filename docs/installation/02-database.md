@@ -45,6 +45,8 @@ run tables\pack.tables.sql
 run procedures\pack.procedures.sql            # packages and their styles
 run procedures\concept.procedures.sql         # concepts, brand closeness check
 run procedures\style.designer-dashboard.procedures.sql  # Home: designer dashboard (needs the concept and pack tables)
+run tables\cost.tables.sql                    # costing: prices per IO
+run procedures\cost.procedures.sql            # Costing page, Prices by IO, ERP costing import
 
 # AI connections (ai schema)
 run tables\ai.tables.sql
@@ -109,6 +111,7 @@ GRANT EXECUTE ON SCHEMA::staging TO ltodm_app;
 GRANT EXECUTE ON SCHEMA::ai      TO ltodm_app;
 GRANT EXECUTE ON SCHEMA::pack    TO ltodm_app;   -- Style Packages (pack.tables.sql also grants it when the role exists)
 GRANT EXECUTE ON SCHEMA::concept TO ltodm_app;   -- Concepts (concept.tables.sql also grants it when the role exists)
+GRANT EXECUTE ON SCHEMA::cost TO ltodm_app;      -- Costing (cost.tables.sql also grants it when the role exists)
 -- Settings > Import bulk-copies the workbook into these tables (SqlBulkCopy with CheckConstraints).
 -- SqlBulkCopy reads each table's columns first with a SELECT, so it needs SELECT as well as INSERT.
 GRANT SELECT, INSERT ON staging.StyleRow   TO ltodm_app;

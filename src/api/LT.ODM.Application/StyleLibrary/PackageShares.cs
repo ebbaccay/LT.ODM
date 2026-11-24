@@ -27,7 +27,7 @@ public static class ShareTokens
 }
 
 /// <summary>Who the link is for (e.g. "Skechers men's buying team") and how many days it works (1-90; default 30).</summary>
-public sealed record CreateShareRequest(string? Label, int? ExpiresInDays);
+public sealed record CreateShareRequest(string? Label, int? ExpiresInDays, bool? ShowPrices = null);
 
 /// <summary>Encrypts link secrets with the web server's keys (ASP.NET Data Protection); null when a value cannot be read back.</summary>
 public interface IShareTokenProtector
@@ -42,7 +42,7 @@ public sealed record CreatedShareDto(int ShareId, string Token, DateTime Expires
 /// <summary>A package's link with its use: views (openings of the page) and the client's answers.</summary>
 public sealed record PackageShareDto(
     int ShareId, string Label, DateTime ExpiresUtc, DateTime? RevokedUtc, string? RevokedBy, int Views, DateTime? FirstViewedUtc, DateTime? LastViewedUtc,
-    string CreatedBy, DateTime CreatedUtc, bool Active, int Likes, int Passes, int Comments, bool CanCopy = false);
+    string CreatedBy, DateTime CreatedUtc, bool Active, int Likes, int Passes, int Comments, bool CanCopy = false, bool ShowPrices = false);
 
 /// <summary>An active link's secret, copied again (the page address is /share/{Token}).</summary>
 public sealed record ShareLinkDto(string Token);
@@ -52,7 +52,7 @@ public sealed record PackageFeedbackDto(
     int ShareId, string Label, string? Verdict, string? Comment, string? Name, DateTime UpdatedUtc, bool Sample = false, string? SampleNote = null);
 
 /// <summary>A live link, as found by its secret.</summary>
-public sealed record OpenedShare(int ShareId, int PackageId, string Label, DateTime ExpiresUtc, IReadOnlyList<ShareAnswer> Answers);
+public sealed record OpenedShare(int ShareId, int PackageId, string Label, DateTime ExpiresUtc, IReadOnlyList<ShareAnswer> Answers, bool ShowPrices = false);
 
 /// <summary>The client's answer on one style through this link; Sample: a sample asked for, with SampleNote.</summary>
 public sealed record ShareAnswer(
@@ -90,7 +90,7 @@ public sealed record SharedColorwayDto(string Code, string? Name, string? ImageF
 public sealed record SharedItemDto(
     int PackageItemId, string StyleNo, string SeasonCode, string? ModelName, string? Description, string Facts, string? ImageFile, int? LeadTimeDays,
     IReadOnlyList<string> Fabrics, IReadOnlyList<string> Trims, string? Recycled, IReadOnlyList<SharedColorwayDto> Colorways, string? Note,
-    ShareAnswer? Answer);
+    ShareAnswer? Answer, string? Price = null);
 
 /// <summary>A concept's story page (roadmap 5.22): the text for the client, trend tags, its pictures for the client (files), and its styles here.</summary>
 public sealed record SharedStoryDto(string Name, string Story, string? Tags, IReadOnlyList<string> ImageFiles, IReadOnlyList<int> PackageItemIds);
@@ -123,7 +123,7 @@ public static class SharedPackageView
                 i.Materials.Where(m => m.Kind == "Trim").Select(LineSheetContent.MaterialText).ToList(),
                 LineSheetContent.Recycled(i),
                 LineSheetContent.Colorways(i).Select(c => new SharedColorwayDto(c.ColorwayCode, c.ColorwayName, ImageFile(c.ImageUrl))).ToList(),
-                i.PitchNote, answers.GetValueOrDefault(i.PackageItemId))).ToList(), stories);
+                i.PitchNote, answers.GetValueOrDefault(i.PackageItemId), LineSheetContent.Price(i))).ToList(), stories);
     }
 
     private const string StoryImagePrefix = "/api/v1/concepts/images/";

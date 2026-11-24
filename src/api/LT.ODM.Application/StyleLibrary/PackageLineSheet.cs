@@ -3,8 +3,7 @@ namespace LT.ODM.Application.StyleLibrary;
 /// <summary>
 /// A style package's line sheet for the client, as a PDF (cards with pictures) or an Excel workbook (one row per style, picture in the row).
 /// Only what the client may see: the offered colourways and the note for the client; internal notes are never written,
-/// and styles no longer of the package's brand are left out. There is no price yet: the Excel has an empty Price column
-/// to be filled when costing comes (roadmap 5.19).
+/// and styles no longer of the package's brand are left out. The quoted price (roadmap 5.19) appears only when the package passed in carries it.
 /// </summary>
 public interface IPackageLineSheetWriter
 {
@@ -42,6 +41,10 @@ public static class LineSheetContent
     public static string Facts(PackageItemDto i)
         => string.Join(" · ", new[] { i.ProductTypeName ?? i.ProductTypeCode, GenderText(i.Gender), i.WeaveTypeName ?? i.WeaveTypeCode }
             .Where(v => !string.IsNullOrWhiteSpace(v)));
+
+    /// <summary>What the client reads: the quote to 2 decimals (kept at 5).</summary>
+    public static string? Price(PackageItemDto i)
+        => i.QuotedFob is { } fob ? $"{i.QuotedCurrency} {fob.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)} FOB" : null;
 
     public static string? Recycled(PackageItemDto i)
         => i.RecycledFabricLines == 0 ? null

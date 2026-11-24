@@ -52,6 +52,8 @@ public static class ReferenceLists
         new("suppliers", 32, CodeCase.AsTyped, null, AnyCode, 150, true, false, true, HasCountry: true),
         // ref.Country (2026-11-05): ISO two-letter codes; the names are free (the display name everywhere).
         new("countries", 2, CodeCase.Upper, "^[A-Z]{2}$", "Use the 2-letter ISO code (e.g. VN).", 100, true, false, true),
+        // ref.Plant (roadmap 3.16): the ERP's plant codes on IOs; new ones arrive with the costing import.
+        new("plants", 20, CodeCase.Upper, "^[A-Z0-9_-]+$", "Use at most {0} letters, digits, - or _ (e.g. CM35).", 120, true, false, true),
         // Concepts only (roadmap 5.6): ref.TargetMarket, ref.TrendTag, ref.ProductCategory.
         new("targetMarkets", 16, CodeCase.Upper, "^[A-Z0-9_-]+$", "Use at most {0} letters, digits, - or _ (e.g. GENZ).", 100, true, false, true),
         new("trendTags", 40, CodeCase.Upper, "^[A-Z0-9_-]+$", "Use at most {0} letters, digits, - or _ (e.g. ATHLEISURE).", 100, true, false, true),

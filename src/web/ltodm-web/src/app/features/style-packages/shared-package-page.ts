@@ -22,6 +22,8 @@ interface SharedItem {
   modelName: string | null;
   description: string | null;
   facts: string;
+  /** The quote; only on a link made to show prices. */
+  price: string | null;
   imageFile: string | null;
   leadTimeDays: number | null;
   fabrics: string[];
@@ -138,6 +140,7 @@ const NAME_KEY = 'ltodm.share.name';
                     <span class="font-mono font-semibold">{{ i.styleNo }}</span>
                     <span class="text-sm">{{ i.modelName || i.description || '—' }}</span>
                     @if (i.facts) { <span class="text-muted-foreground text-xs">{{ i.facts }}</span> }
+                    @if (i.price) { <span class="text-sm font-semibold tabular-nums" [attr.aria-label]="'packages.shared.price' | transloco">{{ i.price }}</span> }
                     @if (i.leadTimeDays) { <span class="text-muted-foreground text-xs">{{ 'packages.leadTime' | transloco: { days: i.leadTimeDays } }}</span> }
                     @if (i.recycled) {
                       <span class="flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400"><ng-icon name="lucideLeaf" />{{ i.recycled }}</span>

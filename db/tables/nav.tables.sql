@@ -70,3 +70,50 @@ CREATE TABLE nav.ItemRoles
     CONSTRAINT FK_nav_ItemRoles_Roles FOREIGN KEY (RoleId) REFERENCES auth.Roles (RoleId) ON DELETE CASCADE
 );
 GO
+
+/*
+    nav.TrainingVideoState : Help > Video tutorials, what an Admin did to a video (the MP4 files ship with each release,
+    outside the database). No row = shown as usual. Hidden = only Admins see it (marked hidden); Deleted = gone from the
+    list for everyone, and Admins can restore it from the page's Deleted videos list. Kept by file name, so a release that
+    copies the file again does not bring it back.
+*/
+IF OBJECT_ID(N'nav.TrainingVideoState', N'U') IS NULL
+CREATE TABLE nav.TrainingVideoState
+(
+    FileName   nvarchar(130) NOT NULL,
+    State      varchar(8)    NOT NULL,
+    ChangedBy  nvarchar(64)  NOT NULL,
+    ChangedUtc datetime2(3)  NOT NULL CONSTRAINT DF_nav_TrainingVideoState_ChangedUtc DEFAULT (SYSUTCDATETIME()),
+
+    CONSTRAINT PK_nav_TrainingVideoState PRIMARY KEY CLUSTERED (FileName),
+    CONSTRAINT CK_nav_TrainingVideoState_State CHECK (State IN ('Hidden', 'Deleted'))
+);
+GO
+
+/*
+    nav.TrainingVideo : Help > Video tutorials, what Admins changed or added on the page. One row per video (by its file
+    name as the page shows it):
+      - Title, Description, DurationSeconds, Roles: details that replace the release's videos.json ones (NULL = keep the
+        release's; '' description = none). Roles: comma-separated role names; '' or '*' = everyone who may open the page.
+      - UploadFile: a video file uploaded on the page (Files:Root/training-video-uploads, a random name): a new video, or
+        the replacement of a release video (used instead of the release's file until the replacement is removed).
+    Kept by file name, so a release does not undo the changes.
+*/
+IF OBJECT_ID(N'nav.TrainingVideo', N'U') IS NULL
+CREATE TABLE nav.TrainingVideo
+(
+    FileName        nvarchar(130)  NOT NULL,
+    Title           nvarchar(200)  NULL,
+    Description     nvarchar(1000) NULL,
+    DurationSeconds int            NULL,
+    Roles           nvarchar(400)  NULL,
+    UploadFile      nvarchar(64)   NULL,
+    CreatedBy       nvarchar(64)   NOT NULL,
+    CreatedUtc      datetime2(3)   NOT NULL CONSTRAINT DF_nav_TrainingVideo_CreatedUtc DEFAULT (SYSUTCDATETIME()),
+    UpdatedBy       nvarchar(64)   NULL,
+    UpdatedUtc      datetime2(3)   NULL,
+
+    CONSTRAINT PK_nav_TrainingVideo PRIMARY KEY CLUSTERED (FileName),
+    CONSTRAINT CK_nav_TrainingVideo_Duration CHECK (DurationSeconds IS NULL OR DurationSeconds > 0)
+);
+GO

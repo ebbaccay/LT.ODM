@@ -161,10 +161,10 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
     // ----- Share links -----
 
     public Task<int> CreateShareAsync(int packageId, byte[] tokenHash, string? tokenProtected, string label, DateTime expiresUtc, string changedBy,
-        CancellationToken ct = default)
+        CancellationToken ct = default, bool showPrices = false)
         => Write(conn => conn.QuerySingleAsync<int>(Proc("pack.usp_Share_Create", new
         {
-            PackageId = packageId, TokenHash = tokenHash, TokenProtected = tokenProtected, Label = label, ExpiresUtc = expiresUtc, ChangedBy = changedBy,
+            PackageId = packageId, TokenHash = tokenHash, TokenProtected = tokenProtected, Label = label, ExpiresUtc = expiresUtc, ChangedBy = changedBy, ShowPrices = showPrices,
         }, ct)), ct);
 
     public async Task<string?> ShareTokenAsync(int packageId, int shareId, CancellationToken ct = default)
@@ -178,7 +178,7 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
         await using var conn = await connectionFactory.OpenAsync(ct);
         return (await conn.QueryAsync<ShareRow>(Proc("pack.usp_Share_List", new { PackageId = packageId }, ct)))
             .Select(r => new PackageShareDto(r.ShareId, r.Label, Utc(r.ExpiresUtc), Utc(r.RevokedUtc), r.RevokedBy, r.Views, Utc(r.FirstViewedUtc),
-                Utc(r.LastViewedUtc), r.CreatedBy, Utc(r.CreatedUtc), r.Active, r.Likes, r.Passes, r.Comments, r.CanCopy)).ToList();
+                Utc(r.LastViewedUtc), r.CreatedBy, Utc(r.CreatedUtc), r.Active, r.Likes, r.Passes, r.Comments, r.CanCopy, r.ShowPrices)).ToList();
     }
 
     public Task RevokeShareAsync(int packageId, int shareId, string changedBy, CancellationToken ct = default)
@@ -195,7 +195,7 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
         if (share is null) return null;
         var answers = (await grid.ReadAsync<AnswerRow>())
             .Select(a => new ShareAnswer(a.PackageItemId, a.Verdict, a.Comment, a.Name, Utc(a.UpdatedUtc), a.Sample, a.SampleNote)).ToList();
-        return new OpenedShare(share.ShareId, share.PackageId, share.Label, Utc(share.ExpiresUtc), answers);
+        return new OpenedShare(share.ShareId, share.PackageId, share.Label, Utc(share.ExpiresUtc), answers, share.ShowPrices);
     }
 
     public async Task<IReadOnlyList<PackageNoticeFor>> SaveShareFeedbackAsync(byte[] tokenHash, int packageItemId, ShareFeedbackRequest a, CancellationToken ct = default)
@@ -412,6 +412,7 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
 
     private sealed class ShareRow
     {
+        public bool ShowPrices { get; init; }
         public int ShareId { get; init; }
         public string Label { get; init; } = "";
         public DateTime ExpiresUtc { get; init; }
@@ -431,6 +432,7 @@ public sealed class PackageRepository(IDbConnectionFactory connectionFactory) : 
 
     private sealed class OpenedShareRow
     {
+        public bool ShowPrices { get; init; }
         public int ShareId { get; init; }
         public int PackageId { get; init; }
         public string Label { get; init; } = "";

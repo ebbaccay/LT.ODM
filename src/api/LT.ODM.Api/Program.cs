@@ -84,6 +84,8 @@ builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptio
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.PostConfigure<EmailOptions>(o => o.LogBodyWhenNotConfigured = builder.Environment.IsDevelopment());
+// Help > Video tutorials: MP4 files in TrainingVideos:Folder (default <API folder>/training-videos), roles in TrainingVideos:Roles.
+builder.Services.Configure<LT.ODM.Application.Training.TrainingVideoOptions>(builder.Configuration.GetSection(LT.ODM.Application.Training.TrainingVideoOptions.SectionName));
 builder.Services.AddSingleton<IAccessTokenService, JwtAccessTokenService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserInviteService>();

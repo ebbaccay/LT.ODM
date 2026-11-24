@@ -220,7 +220,7 @@ public sealed class AdminTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         var (admin, me) = await SignInAsync("Admin");
         var lists = await admin.GetFromJsonAsync<RefListInfoDto[]>("/api/v1/admin/ref-lists");
-        Assert.Equal(15, lists!.Length);   // brands added 2026-10-15; concept lists 2026-10-28; countries 2026-11-05
+        Assert.Equal(16, lists!.Length);   // brands added 2026-10-15; concept lists 2026-10-28; countries 2026-11-05
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/v1/admin/ref-lists/users")).StatusCode);
         Assert.Equal("FAB", Assert.Single((await admin.GetFromJsonAsync<RefListItemDto[]>("/api/v1/admin/ref-lists/contentClasses"))!).Code);
 

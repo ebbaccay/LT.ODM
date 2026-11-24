@@ -10,6 +10,8 @@ import {
   lucideChartColumn,
   lucideChartPie,
   lucideCircleDot,
+  lucideCircleHelp,
+  lucideCirclePlay,
   lucideClipboardCheck,
   lucideClipboardList,
   lucideComponent,
@@ -74,6 +76,7 @@ export const MENU_ICONS = {
   lucideBell, lucideBookOpen, lucideBriefcase, lucideGlobe, lucideWrench,
   lucideSparkles, lucideScanSearch, lucideGitCompareArrows, lucideShieldAlert, lucideWandSparkles,
   lucideFlaskConical, lucidePlug, lucideLanguages, lucideScanEye, lucideMessagesSquare, lucideImageUp,
+  lucideCircleHelp, lucideCirclePlay,
 };
 
 export const MENU_ICON_NAMES = Object.keys(MENU_ICONS);

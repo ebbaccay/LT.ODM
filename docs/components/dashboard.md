@@ -8,7 +8,7 @@ A summary of the Style Library:
 
 - **Totals**: styles, colorways, BOM lines, materials, suppliers, customers, seasons, style families and reused styles.
 - **By season**: styles, colorways and BOM lines for the latest seasons.
-- **Library health**: how many styles have a BOM, colorways, colorways used on the BOM, an image, a gender, a product type and a year-term season, and how many BOM lines have an LCO consumption. Low coverage is highlighted. The last four rows have a **Fix** link to [Fill the gaps](fill-the-gaps.md) on that tab when something is missing (the percentage is rounded down, so 100% means nothing is missing).
+- **Library health**: how many styles have a BOM, colorways, colorways used on the BOM, an image, a gender, a product type and a year-term season, and how many BOM lines have an LCO consumption. Only the measures **below 95% complete** are listed, so the card shows what needs attention; **Show all** lists every measure and **Show only what needs attention** goes back (when nothing is below 95%, the card says so). Below 50% is highlighted in amber with a warning sign. The last four measures have a **Fix** link to [Fill the gaps](fill-the-gaps.md) on that tab when something is missing (the percentage is rounded down, so 100% means nothing is missing).
 - **Customers, product types, material mix, top materials, top suppliers**: where the library is concentrated.
 - **Recently changed styles** and the **last import** (file, who, when).
 - **API status**: whether the server and database answer.
@@ -49,6 +49,21 @@ It shows the signed-in user's **active styles**: the styles they created (`style
 Every check counts in the score. When a style has no BOM (or no colorways), the checks that need it fail too but are not listed as tags, so the list says what to do next (add the BOM) rather than everything that follows from it.
 
 **Speed.** Worked out on each visit, per user (not cached): about 0.3 s for one season and about 1 s for 2,500 styles on the laptop test database.
+
+## Prices on the home dashboards
+
+From the IO prices ([Costing](costing.md)); loaded on their own, so the rest of the dashboard does not wait for them.
+
+**Designer dashboard** (price readers: Admin, Merchandiser, Designer, Costing; shown even before the user has styles):
+
+- **Price guide by garment**: for each garment with priced styles, the lowest, typical (median) and highest latest FOB on one shared scale, and the typical TC SMV (`cost.usp_Costing_Guide`). A starting point for designing to a price.
+- **My concepts vs target**: the user's concepts (not dropped, latest 20) with their estimated FOB ([estimate](costing.md#using-the-prices)) against the target price: *over* by how much, *within*, *room* below, or what is missing (no category, no target, no priced styles of that garment, another currency) (`cost.usp_Costing_MyConcepts`; the comparison is `TargetPrice.Judge`).
+
+**Library overview, Costing section** (Admin and Costing, as it shows net balance; loaded when scrolled to):
+
+- **Price data health**: last ERP load and by whom; styles with IO prices against active styles; styles not matched in the last load; IOs with no finished costing; final costings waiting on main fabric; small IOs; plants on IOs with no cost per minute in force.
+- **Net balance watch**: net balance as a share of FOB by garment, weighted by pieces (small IOs left out), and the IOs 5 points or more below their style's own share.
+- **Quotes needing attention**: in packages not Ordered or Closed, the styles with no quote, quotes outside the client's price band, and quotes taken from an estimate, with links to the packages (`cost.usp_Costing_Overview`).
 
 ## Adding a dashboard
 

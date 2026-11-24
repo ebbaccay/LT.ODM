@@ -147,7 +147,7 @@ public sealed class FakePackageRepository : IPackageRepository
     public const string AllowedImage = "/api/v1/styles/images/0123456789abcdef0123456789abcdef.jpg";
 
     public Task<int> CreateShareAsync(int packageId, byte[] tokenHash, string? tokenProtected, string label, DateTime expiresUtc, string changedBy,
-        CancellationToken ct = default)
+        CancellationToken ct = default, bool showPrices = false)
     {
         var id = Shares.Count + 1;
         Shares[Convert.ToHexString(tokenHash)] = (id, packageId, label, expiresUtc, false);

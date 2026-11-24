@@ -45,6 +45,8 @@ public static class DependencyInjection
         services.AddScoped<IPackageRepository, PackageRepository>();
         services.AddScoped<IClientProfileRepository, ClientProfileRepository>();   // client profiles, follow-up reminders
         services.AddScoped<IConceptRepository, ConceptRepository>();
+        services.AddScoped<ICostingRepository, Costing.CostingRepository>();   // prices per IO (roadmap 3.16)
+        services.AddSingleton<ICostingWorkbookReader, Costing.CostingWorkbookReader>();
         services.AddSingleton<StyleDashboardCache>();
         services.AddScoped<IDesignerDashboardRepository, LT.ODM.Infrastructure.Dashboards.DesignerDashboardRepository>();   // home: designer dashboard
         services.AddScoped<IMaterialRepository, MaterialRepository>();
@@ -115,6 +117,7 @@ public static class DependencyInjection
         services.AddScoped<BrandClosenessService>();   // brand closeness check of concepts and package copies (roadmap 5.2)
         services.AddScoped<ConceptLibraryMatcher>();   // proven styles for a concept, without AI
         services.AddScoped<ConceptStyleDeveloper>();   // Develop as style: an LT design from a concept
+        services.Configure<LT.ODM.Application.Costing.CostingOptions>(configuration.GetSection(LT.ODM.Application.Costing.CostingOptions.SectionName));   // prices per IO
         services.Configure<FollowUpOptions>(configuration.GetSection(FollowUpOptions.SectionName));   // follow-up reminders (roadmap 5.24)
         services.AddScoped<MaterialReader>();
         // Library assistant: one ILibraryTool per capability (the AI's instructions are built from this list).
@@ -136,6 +139,8 @@ public static class DependencyInjection
         services.AddScoped<ILibraryTool, LookAlikeTool>();
         services.AddScoped<IGuideRepository, GuideRepository>();
         services.AddScoped<ISynonymRepository, SynonymRepository>();   // synonyms read before every question (ai.Synonym)
+        services.AddScoped<LT.ODM.Application.Training.ITrainingVideoRepository, LT.ODM.Infrastructure.Training.TrainingVideoRepository>();   // Help > Video tutorials: hidden / deleted, edited, uploaded (nav.TrainingVideoState, nav.TrainingVideo)
+        services.AddSingleton<LT.ODM.Application.Training.ITrainingVideoUploadStore, FileSystemTrainingVideoStore>();   // videos uploaded on the page (Files:Root/training-video-uploads)
         services.AddScoped<ILibraryTool, HowToTool>();   // how-to guides (ai.Guide)
         // Image search's look-alike model runs inside the API (ONNX Runtime, CPU); loaded on first use, shared by all requests.
         services.Configure<ImageModelOptions>(configuration.GetSection(ImageModelOptions.SectionName));

@@ -179,6 +179,7 @@ public sealed partial class PackageLineSheetWriter(IStyleImageStore images, ICon
         Put(i.StyleNo, f.Bold, 12, Layout.Ink, 15);
         if (!string.IsNullOrWhiteSpace(i.ModelName ?? i.Description)) Put((i.ModelName ?? i.Description)!, f.Regular, 9.5f, Layout.Ink, 13);
         if (LineSheetContent.Facts(i) is { Length: > 0 } facts) Put(facts, f.Regular, 8.5f, Layout.Muted, 12);
+        if (LineSheetContent.Price(i) is { } price) Put(price, f.Bold, 9.5f, Layout.Ink, 13);
 
         var fabrics = i.Materials.Where(m => m.Kind == "Fabric").Take(2).ToList();
         if (fabrics.Count > 0 && Label("Fabric"))

@@ -15,6 +15,7 @@
       customers       partner.Partner (Customer)     as typed             Name           IsActive         styles
       brands          ref.Brand                      upper-case           Name           IsActive         customers
       suppliers       partner.Partner (Supplier)     as typed             Name           IsActive, Country BOM lines
+      plants          ref.Plant                      upper-case           Name           IsActive         IOs (prices per IO)
       targetMarkets   ref.TargetMarket               upper-case           Name           IsActive         concepts
       trendTags       ref.TrendTag                   upper-case           Name           IsActive         concepts
       productCategories ref.ProductCategory          upper-case           Name           IsActive         concepts
@@ -93,6 +94,10 @@ BEGIN
                x.CountryCode, CountryName = co.Name
         FROM partner.Partner x LEFT JOIN ref.Country co ON co.CountryCode = x.CountryCode
         WHERE x.PartnerType = 'Supplier' ORDER BY x.PartnerCode;
+    ELSE IF @List = 'plants'
+        SELECT Code = x.PlantCode, x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
+               UsageCount = (SELECT COUNT(*) FROM cost.Io c WHERE c.PlantCode = x.PlantCode)
+        FROM ref.Plant x ORDER BY x.PlantCode;
     ELSE IF @List = 'targetMarkets'
         SELECT Code = x.TargetMarketCode, x.Name, SortOrder = CAST(NULL AS int), x.IsActive,
                UsageCount = (SELECT COUNT(*) FROM concept.Concept c WHERE c.TargetMarketCode = x.TargetMarketCode)
@@ -147,6 +152,7 @@ BEGIN
         WHEN @List = 'seasons'        THEN IIF(EXISTS (SELECT 1 FROM ref.Season WHERE SeasonCode = @Code), 1, 0)
         WHEN @List = 'seasonTerms'    THEN IIF(EXISTS (SELECT 1 FROM ref.SeasonTerm WHERE Term = @Code), 1, 0)
         WHEN @List = 'brands'         THEN IIF(EXISTS (SELECT 1 FROM ref.Brand WHERE BrandCode = @Code), 1, 0)
+        WHEN @List = 'plants'         THEN IIF(EXISTS (SELECT 1 FROM ref.Plant WHERE PlantCode = @Code), 1, 0)
         WHEN @List = 'targetMarkets'  THEN IIF(EXISTS (SELECT 1 FROM ref.TargetMarket WHERE TargetMarketCode = @Code), 1, 0)
         WHEN @List = 'trendTags'      THEN IIF(EXISTS (SELECT 1 FROM ref.TrendTag WHERE TrendTagCode = @Code), 1, 0)
         WHEN @List = 'productCategories' THEN IIF(EXISTS (SELECT 1 FROM ref.ProductCategory WHERE ProductCategoryCode = @Code), 1, 0)
@@ -213,6 +219,11 @@ BEGIN
         IF @IsNew = 1 INSERT ref.Brand (BrandCode, Name, IsActive) VALUES (@Code, @Name, @IsActive);
         ELSE UPDATE ref.Brand SET Name = @Name, IsActive = @IsActive WHERE BrandCode = @Code;
     END
+    ELSE IF @List = 'plants'
+    BEGIN
+        IF @IsNew = 1 INSERT ref.Plant (PlantCode, Name, IsActive) VALUES (@Code, @Name, @IsActive);
+        ELSE UPDATE ref.Plant SET Name = @Name, IsActive = @IsActive WHERE PlantCode = @Code;
+    END
     ELSE IF @List = 'targetMarkets'
     BEGIN
         IF @IsNew = 1 INSERT ref.TargetMarket (TargetMarketCode, Name, IsActive) VALUES (@Code, @Name, @IsActive);
@@ -273,6 +284,7 @@ BEGIN
         WHEN @List = 'brands'         THEN IIF(EXISTS (SELECT 1 FROM partner.Partner WHERE BrandCode = @Code), 1, 0)
         WHEN @List = 'customers'      THEN IIF(EXISTS (SELECT 1 FROM style.Style WHERE CustomerId = @partnerId), 1, 0)
         WHEN @List = 'suppliers'      THEN IIF(EXISTS (SELECT 1 FROM style.BomLine WHERE SupplierId = @partnerId), 1, 0)
+        WHEN @List = 'plants'         THEN IIF(EXISTS (SELECT 1 FROM cost.Io WHERE PlantCode = @Code), 1, 0)
         WHEN @List = 'targetMarkets'  THEN IIF(EXISTS (SELECT 1 FROM concept.Concept WHERE TargetMarketCode = @Code), 1, 0)
         WHEN @List = 'trendTags'      THEN IIF(EXISTS (SELECT 1 FROM concept.ConceptTag WHERE TrendTagCode = @Code), 1, 0)
         WHEN @List = 'productCategories' THEN IIF(EXISTS (SELECT 1 FROM concept.Concept WHERE ProductCategoryCode = @Code), 1, 0)
@@ -292,6 +304,7 @@ BEGIN
     ELSE IF @List = 'seasons'       DELETE ref.Season WHERE SeasonCode = @Code;
     ELSE IF @List = 'seasonTerms'   DELETE ref.SeasonTerm WHERE Term = @Code;
     ELSE IF @List = 'brands'        DELETE ref.Brand WHERE BrandCode = @Code;
+    ELSE IF @List = 'plants'        DELETE ref.Plant WHERE PlantCode = @Code;
     ELSE IF @List = 'targetMarkets' DELETE ref.TargetMarket WHERE TargetMarketCode = @Code;
     ELSE IF @List = 'trendTags'     DELETE ref.TrendTag WHERE TrendTagCode = @Code;
     ELSE IF @List = 'productCategories' DELETE ref.ProductCategory WHERE ProductCategoryCode = @Code;

@@ -49,6 +49,7 @@ Role, user group and location changes reach a signed-in user within 15 minutes (
 
 - Passwords are hashed (PBKDF2-HMAC-SHA512, 100,000 iterations, per-user salt). Refresh and reset tokens are stored only as SHA-256 hashes.
 - Access tokens last 15 minutes and live in the app's memory; the refresh token is an HttpOnly, Secure, SameSite=Strict cookie limited to `/api/v1/auth`. It rotates on every use; replaying an old one revokes that sign-in everywhere.
+- Only a 401 from `/auth/refresh` ends a session. If the server cannot answer (500, 503, no connection), the app retries for about 15 seconds. An open app then stays signed in and tries again every 30 seconds; a page being loaded goes to the login page with a notice to reload, and the cookie is left as it was.
 - Every sign-in, failure, lockout, password change, access change and role change is written to `auth.LoginAudit` with the client IP; so are temporary passwords set by an Admin (`PasswordSetByAdmin`), deactivation (`UserDeactivated` / `UserActivated`) and removal (`UserDeleted`, with the user name, email and who removed it).
 - Admins never see a user's own password. A temporary password set by an Admin is hashed like any other and must be changed at first sign-in.
 - Sign-in and password endpoints: at most 10 requests per minute per IP.

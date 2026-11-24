@@ -32,34 +32,36 @@
           (change)="switchTo($any($event.target).value); $any($event.target).blur()"
         >
           @for (key of choice()!.available; track key) {
-            <option [value]="key" [selected]="view() === key">{{ 'home.views.' + key | transloco }}</option>
+            <option [value]="key" [selected]="view() === key">
+              {{ 'home.views.' + key | transloco }}
+            </option>
           }
         </select>
       }
       <div class="flex flex-wrap items-center gap-2 sm:justify-end">
-      @if (canRead()) {
-        <button
-          hlmBtn
-          variant="outline"
-          type="button"
-          class="h-11 lg:h-9"
-          (click)="refresh()"
-          [disabled]="busy()"
-        >
-          <ng-icon name="lucideRefreshCw" [class.animate-spin]="busy()" />
-          {{ 'home.refresh' | transloco }}
-        </button>
-        @if (isAdmin() && view() === 'library') {
-          <a hlmBtn variant="outline" class="h-11 lg:h-9" routerLink="/settings/import">
-            <ng-icon name="lucideUpload" />
-            {{ 'home.importStyles' | transloco }}
+        @if (canRead()) {
+          <button
+            hlmBtn
+            variant="outline"
+            type="button"
+            class="h-11 lg:h-9"
+            (click)="refresh()"
+            [disabled]="busy()"
+          >
+            <ng-icon name="lucideRefreshCw" [class.animate-spin]="busy()" />
+            {{ 'home.refresh' | transloco }}
+          </button>
+          @if (isAdmin() && view() === 'library') {
+            <a hlmBtn variant="outline" class="h-11 lg:h-9" routerLink="/settings/import">
+              <ng-icon name="lucideUpload" />
+              {{ 'home.importStyles' | transloco }}
+            </a>
+          }
+          <a hlmBtn class="h-11 lg:h-9" routerLink="/styles">
+            {{ 'home.browseStyles' | transloco }}
+            <ng-icon name="lucideArrowRight" />
           </a>
         }
-        <a hlmBtn class="h-11 lg:h-9" routerLink="/styles">
-          {{ 'home.browseStyles' | transloco }}
-          <ng-icon name="lucideArrowRight" />
-        </a>
-      }
       </div>
     </div>
   </header>
@@ -251,18 +253,41 @@
         <section hlmCard class="min-w-0">
           <div hlmCardHeader>
             <h2 hlmCardTitle>{{ 'home.health' | transloco }}</h2>
-            <p hlmCardDescription>{{ 'home.healthHint' | transloco }}</p>
+            <p hlmCardDescription>
+              {{
+                (showAllHealth() ? 'home.healthHint' : 'home.healthAttentionHint')
+                  | transloco: { pct: healthAttentionBelow }
+              }}
+            </p>
           </div>
           <div hlmCardContent class="flex flex-col gap-4">
             @if (data(); as d) {
-              @for (r of completeness(); track r.label) {
+              @if (!showAllHealth() && healthNeedsAttention().length === 0) {
+                <p class="flex items-center gap-2 text-sm">
+                  <ng-icon
+                    name="lucideCircleCheck"
+                    class="shrink-0 text-emerald-600 dark:text-emerald-400"
+                  />
+                  {{ 'home.healthAllGood' | transloco: { pct: healthAttentionBelow } }}
+                </p>
+              }
+              @for (r of healthRows(); track r.label) {
                 <div class="flex flex-col gap-1.5">
                   <div class="flex items-baseline justify-between gap-2 text-sm">
                     <span>
                       {{ r.label | transloco }}
                       @if (r.fix && r.missing > 0) {
-                        <a routerLink="/styles/gaps" [queryParams]="{ tab: r.fix }" class="text-primary ml-1 text-xs font-medium underline-offset-2 hover:underline"
-                           [attr.aria-label]="'home.fixLabel' | transloco: { what: (r.label | transloco), count: (r.missing | number) }">{{ 'home.fix' | transloco }}</a>
+                        <a
+                          routerLink="/styles/gaps"
+                          [queryParams]="{ tab: r.fix }"
+                          class="text-primary ml-1 text-xs font-medium underline-offset-2 hover:underline"
+                          [attr.aria-label]="
+                            'home.fixLabel'
+                              | transloco
+                                : { what: (r.label | transloco), count: (r.missing | number) }
+                          "
+                          >{{ 'home.fix' | transloco }}</a
+                        >
                       }
                     </span>
                     <span class="flex items-center gap-1 font-medium tabular-nums">
@@ -294,6 +319,20 @@
                     'home.doneOf' | transloco: { done: (r.done | number), of: (r.of | number) }
                   }}</span>
                 </div>
+              }
+              @if (completeness().length > healthNeedsAttention().length) {
+                <button
+                  type="button"
+                  class="text-primary w-fit text-xs font-medium underline-offset-2 hover:underline"
+                  [attr.aria-expanded]="showAllHealth()"
+                  (click)="showAllHealth.set(!showAllHealth())"
+                >
+                  {{
+                    showAllHealth()
+                      ? ('home.healthShowAttention' | transloco)
+                      : ('home.healthShowAll' | transloco: { count: completeness().length })
+                  }}
+                </button>
               }
               <div class="bg-muted/50 mt-1 flex items-center gap-3 rounded-lg px-3 py-2.5">
                 <ng-icon name="lucideGitBranch" class="text-dash-4 shrink-0" />
@@ -516,6 +555,15 @@
           }
         </div>
       </section>
+    }
+  }
+
+  <!-- Costing (Admin and Costing): price data health, net balance watch, quotes needing attention; loaded when scrolled to -->
+  @if (canSeeCostOverview() && view() === 'library') {
+    @defer (on viewport) {
+      <app-costing-overview [reload]="costingReload()" />
+    } @placeholder {
+      <hlm-skeleton class="h-56 w-full" />
     }
   }
 

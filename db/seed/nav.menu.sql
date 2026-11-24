@@ -52,6 +52,7 @@ INSERT @groups VALUES
     (N'nav.sbuModule',       'lucideFactory',          'main',    20),
     (N'nav.trimcardReports', 'lucideTable',            'main',    30),
     (N'nav.developer',       'lucideComponent',        'main',    90),
+    (N'nav.help',            'lucideCircleHelp',       'bottom',  95),
     (N'nav.settings',        'lucideSettings',         'bottom',  100);
 
 INSERT nav.Groups (Text, Icon, Slot, SortOrder, UpdatedBy)
@@ -68,7 +69,7 @@ INSERT @items VALUES
     (N'nav.styleLibrary',     N'nav.materials',               'materials',            'lucideListTree',         20,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
     (N'nav.styleLibrary',     N'nav.fillGaps',                'styles/gaps',          'lucideClipboardCheck',   25,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
     (N'nav.styleLibrary',     N'nav.workmanship',             'workmanship',          'lucideTimer',            30,   N''),
-    (N'nav.styleLibrary',     N'nav.costing',                 'costing',              'lucideCalculator',       40,   N''),
+    (N'nav.styleLibrary',     N'nav.costing',                 'costing',              'lucideCalculator',       40,   N'Admin,Merchandiser,Designer,Costing'),
     (N'nav.stylePackages',    N'nav.packages',                'packages',             'lucidePackage',          10,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
     (N'nav.stylePackages',    N'nav.offer',                   'packages/offer',       'lucideLightbulb',        20,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
     (N'nav.stylePackages',    N'nav.concepts',                'concepts',             'lucidePalette',          25,   N'Admin,Merchandiser,Designer,Costing,Viewer'),
@@ -93,6 +94,8 @@ INSERT @items VALUES
     (N'nav.sbuModule',        N'nav.performanceDashboard',    'sbu-performance',      'lucideChartColumn',      20,   N'Admin,Merchandiser'),
     (N'nav.trimcardReports',  N'nav.trimcard',                'trimcard',             'lucideTable',            10,   N''),
     (N'nav.developer',        N'nav.uiReference',             'ui-reference',         'lucideComponent',        10,   N'Admin'),
+    -- Every signed-in user (TrainingVideos:Roles '*'). To limit it: roles here / in Settings > Menu AND in TrainingVideos:Roles.
+    (N'nav.help',             N'nav.videoTutorials',          'help/videos',          'lucideCirclePlay',       10,   N''),
     (N'nav.settings',         N'settings.nav.navConfig',      'settings/nav-config',  'lucidePanelsTopLeft',    10,   N'Admin'),
     (N'nav.settings',         N'settings.nav.roles',          'settings/roles',       'lucideShieldCheck',      20,   N'Admin'),
     (N'nav.settings',         N'settings.nav.userRoles',      'settings/user-roles',  'lucideUsers',            30,   N'Admin'),

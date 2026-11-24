@@ -6,7 +6,7 @@ namespace LT.ODM.Infrastructure.StyleLibrary;
 /// <summary>
 /// The line sheet as an Excel workbook (<see cref="Xlsx"/>): the package in the first rows, then one row per style with a
 /// filter on the headings and the style's picture (photo, else sketch) in its row, shrunk to the cell and anchored to it.
-/// Price is left empty for costing to fill (roadmap 5.19).
+/// Price is the style's quote when the package carries it (roadmap 5.19), else empty.
 /// </summary>
 public sealed partial class PackageLineSheetWriter
 {
@@ -54,7 +54,7 @@ public sealed partial class PackageLineSheetWriter
                 Cell.Of(i.ProductTypeName ?? i.ProductTypeCode), Cell.Of(LineSheetContent.GenderText(i.Gender)), Cell.Of(i.WeaveTypeName ?? i.WeaveTypeCode),
                 Cell.Of(fabrics.FirstOrDefault(), Wrapped), Cell.Of(string.Join("\n", fabrics.Skip(1)), Wrapped), Cell.Of(string.Join("\n", trims), Wrapped),
                 Cell.Of(LineSheetContent.Recycled(i)), Cell.Of(string.Join("\n", LineSheetContent.Colorways(i).Select(LineSheetContent.ColorwayText)), Wrapped),
-                Cell.Of(i.GarmentLeadTimeDays is { } d && d > 0 ? d : null), Cell.Of(i.PitchNote, Wrapped), Cell.Empty,
+                Cell.Of(i.GarmentLeadTimeDays is { } d && d > 0 ? d : null), Cell.Of(i.PitchNote, Wrapped), Cell.Of(LineSheetContent.Price(i), Wrapped),
             ], withPictures ? StyleRowHeight : null);
             sheet.AddPicture(row, PictureColumn, pictures[n]);
         }

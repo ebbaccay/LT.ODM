@@ -12,6 +12,7 @@ One root folder, set by `Files:Root` (environment variable `Files__Root`). Defau
 | `concept-inspiration\` | Concept Studio inspiration board images | Concept Studio | `/api/v1/concept-studio/images/{name}` | The TMS concept record's `inspiration_images` (JSON list of addresses) |
 | `style-imports\` | Style Library workbooks (.xlsx) kept while their import is not committed, so the columns can be mapped later or again | Settings > Import | Never served (read by the API only) | `staging.ImportBatch.StoredFile`. Deleted on commit, when the import is deleted, or 7 days after a cancel or an unfinished mapping |
 | `sbu-products\` | SBU product photos | SBU Products | `/api/v1/sbu-products/images/{name}` | The TMS SBU product's image field |
+| `training-video-uploads\` | Videos added on Help > Video tutorials, and new files for release videos (MP4, up to 100 MB each; kept as uploaded) | Help > Video tutorials (Admins: Add video, Edit > Replace the video file) | `/api/v1/training-videos/{file}` (the name the page shows, not the stored one) | `nav.TrainingVideo.UploadFile`. A replaced or deleted-for-good video's old file is removed (left for later if someone is watching it at that moment) |
 
 Example: a style photo saved as `D:\LTODM\uploads\style-library\3f2a…9c1e.jpg` is stored in `style.Style.ImageUrl` as `/api/v1/styles/images/3f2a…9c1e.jpg`.
 

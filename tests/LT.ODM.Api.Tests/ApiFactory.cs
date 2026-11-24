@@ -31,6 +31,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public FakePackageRepository Packages { get; } = new();
     public FakeConceptRepository Concepts { get; } = new();
     public FakeClientProfileRepository ClientProfiles { get; } = new();
+    public FakeCostingRepository Costing { get; } = new();
     public FakePackageNotifier Notifier { get; } = new();
     public FakeBomSuggestionRepository BomSuggestions { get; } = new();
     public FakeColourSuggestionRepository ColourSuggestions { get; } = new();
@@ -46,6 +47,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public FakeSavedQuestionRepository SavedQuestions { get; } = new();
     public FakeGuideRepository Guides { get; } = new();
     public FakeSynonymRepository Synonyms { get; } = new();
+    public FakeTrainingVideoRepository Videos { get; } = new();
     public FakeAiJobRepository AiJobs { get; } = new();
     public FakePictureTagRepository PictureTags { get; } = new();
     public FakeStyleImageImportRepository ImageImports { get; } = new();
@@ -55,6 +57,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public string FilesRoot { get; } = Path.Combine(Path.GetTempPath(), "ltodm-tests-" + Guid.NewGuid().ToString("N"));
     /// <summary>Stands in for wwwroot/assets/i18n; tests write the &lt;lang&gt;.json files they need.</summary>
     public string TranslationsBase => Path.Combine(FilesRoot, "i18n-base");
+    /// <summary>Help > Video tutorials folder; tests write the files they need.</summary>
+    public string TrainingVideosFolder => Path.Combine(FilesRoot, "training-videos");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -66,6 +70,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("RateLimiting:AuthPermitPerMinute", "1000");
         builder.UseSetting("AgGrid:LicenseKey", "test-key");
         builder.UseSetting("Files:Root", FilesRoot);
+        builder.UseSetting("TrainingVideos:Folder", TrainingVideosFolder);
         builder.UseSetting("DataProtection:KeysFolder", Path.Combine(FilesRoot, "keys"));
         builder.UseSetting("RateLimiting:AiPermitPerMinute", "1000");
         builder.UseSetting("Translations:BaseFolder", TranslationsBase);
@@ -97,6 +102,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<IPackageRepository>(Packages);
             services.RemoveAll<IConceptRepository>();
             services.AddSingleton<IConceptRepository>(Concepts);
+            services.RemoveAll<ICostingRepository>();
+            services.AddSingleton<ICostingRepository>(Costing);
             services.RemoveAll<IClientProfileRepository>();
             services.AddSingleton<IClientProfileRepository>(ClientProfiles);
             services.RemoveAll<IPackageNotifier>();
@@ -133,6 +140,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.AddSingleton<IGuideRepository>(Guides);
             services.RemoveAll<ISynonymRepository>();
             services.AddSingleton<ISynonymRepository>(Synonyms);
+            services.RemoveAll<LT.ODM.Application.Training.ITrainingVideoRepository>();
+            services.AddSingleton<LT.ODM.Application.Training.ITrainingVideoRepository>(Videos);
             services.RemoveAll<IAiJobRepository>();
             services.AddSingleton<IAiJobRepository>(AiJobs);
             services.RemoveAll<IPictureTagRepository>();

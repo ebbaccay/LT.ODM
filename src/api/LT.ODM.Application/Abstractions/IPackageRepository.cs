@@ -50,7 +50,7 @@ public interface IPackageRepository
 
     /// <summary>Makes a link (only the secret's hash is passed); a draft package becomes Sent. Returns ShareId.</summary>
     Task<int> CreateShareAsync(int packageId, byte[] tokenHash, string? tokenProtected, string label, DateTime expiresUtc, string changedBy,
-        CancellationToken ct = default);
+        CancellationToken ct = default, bool showPrices = false);
 
     /// <summary>The encrypted secret of an active link of the package, or null (revoked, expired, or made before links were kept).</summary>
     Task<string?> ShareTokenAsync(int packageId, int shareId, CancellationToken ct = default);

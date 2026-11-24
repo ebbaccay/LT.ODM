@@ -1,5 +1,6 @@
 using LT.ODM.Application.Abstractions;
 using LT.ODM.Application.Concepts;
+using LT.ODM.Application.Costing;
 using LT.ODM.Application.StyleLibrary;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,6 +19,8 @@ namespace LT.ODM.Api.Controllers;
 public sealed class StylePackagesController(IPackageRepository packages, IShareTokenProtector tokenProtector) : ControllerBase
 {
     private const int MaxStyles = 500;
+    private bool CanSeePrices => User.IsInRole(CostingRoles.CostAdmin) || User.IsInRole(CostingRoles.CostTeam) || User.IsInRole(CostingRoles.Merchandiser);
+
     private string CurrentUserName => User.FindFirst(JwtRegisteredClaimNames.PreferredUsername)?.Value ?? "";
 
     // ----- Reads -----
@@ -43,10 +46,12 @@ public sealed class StylePackagesController(IPackageRepository packages, IShareT
     /// note for the client only; internal notes and styles of another brand are left out.
     /// </summary>
     [HttpGet("{packageId:int}/line-sheet.{format}")]
-    public async Task<IActionResult> LineSheet(int packageId, string format, [FromServices] IPackageLineSheetWriter writer, string? tz, CancellationToken ct)
+    public async Task<IActionResult> LineSheet(int packageId, string format, [FromServices] IPackageLineSheetWriter writer, [FromServices] ICostingRepository costing, string? tz, bool prices,
+        CancellationToken ct)
     {
         if (format is not ("pdf" or "xlsx")) return NotFound();
         if (await packages.GetAsync(packageId, ct) is not { } package) return NotFound();
+        if (prices && CanSeePrices) package = QuoteRules.Apply(package, await costing.QuotedPricesAsync(packageId, ct));
         var name = $"{FileNameSafe(package.Package.Name)}_line_sheet";
         return format == "pdf"
             ? File(await writer.WritePdfAsync(package, CurrentUserName, DateTime.UtcNow, GeneratedStamp.Find(tz), ct), "application/pdf", name + ".pdf")
@@ -135,7 +140,7 @@ public sealed class StylePackagesController(IPackageRepository packages, IShareT
         {
             var (token, hash) = ShareTokens.New();
             var expires = DateTime.UtcNow.AddDays(request.ExpiresInDays ?? 30);
-            var shareId = await packages.CreateShareAsync(packageId, hash, tokenProtector.Protect(token), label!, expires, CurrentUserName, ct);
+            var shareId = await packages.CreateShareAsync(packageId, hash, tokenProtector.Protect(token), label!, expires, CurrentUserName, ct, request.ShowPrices == true && CanSeePrices);
             return Ok(new CreatedShareDto(shareId, token, expires));
         });
     }

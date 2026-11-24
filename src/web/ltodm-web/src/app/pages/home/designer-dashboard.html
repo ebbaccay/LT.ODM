@@ -403,6 +403,14 @@
       </section>
     </div>
   }
+
+  <!-- Prices (roadmap 3.16): what garments cost, and the user's concepts against their targets. Shown also before the user has styles. -->
+  @if (costing.canRead()) {
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <app-price-guide [reload]="reload()" />
+      <app-my-concepts-cost [reload]="reload()" />
+    </div>
+  }
 </div>
 
 <app-style-form-dialog [open]="createOpen()" [lookups]="lookups()" (closed)="createOpen.set(false)" (saved)="onCreated($event)" />

@@ -25,6 +25,9 @@ import { StyleFormDialog } from '../../features/style-library/style-form-dialog'
 import { StyleLibraryService, StyleLookups, styleError } from '../../features/style-library/style-library.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { DashboardsService, DesignerCheck, DesignerDashboard as Data } from './dashboards.service';
+import { CostingService } from '../../features/costing/costing.service';
+import { MyConceptsCost } from './my-concepts-cost';
+import { PriceGuide } from './price-guide';
 
 type Show = 'todo' | 'done' | 'all';
 type Sort = 'score' | 'changed';
@@ -57,6 +60,8 @@ const PAGE = 20;
     DatePipe,
     DecimalPipe,
     RouterLink,
+    PriceGuide,
+    MyConceptsCost,
     NgIcon,
     AuthImgDirective,
     StyleFormDialog,
@@ -85,6 +90,8 @@ const PAGE = 20;
 export class DesignerDashboard {
   /** Bumped by the home page's Refresh button: loads again. */
   readonly reload = input(0);
+  /** Prices (price guide, concepts vs target): price readers only. */
+  protected readonly costing = inject(CostingService);
   /** Tells the home page when a load starts and ends (its Refresh button spins). */
   readonly busy = output<boolean>();
 

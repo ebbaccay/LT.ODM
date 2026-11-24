@@ -96,7 +96,13 @@ export const routes: Routes = [
       },
       { path: 'boms', pathMatch: 'full', redirectTo: 'materials' },
       { path: 'workmanship', component: ComingSoon, data: { heading: 'titles.workmanship' }, title: 'titles.workmanship' },
-      { path: 'costing', component: ComingSoon, data: { heading: 'titles.costing' }, title: 'titles.costing' },
+      { path: 'costing', loadComponent: () => import('./features/costing/costing-page').then((m) => m.CostingPage), title: 'titles.costing' },
+      // Help > Video tutorials (the API checks the TrainingVideos:Roles setting; the page explains a refusal).
+      {
+        path: 'help/videos',
+        loadComponent: () => import('./features/help/video-tutorials').then((m) => m.VideoTutorials),
+        title: 'titles.videoTutorials',
+      },
       {
         path: 'account/password',
         loadComponent: () => import('./pages/account/change-password').then((m) => m.ChangePassword),

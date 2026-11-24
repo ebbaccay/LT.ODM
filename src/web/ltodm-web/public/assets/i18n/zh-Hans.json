@@ -100,7 +100,9 @@
     "offer": "推荐款式",
     "hitRate": "成交率",
     "concepts": "概念",
-    "clientProfiles": "客户档案"
+    "clientProfiles": "客户档案",
+    "help": "帮助",
+    "videoTutorials": "视频教程"
   },
   "settings": {
     "nav": {
@@ -547,7 +549,8 @@
         "targetMarkets": "目标市场",
         "trendTags": "趋势标签",
         "productCategories": "产品类别",
-        "countries": "国家"
+        "countries": "国家",
+        "plants": "工厂"
       },
       "names": {
         "customers": "名称",
@@ -564,7 +567,8 @@
         "targetMarkets": "名称",
         "trendTags": "名称",
         "productCategories": "名称",
-        "countries": "显示名称"
+        "countries": "显示名称",
+        "plants": "名称"
       },
       "hints": {
         "customers": "款式表头上的客户。\"使用数\"为款式数量。",
@@ -581,7 +585,8 @@
         "targetMarkets": "概念面向的人群（款式包 > 概念）。“使用数”统计概念。",
         "trendTags": "概念遵循的趋势（款式包 > 概念）。“使用数”统计概念。",
         "productCategories": "概念的服装类别。代码与“推荐款式”和命中率的服装分组相同。“使用数”统计概念。",
-        "countries": "SAP 供应商的原产国（以及某物料单独设置的原产国）。名称即各页面显示的内容。“使用次数”统计供应商和物料例外；停用的国家不会出现在选择列表中。"
+        "countries": "SAP 供应商的原产国（以及某物料单独设置的原产国）。名称即各页面显示的内容。“使用次数”统计供应商和物料例外；停用的国家不会出现在选择列表中。",
+        "plants": "LT 的工厂，使用 ERP 工厂代码。新代码随 ERP 成本导入添加。“使用数”统计 IO。"
       },
       "codeRules": {
         "customers": "最多 {{ max }} 个字符。",
@@ -598,7 +603,8 @@
         "targetMarkets": "最多 {{ max }} 个字母、数字、- 或 _，以大写保存。",
         "trendTags": "最多 {{ max }} 个字母、数字、- 或 _，以大写保存。",
         "productCategories": "最多 {{ max }} 个字母、数字、- 或 _，以大写保存。",
-        "countries": "2 位 ISO 代码（例如 VN），大写保存。"
+        "countries": "2 位 ISO 代码（例如 VN），大写保存。",
+        "plants": "最多 {{ max }} 个字母、数字、- 或 _，以大写保存。"
       },
       "codeExamples": {
         "customers": "ADI",
@@ -615,7 +621,8 @@
         "targetMarkets": "GENZ",
         "trendTags": "ATHLEISURE",
         "productCategories": "JACKET",
-        "countries": "VN"
+        "countries": "VN",
+        "plants": "CM35"
       }
     },
     "translations": {
@@ -999,6 +1006,7 @@
     "messages": {
       "signedOut": "您已退出登录。",
       "sessionExpired": "您的会话已过期。请重新登录。",
+      "serverUnavailable": "服务器没有响应，可能正在重启或更新。如果您之前已登录，请稍后刷新此页面，无需重新登录。",
       "passwordChanged": "密码已修改。请使用新密码登录。"
     }
   },
@@ -2137,7 +2145,8 @@
     "hitRate": "成交率",
     "concepts": "概念",
     "concept": "概念",
-    "clientProfiles": "客户档案"
+    "clientProfiles": "客户档案",
+    "videoTutorials": "视频教程"
   },
   "layout": {
     "appSubtitle": "款式库",
@@ -2402,7 +2411,64 @@
       "scopeTeam": "您团队（{{units}}）的有效款式，以及您创建的款式。",
       "mineOnly": "仅我的",
       "changedBy": "{{name}} 修改于 {{date}}"
-    }
+    },
+    "costing": {
+      "guideTitle": "各品类价格参考",
+      "guideHint": "有 IO 价格的款式的最新 FOB：条形从最低到最高，标记为通常值。",
+      "guideNone": "尚无款式有 IO 价格。",
+      "styles": "{{ count }} 个款式",
+      "guideRange": "{{ low }} 至 {{ high }}，通常 {{ typical }}",
+      "typical": "通常 {{ fob }} {{ currency }}",
+      "smv": "约 {{ smv }} 分钟",
+      "openCosting": "打开成本",
+      "conceptsTitle": "我的概念与目标价",
+      "conceptsHint": "根据相似有价格款式估算的每个概念 FOB，与其目标价比较。",
+      "conceptsNone": "您还没有概念。",
+      "target": "目标 {{ target }}",
+      "estimate": "约 {{ fob }} {{ currency }}",
+      "status": {
+        "Over": "超出 {{ gap }} {{ currency }}",
+        "Within": "在目标内",
+        "Under": "还有 {{ gap }} {{ currency }} 空间",
+        "NoCompare": "其他币种",
+        "NoTarget": "无目标价",
+        "NoCategory": "请设置类别",
+        "NoEstimate": "无有价格的款式"
+      },
+      "overviewTitle": "成本",
+      "healthTitle": "价格数据状况",
+      "lastLoad": "最近载入：{{ file }}，{{ user }}，{{ date }}",
+      "neverLoaded": "尚未载入 ERP 成本。",
+      "coverage": "有 IO 价格的款式",
+      "health": {
+        "unmatched": "上次载入未匹配的款式",
+        "unfinished": "没有完成核算的 IO",
+        "finalPending": "等待主面料的最终核算",
+        "smallIos": "小单 IO（不计入汇总）",
+        "plantsWithoutRate": "没有每分钟成本的工厂"
+      },
+      "netTitle": "净余额监控",
+      "netHint": "净余额占 FOB 的比例，按件数加权（不含小单）。",
+      "netNone": "尚无 IO 价格。",
+      "garment": "品类",
+      "pieces": "件数",
+      "netPct": "净余额 %",
+      "dropsTitle": "低于其款式 {{ points }} 个百分点以上的 IO",
+      "dropsNone": "无：每个 IO 都接近其款式的通常净余额。",
+      "styleUsual": "款式 {{ pct }}%",
+      "quotesTitle": "需关注的报价",
+      "quotesHint": "{{ packages }} 个未结款式包（未下单或关闭）中的款式。",
+      "quoteKind": {
+        "NoQuote": "无报价",
+        "OutOfBand": "超出区间",
+        "Estimate": "来自估算"
+      },
+      "quotesNone": "每个款式都有在客户区间内的报价。"
+    },
+    "healthAttentionHint": "仅显示完成度低于 {{ pct }}% 的项目",
+    "healthAllGood": "所有项目完成度均不低于 {{ pct }}%。",
+    "healthShowAll": "显示全部（{{ count }}）",
+    "healthShowAttention": "仅显示需要关注的项目"
   },
   "styles": {
     "title": "款式",
@@ -2556,7 +2622,8 @@
       "techPackFailed": "无法生成技术包，请重试。",
       "techPackExcel": "技术包 (Excel)",
       "viewOnlyTeam": "此款式属于业务单元 {{unit}}，不在您的团队范围内：您可以查看，但不能修改。",
-      "noBusinessUnit": "（无）"
+      "noBusinessUnit": "（无）",
+      "tabPrices": "按 IO 查看价格"
     },
     "form": {
       "newTitle": "新建款式",
@@ -4253,7 +4320,7 @@
     "noFabrics": "BOM 中没有面料",
     "lineSheetPdf": "款式清单（PDF）",
     "lineSheetExcel": "Excel",
-    "lineSheetHint": "款式清单是给客户的：只包含提供的配色和给客户的备注。内部备注和其他品牌的款式不会包含在内。暂不含价格。",
+    "lineSheetHint": "款式表供客户使用：仅包含所提供的配色和给客户的备注，不含内部备注和其他品牌的款式。只有勾选“在款式表上显示价格”时才会显示报价。",
     "lineSheetFailed": "无法生成款式清单，请重试。",
     "copiedFrom": "复制自",
     "copiedTo": "已复制为",
@@ -4327,7 +4394,9 @@
       "oldLinkHint": "此链接生成于可再次复制功能之前。如需重新发送，请生成新链接（客户使用新链接后再撤销此链接）。",
       "mixed": "意见不一",
       "sampleAsked": "已申请样品",
-      "samples": "{{ count }} 个样品申请"
+      "samples": "{{ count }} 个样品申请",
+      "showPrices": "向客户显示价格",
+      "pricesShown": "显示价格"
     },
     "shared": {
       "kicker": "款式清单",
@@ -4349,7 +4418,8 @@
       "requestSample": "申请样品",
       "sampleRequested": "已申请样品",
       "sampleNote": "样品详情",
-      "sampleNotePlaceholder": "尺码、颜色、数量、寄送地址…"
+      "sampleNotePlaceholder": "尺码、颜色、数量、寄送地址…",
+      "price": "价格"
     },
     "outcome": {
       "label": "{{ styleNo }} 的结果",
@@ -4451,7 +4521,30 @@
       "NotIndexed": "复制自其他品牌：其图片尚未被以图搜图读取（设置 > AI 连接 > 以图搜图）。",
       "NotChecked": "未检查。"
     },
-    "ltDesign": "LT 设计"
+    "ltDesign": "LT 设计",
+    "linePrices": "在款式表上显示价格",
+    "quote": {
+      "fob": "FOB",
+      "currency": "币种",
+      "save": "保存",
+      "cancel": "取消",
+      "quoted": "报价",
+      "change": "修改",
+      "setBy": "{{ user }} 于 {{ date }} 设置",
+      "history": "历史报价（{{ count }}）",
+      "suggested": "建议价",
+      "use": "使用",
+      "typeOwn": "自行输入",
+      "noPrices": "此款式没有 IO 价格。",
+      "setPrice": "设置价格",
+      "basisOwn": "来自 {{ ios }} 个 IO，{{ min }} - {{ max }} {{ currency }}，最新 {{ latest }}（IO {{ io }}）",
+      "basisFamily": "来自 {{ style }}（同款其他季节）：{{ ios }} 个 IO，{{ min }} - {{ max }} {{ currency }}，最新 {{ latest }}（IO {{ io }}）",
+      "basisOrigin": "来自 {{ style }}（复制来源款式）：{{ ios }} 个 IO，{{ min }} - {{ max }} {{ currency }}，最新 {{ latest }}（IO {{ io }}）",
+      "basisTyped": "手动输入",
+      "band": "客户价格区间：{{ min }} - {{ max }} {{ currency }}",
+      "outOfBand": "超出客户价格区间。",
+      "estimated": "估算"
+    }
   },
   "closeness": {
     "level": {
@@ -4670,7 +4763,202 @@
     "issue": {
       "Recycled": "再生面料：{{ detail }}",
       "Restricted": "受限：{{ detail }}",
-      "Mill": "非首选面料厂：{{ detail }}"
+      "Mill": "非首选面料厂：{{ detail }}",
+      "Price": "超出价格区间：{{ detail }}"
+    }
+  },
+  "ioPrices": {
+    "subtitle": "每款服装在各 IO 上的成本。每个 IO 都有自己的价格；打开款式即可查看。",
+    "lastImport": "最近载入：{{ file }}，{{ user }}，{{ date }}",
+    "import": "载入 ERP 成本",
+    "importing": "载入中...",
+    "importDone": "读取 {{ rows }} 条成本：新增 {{ added }}，更新 {{ updated }}，未匹配 {{ unmatched }}。",
+    "unmatched": "以下款式不在款式库中。请先导入，再重新载入文件：",
+    "search": "搜索款式或型号",
+    "allSeasons": "全部季节",
+    "empty": "这里没有 IO 价格。",
+    "emptyHint": "载入款式库中款式的 ERP 成本导出后，价格会显示在这里。",
+    "none": "此款式还没有 IO 价格。",
+    "noneHint": "载入包含此款式 IO 的 ERP 成本导出后，价格会显示在这里。",
+    "latestFob": "最新 FOB",
+    "range": "范围",
+    "average": "平均 FOB",
+    "weighted": "按订单数量加权",
+    "ios": "IO 数",
+    "pieces": "{{ qty }} 件",
+    "whereTitle": "FOB 的构成",
+    "whereHint": "每件平均值，按订单数量加权。",
+    "group": {
+      "fabric": "面料",
+      "trims": "辅料",
+      "making": "加工",
+      "other": "其他",
+      "net": "净余额"
+    },
+    "tableTitle": "IO（{{ count }}）",
+    "col": {
+      "style": "款式",
+      "garment": "品类",
+      "customer": "客户",
+      "io": "IO",
+      "costed": "核算日期",
+      "plant": "工厂",
+      "delivery": "交期",
+      "qty": "数量",
+      "fob": "FOB",
+      "percent": "占 FOB %",
+      "stage": "核算"
+    },
+    "stage": {
+      "PCOSTING": "预核算",
+      "FCOSTING": "最终"
+    },
+    "small": "小单",
+    "smallHint": "不计入最新价格、范围和平均值。",
+    "finalPending": "最终未计算",
+    "finalPendingHint": "已有最终核算，但主面料尚未计算，因此显示预核算。",
+    "rules": "主面料计算完成后，每个 IO 显示最终核算，否则显示预核算。少于 {{ qty }} 件的 IO 仍会列出，但不计入汇总。",
+    "unfinished": "{{ count }} 个 IO 尚无 FOB，未显示。",
+    "pageOf": "第 {{ page }} / {{ pages }} 页",
+    "previous": "上一页",
+    "next": "下一页",
+    "hint": {
+      "fob": "FOB {{ fob }} {{ currency }}",
+      "ios": "{{ count }} 个 IO",
+      "from": "来自 {{ style }}",
+      "summary": "同类相似款式成本为 {{ low }} - {{ high }} {{ currency }}，通常为 {{ typical }}（{{ styles }} 个有价格的款式）。",
+      "belowTypical": "目标价（{{ target }}）低于相似款式的通常成本。"
+    },
+    "tip": {
+      "ios": "计入这些数字的 IO（内部订单）数。少于小单数量的 IO 不计入。",
+      "qty": "这些 IO 的订单总件数。",
+      "latestFob": "最近核算的 IO 的 FOB。",
+      "range": "各 IO 的最低和最高 FOB。全部相同时只显示一个金额。",
+      "average": "按订单数量加权的每件 FOB，订单越大权重越高。",
+      "net": "每件：FOB 减去各项成本，按订单数量加权。",
+      "percent": "净余额占 FOB 的比例：净余额 / FOB x 100。",
+      "io": "ERP 内部订单号。",
+      "stage": "预核算；主面料计算完成后为最终核算。",
+      "costed": "此核算在 ERP 中的日期。",
+      "plant": "生产此 IO 的工厂。名称在“设置 > 参考列表”中维护。",
+      "delivery": "计划交货日期。",
+      "ioQty": "此 IO 的订单件数。",
+      "fob": "此 IO 的每件价格，由 ERP 计算。",
+      "fabric": "主面料和副面料，每件。",
+      "trims": "辅料和本地辅料，每件。",
+      "making": "基本 CM（工厂每分钟成本 x SMV）和外发加工，每件。",
+      "other": "信用证费用、物料运费、成衣洗水、刺绣、增值费用、印花、其他费用和索赔准备金，每件。",
+      "ioNet": "FOB 减去此 IO 的成本，每件。"
+    },
+    "template": "下载模板",
+    "tab": {
+      "styles": "款式",
+      "rates": "每分钟成本"
+    },
+    "rates": {
+      "title": "各工厂每分钟成本",
+      "hint": "基本 CM = 工厂每分钟成本 x TC SMV。费率自生效日期起，适用于达到最低数量的订单；使用最新适用的费率。已删除的费率会保留但不再使用。",
+      "add": "添加费率",
+      "plant": "工厂",
+      "from": "生效日期",
+      "minQty": "最低订单数量",
+      "term": "贸易条款",
+      "currency": "币种",
+      "cost": "每分钟成本",
+      "changed": "修改",
+      "inForce": "使用中",
+      "deleted": "已删除",
+      "edit": "编辑",
+      "delete": "删除",
+      "save": "保存",
+      "cancel": "取消",
+      "showDeleted": "显示已删除的费率",
+      "none": "尚无费率。请添加第一条。",
+      "deleteTitle": "删除费率",
+      "deleteMessage": "删除 {{ plant }} 自 {{ date }} 起的费率？该费率将标记为已删除，不再使用。",
+      "saved": "费率已保存。",
+      "removed": "费率已删除。"
+    },
+    "estimate": {
+      "basis": "根据 {{ count }} 个相似款式估算（{{ category }}：{{ styles }}）。",
+      "parts": "加工 {{ making }}，面料 {{ fabric }}，辅料 {{ trims }}，其他 {{ other }}。",
+      "makingRate": "{{ making }}（{{ smv }} 分钟 x {{ cpm }}，{{ plant }}）",
+      "makingPeers": "{{ making }}（其平均值）",
+      "title": "估算成本",
+      "hint": "根据此品类已有价格的款式和工厂每分钟成本估算。仅供初步参考，并非正式核算。",
+      "noCategory": "设置产品类别后即可估算。",
+      "none": "此品类尚无有价格的款式，无法估算。",
+      "fob": "约 {{ fob }} {{ currency }} FOB",
+      "within": "在目标价（{{ target }}）范围内。",
+      "under": "低于目标价（{{ target }}）：还有 {{ amount }} 的空间。",
+      "over": "超出目标价（{{ target }}）{{ amount }}。",
+      "noCompare": "目标价（{{ target }}）为其他币种，不作比较。",
+      "lever": "缩小差距：加工减少约 {{ minutes }} 分钟（每分钟 {{ cpm }}），或面料和辅料降低 {{ amount }}。",
+      "partsTitle": "每件",
+      "making": "加工",
+      "fabric": "面料",
+      "trims": "辅料",
+      "other": "其他",
+      "net": "净余额"
+    }
+  },
+  "help": {
+    "videos": {
+      "subtitle": "简短的配音视频，逐步演示如何使用 LT ODM。",
+      "listLabel": "视频",
+      "play": "播放“{{ title }}”",
+      "loading": "正在加载视频… {{ percent }}%",
+      "none": "此服务器尚未安装视频。IT 会随版本一起复制（training-videos 文件夹）。",
+      "forbidden": "视频教程暂未向您的角色开放。",
+      "loadFailed": "无法加载视频列表，请重试。",
+      "playFailed": "无法加载该视频，请重试。",
+      "hidden": "已隐藏：仅管理员可见",
+      "hide": "隐藏",
+      "hideHint": "隐藏后仅管理员可见此视频",
+      "show": "重新显示",
+      "delete": "删除",
+      "deleteTitle": "删除视频",
+      "deleteMessage": "要为所有人从列表中删除“{{ title }}”吗？管理员可在“已删除的视频”中恢复。",
+      "deletedTitle": "已删除的视频（{{ count }}）",
+      "deletedHint": "这些视频对所有人都不显示。点击“恢复”可将视频放回列表。来自发布版本的视频保留在服务器上并随每次发布一同提供；在本页添加的视频可以永久删除。",
+      "deletedBy": "由 {{ user }} 于 {{ date }} 删除",
+      "restore": "恢复",
+      "hiddenDone": "已隐藏“{{ title }}”，现在仅管理员可见。",
+      "deletedDone": "已从列表中删除“{{ title }}”。",
+      "shownDone": "“{{ title }}”已重新显示给所有可观看的用户。",
+      "stateFailed": "无法保存更改，请重试。",
+      "add": "添加视频",
+      "addTitle": "添加视频",
+      "editTitle": "编辑视频",
+      "edit": "编辑",
+      "file": "视频文件（.mp4）",
+      "fileHint": "不超过 100 MB 的 MP4 视频。文件保存在服务器上，新版本发布后仍会保留。",
+      "replaceFile": "替换视频文件（可选）",
+      "replaceHint": "选择一个新的 MP4（不超过 100 MB）来替代当前视频播放。标题、说明和角色保持不变。",
+      "titleLabel": "标题",
+      "descriptionLabel": "说明（可选）",
+      "whoLabel": "可观看的角色",
+      "whoHint": "勾选可观看此视频的角色。不勾选 = 所有能打开“视频教程”的用户。",
+      "uploading": "正在上传… {{ percent }}%",
+      "useOriginalDetails": "恢复原始信息",
+      "useOriginalFile": "恢复原始文件",
+      "tooBig": "视频不能超过 100 MB。",
+      "titleRequired": "请填写视频标题。",
+      "fileRequired": "请选择视频文件（.mp4）。",
+      "addedDone": "已添加“{{ title }}”。",
+      "savedDone": "已保存“{{ title }}”。",
+      "replacedDone": "“{{ title }}”现在播放新文件。",
+      "detailsResetDone": "“{{ title }}”已恢复原始信息。",
+      "fileResetDone": "“{{ title }}”已恢复播放原始文件。",
+      "sourceRelease": "来自发布版本",
+      "sourceUploaded": "在本页添加",
+      "sourceReplaced": "已在本页替换文件",
+      "edited": "信息已编辑",
+      "onlyRoles": "仅限：{{ roles }}",
+      "everyone": "所有人",
+      "deleteForGood": "永久删除",
+      "deleteForGoodMessage": "要永久删除“{{ title }}”及其文件吗？此操作无法撤销。",
+      "deletedForGoodDone": "已永久删除“{{ title }}”。"
     }
   }
 }

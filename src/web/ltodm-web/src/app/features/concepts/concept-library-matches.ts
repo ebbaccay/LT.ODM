@@ -1,3 +1,4 @@
+import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -13,6 +14,8 @@ import { toneBadge } from '@tms/shared/ui/tones';
 import { problemMessage } from '../../core/auth/auth.service';
 import { styleError } from '../style-library/style-library.service';
 import { ConceptsService, LibraryMatches, MatchExplanations } from './concepts.service';
+import { CostingService, StylePriceHint } from '../costing/costing.service';
+import { summarizePrices } from '../costing/price-summary';
 
 /**
  * Concept page: proven library styles to start the concept from. Found at once without AI (the concept's category, gender,
@@ -22,7 +25,7 @@ import { ConceptsService, LibraryMatches, MatchExplanations } from './concepts.s
 @Component({
   selector: 'app-concept-library-matches',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, NgIcon, AuthImgDirective, HlmButtonImports, HlmCardImports, HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe],
+  imports: [DecimalPipe, RouterLink, NgIcon, AuthImgDirective, HlmButtonImports, HlmCardImports, HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe],
   providers: [provideIcons({ lucideImage, lucideLibrary, lucidePlus, lucideSparkles })],
   template: `
     <section hlmCard class="gap-0 py-0">
@@ -43,6 +46,9 @@ import { ConceptsService, LibraryMatches, MatchExplanations } from './concepts.s
       } @else if (result(); as r) {
         <div class="flex flex-col gap-1 border-b px-5 py-3 text-xs">
           <p><span class="text-muted-foreground">{{ 'csMatch.lookedFor' | transloco }}</span> {{ r.criteria.explanation }}</p>
+          @if (priceSummary(); as ps) {
+            <p class="font-medium">{{ 'ioPrices.hint.summary' | transloco: { low: (ps.low | number: '1.2-2'), high: (ps.high | number: '1.2-2'), currency: ps.currency, typical: (ps.typical | number: '1.2-2'), styles: ps.styles } }}</p>
+          }
           @if (explaining()) { <p class="text-muted-foreground">{{ 'concepts.matches.explaining' | transloco }}</p> }
           @if (stale()) { <p class="text-amber-700 dark:text-amber-400">{{ 'concepts.matches.stale' | transloco }}</p> }
         </div>
@@ -70,6 +76,12 @@ import { ConceptsService, LibraryMatches, MatchExplanations } from './concepts.s
                     }
                   </p>
                   <p class="text-muted-foreground truncate text-xs">{{ m.modelName || '—' }} · {{ m.productTypeName || '—' }} · {{ m.customerCode }} {{ m.seasonCode }}</p>
+                  @if (hintFor(m.styleId); as h) {
+                    <p class="text-xs">
+                      <span class="font-semibold tabular-nums">{{ 'ioPrices.hint.fob' | transloco: { fob: (h.latestFob | number: '1.2-2'), currency: h.currencyCode } }}</span>
+                      <span class="text-muted-foreground"> · {{ 'ioPrices.hint.ios' | transloco: { count: h.ios } }}@if (h.source !== 'Own') { · {{ 'ioPrices.hint.from' | transloco: { style: h.sourceStyleNo } }} }</span>
+                    </p>
+                  }
                   @if (m.mainFabrics) { <p class="text-muted-foreground truncate text-xs" [title]="m.mainFabrics">{{ m.mainFabrics }}</p> }
                   @if (m.matchedKeywords) { <p class="text-xs">{{ 'concepts.matches.matched' | transloco: { words: m.matchedKeywords } }}</p> }
                   @if (x) {
@@ -101,6 +113,10 @@ import { ConceptsService, LibraryMatches, MatchExplanations } from './concepts.s
   `,
 })
 export class ConceptLibraryMatches {
+  hintFor(styleId: number): StylePriceHint | undefined {
+    return this.hints().find((h) => h.styleId === styleId);
+  }
+
   private readonly svc = inject(ConceptsService);
   private readonly transloco = inject(TranslocoService);
 
@@ -108,6 +124,10 @@ export class ConceptLibraryMatches {
   /** Changes when the concept is saved or its brief drafted: the matches are found again. */
   readonly version = input<string>('');
   readonly canAdd = input(false);
+  private readonly costing = inject(CostingService);
+  /** What each match cost (Admin, Merchandiser, Costing). */
+  readonly hints = signal<StylePriceHint[]>([]);
+  readonly priceSummary = computed(() => summarizePrices(this.hints()));
   readonly addedIds = input<number[]>([]);
   readonly add = output<number>();
 
@@ -145,6 +165,8 @@ export class ConceptLibraryMatches {
     this.svc.libraryMatches(conceptId).subscribe({
       next: (r) => {
         this.result.set(r);
+        this.hints.set([]);
+        if (this.costing.canRead() && r.matches.length) this.costing.hints(r.matches.map((x) => x.style.styleId)).subscribe({ next: (h) => this.hints.set(h), error: () => this.hints.set([]) });
         this.loading.set(false);
       },
       error: (e) => {

@@ -30,9 +30,11 @@ LT ODM is LT's garment style library and offering platform. It replaces TMS: the
 | Style Library | [Styles](components/styles.md) (incl. Similar styles) · [Fill the gaps](components/fill-the-gaps.md) · [Materials](components/materials.md) |
 | AI Studio | [AI Studio](components/ai-studio.md) · [Library assistant](components/library-assistant.md) · [AI Lab](components/ai-lab.md) |
 | Manage Offerings | [Garment Quotation](components/garment-quotation.md) · [Concept Studio](components/concept-studio.md) · [Offering tools](components/manage-offerings.md) (SBU Submission, Collection Builder, Product Matching, Cost Optimization, Customer Proposal, Market Trends) |
+| Costing | [Costing](components/costing.md) (prices per IO from the ERP, Prices by IO on the style page) |
 | Style Packages | [Style Packages](components/style-packages.md) (offer library styles to a client), [Concepts](components/concepts.md) (LT's own design ideas, brand closeness check) |
 | SBU Module | [SBU Products and Performance](components/sbu-module.md) |
 | Settings | [Settings](components/settings.md) (menu, roles, users, reference lists, import, import pictures, AI connections, translations) |
+| Help | [Video tutorials](components/video-tutorials.md) (narrated how-to videos, for every user) |
 
 ## AI: how it works and what leaves LT
 

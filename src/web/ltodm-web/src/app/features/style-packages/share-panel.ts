@@ -7,7 +7,9 @@ import { toast } from '@spartan-ng/brain/sonner';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmInputImports } from '@spartan-ng/helm/input';
+import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
+import { CostingService } from '../costing/costing.service';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { ConfirmDialogService } from '@tms/shared/confirm-dialog/confirm-dialog.service';
 import { styleError } from '../style-library/style-library.service';
@@ -21,7 +23,7 @@ import { PackageShare, PackagesService } from './packages.service';
 @Component({
   selector: 'app-share-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, NgIcon, HlmButtonImports, HlmCardImports, HlmInputImports, HlmLabelImports, HlmSpinnerImports, TranslocoPipe],
+  imports: [DatePipe, NgIcon, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmInputImports, HlmLabelImports, HlmSpinnerImports, TranslocoPipe],
   providers: [provideIcons({ lucideCopy, lucideExternalLink, lucideLink, lucideThumbsDown, lucideThumbsUp, lucideTriangleAlert })],
   template: `
     <section hlmCard class="gap-4 p-5">
@@ -46,6 +48,12 @@ import { PackageShare, PackagesService } from './packages.service';
             {{ 'packages.share.create' | transloco }}
           </button>
         </form>
+        @if (costing.canQuote()) {
+          <label class="flex min-h-9 w-fit items-center gap-2 text-xs" for="share-prices">
+            <hlm-checkbox inputId="share-prices" [checked]="showPrices()" (checkedChange)="showPrices.set(!showPrices())" />
+            {{ 'packages.share.showPrices' | transloco }}
+          </label>
+        }
       }
 
       @if (newLink(); as url) {
@@ -65,7 +73,7 @@ import { PackageShare, PackagesService } from './packages.service';
           @for (s of shares(); track s.shareId) {
             <li class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5 text-sm" [class.opacity-60]="!s.active">
               <span class="min-w-0 flex-1">
-                <span class="block truncate font-medium">{{ s.label }}</span>
+                <span class="block truncate font-medium">{{ s.label }}@if (s.showPrices) { <span class="text-muted-foreground ml-2 text-xs font-normal">{{ 'packages.share.pricesShown' | transloco }}</span> }</span>
                 <span class="text-muted-foreground block text-xs">
                   {{ 'packages.share.made' | transloco: { user: s.createdBy, date: (s.createdUtc | date: 'mediumDate') } }} ·
                   @if (s.revokedUtc) {
@@ -117,6 +125,9 @@ export class SharePanel {
   readonly shares = signal<PackageShare[]>([]);
   readonly label = signal('');
   readonly days = signal(30);
+  /** Off unless asked for: quotes reach the client only through a link made to show them. */
+  readonly showPrices = signal(false);
+  readonly costing = inject(CostingService);
   readonly creating = signal(false);
   readonly newLink = signal<string | null>(null);
   /** The link being fetched to copy again. */
@@ -137,7 +148,7 @@ export class SharePanel {
     if (this.creating()) return;
     const label = this.label().trim() || this.customerName();
     this.creating.set(true);
-    this.svc.createShare(this.packageId(), label, this.days() || 30).subscribe({
+    this.svc.createShare(this.packageId(), label, this.days() || 30, this.showPrices() && this.costing.canQuote()).subscribe({
       next: (created) => {
         this.creating.set(false);
         this.label.set('');

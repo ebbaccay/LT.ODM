@@ -27,3 +27,6 @@ Thumbs.db
 
 # Uploaded files (Concept Studio images etc.; Files:Root default)
 **/App_Data/
+
+# Video tutorials (large MP4s; build-release.ps1 copies them from ..\training\video-manual)
+**/training-videos/

@@ -1,4 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
@@ -11,6 +12,8 @@ import { AuthImgDirective } from '@tms/shared/ui/auth-img';
 import { AddToPackageDialog } from '../style-packages/add-to-package-dialog';
 import { SimilarStyle, StyleGapsService } from './style-gaps.service';
 import { StyleLibraryService } from './style-library.service';
+import { CostingService, StylePriceHint } from '../costing/costing.service';
+import { summarizePrices } from '../costing/price-summary';
 
 /**
  * Style page > Similar: styles that share this one's materials (fabrics and rare materials count most), garment, weave and
@@ -20,13 +23,16 @@ import { StyleLibraryService } from './style-library.service';
 @Component({
   selector: 'app-similar-styles',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, RouterLink, NgIcon, AuthImgDirective, AddToPackageDialog, HlmBadgeImports, HlmCardImports, HlmSkeletonImports, TranslocoPipe],
+  imports: [DecimalPipe, NgTemplateOutlet, RouterLink, NgIcon, AuthImgDirective, AddToPackageDialog, HlmBadgeImports, HlmCardImports, HlmSkeletonImports, TranslocoPipe],
   providers: [provideIcons({ lucideGitCompareArrows, lucideImage, lucideInfo, lucidePackagePlus })],
   template: `
     <section hlmCard class="gap-0 py-0">
       <div class="border-b px-5 py-3">
         <h2 class="text-sm font-semibold">{{ 'similar.title' | transloco }}</h2>
         <p class="text-muted-foreground text-xs">{{ 'similar.hint' | transloco }}</p>
+        @if (priceSummary(); as ps) {
+          <p class="mt-1 text-xs font-medium">{{ 'ioPrices.hint.summary' | transloco: { low: (ps.low | number: '1.2-2'), high: (ps.high | number: '1.2-2'), currency: ps.currency, typical: (ps.typical | number: '1.2-2'), styles: ps.styles } }}</p>
+        }
       </div>
       @if (loading()) {
         <div class="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -83,6 +89,12 @@ import { StyleLibraryService } from './style-library.service';
           }
           @if (!s.isActive) { <span hlmBadge variant="outline">{{ 'similar.inactive' | transloco }}</span> }
         </div>
+        @if (hintFor(s.styleId); as h) {
+          <p class="text-xs">
+            <span class="font-semibold tabular-nums">{{ 'ioPrices.hint.fob' | transloco: { fob: (h.latestFob | number: '1.2-2'), currency: h.currencyCode } }}</span>
+            <span class="text-muted-foreground"> · {{ 'ioPrices.hint.ios' | transloco: { count: h.ios } }}@if (h.source !== 'Own') { · {{ 'ioPrices.hint.from' | transloco: { style: h.sourceStyleNo } }} }</span>
+          </p>
+        }
         @if (s.mainFabric) {
           <p class="text-muted-foreground line-clamp-2 text-xs" [title]="s.mainFabric">{{ 'similar.mainFabric' | transloco: { fabric: s.mainFabric } }}</p>
         }
@@ -108,7 +120,19 @@ import { StyleLibraryService } from './style-library.service';
   `,
 })
 export class SimilarStyles {
+  hintFor(styleId: number): StylePriceHint | undefined {
+    return this.hints().find((h) => h.styleId === styleId);
+  }
+
   private readonly svc = inject(StyleGapsService);
+  private readonly costing = inject(CostingService);
+  /** What each similar style cost (Admin, Merchandiser, Costing). */
+  readonly hints = signal<StylePriceHint[]>([]);
+  /** Only the same garment: a tee next to a jacket says nothing about what this style should cost. */
+  readonly priceSummary = computed(() => {
+    const garment = new Set(this.items().filter((s) => s.sameGarment).map((s) => s.styleId));
+    return summarizePrices(this.hints().filter((h) => garment.has(h.styleId)));
+  });
 
   readonly canEdit = inject(StyleLibraryService).canEdit;
   /** The style being added to a package. */
@@ -132,6 +156,8 @@ export class SimilarStyles {
       this.svc.similar(id).subscribe({
         next: (items) => {
           this.items.set(items);
+          this.hints.set([]);
+          if (this.costing.canRead() && items.length) this.costing.hints(items.map((x) => x.styleId)).subscribe({ next: (h) => this.hints.set(h), error: () => this.hints.set([]) });
           this.loading.set(false);
         },
         error: () => {

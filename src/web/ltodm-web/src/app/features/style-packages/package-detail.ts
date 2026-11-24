@@ -19,6 +19,9 @@ import { AuthImgDirective } from '@tms/shared/ui/auth-img';
 import { toneBadge } from '@tms/shared/ui/tones';
 import { GENDERS, StyleLibraryService, StyleLookups, styleError } from '../style-library/style-library.service';
 import { PackageFormDialog } from './package-form-dialog';
+import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
+import { CostingService, PackageItemQuotes, PackageQuotes } from '../costing/costing.service';
+import { PackageItemQuote } from './package-item-quote';
 import { ClientIssue, ClientProfilesService } from './client-profiles.service';
 import { PackageNoticeService } from './package-notice.service';
 import { SharePanel } from './share-panel';
@@ -37,7 +40,7 @@ import {
   selector: 'app-package-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe, PercentPipe, RouterLink, NgIcon, AuthImgDirective, PackageFormDialog, PackageItemDialog, SharePanel, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmNativeSelectImports,
+    DatePipe, PercentPipe, RouterLink, NgIcon, AuthImgDirective, PackageFormDialog, PackageItemDialog, PackageItemQuote, SharePanel, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmNativeSelectImports,
     HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe,
   ],
   providers: [
@@ -82,6 +85,12 @@ import {
                 @if (downloading() === 'xlsx') { <hlm-spinner class="size-4" /> } @else { <ng-icon name="lucideFileSpreadsheet" /> }
                 {{ 'packages.lineSheetExcel' | transloco }}
               </button>
+              @if (costing.canQuote()) {
+                <label class="flex min-h-9 items-center gap-2 text-xs" for="sheet-prices">
+                  <hlm-checkbox inputId="sheet-prices" [checked]="sheetPrices()" (checkedChange)="sheetPrices.set(!sheetPrices())" />
+                  {{ 'packages.linePrices' | transloco }}
+                </label>
+              }
             @if (canEdit()) {
                 <a hlmBtn variant="outline" class="h-11 flex-1 sm:flex-initial lg:h-9" routerLink="/packages/offer" [queryParams]="{ customer: p.customerCode, package: p.packageId }"
                    [title]="'packages.offer.subtitle' | transloco"><ng-icon name="lucideLightbulb" />{{ 'packages.offer.title' | transloco }}</a>
@@ -284,6 +293,9 @@ import {
                     }
                   </ul>
                 }
+                @if (costing.canRead()) {
+                  <app-package-item-quote [packageId]="d.package.packageId" [packageItemId]="i.packageItemId" [data]="quoteOf(i)" [band]="quotes()?.band ?? null" [canEdit]="costing.canQuote()" (saved)="load()" />
+                }
                 @if (i.internalNote) {
                   <p class="text-muted-foreground bg-muted/50 flex items-start gap-1.5 rounded-md px-2 py-1.5 text-xs whitespace-pre-line">
                     <ng-icon name="lucideLock" class="mt-0.5 shrink-0" [title]="'packages.internalOnly' | transloco" />{{ i.internalNote }}
@@ -353,6 +365,11 @@ export class PackageDetailPage implements OnInit {
   readonly clientIssues = signal<ClientIssue[]>([]);
   readonly clientIssueStyles = computed(() => new Set(this.clientIssues().map((x) => x.styleId)).size);
   private readonly profiles = inject(ClientProfilesService);
+  readonly costing = inject(CostingService);
+  /** Quotes of the package (Admin, Merchandiser, Costing). */
+  readonly quotes = signal<PackageQuotes | null>(null);
+  /** Off unless asked for: the line sheet goes to clients. */
+  readonly sheetPrices = signal(false);
   readonly flaggedCopies = computed(() => (this.closeness()?.items ?? []).filter((c) => c.level === 'Close' || c.level === 'Check'));
 
   ngOnInit(): void {
@@ -379,6 +396,7 @@ export class PackageDetailPage implements OnInit {
         this.loading.set(false);
         this.busy.set(false);
         this.loadCloseness(d);
+        if (this.costing.canRead()) this.costing.packageQuotes(d.package.packageId).subscribe({ next: (q) => this.quotes.set(q), error: () => this.quotes.set(null) });
         this.profiles.checkPackage(d.package.packageId).subscribe({ next: (c) => this.clientIssues.set(c.issues), error: () => this.clientIssues.set([]) });
       },
       error: (e) => {
@@ -397,6 +415,10 @@ export class PackageDetailPage implements OnInit {
       return;
     }
     this.svc.closeness(d.package.packageId).subscribe({ next: (c) => this.closeness.set(c), error: () => this.closeness.set(null) });
+  }
+
+  quoteOf(i: PackageItem): PackageItemQuotes | undefined {
+    return this.quotes()?.items.find((q) => q.packageItemId === i.packageItemId);
   }
 
   issuesOf(i: PackageItem): ClientIssue[] {
@@ -469,7 +491,7 @@ export class PackageDetailPage implements OnInit {
     if (!p || this.downloading()) return;
     this.downloading.set(format);
     try {
-      await this.svc.downloadLineSheet(p.packageId, p.name, format);
+      await this.svc.downloadLineSheet(p.packageId, p.name, format, this.sheetPrices() && this.costing.canQuote());
     } catch {
       toast.error(this.t('packages.lineSheetFailed'));
     } finally {

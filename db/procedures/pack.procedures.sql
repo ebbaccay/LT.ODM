@@ -737,7 +737,8 @@ CREATE OR ALTER PROCEDURE pack.usp_Share_Create
     @Label          nvarchar(150),
     @ExpiresUtc     datetime2(3),
     @ChangedBy      nvarchar(64),
-    @TokenProtected nvarchar(500) = NULL
+    @TokenProtected nvarchar(500) = NULL,
+    @ShowPrices     bit           = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -749,8 +750,8 @@ BEGIN
     BEGIN TRANSACTION;
     IF NOT EXISTS (SELECT 1 FROM pack.Package WITH (UPDLOCK) WHERE PackageId = @PackageId)
         THROW 50404, 'This package no longer exists.', 1;
-    INSERT pack.PackageShare (PackageId, TokenHash, TokenProtected, Label, ExpiresUtc, CreatedBy)
-    VALUES (@PackageId, @TokenHash, @TokenProtected, @Label, @ExpiresUtc, @ChangedBy);
+    INSERT pack.PackageShare (PackageId, TokenHash, TokenProtected, Label, ExpiresUtc, CreatedBy, ShowPrices)
+    VALUES (@PackageId, @TokenHash, @TokenProtected, @Label, @ExpiresUtc, @ChangedBy, ISNULL(@ShowPrices, 0));
     DECLARE @shareId int = CAST(SCOPE_IDENTITY() AS int);
     UPDATE pack.Package SET Status = 'Sent', SentUtc = ISNULL(SentUtc, SYSUTCDATETIME()), UpdatedBy = @ChangedBy, UpdatedUtc = SYSUTCDATETIME()
     WHERE PackageId = @PackageId AND Status = 'Draft';
@@ -768,7 +769,7 @@ CREATE OR ALTER PROCEDURE pack.usp_Share_List
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT sh.ShareId, sh.Label, sh.ExpiresUtc, sh.RevokedUtc, sh.RevokedBy, sh.Views, sh.FirstViewedUtc, sh.LastViewedUtc, sh.CreatedBy, sh.CreatedUtc,
+    SELECT sh.ShareId, sh.Label, sh.ExpiresUtc, sh.RevokedUtc, sh.RevokedBy, sh.Views, sh.FirstViewedUtc, sh.LastViewedUtc, sh.CreatedBy, sh.CreatedUtc, sh.ShowPrices,
            Active = CAST(IIF(sh.RevokedUtc IS NULL AND sh.ExpiresUtc > SYSUTCDATETIME(), 1, 0) AS bit),
            CanCopy = CAST(IIF(sh.RevokedUtc IS NULL AND sh.ExpiresUtc > SYSUTCDATETIME() AND sh.TokenProtected IS NOT NULL, 1, 0) AS bit),
            Likes = (SELECT COUNT(*) FROM pack.ShareFeedback f WHERE f.ShareId = sh.ShareId AND f.Verdict = 'Like'),
@@ -834,7 +835,7 @@ BEGIN
         COMMIT TRANSACTION;
     END
 
-    SELECT ShareId, PackageId, Label, ExpiresUtc FROM pack.PackageShare WHERE ShareId = @shareId;
+    SELECT ShareId, PackageId, Label, ExpiresUtc, ShowPrices FROM pack.PackageShare WHERE ShareId = @shareId;
     SELECT PackageItemId, Verdict, Comment, Name, UpdatedUtc, Sample, SampleNote FROM pack.ShareFeedback WHERE ShareId = @shareId;   -- every person's; the API shows the visitor their own
 END
 GO
@@ -843,9 +844,10 @@ GO
     A client's answer on one style through a live link: Like / Pass / none and a comment (both empty removes the answer).
     One answer per person: the name typed (any case; no name = one shared answer for the link).
     Only styles of the package the client may see (not another brand's). 50404 when the link or the style is not there.
-    What is new (a like or pass given, a comment added or changed) goes into a notice for the package's owner and whoever
-    made the link: added to their unread notice for this link when it changed in the last 10 minutes, else a new one.
-    Returns those notices (for the API to push to the users), none when nothing new was said.
+    What is new (a like or pass given, a comment added or changed, a sample newly requested) goes into a notice for the
+    package's owner and whoever made the link: added to their unread notice for this link when it changed in the last 10
+    minutes, else a new one. The notice keeps every name that answered ("Laura, Ken"). Sample details typed or changed on a
+    request already made are not another request (the package page shows the latest). Returns those notices (for the API to push to the users), none when nothing new was said.
 */
 CREATE OR ALTER PROCEDURE pack.usp_Share_Feedback
     @TokenHash     binary(32),
@@ -892,8 +894,9 @@ BEGIN
     DECLARE @likes int = IIF(@Verdict = 'Like' AND ISNULL(@oldVerdict, '') <> 'Like', 1, 0),
             @passes int = IIF(@Verdict = 'Pass' AND ISNULL(@oldVerdict, '') <> 'Pass', 1, 0),
             @comments int = IIF(@Comment IS NOT NULL AND @Comment <> ISNULL(@oldComment, N''), 1, 0),
-            -- a new request, or a changed note on one
-            @samples int = IIF(@Sample = 1 AND (ISNULL(@oldSample, 0) = 0 OR ISNULL(@SampleNote, N'') <> ISNULL(@oldSampleNote, N'')), 1, 0);
+            -- a new request only: the details typed after pressing Request sample (or changed later) are the same request,
+            -- shown on the package page, not one more
+            @samples int = IIF(@Sample = 1 AND ISNULL(@oldSample, 0) = 0, 1, 0);
 
     -- The first request moves the style (and a package only sent or viewed) to Sampling; LT can still change it by hand.
     IF @Sample = 1 AND ISNULL(@oldSample, 0) = 0
@@ -912,7 +915,13 @@ BEGIN
         INSERT @to SELECT OwnerName FROM pack.Package WHERE PackageId = @packageId
                    UNION SELECT CreatedBy FROM pack.PackageShare WHERE ShareId = @shareId;
         UPDATE n SET Likes = Likes + @likes, Passes = Passes + @passes, Comments = Comments + @comments, Samples = Samples + @samples,
-                     ClientName = ISNULL(@Name, ClientName), LastUtc = SYSUTCDATETIME()
+                     -- everyone who answered in this notice ("Laura, Ken"), each name once, while it fits
+                     ClientName = CASE WHEN @Name IS NULL THEN n.ClientName
+                                       WHEN n.ClientName IS NULL THEN @Name
+                                       WHEN CHARINDEX(N', ' + @Name + N', ', N', ' + n.ClientName + N', ') > 0 THEN n.ClientName
+                                       WHEN LEN(n.ClientName) + 2 + LEN(@Name) <= 100 THEN n.ClientName + N', ' + @Name
+                                       ELSE n.ClientName END,
+                     LastUtc = SYSUTCDATETIME()
         OUTPUT inserted.NoticeId INTO @noticed
         FROM pack.PackageNotice n JOIN @to t ON t.UserName = n.UserName
         WHERE n.ShareId = @shareId AND n.ReadUtc IS NULL AND n.LastUtc > DATEADD(MINUTE, -10, SYSUTCDATETIME());

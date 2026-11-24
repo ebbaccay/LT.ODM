@@ -7,14 +7,20 @@
     2. Publishes the API (Release) to <Output>\api.
     3. Builds the web app (production) and copies it into <Output>\api\wwwroot.
     4. Copies the db scripts to <Output>\db.
+    5. Copies the video tutorials (MP4 + videos.json from -TrainingVideos) to <Output>\api\training-videos (Help > Video tutorials).
     Nothing on a server is touched. See docs/installation/03-iis-deployment.md for deploying the output.
+
+.PARAMETER TrainingVideos
+    Folder with the video tutorials (default: ..\training\video-manual next to the repository). Missing = the release has none
+    and the page says so; nothing else changes.
 
 .EXAMPLE
     .\tools\build-release.ps1 -Output D:\Releases\ltodm-2026-10-07
 #>
 param(
     [Parameter(Mandatory)] [string] $Output,
-    [switch] $SkipTests
+    [switch] $SkipTests,
+    [string] $TrainingVideos = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'training\video-manual')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -61,6 +67,21 @@ New-Item -ItemType Directory -Force $wwwroot | Out-Null
 Copy-Item (Join-Path $dist '*') $wwwroot -Recurse
 # Source maps help debugging but are not needed on a server.
 Get-ChildItem $wwwroot -Filter '*.map' -Recurse | Remove-Item
+
+Step 'Video tutorials -> api\training-videos'
+# The MP4s are not in git (large binaries); they are made with the scripts in training\video-manual\source.
+$videos = @(Get-ChildItem $TrainingVideos -Filter '*.mp4' -File -ErrorAction SilentlyContinue)
+if ($videos.Count -eq 0) {
+    Write-Warning "No videos in ${TrainingVideos}; Help > Video tutorials will say none are installed."
+}
+else {
+    $videoTarget = Join-Path $api 'training-videos'
+    New-Item -ItemType Directory -Force $videoTarget | Out-Null
+    $videos | Copy-Item -Destination $videoTarget
+    $manifest = Join-Path $TrainingVideos 'videos.json'
+    if (Test-Path $manifest) { Copy-Item $manifest $videoTarget }
+    Write-Host ("{0} videos, {1:N0} MB" -f $videos.Count, (($videos | Measure-Object Length -Sum).Sum / 1MB))
+}
 
 Step 'Database scripts'
 Copy-Item (Join-Path $root 'db') (Join-Path $Output 'db') -Recurse

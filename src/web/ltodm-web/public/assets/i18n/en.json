@@ -100,7 +100,9 @@
     "offer": "What to offer",
     "hitRate": "Hit rate",
     "concepts": "Concepts",
-    "clientProfiles": "Client profiles"
+    "clientProfiles": "Client profiles",
+    "help": "Help",
+    "videoTutorials": "Video tutorials"
   },
   "settings": {
     "nav": {
@@ -547,7 +549,8 @@
         "targetMarkets": "Target markets",
         "trendTags": "Trend tags",
         "productCategories": "Product categories",
-        "countries": "Countries"
+        "countries": "Countries",
+        "plants": "Plants"
       },
       "names": {
         "customers": "Name",
@@ -564,7 +567,8 @@
         "targetMarkets": "Name",
         "trendTags": "Name",
         "productCategories": "Name",
-        "countries": "Name shown"
+        "countries": "Name shown",
+        "plants": "Name"
       },
       "hints": {
         "customers": "Customer on the style header. \"Used by\" counts styles.",
@@ -581,7 +585,8 @@
         "targetMarkets": "Who a concept is for (Style Packages > Concepts). \"Used by\" counts concepts.",
         "trendTags": "Trends a concept follows (Style Packages > Concepts). \"Used by\" counts concepts.",
         "productCategories": "The kind of garment of a concept. The codes match the garment groups of What to offer and the hit rate. \"Used by\" counts concepts.",
-        "countries": "Countries of origin for SAP suppliers (and a material’s own, when it differs). The name is what every screen shows. \"Used by\" counts suppliers and material exceptions; inactive countries are hidden from the pick lists."
+        "countries": "Countries of origin for SAP suppliers (and a material’s own, when it differs). The name is what every screen shows. \"Used by\" counts suppliers and material exceptions; inactive countries are hidden from the pick lists.",
+        "plants": "LT's factories, by the ERP's plant code. New codes arrive with the ERP costing import. \"Used by\" counts IOs."
       },
       "codeRules": {
         "customers": "At most {{ max }} characters.",
@@ -598,7 +603,8 @@
         "targetMarkets": "At most {{ max }} letters, digits, - or _, stored upper-case.",
         "trendTags": "At most {{ max }} letters, digits, - or _, stored upper-case.",
         "productCategories": "At most {{ max }} letters, digits, - or _, stored upper-case.",
-        "countries": "The 2-letter ISO code (e.g. VN), stored upper-case."
+        "countries": "The 2-letter ISO code (e.g. VN), stored upper-case.",
+        "plants": "At most {{ max }} letters, digits, - or _, stored upper-case."
       },
       "codeExamples": {
         "customers": "ADI",
@@ -615,7 +621,8 @@
         "targetMarkets": "GENZ",
         "trendTags": "ATHLEISURE",
         "productCategories": "JACKET",
-        "countries": "VN"
+        "countries": "VN",
+        "plants": "CM35"
       }
     },
     "translations": {
@@ -999,6 +1006,7 @@
     "messages": {
       "signedOut": "You have been signed out.",
       "sessionExpired": "Your session has expired. Please sign in again.",
+      "serverUnavailable": "The server is not responding; it may be restarting or being updated. If you were signed in, reload this page in a moment. You do not need to sign in again.",
       "passwordChanged": "Your password was changed. Sign in with your new password."
     }
   },
@@ -2137,7 +2145,8 @@
     "hitRate": "Hit rate",
     "concepts": "Concepts",
     "concept": "Concept",
-    "clientProfiles": "Client profiles"
+    "clientProfiles": "Client profiles",
+    "videoTutorials": "Video tutorials"
   },
   "layout": {
     "appSubtitle": "Style Library",
@@ -2402,7 +2411,64 @@
       "scopeTeam": "Active styles of your team ({{units}}) and the ones you created.",
       "mineOnly": "Mine only",
       "changedBy": "Changed {{date}} by {{name}}"
-    }
+    },
+    "costing": {
+      "guideTitle": "Price guide by garment",
+      "guideHint": "Latest FOB of the styles with IO prices: the bar runs from the lowest to the highest, the mark is the typical one.",
+      "guideNone": "No styles have IO prices yet.",
+      "styles": "{{ count }} styles",
+      "guideRange": "{{ low }} to {{ high }}, typically {{ typical }}",
+      "typical": "typically {{ fob }} {{ currency }}",
+      "smv": "about {{ smv }} min to make",
+      "openCosting": "Open Costing",
+      "conceptsTitle": "My concepts vs target",
+      "conceptsHint": "Each concept's estimated FOB, from similar priced styles, against its target price.",
+      "conceptsNone": "You have no concepts yet.",
+      "target": "target {{ target }}",
+      "estimate": "about {{ fob }} {{ currency }}",
+      "status": {
+        "Over": "{{ gap }} {{ currency }} over",
+        "Within": "Within target",
+        "Under": "{{ gap }} {{ currency }} of room",
+        "NoCompare": "Other currency",
+        "NoTarget": "No target price",
+        "NoCategory": "Set a category",
+        "NoEstimate": "No priced styles"
+      },
+      "overviewTitle": "Costing",
+      "healthTitle": "Price data health",
+      "lastLoad": "Last loaded: {{ file }} by {{ user }}, {{ date }}",
+      "neverLoaded": "No ERP costing loaded yet.",
+      "coverage": "Styles with IO prices",
+      "health": {
+        "unmatched": "Styles not matched in the last load",
+        "unfinished": "IOs with no finished costing",
+        "finalPending": "Final costings waiting on main fabric",
+        "smallIos": "Small IOs (left out of figures)",
+        "plantsWithoutRate": "Plants with no cost per minute"
+      },
+      "netTitle": "Net balance watch",
+      "netHint": "Net balance as a share of FOB, weighted by pieces (IOs from the small-order size).",
+      "netNone": "No IO prices yet.",
+      "garment": "Garment",
+      "pieces": "Pieces",
+      "netPct": "Net %",
+      "dropsTitle": "IOs {{ points }} points or more below their style",
+      "dropsNone": "None: every IO is close to its style's usual net balance.",
+      "styleUsual": "style {{ pct }}%",
+      "quotesTitle": "Quotes needing attention",
+      "quotesHint": "Styles in {{ packages }} open packages (not ordered or closed).",
+      "quoteKind": {
+        "NoQuote": "No quote",
+        "OutOfBand": "Outside band",
+        "Estimate": "From estimate"
+      },
+      "quotesNone": "Every style has a quote within the client's band."
+    },
+    "healthAttentionHint": "Only what is below {{ pct }}% complete",
+    "healthAllGood": "Everything is at least {{ pct }}% complete.",
+    "healthShowAll": "Show all ({{ count }})",
+    "healthShowAttention": "Show only what needs attention"
   },
   "styles": {
     "title": "Styles",
@@ -2556,7 +2622,8 @@
       "techPackFailed": "The tech pack could not be made. Try again.",
       "techPackExcel": "Tech pack (Excel)",
       "viewOnlyTeam": "This style belongs to business unit {{unit}}, outside your team: you can view it but not change it.",
-      "noBusinessUnit": "(none)"
+      "noBusinessUnit": "(none)",
+      "tabPrices": "Prices by IO"
     },
     "form": {
       "newTitle": "New style",
@@ -4253,7 +4320,7 @@
     "noFabrics": "No fabric on the BOM",
     "lineSheetPdf": "Line sheet (PDF)",
     "lineSheetExcel": "Excel",
-    "lineSheetHint": "The line sheet is for the client: offered colourways and notes for the client only. Internal notes and styles of another brand are left out. No prices yet.",
+    "lineSheetHint": "The line sheet is for the client: offered colourways and notes for the client only. Internal notes and styles of another brand are left out. Quotes appear only with Prices on line sheet ticked.",
     "lineSheetFailed": "The line sheet could not be made. Try again.",
     "copiedFrom": "Copied from",
     "copiedTo": "Copied to",
@@ -4327,7 +4394,9 @@
       "oldLinkHint": "Made before links could be copied again. To re-send it, make a new link (and revoke this one once the client uses the new one).",
       "mixed": "mixed",
       "sampleAsked": "Sample requested",
-      "samples": "{{ count }} sample requests"
+      "samples": "{{ count }} sample requests",
+      "showPrices": "Show prices to the client",
+      "pricesShown": "Shows prices"
     },
     "shared": {
       "kicker": "Line sheet",
@@ -4349,7 +4418,8 @@
       "requestSample": "Request sample",
       "sampleRequested": "Sample requested",
       "sampleNote": "Sample details",
-      "sampleNotePlaceholder": "Sizes, colours, quantity, delivery address…"
+      "sampleNotePlaceholder": "Sizes, colours, quantity, delivery address…",
+      "price": "Price"
     },
     "outcome": {
       "label": "Outcome of {{ styleNo }}",
@@ -4451,7 +4521,30 @@
       "NotIndexed": "Copied from another brand: its picture is not read by image search yet (Settings > AI connections > Image search).",
       "NotChecked": "Not checked."
     },
-    "ltDesign": "LT design"
+    "ltDesign": "LT design",
+    "linePrices": "Prices on line sheet",
+    "quote": {
+      "fob": "FOB",
+      "currency": "Currency",
+      "save": "Save",
+      "cancel": "Cancel",
+      "quoted": "Quote",
+      "change": "Change",
+      "setBy": "Set by {{ user }}, {{ date }}",
+      "history": "Earlier quotes ({{ count }})",
+      "suggested": "Suggested",
+      "use": "Use",
+      "typeOwn": "Type my own",
+      "noPrices": "No IO prices for this style.",
+      "setPrice": "Set a price",
+      "basisOwn": "From {{ ios }} IOs, {{ min }} - {{ max }} {{ currency }}, latest {{ latest }} (IO {{ io }})",
+      "basisFamily": "From {{ style }} (same style, another season): {{ ios }} IOs, {{ min }} - {{ max }} {{ currency }}, latest {{ latest }} (IO {{ io }})",
+      "basisOrigin": "From {{ style }} (the style this was copied from): {{ ios }} IOs, {{ min }} - {{ max }} {{ currency }}, latest {{ latest }} (IO {{ io }})",
+      "basisTyped": "Typed by hand",
+      "band": "Client's price band: {{ min }} - {{ max }} {{ currency }}",
+      "outOfBand": "Outside the client's price band.",
+      "estimated": "Estimated"
+    }
   },
   "closeness": {
     "level": {
@@ -4670,7 +4763,202 @@
     "issue": {
       "Recycled": "Recycled fabric: {{ detail }}",
       "Restricted": "Restricted: {{ detail }}",
-      "Mill": "Not a preferred mill: {{ detail }}"
+      "Mill": "Not a preferred mill: {{ detail }}",
+      "Price": "Outside price band: {{ detail }}"
+    }
+  },
+  "ioPrices": {
+    "subtitle": "How much each garment has cost, across its IOs. Each IO has its own price; open a style to see them.",
+    "lastImport": "Last loaded: {{ file }} by {{ user }}, {{ date }}",
+    "import": "Load ERP costing",
+    "importing": "Loading...",
+    "importDone": "{{ rows }} costings read: {{ added }} added, {{ updated }} updated, {{ unmatched }} not matched.",
+    "unmatched": "These styles are not in the library. Import them first, then load the file again:",
+    "search": "Search style or model",
+    "allSeasons": "All seasons",
+    "empty": "No IO prices here.",
+    "emptyHint": "Prices appear once the ERP costing export has been loaded for styles in the library.",
+    "none": "No IO prices for this style yet.",
+    "noneHint": "Prices appear once the ERP costing export has been loaded and has IOs for this style.",
+    "latestFob": "Latest FOB",
+    "range": "Range",
+    "average": "Average FOB",
+    "weighted": "weighted by order quantity",
+    "ios": "IOs",
+    "pieces": "{{ qty }} pieces",
+    "whereTitle": "Where the FOB goes",
+    "whereHint": "Average per piece, weighted by order quantity.",
+    "group": {
+      "fabric": "Fabric",
+      "trims": "Trims",
+      "making": "Making",
+      "other": "Other",
+      "net": "Net balance"
+    },
+    "tableTitle": "IOs ({{ count }})",
+    "col": {
+      "style": "Style",
+      "garment": "Garment",
+      "customer": "Customer",
+      "io": "IO",
+      "costed": "Costed",
+      "plant": "Plant",
+      "delivery": "Delivery",
+      "qty": "Qty",
+      "fob": "FOB",
+      "percent": "% to FOB",
+      "stage": "Costing"
+    },
+    "stage": {
+      "PCOSTING": "Pre-costing",
+      "FCOSTING": "Final"
+    },
+    "small": "Small order",
+    "smallHint": "Left out of the latest price, range and average.",
+    "finalPending": "Final not computed",
+    "finalPendingHint": "A final costing exists but its main fabric is not computed yet, so the pre-costing is shown.",
+    "rules": "Each IO shows its final costing once its main fabric is computed, otherwise its pre-costing. IOs under {{ qty }} pieces stay listed but are left out of the figures.",
+    "unfinished": "{{ count }} IOs have no FOB yet and are not shown.",
+    "pageOf": "Page {{ page }} of {{ pages }}",
+    "previous": "Previous",
+    "next": "Next",
+    "hint": {
+      "fob": "FOB {{ fob }} {{ currency }}",
+      "ios": "{{ count }} IOs",
+      "from": "from {{ style }}",
+      "summary": "Similar styles of this garment cost {{ low }} - {{ high }} {{ currency }}, typically {{ typical }} ({{ styles }} styles with prices).",
+      "belowTypical": "The target price ({{ target }}) is below what similar styles usually cost."
+    },
+    "tip": {
+      "ios": "IOs (internal orders) counted in these figures. IOs under the small-order quantity are left out.",
+      "qty": "Total pieces ordered across those IOs.",
+      "latestFob": "FOB of the most recently costed IO.",
+      "range": "Lowest and highest FOB across the IOs. One amount when they are all the same.",
+      "average": "FOB per piece averaged by order quantity, so bigger IOs count more.",
+      "net": "Per piece: FOB minus the costs, averaged by order quantity.",
+      "percent": "Net balance as a share of FOB: net balance / FOB x 100.",
+      "io": "The ERP's internal order number.",
+      "stage": "Pre-costing, or final costing once its main fabric is computed.",
+      "costed": "When this costing was done in the ERP.",
+      "plant": "The factory making this IO. Names are kept in Settings > Reference lists.",
+      "delivery": "Planned delivery date.",
+      "ioQty": "Pieces ordered on this IO.",
+      "fob": "Price per piece on this IO, as the ERP calculates it.",
+      "fabric": "Main and sub fabric, per piece.",
+      "trims": "Trims and local trims, per piece.",
+      "making": "Basic CM (plant cost per minute x SMV) and subcon, per piece.",
+      "other": "L/C charge, material freight, garment wash, embroidery, VA cost, print, other cost and claim reserve, per piece.",
+      "ioNet": "FOB minus this IO's costs, per piece."
+    },
+    "template": "Download template",
+    "tab": {
+      "styles": "Styles",
+      "rates": "Cost per minute"
+    },
+    "rates": {
+      "title": "Cost per minute by plant",
+      "hint": "Basic CM = the plant's cost per minute x TC SMV. A rate applies from its effective date to orders from its minimum quantity; the latest that applies is used. Deleted rates are kept but never used.",
+      "add": "Add rate",
+      "plant": "Plant",
+      "from": "Effective date",
+      "minQty": "Min order qty",
+      "term": "Sales term",
+      "currency": "Currency",
+      "cost": "Cost per minute",
+      "changed": "Changed",
+      "inForce": "In use",
+      "deleted": "Deleted",
+      "edit": "Edit",
+      "delete": "Delete",
+      "save": "Save",
+      "cancel": "Cancel",
+      "showDeleted": "Show deleted rates",
+      "none": "No rates yet. Add the first one.",
+      "deleteTitle": "Delete rate",
+      "deleteMessage": "Delete the {{ plant }} rate from {{ date }}? It is kept as deleted and never used again.",
+      "saved": "Rate saved.",
+      "removed": "Rate deleted."
+    },
+    "estimate": {
+      "basis": "Estimate from {{ count }} similar styles ({{ category }}: {{ styles }}).",
+      "parts": "Making {{ making }}, fabric {{ fabric }}, trims {{ trims }}, other {{ other }}.",
+      "makingRate": "{{ making }} ({{ smv }} min x {{ cpm }} at {{ plant }})",
+      "makingPeers": "{{ making }} (their average)",
+      "title": "Estimated cost",
+      "hint": "From the priced styles of this garment and the plant's cost per minute. A first guide, not a costing.",
+      "noCategory": "Set the product category to get an estimate.",
+      "none": "No priced styles of this garment yet, so there is nothing to estimate from.",
+      "fob": "about {{ fob }} {{ currency }} FOB",
+      "within": "Within the target price ({{ target }}).",
+      "under": "Below the target price ({{ target }}): {{ amount }} of room.",
+      "over": "{{ amount }} over the target price ({{ target }}).",
+      "noCompare": "The target price ({{ target }}) is in another currency, so it is not compared.",
+      "lever": "To close the gap: about {{ minutes }} minutes less making (at {{ cpm }} per minute), or {{ amount }} less on fabric and trims.",
+      "partsTitle": "Per piece",
+      "making": "Making",
+      "fabric": "Fabric",
+      "trims": "Trims",
+      "other": "Other",
+      "net": "Net balance"
+    }
+  },
+  "help": {
+    "videos": {
+      "subtitle": "Short narrated videos that show how to use LT ODM, step by step.",
+      "listLabel": "Videos",
+      "play": "Play \"{{ title }}\"",
+      "loading": "Loading the video… {{ percent }}%",
+      "none": "No videos are installed on this server yet. IT copies them with the release (the training-videos folder).",
+      "forbidden": "The video tutorials are not open to your role yet.",
+      "loadFailed": "The list of videos could not be loaded. Try again.",
+      "playFailed": "The video could not be loaded. Try again.",
+      "hidden": "Hidden: only Admins see it",
+      "hide": "Hide",
+      "hideHint": "Only Admins will still see this video",
+      "show": "Show again",
+      "delete": "Delete",
+      "deleteTitle": "Delete video",
+      "deleteMessage": "Delete \"{{ title }}\" from the list for everyone? Admins can restore it under Deleted videos.",
+      "deletedTitle": "Deleted videos ({{ count }})",
+      "deletedHint": "No one sees these videos. Restore puts a video back in the list. Videos from the release stay on the server and come with every release; videos added on this page can be deleted for good.",
+      "deletedBy": "Deleted by {{ user }} on {{ date }}",
+      "restore": "Restore",
+      "hiddenDone": "\"{{ title }}\" is hidden. Only Admins see it now.",
+      "deletedDone": "\"{{ title }}\" was deleted from the list.",
+      "shownDone": "\"{{ title }}\" is in the list again for everyone who may watch it.",
+      "stateFailed": "The change could not be saved. Try again.",
+      "add": "Add video",
+      "addTitle": "Add a video",
+      "editTitle": "Edit video",
+      "edit": "Edit",
+      "file": "Video file (.mp4)",
+      "fileHint": "An MP4 video up to 100 MB. It is kept on the server and stays after new releases.",
+      "replaceFile": "Replace the video file (optional)",
+      "replaceHint": "Pick a new MP4 (up to 100 MB) to play instead of the current one. The title, description and roles stay.",
+      "titleLabel": "Title",
+      "descriptionLabel": "Description (optional)",
+      "whoLabel": "Who may watch",
+      "whoHint": "Tick the roles that may watch it. None ticked = everyone who can open Video tutorials.",
+      "uploading": "Uploading… {{ percent }}%",
+      "useOriginalDetails": "Use original details",
+      "useOriginalFile": "Use the original file",
+      "tooBig": "The video must be 100 MB or smaller.",
+      "titleRequired": "Give the video a title.",
+      "fileRequired": "Choose the video file (.mp4).",
+      "addedDone": "\"{{ title }}\" was added.",
+      "savedDone": "\"{{ title }}\" was saved.",
+      "replacedDone": "\"{{ title }}\" now plays the new file.",
+      "detailsResetDone": "\"{{ title }}\" has its original details again.",
+      "fileResetDone": "\"{{ title }}\" plays its original file again.",
+      "sourceRelease": "From the release",
+      "sourceUploaded": "Added on this page",
+      "sourceReplaced": "File replaced on this page",
+      "edited": "details edited",
+      "onlyRoles": "Only: {{ roles }}",
+      "everyone": "Everyone",
+      "deleteForGood": "Delete for good",
+      "deleteForGoodMessage": "Delete \"{{ title }}\" and its file for good? This cannot be undone.",
+      "deletedForGoodDone": "\"{{ title }}\" was deleted for good."
     }
   }
 }

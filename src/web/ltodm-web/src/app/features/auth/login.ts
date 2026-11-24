@@ -43,6 +43,12 @@ import { PasswordInput } from './password-input';
         <p hlmAlertDescription>{{ notice | transloco }}</p>
       </div>
     }
+    @if (serverUnavailable()) {
+      <div hlmAlert class="mb-5 border-white/40 bg-white/50 dark:border-white/10 dark:bg-white/5">
+        <ng-icon name="lucideInfo" />
+        <p hlmAlertDescription>{{ 'auth.messages.serverUnavailable' | transloco }}</p>
+      </div>
+    }
     @if (error()) {
       <div hlmAlert variant="destructive" class="mb-5">
         <ng-icon name="lucideCircleAlert" />
@@ -112,6 +118,7 @@ export class Login {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly capsLock = signal(false);
+  protected readonly serverUnavailable = this.auth.serverUnavailable;
 
   /** Message (translation key) passed by logout / session expiry / password change. */
   protected readonly notice: string | undefined = this.router.currentNavigation()?.extras.state?.['message'] ?? history.state?.message;

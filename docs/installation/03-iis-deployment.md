@@ -16,13 +16,16 @@ cd <repository>
 .\tools\build-release.ps1 -Output D:\Releases\ltodm-2026-10-07
 ```
 
-The script runs the API tests, publishes the API (Release), builds the web app in production mode, copies it into `api\wwwroot` (without source maps), and copies the `db` scripts. Output:
+The script runs the API tests, publishes the API (Release), builds the web app in production mode, copies it into `api\wwwroot` (without source maps), copies the video tutorials into `api\training-videos`, and copies the `db` scripts. Output:
 
 ```
 D:\Releases\ltodm-2026-10-07\
-  api\        the site: LT.ODM.Api.dll, web.config, tms-procedures.json, wwwroot\ (the web app)
+  api\        the site: LT.ODM.Api.dll, web.config, tms-procedures.json, wwwroot\ (the web app),
+              training-videos\ (Help > Video tutorials: MP4 files + videos.json, about 70 MB)
   db\         SQL scripts for this release
 ```
+
+The videos are not in git: the script takes them from `..\training\video-manual` next to the repository (`-TrainingVideos <folder>` for another place). If that folder has no MP4 files it warns and the release has no videos; Help > Video tutorials then says none are installed ([Video tutorials](../components/video-tutorials.md)).
 
 Needs the .NET 10 SDK and Node.js 22 on the build machine. `-SkipTests` skips the tests (not for production releases). `appsettings.Development.json` is removed from the output; it must never be on a server.
 

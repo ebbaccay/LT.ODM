@@ -45,6 +45,8 @@ import { toneBadge } from '@tms/shared/ui/tones';
 import { AddToPackageDialog } from '../style-packages/add-to-package-dialog';
 import { PackagesService, StylePackage } from '../style-packages/packages.service';
 import { ConceptsService, StyleConcept } from '../concepts/concepts.service';
+import { CostingService } from '../costing/costing.service';
+import { StylePricesPanel } from '../costing/style-prices';
 import { BomLineDialog } from './bom-line-dialog';
 import { BomSuggestDialog } from './bom-suggest-dialog';
 import { ColourSuggestDialog } from './colour-suggest-dialog';
@@ -58,7 +60,7 @@ import { SimilarStyles } from './similar-styles';
 import { StyleFormDialog } from './style-form-dialog';
 import { BomLine, Colorway, FamilyMember, GENDERS, StyleDetail as Detail, StyleLibraryService, StyleLookups, styleError } from './style-library.service';
 
-type Tab = 'colorways' | 'bom' | 'history' | 'similar';
+type Tab = 'colorways' | 'bom' | 'history' | 'similar' | 'prices';
 
 interface BomSection {
   code: string;
@@ -77,7 +79,7 @@ interface BomSection {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe, DecimalPipe, RouterLink, NgIcon, AuthImgDirective, Modal, StyleFormDialog, ColorwayDialog, BomLineDialog, BomSuggestDialog, ColourSuggestDialog, CopyStyleDialog,
-    HistoryDialog, DesignPromptDialog, ColorwayPicturesDialog, LcoFillDialog, SimilarStyles, AddToPackageDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe,
+    HistoryDialog, DesignPromptDialog, ColorwayPicturesDialog, LcoFillDialog, SimilarStyles, StylePricesPanel, AddToPackageDialog, HlmBadgeImports, HlmButtonImports, HlmCardImports, HlmCheckboxImports, HlmInputImports, HlmNativeSelectImports, HlmSkeletonImports, HlmSpinnerImports, TranslocoPipe,
   ],
   providers: [
     provideIcons({
@@ -91,6 +93,7 @@ export class StyleDetail implements OnInit {
   private readonly svc = inject(StyleLibraryService);
   private readonly packagesSvc = inject(PackagesService);
   private readonly conceptsSvc = inject(ConceptsService);
+  private readonly costing = inject(CostingService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly confirmDlg = inject(ConfirmDialogService);
@@ -144,6 +147,14 @@ export class StyleDetail implements OnInit {
 
   readonly style = computed(() => this.detail()?.style ?? null);
   readonly colorways = computed(() => this.detail()?.colorways ?? []);
+  /** Prices by IO only for those who may see prices. */
+  readonly tabs = computed(() => [
+    { id: 'colorways', label: 'styles.detail.tabColorways', count: this.colorways().length as number | null },
+    { id: 'bom', label: 'styles.detail.tabBom', count: this.bomLineCount() as number | null },
+    { id: 'history', label: 'styles.detail.tabHistory', count: this.family().length as number | null },
+    { id: 'similar', label: 'styles.detail.tabSimilar', count: null as number | null },
+    ...(this.costing.canRead() ? [{ id: 'prices', label: 'styles.detail.tabPrices', count: null as number | null }] : []),
+  ]);
   readonly colorwayIds = computed(() => this.colorways().map((c) => c.colorwayId));
   readonly colorwayById = computed(() => new Map(this.colorways().map((c) => [c.colorwayId, c])));
 
@@ -194,7 +205,7 @@ export class StyleDetail implements OnInit {
 
   ngOnInit(): void {
     const tab = this.route.snapshot.queryParamMap.get('tab');
-    if (tab === 'colorways' || tab === 'bom' || tab === 'history' || tab === 'similar') this.tab.set(tab);
+    if (tab === 'colorways' || tab === 'bom' || tab === 'history' || tab === 'similar' || (tab === 'prices' && this.costing.canRead())) this.tab.set(tab);
     this.svc.lookups().subscribe({ next: (l) => this.lookups.set(l), error: () => undefined });
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((p) => {
       this.styleId.set(Number(p.get('id')));

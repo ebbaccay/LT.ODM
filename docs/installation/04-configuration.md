@@ -123,6 +123,14 @@ The model must return 768 numbers per picture (`style.ImageVector.Vector` is `ve
 
 Settings > Import pictures uses the same model to choose the garment on a sheet ([Settings](../components/settings.md#import-pictures-settingsimage-import)).
 
+### Costing
+
+| Setting | Default | Notes |
+|---|---|---|
+| `Costing:SmallOrderQty` | 50 | [IOs](../components/costing.md#small-orders) below this many pieces stay listed but are left out of a style's latest price, range and averages |
+
+Environment variable `Costing__SmallOrderQty`.
+
 ### Follow-up reminders
 
 The bell's [follow-ups](../components/style-packages.md#follow-up-reminders) start after these many days.
@@ -157,6 +165,15 @@ Settings > Import pictures enlarges small cut-outs with an upscaler that runs **
 | `StyleImages:Upscaler:File` | `App_Data/models/realesr-general-x4v3/realesr-general-x4v3.onnx` | Relative paths start at the API folder. On servers set it **outside the site**, e.g. `D:\LTODM\models\realesr-general-x4v3\realesr-general-x4v3.onnx`. Empty or missing = small pictures are enlarged smoothly instead |
 
 The model must take an RGB picture (values 0-1, `[1, 3, h, w]`) and return it 4x larger. The **AI features** switch turns it off too.
+
+## Video tutorials
+
+Help > Video tutorials ([details](../components/video-tutorials.md)).
+
+| Setting | Default | Notes |
+|---|---|---|
+| `TrainingVideos:Folder` | `<API folder>\training-videos` | The MP4 files and `videos.json`; the release fills the default folder. App-pool account needs **read** only. Development points it at `training/video-manual` next to the repository |
+| `TrainingVideos:Roles` | `*` | Who may watch: `*` (or blank) = every signed-in user; or roles, comma-separated, e.g. `Admin,Merchandiser`. When limiting, also tick the same roles on the menu item in Settings > Menu |
 
 ## Other
 

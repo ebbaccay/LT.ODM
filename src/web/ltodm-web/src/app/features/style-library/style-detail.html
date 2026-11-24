@@ -167,12 +167,7 @@
 
     <!-- Tabs -->
     <div class="bg-muted flex w-full rounded-lg p-1 sm:w-fit" role="tablist">
-      @for (t of [
-        { id: 'colorways', label: 'styles.detail.tabColorways', count: colorways().length },
-        { id: 'bom', label: 'styles.detail.tabBom', count: bomLineCount() },
-        { id: 'history', label: 'styles.detail.tabHistory', count: family().length },
-        { id: 'similar', label: 'styles.detail.tabSimilar', count: null }
-      ]; track t.id) {
+      @for (t of tabs(); track t.id) {
         <button
           type="button"
           role="tab"
@@ -462,6 +457,9 @@
         </section>
       }
       <!-- Similar styles (loaded when the tab opens) -->
+      @case ('prices') {
+        <app-style-prices [styleId]="s.styleId" />
+      }
       @case ('similar') {
         <app-similar-styles [styleId]="s.styleId" />
       }

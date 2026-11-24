@@ -38,6 +38,14 @@ The check runs when the page opens and with **Check again**. A picture added whi
 
 The library styles the concept takes from, each with a note on what it takes (fabric, construction, fit, trims) and where it was found: **picked** (typed style number), **match** (*Proven styles in the library*, below, each with **Add as inspiration**) or **look-alike** (from a picture's closeness check). The customer's own styles are marked *own brand*; another brand's style is marked *Other brand: know-how only*. A style's page lists the concepts it inspired.
 
+## Estimated cost
+
+For Admin, Merchandiser, Designer and Costing, a concept with a product category shows **Estimated cost**: about what a garment of that category costs for the client, from similar priced styles and the plant's cost per minute, against the target price. See [Costing](costing.md#using-the-prices).
+
+## What similar styles cost
+
+For Admin, Merchandiser, Designer and Costing, the proven styles show their latest FOB and a line with the range and typical cost; a target price below the typical cost is pointed out. See [Costing](costing.md#using-the-prices).
+
 ## Proven styles in the library
 
 Library styles to start the concept from, shown **at once, without AI** (changed 2026-10-29: the first version waited minutes for two AI calls on an in-house CPU server). The concept's own fields are already library codes: the **product category** gives its product types (`style.fn_GarmentCategory`), plus **gender** and the **customer**; fabric words come from the brief's fabric lines, the idea and the trend tag names, cut to a stem (*RECYCLED* → *RECYCL*, *COATING* → *COAT*) and kept only when some fabric BOM line holds them (up to 6). A woven word (ripstop, twill, ...) or knit word (jersey, fleece, ...) adds the weave. SQL scores every style with a BOM (`style.usp_ConceptMatch_Candidates`, as Concept Studio's matcher) and the best 12 are listed with their fabrics, the words they matched and *own brand* / *Other brand: know-how only*. They are found again when the concept is saved or its brief drafted.

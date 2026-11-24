@@ -13,6 +13,7 @@ import { TranslocoPipe } from '@jsverse/transloco';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowRight,
+  lucideCircleCheck,
   lucideFileSpreadsheet,
   lucideGitBranch,
   lucideImage,
@@ -38,8 +39,16 @@ import {
   StyleLibraryService,
 } from '../../features/style-library/style-library.service';
 import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
-import { DASHBOARD_TEXT, DashboardChoice, DashboardKey, DashboardsService, isDashboardKey } from './dashboards.service';
+import {
+  DASHBOARD_TEXT,
+  DashboardChoice,
+  DashboardKey,
+  DashboardsService,
+  isDashboardKey,
+} from './dashboards.service';
 import { DesignerDashboard } from './designer-dashboard';
+import { CostingOverview } from './costing-overview';
+import { CostingService } from '../../features/costing/costing.service';
 
 /** Translation key plus its parameters (translated in the template, so it follows language changes). */
 interface Text {
@@ -60,6 +69,9 @@ interface RankRow {
 /** The dashboard an Admin picked with the switcher, for this browser tab (the role's default applies again after sign-out). */
 const VIEW_KEY = 'ltodm.home.dashboard';
 
+/** Library health lists only measures below this % complete, unless the user asks to see all. */
+export const HEALTH_ATTENTION_BELOW = 95;
+
 /**
  * Landing page. Which dashboard opens is set per role in Settings > Roles (GET /api/v1/dashboards/mine): the library
  * overview below, or the designer dashboard (DesignerDashboard: the user's own styles and what they miss). Users see only
@@ -75,6 +87,7 @@ const VIEW_KEY = 'ltodm.home.dashboard';
     LowerCasePipe,
     NgTemplateOutlet,
     RouterLink,
+    CostingOverview,
     NgIcon,
     AuthImgDirective,
     DesignerDashboard,
@@ -88,6 +101,7 @@ const VIEW_KEY = 'ltodm.home.dashboard';
   providers: [
     provideIcons({
       lucideArrowRight,
+      lucideCircleCheck,
       lucideFileSpreadsheet,
       lucideGitBranch,
       lucideImage,
@@ -117,10 +131,16 @@ export class Home implements OnInit {
   protected readonly designerBusy = signal(false);
   /** Heading and subtitle of the dashboard shown (the library texts while the choice loads). */
   protected readonly text = computed(() => DASHBOARD_TEXT[this.view() ?? 'library']);
-  protected readonly busy = computed(() => (this.view() === 'designer' ? this.designerBusy() : this.loading()));
+  protected readonly busy = computed(() =>
+    this.view() === 'designer' ? this.designerBusy() : this.loading(),
+  );
 
   protected readonly health = toSignal(inject(HealthService).getHealth());
   protected readonly canRead = this.svc.canRead;
+  /** Costing overview: Admin and Costing (it shows net balance). */
+  protected readonly canSeeCostOverview = inject(CostingService).canKeepRates;
+  /** Bumped by Refresh so the costing overview loads again. */
+  protected readonly costingReload = signal(0);
   protected readonly isAdmin = computed(() =>
     (this.auth.user()?.roles ?? []).some((r) => r.toLowerCase() === 'admin'),
   );
@@ -138,6 +158,9 @@ export class Home implements OnInit {
   /** Translation key of the load error. */
   protected readonly error = signal<string | null>(null);
   protected readonly brokenImages = signal<ReadonlySet<number>>(new Set());
+  protected readonly healthAttentionBelow = HEALTH_ATTENTION_BELOW;
+  /** Library health: show every measure, not only the ones that need attention. */
+  protected readonly showAllHealth = signal(false);
 
   protected readonly isEmpty = computed(() => this.data()?.totals.styles === 0);
 
@@ -215,13 +238,35 @@ export class Home implements OnInit {
     if (g) {
       rows.push(
         { label: 'home.withGender', done: g.styles - g.genderMissing, of: g.styles, fix: 'gender' },
-        { label: 'home.withProductType', done: g.styles - g.productTypeMissing, of: g.styles, fix: 'productType' },
-        { label: 'home.inNamedSeasons', done: g.styles - g.stylesInSeasonsToMerge, of: g.styles, fix: 'seasons' },
+        {
+          label: 'home.withProductType',
+          done: g.styles - g.productTypeMissing,
+          of: g.styles,
+          fix: 'productType',
+        },
+        {
+          label: 'home.inNamedSeasons',
+          done: g.styles - g.stylesInSeasonsToMerge,
+          of: g.styles,
+          fix: 'seasons',
+        },
         { label: 'home.linesWithLco', done: t.bomLines - g.lcoMissing, of: t.bomLines, fix: 'lco' },
       );
     }
-    return rows.map((r) => ({ ...r, pct: r.of ? Math.floor((r.done / r.of) * 100) : 0, missing: r.of - r.done }));
+    return rows.map((r) => ({
+      ...r,
+      pct: r.of ? Math.floor((r.done / r.of) * 100) : 0,
+      missing: r.of - r.done,
+    }));
   });
+
+  /** Measures that need attention (below HEALTH_ATTENTION_BELOW %); nothing to measure (of = 0) is not a gap. */
+  protected readonly healthNeedsAttention = computed(() =>
+    this.completeness().filter((r) => r.of > 0 && r.pct < HEALTH_ATTENTION_BELOW),
+  );
+  protected readonly healthRows = computed(() =>
+    this.showAllHealth() ? this.completeness() : this.healthNeedsAttention(),
+  );
 
   protected readonly customers = computed(() =>
     this.rank(
@@ -286,6 +331,7 @@ export class Home implements OnInit {
   refresh(): void {
     if (this.view() === 'designer') this.designerReload.update((n) => n + 1);
     else this.load();
+    this.costingReload.update((n) => n + 1);
   }
 
   private show(key: DashboardKey): void {

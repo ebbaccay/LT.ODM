@@ -27,6 +27,8 @@ import { AddToPackageDialog } from '../style-packages/add-to-package-dialog';
 import { CLOSENESS_CLASS } from '../style-packages/packages.service';
 import { ConceptFormDialog } from './concept-form-dialog';
 import { ConceptLibraryMatches } from './concept-library-matches';
+import { ConceptEstimate } from './concept-estimate';
+import { CostingService } from '../costing/costing.service';
 import { DevelopStyleDialog } from './develop-style-dialog';
 import {
   CONCEPT_STATUS_TONE, ConceptCloseness, ConceptDetail, ConceptImageCloseness, ConceptLookups, ConceptStyle, ConceptStyleSource, ConceptsService,
@@ -46,7 +48,7 @@ const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
   selector: 'app-concept-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe, PercentPipe, RouterLink, NgIcon, AuthImgDirective, ConceptFormDialog, ConceptLibraryMatches, DevelopStyleDialog, AddToPackageDialog, HlmBadgeImports, HlmButtonImports,
+    DatePipe, PercentPipe, RouterLink, NgIcon, AuthImgDirective, ConceptEstimate, ConceptFormDialog, ConceptLibraryMatches, DevelopStyleDialog, AddToPackageDialog, HlmBadgeImports, HlmButtonImports,
     HlmCardImports, HlmInputImports, HlmSkeletonImports, HlmSpinnerImports, HlmTextareaImports, TranslocoPipe,
   ],
   providers: [
@@ -377,6 +379,11 @@ const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
           }
         </section>
 
+        <!-- Estimated cost against the target price (Admin, Merchandiser, Costing) -->
+        @if (costingCanRead()) {
+          <app-concept-estimate [category]="c.productCategoryCode" [categoryName]="c.productCategoryName" [customerCode]="c.customerCode" [targetPrice]="c.targetPrice" />
+        }
+
         <!-- Proven library styles to start from: found at once from the concept's fields; Explain with AI is optional -->
         <app-concept-library-matches [conceptId]="c.conceptId" [version]="c.rowVer" [canAdd]="canEdit()" [addedIds]="styleIds()" (add)="addStyles([$event], 'Match')" />
 
@@ -415,6 +422,8 @@ export class ConceptDetailPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly canEdit = this.styles.canEdit;
+  /** Estimated cost: Admin, Merchandiser, Costing. */
+  readonly costingCanRead = inject(CostingService).canRead;
   readonly toneBadge = toneBadge;
   readonly statusTone = CONCEPT_STATUS_TONE;
   readonly closenessClass = CLOSENESS_CLASS;

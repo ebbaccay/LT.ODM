@@ -242,7 +242,7 @@ CREATE TABLE pack.PackageNotice
     Likes      int                NOT NULL CONSTRAINT DF_pack_PackageNotice_Likes DEFAULT (0),
     Passes     int                NOT NULL CONSTRAINT DF_pack_PackageNotice_Passes DEFAULT (0),
     Comments   int                NOT NULL CONSTRAINT DF_pack_PackageNotice_Comments DEFAULT (0),
-    ClientName nvarchar(100)      NULL,      -- the name the client typed, last one given
+    ClientName nvarchar(100)      NULL,      -- the names the clients typed, comma-separated, each once (while they fit)
     FirstUtc   datetime2(3)       NOT NULL CONSTRAINT DF_pack_PackageNotice_FirstUtc DEFAULT (SYSUTCDATETIME()),
     LastUtc    datetime2(3)       NOT NULL CONSTRAINT DF_pack_PackageNotice_LastUtc DEFAULT (SYSUTCDATETIME()),
     ReadUtc    datetime2(3)       NULL,
@@ -342,4 +342,43 @@ CREATE TABLE pack.FollowUpDismissal
 
     CONSTRAINT PK_pack_FollowUpDismissal PRIMARY KEY CLUSTERED (UserName, Kind, RefKey)
 );
+GO
+
+/*
+    pack.PackageItemQuote : the FOB LT quotes the client for a style in a package (roadmap 5.19). Every change is a new Version; the
+                            highest is the quote. BasisKind says where it came from (Own, Family or Origin = the IO prices of
+                            this style, of the same style in another season, or of the style it was copied from; Estimate = from
+                            similar styles of the garment, for a style with no IO prices anywhere; Typed = entered
+                            by hand) and BasisText what it was based on, for LT only: the client sees the price, never the basis.
+    pack.PackageShare.ShowPrices : the client sees the quotes through this link. Off unless asked for when the link is made.
+*/
+IF OBJECT_ID(N'pack.PackageItemQuote', N'U') IS NULL
+CREATE TABLE pack.PackageItemQuote
+(
+    QuoteId       int IDENTITY(1, 1) NOT NULL,
+    PackageItemId int                NOT NULL,
+    Version       int                NOT NULL,
+    Fob           decimal(18, 5)     NOT NULL,
+    CurrencyCode  char(3)            NOT NULL,
+    BasisKind     varchar(10)        NOT NULL,
+    BasisText     nvarchar(300)      NULL,
+    QuotedBy      nvarchar(64)       NOT NULL,
+    QuotedUtc     datetime2(3)       NOT NULL CONSTRAINT DF_pack_PackageItemQuote_Utc DEFAULT (SYSUTCDATETIME()),
+
+    CONSTRAINT PK_pack_PackageItemQuote PRIMARY KEY CLUSTERED (QuoteId),
+    CONSTRAINT UQ_pack_PackageItemQuote_Version UNIQUE (PackageItemId, Version),
+    CONSTRAINT FK_pack_PackageItemQuote_Item FOREIGN KEY (PackageItemId) REFERENCES pack.PackageItem (PackageItemId) ON DELETE CASCADE,
+    CONSTRAINT CK_pack_PackageItemQuote_Fob CHECK (Fob > 0),
+    CONSTRAINT CK_pack_PackageItemQuote_Basis CHECK (BasisKind IN ('Own', 'Family', 'Origin', 'Estimate', 'Typed'))
+);
+GO
+/* Added 2026-11-11: Estimate = estimated from similar styles of the garment (no IO prices for the style). */
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_pack_PackageItemQuote_Basis' AND definition NOT LIKE N'%Estimate%')
+BEGIN
+    ALTER TABLE pack.PackageItemQuote DROP CONSTRAINT CK_pack_PackageItemQuote_Basis;
+    ALTER TABLE pack.PackageItemQuote ADD CONSTRAINT CK_pack_PackageItemQuote_Basis CHECK (BasisKind IN ('Own', 'Family', 'Origin', 'Estimate', 'Typed'));
+END
+GO
+IF COL_LENGTH(N'pack.PackageShare', N'ShowPrices') IS NULL
+    ALTER TABLE pack.PackageShare ADD ShowPrices bit NOT NULL CONSTRAINT DF_pack_PackageShare_ShowPrices DEFAULT (0);
 GO

@@ -188,6 +188,18 @@ GO
       ref.ProductCategory : the kind of garment, with the same codes as the garment groups of What to offer and the hit
                             rate (style.fn_GarmentCategory), so concepts and offers count garments alike.
 */
+/* ref.Plant: LT's factories (the ERP's plant codes), used by the prices per IO (tables\cost.tables.sql). Filled by the ERP
+   costing import; names are kept in Settings > Reference lists. */
+IF OBJECT_ID(N'ref.Plant', N'U') IS NULL
+CREATE TABLE ref.Plant
+(
+    PlantCode nvarchar(20)  NOT NULL,
+    Name      nvarchar(120) NOT NULL,
+    IsActive  bit           NOT NULL CONSTRAINT DF_ref_Plant_IsActive DEFAULT (1),
+    CONSTRAINT PK_ref_Plant PRIMARY KEY CLUSTERED (PlantCode)
+);
+GO
+
 IF OBJECT_ID(N'ref.TargetMarket', N'U') IS NULL
 CREATE TABLE ref.TargetMarket
 (

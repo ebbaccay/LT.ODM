@@ -59,6 +59,8 @@ $scripts = @(
     'procedures\pack.procedures.sql',                  # Style Packages
     'procedures\concept.procedures.sql',               # Concepts, brand closeness check
     'procedures\style.designer-dashboard.procedures.sql', # Home: designer dashboard (after concept and pack tables)
+    'tables\cost.tables.sql',                          # Costing tables (cost schema: prices per IO)
+    'procedures\cost.procedures.sql',                  # Costing page, Prices by IO, ERP costing import
     'tables\ai.tables.sql',                            # AI connections
     'procedures\ai.procedures.sql',
     'procedures\ai.assistant.procedures.sql',          # Library assistant saved questions
